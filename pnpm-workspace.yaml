@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "e2e"
+
+# Dependency install scripts are blocked unless reviewed and allowed here (pnpm supply-chain protection).
+allowBuilds:
+  lefthook: true

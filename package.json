@@ -1,0 +1,23 @@
+{
+  "name": "gharbasket",
+  "private": true,
+  "description": "GharBasket monorepo: Kitchen Autopilot and Society Captain platform",
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "biome check . && turbo run lint",
+    "format": "biome format --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "lefthook": "2.1.15",
+    "turbo": "2.11.6"
+  }
+}
