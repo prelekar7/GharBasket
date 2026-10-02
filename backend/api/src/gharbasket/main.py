@@ -10,6 +10,19 @@ from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from gharbasket import __version__
+from gharbasket.modules.analytics.router import router as analytics_router
+from gharbasket.modules.assistant.router import router as assistant_router
+from gharbasket.modules.billing.router import router as billing_router
+from gharbasket.modules.catalog.router import router as catalog_router
+from gharbasket.modules.community.router import router as community_router
+from gharbasket.modules.hub_ops.router import router as hub_ops_router
+from gharbasket.modules.identity.router import router as identity_router
+from gharbasket.modules.intel_gateway.router import router as intel_gateway_router
+from gharbasket.modules.logistics.router import router as logistics_router
+from gharbasket.modules.notifications.router import router as notifications_router
+from gharbasket.modules.orders.router import router as orders_router
+from gharbasket.modules.partners.router import router as partners_router
+from gharbasket.modules.subscriptions.router import router as subscriptions_router
 from gharbasket.platform import health
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
@@ -19,6 +32,23 @@ from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import create_valkey
 
 API_PREFIX = "/v1"
+
+# One router per business module, in M-number order (gharbasket.modules.MODULES).
+MODULE_ROUTERS = (
+    identity_router,
+    catalog_router,
+    subscriptions_router,
+    orders_router,
+    billing_router,
+    hub_ops_router,
+    logistics_router,
+    partners_router,
+    community_router,
+    intel_gateway_router,
+    notifications_router,
+    analytics_router,
+    assistant_router,
+)
 
 
 def _lifespan(settings: Settings):
@@ -68,6 +98,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     v1 = APIRouter(prefix=API_PREFIX)
     v1.include_router(health.router)
+    for module_router in MODULE_ROUTERS:
+        v1.include_router(module_router)
     app.include_router(v1)
 
     register_error_handlers(app)

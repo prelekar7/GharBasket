@@ -1,5 +1,5 @@
 # Continuous integration for every pull request and every push to main.
-# Jobs for parts that don't exist yet (Python API, JS apps) skip themselves until those files land.
+# The Python job runs when backend/api exists; the JS hints job when an app has a jsconfig.json.
 name: CI
 
 on:
@@ -75,7 +75,6 @@ jobs:
   python:
     name: Python API (types, boundaries, tests)
     runs-on: ubuntu-latest
-    # Skips until feat/M0-api-app adds the API package.
     needs: detect
     if: needs.detect.outputs.api == 'true'
     services:
@@ -111,7 +110,6 @@ jobs:
         run: uv run pyright
 
       - name: Module boundaries (import-linter)
-        if: hashFiles('backend/api/.importlinter') != ''
         run: uv run --directory backend/api lint-imports
 
       # TCP only answers once the init scripts (test database, extensions) have finished.

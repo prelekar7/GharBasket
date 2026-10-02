@@ -21,13 +21,16 @@ gharbasket/
 │     ├─ api-client/     GENERATED from the backend's OpenAPI — never hand-edited
 │     └─ domain/         shared enums, role keys, feature-flag keys
 ├─ backend/
-│  ├─ api/src/gharbasket/
-│  │  ├─ platform/       db, auth, outbox, config, errors
-│  │  └─ modules/        identity, catalog, subscriptions, orders, billing, hub_ops,
-│  │                     logistics, partners, community, intel_gateway,
-│  │                     notifications, analytics, assistant
-│  │                     (each: api.py, router.py, service.py, models.py,
-│  │                      schemas.py, events.py, tests/)
+│  ├─ api/
+│  │  ├─ src/gharbasket/
+│  │  │  ├─ platform/    db, auth, outbox, config, errors
+│  │  │  └─ modules/     identity, catalog, subscriptions, orders, billing, hub_ops,
+│  │  │                  logistics, partners, community, intel_gateway,
+│  │  │                  notifications, analytics, assistant
+│  │  │                  (each: api.py, router.py, service.py, models.py,
+│  │  │                   schemas.py, events.py)
+│  │  ├─ migrations/     Alembic (one head; YYYYMMDD_HHMM_<module>_<desc>.py)
+│  │  └─ tests/          per module (tests/<module>/) and for the platform
 │  └─ ml/                FastAPI ML service, training pipelines, eval/, marimo notebooks
 ├─ data/                 simulator/, seeds/
 ├─ e2e/                  Playwright tests (Rhythm, Manish)

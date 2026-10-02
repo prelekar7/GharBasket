@@ -138,7 +138,7 @@ flowchart LR
   MLJ --> MLS
 ```
 
-Each module folder contains `api.py` (the only file other modules may import), `router.py` (HTTP endpoints), `service.py` (business logic), `models.py` (SQLAlchemy tables in its own schema), `schemas.py` (Pydantic), `events.py` and `tests/`.
+Each module folder contains `api.py` (the only file other modules may import), `router.py` (HTTP endpoints), `service.py` (business logic), `models.py` (SQLAlchemy tables in its own schema), `schemas.py` (Pydantic) and `events.py`. Tests live in `backend/api/tests/<module>/`, outside the package, so test fixtures may combine modules and tests are not shipped in the image.
 
 ## 5. Package view — the monorepo
 
