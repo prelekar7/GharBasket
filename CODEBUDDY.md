@@ -1,3 +1,48 @@
+<!-- Canonical AI-assistant instructions. Edit THIS file only, then run `just sync-agent-docs`
+     to copy it into CLAUDE.md, GEMINI.md, CODEBUDDY.md, QODER.md, .cursorrules and .windsurfrules. -->
+# GharBasket — instructions for AI assistants and contributors
+
+GharBasket is a 4-person B.Tech major project (SIES GST, guide Prof. Kranti Bade): a "Kitchen Autopilot" that plans an
+Indian family's food week, with women "Society Captains" running the last 50 metres and scheduled, zero-waste delivery.
+
+## Read first
+1. `docs/handbook/00-README.md`, then the chapter for your task (architecture: 04, data: 05, lifecycles: 06,
+   workflows: 07, AI: 08, frontend: 09, API: 10, engineering process: 11).
+2. The module spec you are working on: `docs/modules/Mx-*.md`. Specs come before code.
+3. Decisions in `docs/adr/` are final. To change one, write a new ADR that supersedes it; never change course silently.
+4. Verify current library APIs with Context7 before using them; do not rely on memory for versions or signatures.
+
+## Architecture rules (non-negotiable)
+- Service-based, not microservices: `services/api` (FastAPI modular monolith), `services/ml` (ML + optimisation),
+  Taskiq workers, `apps/mobile` (Vite + React → PWA + Capacitor 8), `apps/console` (Next.js 16).
+- One module = one owner = one folder = one Postgres schema. A module writes only to its own schema.
+  Cross-module calls go only through `<module>/api.py` or outbox events. import-linter enforces this in CI.
+- Money is integer paise (`BIGINT`, `amount_paise`), never floats. Every money movement is a double-entry ledger entry.
+- Every POST that creates money or orders requires an `Idempotency-Key`.
+- Errors use RFC 9457 `application/problem+json` with a namespaced `code` (e.g. `orders.cutoff_passed`).
+- ML never blocks a customer: online ML calls have timeouts and rule-based fallbacks.
+- The LLM never computes prices or quantities; solvers and statistics decide, the LLM explains and talks.
+- Personal data: no Aadhaar storage; health tags only with recorded consent (DPDP).
+
+## Folder ownership
+| Path | Owner |
+|---|---|
+| root configs, `infra/`, `services/`, `data/`, `.github/`, `scripts/` | Prathamesh Relekar |
+| `apps/mobile`, `apps/console` (UI), `packages/ui`, `packages/domain` | Yash Salunkhe |
+| `packages/api-client` | generated only (`just gen-api`), never hand-edited |
+| `e2e/`, `docs/` test plans and report material | Rhythm Thakur, Manish Raje |
+
+## Commands
+`just` lists everything. Main ones: `just install`, `just up`, `just dev`, `just test`, `just lint`, `just fmt`,
+`just migrate`, `just gen-api`, `just sim`, `just sync-agent-docs`.
+
+## Git and pull requests
+- Trunk-based: branch from `main`; names like `feat/M4-cutoff-lock`, `fix/M5-webhook-idempotency`, `chore/…`, `spike/…`.
+- Conventional Commits with module scope: `feat(orders): lock orders at cut-off`.
+- Small PRs (about 400 changed lines or fewer), squash merge, CODEOWNER review, CI green.
+- One Alembic migration per PR, named `YYYYMMDD_HHMM_<module>_<desc>`; keep a single migration head.
+- Never commit secrets or `.env` files. Update the relevant handbook chapter when behaviour changes.
+
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 

@@ -1,0 +1,25 @@
+# Shared Ruff config for services/api, services/ml and data/simulator.
+target-version = "py313"
+line-length = 100
+extend-exclude = ["**/migrations/versions/**", "spikes/**"]
+
+[lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "SIM",      # simplify
+  "ASYNC",    # async pitfalls
+  "RUF",      # ruff-specific
+  "S",        # bandit (security)
+]
+ignore = ["S101"]  # assert is fine in tests
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S", "B011"]
+
+[format]
+quote-style = "double"
+docstring-code-format = true

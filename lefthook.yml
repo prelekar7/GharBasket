@@ -1,0 +1,34 @@
+# Git hooks, installed automatically by `pnpm install` (see "prepare" in package.json).
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome
+      run: node_modules/.bin/biome check --write --no-errors-on-unmatched {staged_files}
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css}"
+      stage_fixed: true
+
+    - name: ruff
+      run: uvx ruff check --fix {staged_files} && uvx ruff format {staged_files}
+      glob: "*.py"
+      stage_fixed: true
+
+    - name: agent-docs
+      run: ./scripts/sync-agent-docs.sh --check
+      glob:
+        - "AGENTS.md"
+        - "CLAUDE.md"
+        - "GEMINI.md"
+        - "CODEBUDDY.md"
+        - "QODER.md"
+        - ".cursorrules"
+        - ".windsurfrules"
+
+    - name: gitleaks
+      run: if command -v gitleaks >/dev/null; then gitleaks git --staged --no-banner; else echo "gitleaks not installed, skipping (CI still checks)"; fi
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: |
+        head -1 {1} | grep -Eq '^(feat|fix|docs|chore|test|refactor|perf|ci|build|spike|revert)(\([a-z0-9-]+\))?!?: .{3,}' \
+          || { echo "Commit message must follow Conventional Commits, e.g. 'feat(orders): lock orders at cut-off'"; exit 1; }
