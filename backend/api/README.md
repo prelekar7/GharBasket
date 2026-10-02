@@ -27,6 +27,12 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 - Admin and money actions call `await audit.record(...)` (`platform/audit.py`).
 - Lists use cursor pagination: `Page[T]`, `Limit`, `Cursor`, `encode_cursor()` (`platform/pagination.py`).
 
+## Sign-in
+- `POST /v1/auth/exchange` with a Firebase ID token (phone OTP) creates the account on first use and
+  returns a 15-minute access token and a single-use refresh token. Locally (`APP_ENV=dev`) you can
+  sign in without OTP: `{"dev_phone": "+919800000001", "device": {"platform": "web"}}`.
+- Protected endpoints take `principal: CurrentPrincipal` (`platform/auth.py`).
+
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).
 - `GET /v1/ready`: checks the database and Valkey; 503 `platform.not_ready` if one is down. On staging

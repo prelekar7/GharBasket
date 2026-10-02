@@ -6,6 +6,7 @@ Run with `just dev`, or `uvicorn gharbasket.main:create_app --factory`.
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx2
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,6 +17,7 @@ from gharbasket.modules.billing.router import router as billing_router
 from gharbasket.modules.catalog.router import router as catalog_router
 from gharbasket.modules.community.router import router as community_router
 from gharbasket.modules.hub_ops.router import router as hub_ops_router
+from gharbasket.modules.identity.firebase import FirebaseTokenVerifier
 from gharbasket.modules.identity.router import router as identity_router
 from gharbasket.modules.intel_gateway.router import router as intel_gateway_router
 from gharbasket.modules.logistics.router import router as logistics_router
@@ -66,9 +68,18 @@ def _lifespan(settings: Settings):
         app.state.engine = engine
         app.state.sessionmaker = create_sessionmaker(engine) if engine else None
         app.state.valkey = valkey
+        # Outbound HTTP (Google's Firebase keys now; Razorpay later): short timeouts.
+        http = httpx2.AsyncClient(timeout=httpx2.Timeout(5.0))
+        app.state.http = http
+        app.state.firebase_verifier = (
+            FirebaseTokenVerifier(settings.firebase_project_id, http)
+            if settings.firebase_project_id
+            else None
+        )
         try:
             yield
         finally:
+            await http.aclose()
             if valkey is not None:
                 await valkey.aclose()
             if engine is not None:

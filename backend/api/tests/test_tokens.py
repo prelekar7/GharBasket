@@ -129,7 +129,9 @@ def test_rotating_the_signing_key_keeps_recent_tokens_valid() -> None:
 
 
 def test_deployed_environments_need_signing_key_and_pepper() -> None:
-    with pytest.raises(ValidationError, match="JWT_SIGNING_KEY, REFRESH_TOKEN_PEPPER required"):
+    with pytest.raises(
+        ValidationError, match="JWT_SIGNING_KEY, REFRESH_TOKEN_PEPPER, FIREBASE_PROJECT_ID required"
+    ):
         make_settings(app_env="staging", jobs_token="t")
 
 

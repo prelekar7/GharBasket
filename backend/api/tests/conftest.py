@@ -33,6 +33,7 @@ DEPLOYED_SECRETS: dict[str, object] = {
     "jobs_token": "op-token",
     "jwt_signing_key": "test-deployed-jwt-signing-key-0123456789",
     "refresh_token_pepper": "test-deployed-refresh-pepper-0123456789",
+    "firebase_project_id": "gharbasket-test",
 }
 
 

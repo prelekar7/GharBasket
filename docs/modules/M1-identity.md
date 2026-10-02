@@ -61,6 +61,20 @@ Errors    : application/problem+json { "type", "title", "status", "detail", "cod
             codes: "auth.invalid_token" (401), "auth.rate_limited" (429), "auth.dev_login_disabled" (403)
 ```
 
+Additions (implemented in `feat/M1-auth-api`; additive, the shapes above are unchanged):
+
+```
+POST /v1/auth/refresh         body { "refresh_token": "<opaque>" }
+  200     : { "access_token", "access_expires_in": 900, "refresh_token" }   (the old refresh token stops working)
+POST /v1/auth/logout          (Bearer) 204: this device is signed out
+POST /v1/auth/logout-all      (Bearer) 204: every device is signed out
+
+More codes: "auth.refresh_reused" (401, a used refresh token was replayed: the session is ended),
+            "auth.account_disabled" (403), "auth.provider_unavailable" (503, Firebase keys unreachable),
+            "request.invalid" (422, e.g. both or neither of firebase_id_token / dev_phone).
+dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
+```
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|

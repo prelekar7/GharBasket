@@ -75,6 +75,9 @@ class Settings(DatabaseSettings):
     jwt_audience: str = "gharbasket-apps"
     # Refresh tokens are stored only as HMAC-SHA256(pepper, token).
     refresh_token_pepper: SecretStr | None = None
+    # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
+    # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
+    firebase_project_id: str | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -83,6 +86,7 @@ class Settings(DatabaseSettings):
                 "JOBS_TOKEN": self.jobs_token,
                 "JWT_SIGNING_KEY": self.jwt_signing_key,
                 "REFRESH_TOKEN_PEPPER": self.refresh_token_pepper,
+                "FIREBASE_PROJECT_ID": self.firebase_project_id,
             }
             missing = [name for name, value in required.items() if value is None]
             if missing:
@@ -128,6 +132,11 @@ class Settings(DatabaseSettings):
     def is_local(self) -> bool:
         """A developer machine or the test suite, never a deployed environment."""
         return self.app_env in ("dev", "test")
+
+    @property
+    def dev_login_enabled(self) -> bool:
+        """Sign in with just a phone number, no OTP: only ever on a developer's own machine."""
+        return self.app_env == "dev"
 
     @property
     def docs_enabled(self) -> bool:

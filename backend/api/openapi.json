@@ -1,6 +1,137 @@
 {
   "components": {
     "schemas": {
+      "DeviceIn": {
+        "properties": {
+          "platform": {
+            "enum": [
+              "android",
+              "web"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "push_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Push Token"
+          }
+        },
+        "required": [
+          "platform"
+        ],
+        "title": "DeviceIn",
+        "type": "object"
+      },
+      "ExchangeIn": {
+        "description": "Exactly one of `firebase_id_token` (always) or `dev_phone` (only with APP_ENV=dev).",
+        "properties": {
+          "dev_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Priya"
+            ],
+            "title": "Dev Name"
+          },
+          "dev_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "+919800000001"
+            ],
+            "title": "Dev Phone"
+          },
+          "device": {
+            "$ref": "#/components/schemas/DeviceIn"
+          },
+          "firebase_id_token": {
+            "anyOf": [
+              {
+                "maxLength": 8192,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firebase Id Token"
+          }
+        },
+        "required": [
+          "device"
+        ],
+        "title": "ExchangeIn",
+        "type": "object"
+      },
+      "ExchangeOut": {
+        "properties": {
+          "access_expires_in": {
+            "examples": [
+              900
+            ],
+            "title": "Access Expires In",
+            "type": "integer"
+          },
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "is_new_user": {
+            "title": "Is New User",
+            "type": "boolean"
+          },
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "required": [
+          "access_token",
+          "access_expires_in",
+          "refresh_token",
+          "is_new_user",
+          "user"
+        ],
+        "title": "ExchangeOut",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "environment": {
@@ -30,6 +161,60 @@
         "title": "Health",
         "type": "object"
       },
+      "MeOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locale": {
+            "enum": [
+              "en-IN",
+              "hi-IN",
+              "mr-IN"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleOut"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "senior_mode": {
+            "title": "Senior Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "phone_e164",
+          "name",
+          "locale",
+          "senior_mode",
+          "roles"
+        ],
+        "title": "MeOut",
+        "type": "object"
+      },
       "Ready": {
         "properties": {
           "checks": {
@@ -57,9 +242,195 @@
         ],
         "title": "Ready",
         "type": "object"
+      },
+      "RefreshIn": {
+        "properties": {
+          "refresh_token": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshIn",
+        "type": "object"
+      },
+      "RoleOut": {
+        "properties": {
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "scope_type",
+          "scope_id",
+          "status"
+        ],
+        "title": "RoleOut",
+        "type": "object"
+      },
+      "TokensOut": {
+        "properties": {
+          "access_expires_in": {
+            "examples": [
+              900
+            ],
+            "title": "Access Expires In",
+            "type": "integer"
+          },
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "refresh_token": {
+            "title": "Refresh Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "access_expires_in",
+          "refresh_token"
+        ],
+        "title": "TokensOut",
+        "type": "object"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locale": {
+            "enum": [
+              "en-IN",
+              "hi-IN",
+              "mr-IN"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          },
+          "senior_mode": {
+            "title": "Senior Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "phone_e164",
+          "name",
+          "locale",
+          "senior_mode"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     },
     "securitySchemes": {
+      "AccessToken": {
+        "description": "Access token from POST /v1/auth/exchange or /v1/auth/refresh (15 minutes).",
+        "scheme": "bearer",
+        "type": "http"
+      },
       "OperatorToken": {
         "description": "JOBS_TOKEN from Infisical. Only for operators and scheduled jobs.",
         "scheme": "bearer",
@@ -74,6 +445,162 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/auth/exchange": {
+      "post": {
+        "operationId": "exchange_v1_auth_exchange_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token: the Firebase ID token is not valid"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.dev_login_disabled, or auth.account_disabled"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.provider_unavailable: Firebase keys could not be fetched"
+          }
+        },
+        "summary": "Sign in (or sign up) with a verified phone number",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Sign this device out",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/auth/logout-all": {
+      "post": {
+        "operationId": "logout_all_v1_auth_logout_all_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Sign out on every device",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "operationId": "refresh_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokensOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token, or auth.refresh_reused (session ended)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exchange a refresh token for new tokens (the old refresh token stops working)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/v1/health": {
       "get": {
         "operationId": "health_v1_health_get",
@@ -92,6 +619,38 @@
         "summary": "Liveness check (does not touch the database)",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "me_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The signed-in user and all their roles",
+        "tags": [
+          "identity"
         ]
       }
     },
