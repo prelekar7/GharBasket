@@ -5,8 +5,7 @@
       "args": [
         "code-review-graph",
         "serve"
-      ],
-      "cwd": "/Users/patu/Desktop/GharBasket"
+      ]
     }
   },
   "hooks": {

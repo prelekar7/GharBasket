@@ -5,9 +5,7 @@
       "command": [
         "uvx",
         "code-review-graph",
-        "serve",
-        "--repo",
-        "/Users/patu/Desktop/GharBasket"
+        "serve"
       ]
     }
   }

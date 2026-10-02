@@ -5,6 +5,6 @@ set -euo pipefail
 
 cat > /dev/null || true
 
-code-review-graph update --skip-flows --repo "/Users/patu/Desktop/GharBasket" >/dev/null 2>&1 || true
+code-review-graph update --skip-flows --repo "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" >/dev/null 2>&1 || true
 echo '{"suppressOutput": true}'
 exit 0
