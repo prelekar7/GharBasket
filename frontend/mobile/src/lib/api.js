@@ -1,6 +1,6 @@
 // Auth calls, exactly as frozen in docs/modules/M1-identity.md §3.1 (walking-skeleton contract).
 // Until the backend lands (feat/M0-api-platform), VITE_API_MOCK (default on) answers in-app.
-// Replace with the generated packages/api-client once `just gen-api` exists; never hand-edit that client.
+// Replace with the generated frontend/packages/api-client once `just gen-api` exists; never hand-edit that client.
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 const MOCK = import.meta.env.VITE_API_MOCK !== "false";

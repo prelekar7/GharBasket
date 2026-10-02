@@ -54,12 +54,12 @@ stateDiagram-v2
 
 | From → To | Trigger | Rule / guard | Event emitted | Money |
 |---|---|---|---|---|
-| — → DRAFT | Autopilot job (T-3 18:00) | Active subscription, not paused | `subscr.cycle_generated` | — |
+| — → DRAFT | Autopilot job (T-3 18:00) | Active subscription, not paused | `subscriptions.cycle_generated` | — |
 | DRAFT → AWAITING_APPROVAL | System | Box-ready notification and pre-debit notice sent | — | — |
 | AWAITING_APPROVAL → AWAITING_APPROVAL | Customer edit | `If-Match` version equals current version | — (feedback signals stored for ML) | — |
-| AWAITING_APPROVAL → APPROVED | Customer | Before cut-off | `subscr.box_approved` | — |
-| AWAITING_APPROVAL → APPROVED (auto) | Cut-off job | `auto_approve = true` and pre-debit notice sent ≥ 24 h earlier | `subscr.box_approved` | — |
-| AWAITING_APPROVAL → SKIPPED | Customer | Before cut-off | `subscr.box_skipped` | — |
+| AWAITING_APPROVAL → APPROVED | Customer | Before cut-off | `subscriptions.box_approved` | — |
+| AWAITING_APPROVAL → APPROVED (auto) | Cut-off job | `auto_approve = true` and pre-debit notice sent ≥ 24 h earlier | `subscriptions.box_approved` | — |
+| AWAITING_APPROVAL → SKIPPED | Customer | Before cut-off | `subscriptions.box_skipped` | — |
 | APPROVED → LOCKED | Cut-off job (T-1 21:00) | Wallet balance sufficient or Autopay capture succeeded | `orders.locked` | wallet → unearned_revenue |
 | APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance or capture failed | `billing.payment_failed` | — |
 | PAYMENT_FAILED → CANCELLED | System timer | 2 h grace expired | `orders.cancelled` | — |
@@ -127,11 +127,11 @@ stateDiagram-v2
 
 | From → To | Trigger | Rule | Event |
 |---|---|---|---|
-| ACTIVE → PAUSED | Customer | `paused_until` set; no cycles generated while paused | `subscr.paused` |
-| PAUSED → ACTIVE | System timer or customer | — | `subscr.resumed` |
+| ACTIVE → PAUSED | Customer | `paused_until` set; no cycles generated while paused | `subscriptions.paused` |
+| PAUSED → ACTIVE | System timer or customer | — | `subscriptions.resumed` |
 | ACTIVE → PAST_DUE | Billing | Plan fee charge failed | `billing.payment_failed` |
-| PAST_DUE → CANCELLED | System | 3 failed retries over 7 days | `subscr.cancelled` |
-| ACTIVE → CANCELLED | Customer | Takes effect after current locked orders | `subscr.cancelled` |
+| PAST_DUE → CANCELLED | System | 3 failed retries over 7 days | `subscriptions.cancelled` |
+| ACTIVE → CANCELLED | Customer | Takes effect after current locked orders | `subscriptions.cancelled` |
 
 ## 6.5 Payment and mandate (M5)
 

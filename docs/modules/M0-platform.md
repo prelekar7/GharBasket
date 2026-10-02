@@ -14,7 +14,7 @@ Shared foundations every module depends on: application factory, configuration, 
 | US-1 | As a developer, I want `just up && just dev` to start the whole stack locally so that I can work without setup friction. | Fresh clone → services healthy within 5 minutes; README documents prerequisites. |
 | US-2 | As a developer, I want module boundaries enforced automatically so that we do not couple modules by accident. | A cross-module import outside `<module>.api` fails `lint-imports` in CI. |
 | US-3 | As a developer, I want a single migration head so that parallel PRs do not create conflicting migrations. | CI fails when `alembic heads` returns more than one head. |
-| US-4 | As a client developer, I want a generated, typed API client so that I never hand-write HTTP calls. | `just gen-api` regenerates `packages/api-client`; CI fails if the committed client is stale. |
+| US-4 | As a client developer, I want a generated, typed API client so that I never hand-write HTTP calls. | `just gen-api` regenerates `frontend/packages/api-client`; CI fails if the committed client is stale. |
 | US-5 | As a backend developer, I want an outbox so that events are never lost when a transaction commits. | Event row written in the same transaction; relay dispatches with `FOR UPDATE SKIP LOCKED`; duplicate delivery is harmless. |
 | US-6 | As an API client, I want consistent error responses so that the UI can show helpful messages. | All errors are `application/problem+json` with a namespaced `code`. |
 | US-7 | As an API client, I want safe retries of POST requests so that network glitches do not double-charge. | Same `Idempotency-Key` + same body returns the stored response; different body returns 422. |

@@ -1,5 +1,5 @@
 {
-  "include": ["services", "data"],
+  "include": ["backend", "data"],
   "exclude": ["**/node_modules", "**/__pycache__", "**/.venv", "**/migrations/versions"],
   "pythonVersion": "3.13",
   "typeCheckingMode": "standard",

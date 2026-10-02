@@ -1,9 +1,9 @@
 """Write the API contract to a JSON file.
 
-    python -m gharbasket.tools.export_openapi [path]   (default: services/api/openapi.json)
+    python -m gharbasket.tools.export_openapi [path]   (default: backend/api/openapi.json)
 
-The committed `openapi.json` is what the frontend client (`packages/api-client`) is generated from,
-and CI fails if it is out of date.
+The committed `openapi.json` is what the frontend client (`frontend/packages/api-client`) is
+generated from, and CI fails if it is out of date.
 """
 
 import json

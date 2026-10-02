@@ -1,7 +1,7 @@
 # Chapter 05 — Data Architecture
 
 > **In short:**
-> - One **PostgreSQL 18** database is the single source of truth, with **one schema per module** (identity, catalog, subscr, orders, billing, ops, logistics, partners, community, intel, notify, platform).
+> - One **PostgreSQL 18** database is the single source of truth, with **one schema per module** (platform, identity, catalog, subscriptions, orders, billing, hub_ops, logistics, partners, community, intel, notifications, analytics, assistant).
 > - Extensions: **PostGIS** (geo), **pgvector** (similarity), **pg_trgm + unaccent** (Hinglish fuzzy search), **pgcrypto** (field encryption). JSONB covers flexible attributes.
 > - Money is always **integer paise (BIGINT)**; every rupee or Kindness point moves through a **double-entry ledger**.
 > - Every household-derived row carries `data_source ∈ {synthetic, pilot, live}`, so models can train on mixed data while we report real-data accuracy separately.
@@ -41,7 +41,7 @@ MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6,
 |---|---|---|---|
 | `identity` | M1 | Yash Salunkhe | Users, roles with scopes, households, members, addresses, consents |
 | `catalog` | M2 | Yash Salunkhe | Products, recipes, substitutions, prices, festival calendar |
-| `subscr` | M3 | Yash Salunkhe | Plans, subscriptions, delivery days, Budget Lock, weekly cycles, box lines |
+| `subscriptions` | M3 | Yash Salunkhe | Plans, subscriptions, delivery days, Budget Lock, weekly cycles, box lines |
 | `orders` | M4 | Yash Salunkhe | Orders, lines, events, slots |
 | `billing` | M5 | Yash Salunkhe | Ledger, payments, mandates, webhooks |
 | `ops` | M6 | Prathamesh Relekar | Hubs, vendors, procurement, inventory lots, packing, waste |
@@ -223,9 +223,9 @@ erDiagram
 
 `kind` ∈ {veg, fruit, kit, tiffin, salad, staple}. `rules` on recipes encode Jain, fasting and diabetic suitability. `substitutions.source` ∈ {nutrition, cooccur, embedding, learned}.
 
-### 5.5.3 subscr
+### 5.5.3 subscriptions
 
-*Figure 5.4 — ERD: subscr*
+*Figure 5.4 — ERD: subscriptions*
 
 ```mermaid
 erDiagram
@@ -696,7 +696,7 @@ erDiagram
 
 ### 5.5.11 notify and platform (summary)
 
-- `notify.templates(event, locale, channel, body)`, `notify.messages(id, user_id, channel, status, sent_at)`, `notify.preferences(user_id, channel, quiet_hours)`.
+- `notifications.templates(event, locale, channel, body)`, `notifications.messages(id, user_id, channel, status, sent_at)`, `notifications.preferences(user_id, channel, quiet_hours)`.
 - `platform.outbox(id, event_type, payload, created_at, sent_at)`, `platform.idempotency_keys(key, user_id, request_hash, response, expires_at)`, `platform.audit_log(id, actor, action, target, diff, at)`.
 
 ## 5.6 Core domain model (UML class diagram)

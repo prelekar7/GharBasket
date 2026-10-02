@@ -9,7 +9,7 @@ The GharBasket backend: a FastAPI modular monolith (see `docs/handbook/04-system
 | `just migration "orders add slots"` | Generate a migration from model changes; review it before committing |
 | `just dev` | Run the API with auto-reload on http://localhost:8000 (docs at `/v1/docs`) |
 | `just test` | Run the tests; database tests skip when `just up` is not running |
-| `just openapi` | Regenerate `services/api/openapi.json` (the contract the frontend client is built from) |
+| `just openapi` | Regenerate `backend/api/openapi.json` (the contract the frontend client is built from) |
 
 Configuration comes from environment variables (via Infisical, or a local `.env` copied from `.env.example`);
 see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Errors use RFC 9457

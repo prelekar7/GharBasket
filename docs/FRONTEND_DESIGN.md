@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Version** | 1.0 (approved baseline, 2 Oct 2026) |
-| **Owners** | Design execution in Claude Design; UX research, copy and usability testing: Rhythm Thakur, Manish Raje; buildability review and implementation in `packages/ui`: Yash Salunkhe |
+| **Owners** | Design execution in Claude Design; UX research, copy and usability testing: Rhythm Thakur, Manish Raje; buildability review and implementation in `frontend/packages/ui`: Yash Salunkhe |
 | **Related** | `docs/TDD.md` (Sections 3.2–3.4, 9) · `docs/handbook/09-frontend-and-design.md` (screen-flow diagrams) · ADR D16/D17 |
 
 ---
@@ -118,7 +118,7 @@ Primitive tokens → semantic tokens → role accents. All foreground/background
 
 ## 9. Component inventory
 
-All components live in `packages/ui`, are built on React Aria Components, styled with our tokens, and documented in Storybook 10.
+All components live in `frontend/packages/ui`, are built on React Aria Components, styled with our tokens, and documented in Storybook 10.
 
 **Base:** Button, IconButton, TextField, NumberField, Select / ComboBox, Checkbox, Switch, RadioCards, Slider, QtyStepper, Tabs, SegmentedControl, Sheet (Vaul), Dialog, Toast (Sonner), Tooltip, Popover, Badge, StatusPill, Avatar, Skeleton, ProgressBar, Chip, DatePicker (Indian locale), EmptyState, ErrorState, OfflineBanner.
 
@@ -175,7 +175,7 @@ UI design is done entirely in **Claude Design** (decision D16).
    Each moves from wireframe artboards → quick test with 3–5 people → high-fidelity artboards.
 4. **Brand assets** (logo, ~40-icon set, spot illustrations) are also drafted on the canvas with explicit art direction: hand-drawn ink line, turmeric fill, 1.5 px stroke grid. Iterate until distinctive.
 5. **Review** through artifact comments by the whole team; Yash Salunkhe checks buildability against the component inventory.
-6. **Hand-off to code:** tokens from the design system are copied into `packages/ui/tokens.css` (CSS variables) and the Tailwind preset. Any token change is made in the design system first, then synced to code. Components are built in Storybook 10 with the a11y addon; Playwright screenshot tests guard against visual regressions.
+6. **Hand-off to code:** tokens from the design system are copied into `frontend/packages/ui/tokens.css` (CSS variables) and the Tailwind preset. Any token change is made in the design system first, then synced to code. Components are built in Storybook 10 with the a11y addon; Playwright screenshot tests guard against visual regressions.
 7. All design artifacts start private; links are shared with the team and Prof. Kranti Bade.
 
 ## 14. Design timing
@@ -216,11 +216,11 @@ UI design is done entirely in **Claude Design** (decision D16).
 | Native | Capacitor 8 + plugins (see TDD 3.2) | Mobile |
 | Offline | Dexie | Mobile |
 | PWA | vite-plugin-pwa | Mobile |
-| Component workshop | Storybook 10 + addon-a11y | `packages/ui` |
+| Component workshop | Storybook 10 + addon-a11y | `frontend/packages/ui` |
 | Testing | Vitest, Testing Library, Playwright | Both |
 | Monitoring | Sentry, PostHog | Both |
 
-**On shadcn/ui:** components are not installed as-is, because that produces the generic look we want to avoid. We follow the same ownership idea — our component code lives in `packages/ui`, built on React Aria and styled with our tokens.
+**On shadcn/ui:** components are not installed as-is, because that produces the generic look we want to avoid. We follow the same ownership idea — our component code lives in `frontend/packages/ui`, built on React Aria and styled with our tokens.
 
 **Banned in product UI:** purple/blue gradients, glassmorphism, emoji as icons, default shadcn or Material look, stock 3D illustrations, generic "AI sparkle" icons.
 

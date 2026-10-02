@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 
-// The monorepo root, so file tracing and Turbopack can see packages/ui.
+// The monorepo root, so file tracing and Turbopack can see frontend/packages/ui.
 const root = fileURLToPath(new URL("../..", import.meta.url));
 
 /** @type {import("next").NextConfig} */

@@ -14,9 +14,9 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 
 | When (IST) | Job / activity | Module | Workflow |
 |---|---|---|---|
-| T-3 18:00 | `generate_weekly_plans` — meal plan → box draft | intel → subscr | W2 |
+| T-3 18:00 | `generate_weekly_plans` — meal plan → box draft | intel → subscriptions | W2 |
 | T-3 18:30 | Box-ready notification + pre-debit notice | notify, billing | W2, W3 |
-| T-3 → T-1 21:00 | Customer views, edits, approves, skips | subscr | W2 |
+| T-3 → T-1 21:00 | Customer views, edits, approves, skips | subscriptions | W2 |
 | T-1 19:00 | Reminder for unapproved boxes | notify | W2 |
 | **T-1 21:00** | **`cutoff_lock`** — lock orders, debit wallet / capture Autopay | orders, billing | W2, W3 |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops | W4 |
@@ -135,7 +135,7 @@ sequenceDiagram
 ## W2 — Weekly Autopilot cycle
 
 1. **T-3 18:00:** the worker triggers `generate_weekly_plans` for each hub. The ML service loads the household profile, pantry twin estimates, festival calendar, prices and Budget Lock, then runs the CP-SAT meal planner and the basket ranker.
-2. Plans are written to `intel.predictions`. The subscr module turns each plan into a `weekly_cycle` with `box_lines` and a `reason_code` per line.
+2. Plans are written to `intel.predictions`. The subscriptions module turns each plan into a `weekly_cycle` with `box_lines` and a `reason_code` per line.
 3. If the ML service fails or times out, the fallback is **last week's box adjusted by family-size rules** (reason code `FALLBACK_RULES`).
 4. **T-3 18:30:** box-ready notification (push + WhatsApp) and, for Autopay users, the pre-debit notice.
 5. **T-3 → T-1 21:00:** the customer views the Thali week and the Parchi box. They can swap items (substitute sheet), change quantities, skip the week, add add-ons and book tiffins. Each edit uses optimistic locking (`If-Match: version`) and records feedback signals for the models.
@@ -151,7 +151,7 @@ sequenceDiagram
     participant W as worker
     participant ML as ml service
     participant DB as PostgreSQL
-    participant SUB as api - subscr
+    participant SUB as api - subscriptions
     participant N as notify
     SCH->>W: generate_weekly_plans(hub, T) at T-3 18:00
     W->>ML: POST /plan/week batch (households of hub)
@@ -168,7 +168,7 @@ sequenceDiagram
         SUB->>SUB: Fallback - last week box adjusted by family-size rules
     end
     SUB->>DB: Insert weekly_cycles, box_lines and outbox event
-    DB-->>N: Outbox relay - subscr.cycle_generated
+    DB-->>N: Outbox relay - subscriptions.cycle_generated
     N-->>N: Send box-ready push and WhatsApp, pre-debit notice
 ```
 
@@ -179,7 +179,7 @@ sequenceDiagram
     autonumber
     actor C as Customer
     participant APP as Mobile app
-    participant API as api - subscr
+    participant API as api - subscriptions
     participant ML as ml service
     participant DB as PostgreSQL
     C->>APP: Open Parchi box
@@ -205,7 +205,7 @@ sequenceDiagram
     end
     C->>APP: Approve this week
     APP->>API: POST /v1/cycles/42/approve (If-Match version 4)
-    API->>DB: Status APPROVED, outbox subscr.box_approved
+    API->>DB: Status APPROVED, outbox subscriptions.box_approved
     API-->>APP: Approved, ready for cut-off
 ```
 
@@ -322,7 +322,7 @@ sequenceDiagram
     OPS->>DB: Committed quantity per item from locked orders
     OPS->>OPS: order_qty = committed + quantile tau of uncommitted
     Note over OPS: tau = Cu divided by Cu plus Co, Co lowered by surplus salvage value
-    OPS->>DB: procurement_plans and lines, outbox ops.procurement_plan_ready
+    OPS->>DB: procurement_plans and lines, outbox hub_ops.procurement_plan_ready
     HM->>OPS: Review and adjust in console
     OPS->>V: Purchase orders via WhatsApp or PDF
 ```
@@ -571,7 +571,7 @@ sequenceDiagram
 3. What remains goes to an NGO partner.
 4. Only unusable items go to compost.
 
-Every step is recorded in `ops.waste_logs.cascade_to`, which feeds the **kg wasted per 100 kg sold** KPI.
+Every step is recorded in `hub_ops.waste_logs.cascade_to`, which feeds the **kg wasted per 100 kg sold** KPI.
 
 *Figure 7.15 — Activity: surplus cascade*
 

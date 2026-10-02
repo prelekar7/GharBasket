@@ -123,7 +123,7 @@ wheels = [
 [[package]]
 name = "gharbasket-api"
 version = "0.1.0"
-source = { editable = "services/api" }
+source = { editable = "backend/api" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
@@ -163,7 +163,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "gharbasket-api", editable = "services/api" }]
+requires-dist = [{ name = "gharbasket-api", editable = "backend/api" }]
 
 [package.metadata.requires-dev]
 dev = [

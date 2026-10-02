@@ -20,9 +20,9 @@ Every hi-fi screen has two Tweaks on the canvas: Language (en / hi) and Dark mod
 ## From design to code
 1. Tokens change in the design system first, never in code.
 2. Export the design system's `project/tokens.json`, then run
-   `pnpm --filter @gharbasket/ui sync-tokens <path/to/tokens.json> <version id>` to regenerate `packages/ui/src/tokens.css`.
-3. Tailwind utilities come only from those tokens (`packages/ui/src/theme.css` turns off Tailwind's default palette), for example `bg-surface`, `text-fg`, `bg-primary text-on-primary`, `rounded-md`, `shadow-focus`.
-4. Components are rebuilt in `packages/ui` on React Aria Components, in JavaScript with JSDoc (ADR-0018, proposed), and documented in Storybook (`pnpm --filter @gharbasket/ui storybook`).
+   `pnpm --filter @gharbasket/ui sync-tokens <path/to/tokens.json> <version id>` to regenerate `frontend/packages/ui/src/tokens.css`.
+3. Tailwind utilities come only from those tokens (`frontend/packages/ui/src/theme.css` turns off Tailwind's default palette), for example `bg-surface`, `text-fg`, `bg-primary text-on-primary`, `rounded-md`, `shadow-focus`.
+4. Components are rebuilt in `frontend/packages/ui` on React Aria Components, in JavaScript with JSDoc (ADR-0018, proposed), and documented in Storybook (`pnpm --filter @gharbasket/ui storybook`).
 
 ## Decisions taken during design review (2 Oct 2026)
 - First-week preview comes **before** payment in onboarding (as in workflow W1).

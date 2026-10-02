@@ -83,8 +83,8 @@ Conventions used throughout:
 
 | Member | Tracks | Owns |
 |---|---|---|
-| **Yash Salunkhe** | A — Customer Experience; B — Commerce Core | Mobile app (`apps/mobile`), design system (`packages/ui`), modules M1 Identity, M2 Catalog, M3 Subscriptions, M4 Orders, M5 Billing, M11 Notifications |
-| **Prathamesh Relekar** | C — Operations; D — Intelligence | Console (`apps/console`), modules M6 Hub Operations, M7 Logistics, M8 Partners, M9 Community (backend), M10 Intelligence (ML service), M12 Analytics, M13 Assistant, data simulator, IEEE paper results |
+| **Yash Salunkhe** | A — Customer Experience; B — Commerce Core | Mobile app (`frontend/mobile`), design system (`frontend/packages/ui`), modules M1 Identity, M2 Catalog, M3 Subscriptions, M4 Orders, M5 Billing, M11 Notifications |
+| **Prathamesh Relekar** | C — Operations; D — Intelligence | Console (`frontend/console`), modules M6 Hub Operations, M7 Logistics, M8 Partners, M9 Community (backend), M10 Intelligence (ML service), M12 Analytics, M13 Assistant, data simulator, IEEE paper results |
 | **Rhythm Thakur** | Documentation, QA, pilot | Handbook and report upkeep, UML, test plans and E2E tests (Playwright), translations and copy review, UX interviews, pilot operations, presentation |
 | **Manish Raje** | Documentation, QA, pilot | Same as Rhythm (shared ownership), assistant evaluation dataset, load and accessibility testing, research-paper writing |
 | **Prof. Kranti Bade** | Guide | Reviews every phase gate and milestone demo |

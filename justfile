@@ -14,7 +14,7 @@ install:
 # Lint everything (Biome for TS/JSON/CSS, Ruff for Python)
 lint:
     pnpm exec biome check .
-    if ls services data 2>/dev/null | grep -q .; then uvx ruff check .; fi
+    if ls backend data 2>/dev/null | grep -q .; then uvx ruff check .; fi
 
 # Format everything
 fmt:
@@ -76,23 +76,23 @@ dev:
 
 # Run the Python test suite
 test:
-    uv run pytest services/api
+    uv run pytest backend/api
 
-# Regenerate services/api/openapi.json, the contract the frontend client is built from
+# Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
     uv run python -m gharbasket.tools.export_openapi
 
 # Apply all database migrations (uses DATABASE_URL_DIRECT, else DATABASE_URL)
 migrate:
-    cd services/api && uv run alembic upgrade head
+    cd backend/api && uv run alembic upgrade head
 
 # Undo the last migration(s), e.g. `just migrate-down` or `just migrate-down 2`
 migrate-down steps="1":
-    cd services/api && uv run alembic downgrade -{{steps}}
+    cd backend/api && uv run alembic downgrade -{{steps}}
 
 # Create a migration from model changes, e.g. `just migration "orders add slot table"`
 migration message:
-    cd services/api && uv run alembic revision --autogenerate -m "{{message}}"
+    cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
 # Regenerate the JS API client from openapi.json (arrives in feat/M1-auth-contract)
 gen-api:

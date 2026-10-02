@@ -36,9 +36,9 @@ __pycache__/
 .mypy_cache/
 
 # Android / Capacitor
-apps/mobile/android/build/
-apps/mobile/android/app/build/
-apps/mobile/android/.gradle/
+frontend/mobile/android/build/
+frontend/mobile/android/app/build/
+frontend/mobile/android/.gradle/
 *.keystore
 local.properties
 

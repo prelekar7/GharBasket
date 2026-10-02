@@ -25,7 +25,7 @@
 | Realtime | Server-Sent Events: `GET /v1/orders/{id}/events`, `GET /v1/routes/{id}/live`. |
 | Files | `POST /v1/files/presign` → direct upload to S3. The API stores only the key and metadata. |
 
-**Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `packages/api-client` (Hey API: fetch client + TanStack Query hooks + zod schemas). CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
+**Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `frontend/packages/api-client` (Hey API: fetch client + TanStack Query hooks + zod schemas). CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
 
 ## 10.2 Authentication, roles and permissions
 
@@ -48,7 +48,7 @@ sequenceDiagram
     API-->>U: access JWT (15 min) + refresh token (30 days) + roles[]
     U->>U: role chooser if more than one active role
     U->>API: GET /v1/cycles/current (Bearer, X-Active-Role)
-    API->>API: require("subscr:read", scope) permission check
+    API->>API: require("subscriptions:read", scope) permission check
     API-->>U: 200 current week
     Note over U,API: access token expired
     U->>API: POST /v1/auth/refresh (refresh token)
@@ -97,10 +97,10 @@ flowchart LR
 | Module | Events |
 |---|---|
 | identity | `identity.household_created` |
-| subscr | `subscr.cycle_generated`, `subscr.box_approved`, `subscr.box_skipped` |
+| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
 | orders | `orders.locked`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` |
 | billing | `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued` |
-| ops | `ops.procurement_plan_ready`, `ops.waste_logged` |
+| ops | `hub_ops.procurement_plan_ready`, `hub_ops.waste_logged` |
 | logistics | `logistics.route_published`, `logistics.pickup_completed` |
 | partners | `partners.verified`, `partners.assignment_created` |
 | community | `community.donation_verified` |
@@ -110,7 +110,7 @@ flowchart LR
 
 | When | Job | Module |
 |---|---|---|
-| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscr |
+| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
 | T-3 18:30 | `send_box_ready_and_pre_debit_notices` | notify / billing |
 | T-1 19:00 | `remind_unapproved` | notify |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent) | orders / billing |
@@ -129,7 +129,7 @@ flowchart LR
 |---|---|
 | M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `GET /me/data-export`, `DELETE /me` |
 | M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals` |
-| M3 subscr | `/subscriptions`, `/cycles/current`, `PATCH /cycles/{id}/lines`, `POST /cycles/{id}/approve`, `/skip`, `/budget-lock` |
+| M3 subscriptions | `/subscriptions`, `/cycles/current`, `PATCH /cycles/{id}/lines`, `POST /cycles/{id}/approve`, `/skip`, `/budget-lock` |
 | M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/slots`, `/addons` |
 | M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements` |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |

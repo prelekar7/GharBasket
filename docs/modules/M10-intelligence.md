@@ -3,7 +3,7 @@
 **Status:** Draft v1 — refine at phase start (spec-first)
 **Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
-**Deployables:** `services/ml` (FastAPI) + `ml-worker` (Taskiq queue `ml`); gateway module in the API: `gharbasket.modules.intel_gateway`
+**Deployables:** `backend/ml` (FastAPI) + `ml-worker` (Taskiq queue `ml`); gateway module in the API: `gharbasket.modules.intel_gateway`
 **Postgres schema:** `intel` (written by the ML service through the gateway's contract)
 
 ## 1. Purpose
@@ -24,8 +24,8 @@ All prediction and optimisation: the household simulator, pantry digital twin, n
 ## 3. API endpoints (internal, service-to-service; called only via `intel_gateway.api`)
 | Method | Path | Caller | Idempotency | Notes |
 |---|---|---|---|---|
-| POST | `/plan/week` | subscr (batch via job) | Request id | Meal plan + box lines; 5 s per household |
-| POST | `/basket/rank` | subscr | — | Ranked candidates |
+| POST | `/plan/week` | subscriptions (batch via job) | Request id | Meal plan + box lines; 5 s per household |
+| POST | `/basket/rank` | subscriptions | — | Ranked candidates |
 | GET | `/substitutes/{product_id}` | catalog | — | Learned + similarity |
 | POST | `/forecast/run` | ops (job) | Request id | Async; writes `intel.predictions` |
 | POST | `/route/solve` | logistics | Request id | Async; 30 s limit |
@@ -46,7 +46,7 @@ Outside Postgres: Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3:
 
 ## 5. Events
 **Published:** `intel.plans_ready`, `intel.forecast_ready`, `intel.routes_ready`, `intel.assignment_ready`, `intel.substitutions_learned`.
-**Consumed:** `subscr.cycle_generated` feedback, `orders.locked`, `orders.delivered`, edit feedback (via snapshots).
+**Consumed:** `subscriptions.cycle_generated` feedback, `orders.locked`, `orders.delivered`, edit feedback (via snapshots).
 
 ## 6. Jobs
 | Job | Schedule | Notes |
