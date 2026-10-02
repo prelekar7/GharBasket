@@ -15,8 +15,8 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { RoleFrame } from "../../components/RoleFrame.jsx";
-import { HOME_BY_ROLE, useSession } from "../../lib/session.js";
+import { RoleFrame } from "@/components/RoleFrame.jsx";
+import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** Customer shell: role bar, the five tabs and the floating Ghar Saathi button (FDD §8). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)

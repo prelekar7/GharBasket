@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 import { Suspense } from "react";
-import { Sidebar } from "../../components/Sidebar.jsx";
-import { NAV } from "../../lib/nav.js";
-import { parseSession, ROLES, SESSION_COOKIE } from "../../lib/session.js";
-import { signOut } from "../(auth)/login/actions.js";
+import { signOut } from "@/app/(auth)/login/actions.js";
+import { Sidebar } from "@/components/Sidebar.jsx";
+import { NAV } from "@/lib/nav.js";
+import { parseSession, ROLES, SESSION_COOKIE } from "@/lib/session.js";
 
 async function currentRole() {
   return parseSession((await cookies()).get(SESSION_COOKIE)?.value);

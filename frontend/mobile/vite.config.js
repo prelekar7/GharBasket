@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
@@ -33,5 +34,9 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    // Same alias as jsconfig.json "paths", so editors and Vite agree.
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   server: { port: 5173 },
 });

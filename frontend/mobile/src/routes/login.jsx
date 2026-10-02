@@ -5,8 +5,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
-import { exchange, me } from "../lib/api.js";
-import { useSession } from "../lib/session.js";
+import { exchange, me } from "@/lib/api.js";
+import { useSession } from "@/lib/session.js";
 
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/login")({ component: Login });

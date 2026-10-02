@@ -11,7 +11,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "maxNodeModuleJsDepth": 0,
-    "types": ["node", "next"]
+    "types": ["node", "next"],
+    "paths": { "@/*": ["./*"] }
   },
   "include": ["app", "components", "lib", "proxy.js", "next.config.js"]
 }

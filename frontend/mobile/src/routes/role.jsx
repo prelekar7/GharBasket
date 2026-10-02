@@ -1,7 +1,7 @@
 import { Button } from "@gharbasket/ui";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { HOME_BY_ROLE, useSession } from "../lib/session.js";
+import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** Role chooser: shown when a person holds more than one verified role (handbook ch. 03 §2). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
