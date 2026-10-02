@@ -3,8 +3,8 @@
 **Status:** Draft v1 — refine at phase start (spec-first)
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (chat UI) · **QA:** Rhythm Thakur, Manish Raje (label the 200-utterance evaluation set)
 **Phase / Sprint:** P4 / S8 (text MVP); voice is a stretch goal
-**Deployable:** runs inside `services/ml` (LLM tool loop); API module `gharbasket.modules.assistant` for sessions and confirmations
-**Postgres schema:** `assist`
+**Deployable:** runs inside `backend/ml` (LLM tool loop); API module `gharbasket.modules.assistant` for sessions and confirmations
+**Postgres schema:** `assistant`
 
 ## 1. Purpose
 A conversational helper in English, Hindi, Marathi and Hinglish that lets customers (especially seniors) manage their week by chat: view the plan, swap or remove items, skip a week, book a tiffin, track an order, and ask why an item is in the box. The LLM only interprets requests and calls GharBasket tools **as the user**; every write is returned as a proposed change that the user confirms in the UI. The LLM never computes prices or quantities.
@@ -14,7 +14,7 @@ A conversational helper in English, Hindi, Marathi and Hinglish that lets custom
 |---|---|---|
 | US-1 | As a senior customer, I want to type "is hafte bhindi mat bhejna" so that the item is removed without navigating screens. | Proposal shown with the exact change; applied only after Confirm. |
 | US-2 | As a customer, I want to ask "why is lauki in my box?" so that I understand the plan. | Answer uses the stored reason code, not invented text. |
-| US-3 | As a customer, I want to skip next week by chat so that it's quick. | Proposal → confirm → `subscr` skip API called. |
+| US-3 | As a customer, I want to skip next week by chat so that it's quick. | Proposal → confirm → `subscriptions` skip API called. |
 | US-4 | As a customer, I want to book tomorrow's lunch tiffin by chat. | Available menus listed; booking proposal; confirmation. |
 | US-5 | As a customer, I want to ask where my order is. | Current status and ETA from orders API. |
 | US-6 | As the team, I want per-user daily limits so that costs stay bounded. | Limit exceeded → polite message; no API call. |
@@ -33,13 +33,13 @@ A conversational helper in English, Hindi, Marathi and Hinglish that lets custom
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `assist.sessions` | id, user_id, locale, model, created_at |
-| `assist.messages` | id, session_id, role, content (PII-scrubbed), tokens_in, tokens_out, created_at |
-| `assist.proposals` | id, session_id, action, payload jsonb, status (pending, confirmed, rejected, expired), expires_at |
-| `assist.usage_daily` | user_id, date, tokens_in, tokens_out |
+| `assistant.sessions` | id, user_id, locale, model, created_at |
+| `assistant.messages` | id, session_id, role, content (PII-scrubbed), tokens_in, tokens_out, created_at |
+| `assistant.proposals` | id, session_id, action, payload jsonb, status (pending, confirmed, rejected, expired), expires_at |
+| `assistant.usage_daily` | user_id, date, tokens_in, tokens_out |
 
 ## 5. Events
-**Published:** `assist.proposal_confirmed` (audit). **Consumed:** none.
+**Published:** `assistant.proposal_confirmed` (audit). **Consumed:** none.
 
 ## 6. Jobs
 | Job | Schedule | Notes |

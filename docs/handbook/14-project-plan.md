@@ -9,7 +9,7 @@
 | Phase | Sprints | Dates | Goal | Exit gate (must be true to move on) |
 |---|---|---|---|---|
 | **P0 Design** | — | 2 Oct → 18 Oct 2026 | Agree what we build and how | Handbook, TDD, ADRs, module specs M1–M5 approved by the team and Prof. Kranti Bade; Claude Design System + customer core screens reviewed; ERD v1; simulator spec |
-| **P1 Foundation** | S0 | 19 Oct → 1 Nov | Working skeleton everyone builds on | Monorepo, CI green, Docker Compose stack, auth skeleton, design tokens in `packages/ui`, baseline migrations, simulator v0; the four risk spikes done |
+| **P1 Foundation** | S0 | 19 Oct → 1 Nov | Working skeleton everyone builds on | Monorepo, CI green, Docker Compose stack, auth skeleton, design tokens in `frontend/packages/ui`, baseline migrations, simulator v0; the four risk spikes done |
 | **P2 Commerce core** | S1–S3 | 2 Nov → 13 Dec | Customers can subscribe and order | **MS-A** demo passes |
 | **P3 Operations** | S4–S6 | 14 Dec → 24 Jan 2027 | A full delivery day works | **MS-B** demo passes |
 | **P4 Intelligence** | S7–S8 | 25 Jan → 21 Feb | The AI is real | **MS-C** demo passes; evaluation harness produces reports |
@@ -92,10 +92,10 @@ timeline
 
 | Sprint | Dates | Scope (modules) | Key deliverables |
 |---|---|---|---|
-| S0 | 19 Oct → 1 Nov | M0 platform | Monorepo, CI, Compose, auth skeleton, `packages/ui` tokens, migrations baseline, simulator v0, AGENTS.md. **Spikes:** Razorpay checkout inside Capacitor; Firebase phone OTP inside Capacitor; OR-Tools + OSRM on a Mumbai Metropolitan Region sample; CP-SAT meal plan on 20 recipes |
+| S0 | 19 Oct → 1 Nov | M0 platform | Monorepo, CI, Compose, auth skeleton, `frontend/packages/ui` tokens, migrations baseline, simulator v0, AGENTS.md. **Spikes:** Razorpay checkout inside Capacitor; Firebase phone OTP inside Capacitor; OR-Tools + OSRM on a Mumbai Metropolitan Region sample; CP-SAT meal plan on 20 recipes |
 | S1 | 2 Nov → 15 Nov | M1 identity, M2 catalog | OTP login, roles, household setup, society picker, catalog + prices, Hinglish search; console catalog/prices/societies |
 | S2 | 16 Nov → 29 Nov | M4 orders, M5 billing | Order state machine, slots, cart/add-ons, double-entry ledger, wallet top-up (Razorpay test), webhooks; Partner app shell |
-| S3 | 30 Nov → 13 Dec | M3 subscr, M11 notify | Weekly cycle jobs, rule-based box v0, approve/edit/skip, 21:00 cut-off lock, push + WhatsApp templates. *Likely exam period — kept light* |
+| S3 | 30 Nov → 13 Dec | M3 subscriptions, M11 notify | Weekly cycle jobs, rule-based box v0, approve/edit/skip, 21:00 cut-off lock, push + WhatsApp templates. *Likely exam period — kept light* |
 | S4 | 14 Dec → 27 Dec | M6 ops | Procurement plan, purchase orders, receiving/QC, packing queue with scanning, waste log; console ops board |
 | S5 | 28 Dec → 10 Jan | M7 logistics | OSRM + OR-Tools routes, rider mode, captain handover and flat checklist, delivery proofs, offline outbox |
 | S6 | 11 Jan → 24 Jan | M8 partners, tiffin | Partner onboarding + simulated KYC + training, kitchen menus and capacity, tiffin day flow, earnings and payout statements |
@@ -115,8 +115,8 @@ timeline
 
 | Person | Tracks | Owns |
 |---|---|---|
-| **Yash Salunkhe** | A — Customer experience; B — Commerce core | `apps/mobile`, `packages/ui`, modules M1–M5, M11, customer and field-role screens, M9 screens, buildability review of designs |
-| **Prathamesh Relekar** | C — Operations; D — Intelligence | `apps/console`, modules M6–M10, M12, M13, `services/ml`, `data/simulator`, infrastructure, research results |
+| **Yash Salunkhe** | A — Customer experience; B — Commerce core | `frontend/mobile`, `frontend/packages/ui`, modules M1–M5, M11, customer and field-role screens, M9 screens, buildability review of designs |
+| **Prathamesh Relekar** | C — Operations; D — Intelligence | `frontend/console`, modules M6–M10, M12, M13, `backend/ml`, `data/simulator`, infrastructure, research results |
 | **Rhythm Thakur** | Docs, QA, pilot | Handbook upkeep, report chapters, UML, UX interviews and design review comments, Hinglish/Marathi copy, Playwright E2E, test plans, pilot operations |
 | **Manish Raje** | Docs, QA, pilot | IEEE paper writing, assistant eval labelling (200 utterances), translations review, k6 load tests, accessibility audit, device testing, presentation |
 | **Prof. Kranti Bade** | Guide | Reviews at each milestone; approves scope changes |

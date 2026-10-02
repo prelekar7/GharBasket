@@ -4,7 +4,7 @@
 > - **One TypeScript/React codebase:** a Vite + React mobile app (PWA + Capacitor 8, Android) for field roles, and a Next.js 16 console for admin/hub/franchise users (D2, D12).
 > - The look is **"Indian kitchen, editorial"**: kraft paper, turmeric, curry-leaf, handwritten parchi, thali calendar. It deliberately avoids the generic "AI-generated" look.
 > - All UI design happens in **Claude Design** (D16): one GharBasket Design System artifact plus canvases for Customer, Field roles and Console. Done in **Phase 0, before code** (D17).
-> - The component library lives in `packages/ui`, built on **React Aria Components**, styled with our tokens, and documented in **Storybook 10**.
+> - The component library lives in `frontend/packages/ui`, built on **React Aria Components**, styled with our tokens, and documented in **Storybook 10**.
 > - Accessibility and language are first-class: WCAG 2.2 AA, senior mode, `en-IN` / `hi-IN` / `mr-IN`.
 
 ---
@@ -58,13 +58,13 @@ flowchart LR
     end
     P --> SEM["Semantic tokens<br/>bg, surface, text, accent,<br/>success, danger, info"]
     SEM --> ROLE["Role accents<br/>customer=leaf, captain=turmeric,<br/>kitchen=chilli, rider=neel, packer=slate"]
-    SEM --> CSS["packages/ui/tokens.css<br/>CSS variables (light + dark)"]
+    SEM --> CSS["frontend/packages/ui/tokens.css<br/>CSS variables (light + dark)"]
     T --> CSS
     S --> CSS
     ROLE --> CSS
     CSS --> TW["Tailwind v4 preset<br/>(@theme)"]
-    TW --> MOB["apps/mobile"]
-    TW --> CON["apps/console"]
+    TW --> MOB["frontend/mobile"]
+    TW --> CON["frontend/console"]
     CSS --> SB["Storybook 10<br/>visual + a11y checks"]
 ```
 *Figure 9.1 — Design-token map: from the Claude Design System to both apps*
@@ -206,7 +206,7 @@ flowchart TD
 ```
 *Figure 9.7 — Console navigation map*
 
-## 9.8 Component inventory (`packages/ui`)
+## 9.8 Component inventory (`frontend/packages/ui`)
 
 | Group | Components |
 |---|---|
@@ -259,16 +259,16 @@ flowchart LR
     UT --> HF["Hi-fi artboards"]
     HF --> RV["Team review via<br/>artifact comments"]
     RV -->|changes| HF
-    RV -->|approved| BLD["Yash: buildability review,<br/>port to packages/ui + Storybook"]
+    RV -->|approved| BLD["Yash: buildability review,<br/>port to frontend/packages/ui + Storybook"]
     BLD --> PR["UI PR with screenshots<br/>light/dark, en/hi"]
 ```
 *Figure 9.8 — Design workflow from research to code*
 
 1. **Research:** UX interviews → personas and journey maps (Rhythm Thakur, Manish Raje).
-2. **Design System artifact:** the single source of truth for tokens and components. Token changes happen there first, then sync to `packages/ui/tokens.css`.
+2. **Design System artifact:** the single source of truth for tokens and components. Token changes happen there first, then sync to `frontend/packages/ui/tokens.css`.
 3. **Canvases:** Customer, Field roles, Console. Wireframes → usability test → high-fidelity.
 4. **Phase-0 scope (D17):** Design System + customer core screens (onboarding, Week/Thali, Box/Parchi, Substitute sheet, Wallet, Society unlock). Field-role screens at the start of P3; console screens at the start of P2/P3.
-5. **Build:** Yash Salunkhe ports approved designs into `packages/ui`, documented in **Storybook 10** with the a11y addon and Playwright screenshot tests.
+5. **Build:** Yash Salunkhe ports approved designs into `frontend/packages/ui`, documented in **Storybook 10** with the a11y addon and Playwright screenshot tests.
 6. **Review:** every UI PR includes screenshots (light/dark, English/Hindi) checked against the canvas.
 
 ## 9.13 Frontend libraries (final)
@@ -296,16 +296,16 @@ flowchart LR
 | i18n | i18next + react-i18next + ICU | both |
 | Native | Capacitor 8 + plugins (push, camera, geolocation, network, preferences, haptics; Capawesome barcode scanner and background geolocation) | mobile |
 | Offline / PWA | Dexie; vite-plugin-pwa | mobile |
-| Component workshop | Storybook 10 + addon-a11y | packages/ui |
+| Component workshop | Storybook 10 + addon-a11y | frontend/packages/ui |
 | Testing / monitoring | Vitest, Testing Library, Playwright; Sentry, PostHog | both |
 
-**Note on shadcn/ui:** we do not install shadcn components as-is, because that is the "AI-made" look. We take the idea instead: we own our component code in `packages/ui`, built on React Aria and styled with our tokens.
+**Note on shadcn/ui:** we do not install shadcn components as-is, because that is the "AI-made" look. We take the idea instead: we own our component code in `frontend/packages/ui`, built on React Aria and styled with our tokens.
 
 ## 9.14 Ownership
 
 | Area | Owner |
 |---|---|
-| Mobile app, `packages/ui`, Storybook, buildability review | Yash Salunkhe |
+| Mobile app, `frontend/packages/ui`, Storybook, buildability review | Yash Salunkhe |
 | Console (Next.js) | Prathamesh Relekar |
 | UX research, copy, translations, usability tests, design review comments | Rhythm Thakur, Manish Raje |
 

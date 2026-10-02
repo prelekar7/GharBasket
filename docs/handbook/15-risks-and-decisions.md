@@ -21,7 +21,7 @@ Likelihood (L) and impact (I) are rated High / Medium / Low. Owners watch their 
 | R9 | Exams collide with milestones | H | M | Floating buffer sprint; S3 kept light; dates confirmed as soon as published | Manish |
 | R10 | Legal/compliance claims challenged in the viva | M | M | Closed-loop wallet design, simulated KYC, cite RBI, DPDP and FSSAI texts, guide sign-off | Rhythm |
 | R11 | Neon latency from Mumbai (no India region) | M | M | Batch queries and use pooling; decide before P6 whether the pilot database moves to Mumbai | Prathamesh |
-| R12 | Design drift between Claude Design screens and code | M | M | Tokens copied from the design system into `packages/ui`; Storybook review; PR screenshots compared with the canvas | Yash |
+| R12 | Design drift between Claude Design screens and code | M | M | Tokens copied from the design system into `frontend/packages/ui`; Storybook review; PR screenshots compared with the canvas | Yash |
 
 ```mermaid
 quadrantChart
@@ -70,6 +70,7 @@ All decisions were agreed on 2 October 2026 during planning. Each has an ADR wit
 | D15 | AWS Mumbai (ap-south-1) topology with Neon for Postgres and S3 for files | [ADR-0015](../adr/0015-aws-mumbai-topology-with-neon-postgres.md) |
 | D16 | UI design entirely in Claude Design (design system + canvases) | [ADR-0016](../adr/0016-ui-design-in-claude-design.md) |
 | D17 | UI design happens in Phase 0, before any code (spec-first for later phases) | [ADR-0017](../adr/0017-design-before-code-in-phase-0.md) |
+| D19 | Repository layout: `frontend/` and `backend/` at the top, one backend folder (and Postgres schema) per module | [ADR-0019](../adr/0019-repository-layout-frontend-backend.md) |
 
 ### How decisions change
 

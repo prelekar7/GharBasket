@@ -31,7 +31,7 @@
 | 5.1 | Core cross-schema entity relationships | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
 | 5.2 | ERD: identity | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
 | 5.3 | ERD: catalog | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
-| 5.4 | ERD: subscr | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
+| 5.4 | ERD: subscriptions | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
 | 5.5 | ERD: orders | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
 | 5.6 | ERD: billing | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |
 | 5.7 | ERD: ops | ER diagram | [Chapter 05 — Data Architecture](05-data-architecture.md) |

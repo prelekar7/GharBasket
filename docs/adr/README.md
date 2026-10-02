@@ -27,3 +27,4 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0015](0015-aws-mumbai-topology-with-neon-postgres.md) | AWS Mumbai topology with Neon Postgres and S3 | Accepted |
 | [0016](0016-ui-design-in-claude-design.md) | UI design entirely in Claude Design | Accepted |
 | [0017](0017-design-before-code-in-phase-0.md) | Design before code in Phase 0; spec-first later | Accepted |
+| [0019](0019-repository-layout-frontend-backend.md) | Repository layout: `frontend/` and `backend/`, one folder per module (0018 is reserved for the JavaScript decision) | Accepted |

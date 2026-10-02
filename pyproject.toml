@@ -1,4 +1,4 @@
-# uv workspace root. Python services live in their own packages (services/api now; services/ml and
+# uv workspace root. Python services live in their own packages (backend/api now; backend/ml and
 # data/simulator later). Shared developer tools sit in the root "dev" group, installed by `uv sync`.
 [project]
 name = "gharbasket-workspace"
@@ -13,7 +13,7 @@ package = false
 gharbasket-api = { workspace = true }
 
 [tool.uv.workspace]
-members = ["services/api"]
+members = ["backend/api"]
 
 [dependency-groups]
 dev = [

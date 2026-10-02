@@ -11,7 +11,7 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 ## 2. User stories
 | # | Story | Acceptance criteria |
 |---|---|---|
-| US-1 | As a customer, I want my approved box to become an order automatically so that I don't check out manually. | `subscr.box_approved` → order `APPROVED` with lines and prices snapshot. |
+| US-1 | As a customer, I want my approved box to become an order automatically so that I don't check out manually. | `subscriptions.box_approved` → order `APPROVED` with lines and prices snapshot. |
 | US-2 | As the system, I want all approved orders locked at cut-off so that procurement uses committed demand. | 21:00 job moves orders to `LOCKED` after successful payment in under 60 s for 2,000 orders. |
 | US-3 | As a customer, I want to add add-ons before cut-off so that I get extra items on the same delivery. | Add-on lines priced from the current list; allowed until `LOCKED`. |
 | US-4 | As a customer, I want live order status so that I know when the delivery arrives. | SSE stream emits status changes and ETA. |
@@ -43,7 +43,7 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 
 ## 5. Events
 **Published:** `orders.locked`, `orders.cancelled`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events).
-**Consumed:** `subscr.box_approved`, `billing.payment_captured`, `billing.payment_failed`.
+**Consumed:** `subscriptions.box_approved`, `billing.payment_captured`, `billing.payment_failed`.
 
 ## 6. Jobs
 | Job | Schedule | Notes |

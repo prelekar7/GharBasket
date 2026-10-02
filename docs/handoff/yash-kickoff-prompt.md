@@ -47,7 +47,7 @@ Fallback without a clone: on claude.ai, attach the Phase A files from section 3 
    Wireframe artboards first, then high fidelity. English and Hindi copy. Phone size 390 × 844.
 3. Bilingual "घरBasket" wordmark, the first 15 custom icons, and 3 empty-state illustrations.
 4. Post all artifact links in a GitHub issue titled "Design: Customer v1". Later, list them in `docs/design/README.md` in your first code PR.
-5. Hand-off to code: the token values become `packages/ui/tokens.css` in your `feat/M0-ui-tokens` PR.
+5. Hand-off to code: the token values become `frontend/packages/ui/tokens.css` in your `feat/M0-ui-tokens` PR.
 
 ## 5. Prompt to paste into Claude Code
 ```
@@ -84,16 +84,16 @@ PHASE A — DESIGN NOW (no repo commits yet), using Claude Design:
 
 PHASE B — CODE (only after Prathamesh's "chore/M0-scaffold" PR is merged to main), one PR at a time, ≤ ~400 lines,
 Conventional Commits with module scope:
-  feat/M0-ui-tokens     → packages/ui: tokens.css from the design system, Fontsource fonts, Tailwind v4 preset,
+  feat/M0-ui-tokens     → frontend/packages/ui: tokens.css from the design system, Fontsource fonts, Tailwind v4 preset,
                           base components on React Aria Components, Storybook 10.
-  feat/M0-mobile-shell  → apps/mobile: Vite + React 19 + TS strict, TanStack Router (file routes, role shells
+  feat/M0-mobile-shell  → frontend/mobile: Vite + React 19 + TS strict, TanStack Router (file routes, role shells
                           lazy-loaded), TanStack Query, Zustand, react-hook-form + zod, i18next (en-IN/hi-IN/mr-IN),
                           vite-plugin-pwa (injectManifest), Capacitor 8 Android project.
-  feat/M0-console-shell → apps/console: Next.js 16 App Router, proxy.ts auth gate stub, sidebar layout.
+  feat/M0-console-shell → frontend/console: Next.js 16 App Router, proxy.ts auth gate stub, sidebar layout.
   spike/S1-razorpay-capacitor, spike/S2-firebase-otp-capacitor → throwaway code in spikes/,
                           1-page findings in docs/spikes/.
-Rules: touch only apps/mobile, apps/console, packages/ui, packages/domain and spikes/. Never hand-edit
-packages/api-client (run `just gen-api`). Don't change root configs, services/, infra/ or .github/ — ask Prathamesh
+Rules: touch only frontend/mobile, frontend/console, frontend/packages/ui, frontend/packages/domain and spikes/. Never hand-edit
+frontend/packages/api-client (run `just gen-api`). Don't change root configs, backend/, infra/ or .github/ — ask Prathamesh
 in a PR comment. The login screen uses POST /v1/auth/exchange and GET /v1/me exactly as in section 3.1 of
 docs/modules/M1-identity.md; mock them until the backend lands. Verify library APIs with Context7 before coding.
 Ask Yash before any decision the docs don't cover.

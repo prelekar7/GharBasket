@@ -1,6 +1,6 @@
 # @gharbasket/ui
 
-GharBasket's design tokens, fonts, Tailwind v4 theme and components, built on React Aria Components. Owner: Yash Salunkhe. The design source of truth is the Claude Design system listed in [`docs/design/README.md`](../../docs/design/README.md).
+GharBasket's design tokens, fonts, Tailwind v4 theme and components, built on React Aria Components. Owner: Yash Salunkhe. The design source of truth is the Claude Design system listed in [`docs/design/README.md`](../../../docs/design/README.md).
 
 ```js
 import "@gharbasket/ui/styles.css"; // once, in the app root: Tailwind + fonts + tokens + theme

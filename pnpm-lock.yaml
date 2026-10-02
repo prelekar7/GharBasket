@@ -176,11 +176,11 @@ importers:
         specifier: 2.11.6
         version: 2.11.6
 
-  apps/console:
+  frontend/console:
     dependencies:
       '@gharbasket/ui':
         specifier: workspace:*
-        version: link:../../packages/ui
+        version: link:../packages/ui
       next:
         specifier: 16.2.12
         version: 16.2.12(@babel/core@7.29.7)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -210,14 +210,14 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
-  apps/mobile:
+  frontend/mobile:
     dependencies:
       '@capacitor/core':
         specifier: 8.5.2
         version: 8.5.2
       '@gharbasket/ui':
         specifier: workspace:*
-        version: link:../../packages/ui
+        version: link:../packages/ui
       '@hookform/resolvers':
         specifier: 5.9.1
         version: 5.9.1(ajv@8.20.0)(react-hook-form@7.89.0(@types/react@19.3.0)(react@19.3.0))(zod@4.6.5)
@@ -298,7 +298,7 @@ importers:
         specifier: 7.4.1
         version: 7.4.1
 
-  packages/ui:
+  frontend/packages/ui:
     dependencies:
       '@fontsource-variable/fraunces':
         specifier: 5.3.0

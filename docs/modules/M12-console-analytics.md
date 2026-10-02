@@ -3,7 +3,7 @@
 **Status:** Draft v1 — refine at phase start (spec-first)
 **Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** Shell in P1 / S0; screens grow with each phase (P2–P5)
-**Deployables:** `apps/console` (Next.js 16) + analytics endpoints in the API (`gharbasket.modules.analytics`, read-only)
+**Deployables:** `frontend/console` (Next.js 16) + analytics endpoints in the API (`gharbasket.modules.analytics`, read-only)
 **Postgres schema:** `analytics` (materialised views only)
 
 ## 1. Purpose

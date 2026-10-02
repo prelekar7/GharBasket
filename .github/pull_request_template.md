@@ -11,6 +11,6 @@ Module: <!-- e.g. M1 identity, M0 platform, mobile, console -->
 - [ ] Only touches folders my track owns (see `AGENTS.md` / `.github/CODEOWNERS`), or the owner agreed in a comment
 - [ ] Tests added or updated; CI is green
 - [ ] No secrets, `.env` files, keystores or real personal data
-- [ ] API change? `openapi.json` and `packages/api-client` regenerated, and both owners reviewed
+- [ ] API change? `openapi.json` and `frontend/packages/api-client` regenerated, and both owners reviewed
 - [ ] Database change? one Alembic migration, named `YYYYMMDD_HHMM_<module>_<desc>`, downgrade works
 - [ ] Docs or the handbook chapter updated if behaviour changed

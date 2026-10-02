@@ -13,8 +13,8 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 4. Verify current library APIs with Context7 before using them; do not rely on memory for versions or signatures.
 
 ## Architecture rules (non-negotiable)
-- Service-based, not microservices: `services/api` (FastAPI modular monolith), `services/ml` (ML + optimisation),
-  Taskiq workers, `apps/mobile` (Vite + React → PWA + Capacitor 8), `apps/console` (Next.js 16).
+- Service-based, not microservices: `backend/api` (FastAPI modular monolith), `backend/ml` (ML + optimisation),
+  Taskiq workers, `frontend/mobile` (Vite + React → PWA + Capacitor 8), `frontend/console` (Next.js 16).
 - One module = one owner = one folder = one Postgres schema. A module writes only to its own schema.
   Cross-module calls go only through `<module>/api.py` or outbox events. import-linter enforces this in CI.
 - Money is integer paise (`BIGINT`, `amount_paise`), never floats. Every money movement is a double-entry ledger entry.
@@ -27,9 +27,9 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 ## Folder ownership
 | Path | Owner |
 |---|---|
-| root configs, `infra/`, `services/`, `data/`, `.github/`, `scripts/` | Prathamesh Relekar |
-| `apps/mobile`, `apps/console` (UI), `packages/ui`, `packages/domain` | Yash Salunkhe |
-| `packages/api-client` | generated only (`just gen-api`), never hand-edited |
+| root configs, `infra/`, `backend/`, `data/`, `.github/`, `scripts/` | Prathamesh Relekar |
+| `frontend/mobile`, `frontend/console` (UI), `frontend/packages/ui`, `frontend/packages/domain` | Yash Salunkhe |
+| `frontend/packages/api-client` | generated only (`just gen-api`), never hand-edited |
 | `e2e/`, `docs/` test plans and report material | Rhythm Thakur, Manish Raje |
 
 ## Commands

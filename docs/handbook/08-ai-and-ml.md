@@ -100,7 +100,7 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor C as Customer (mobile app)
-    participant API as api (subscr module)
+    participant API as api (subscriptions module)
     participant ML as ml service
     participant DB as PostgreSQL
     C->>API: PATCH /v1/cycles/{id}/lines (swap tomato)
@@ -151,7 +151,7 @@ sequenceDiagram
   - **ingredient-reuse bonus** (shared perishables across meals → less waste);
   - variety bonus;
   - penalty on price-spiked items.
-- **Output:** plan → aggregated ingredients × M-A quantities → `subscr.box_lines` with `reason_code`. Busy days → kit suggestions.
+- **Output:** plan → aggregated ingredients × M-A quantities → `subscriptions.box_lines` with `reason_code`. Busy days → kit suggestions.
 - **Performance:** 5 s solver limit per household; the weekly batch runs in parallel across CPU cores.
 - **Metrics:** constraint satisfaction 100%, nutrition adherence, variety index, ingredient-reuse ratio, plan acceptance. Baselines: random valid plan, greedy.
 
@@ -206,7 +206,7 @@ sequenceDiagram
 
 ---
 
-## 8.5 Evaluation protocol (`services/ml/eval/`)
+## 8.5 Evaluation protocol (`backend/ml/eval/`)
 
 | Algorithm | Protocol | Primary metric | Baselines |
 |---|---|---|---|
@@ -259,7 +259,7 @@ Anthropic list prices, per 1M tokens (input / output):
 
 | Item | Owner |
 |---|---|
-| `services/ml`, models M-A…M-J, eval harness, MLflow | Prathamesh Relekar |
+| `backend/ml`, models M-A…M-J, eval harness, MLflow | Prathamesh Relekar |
 | Autopilot UX: reason chips, thali calendar, assistant UI | Yash Salunkhe |
 | Assistant eval set, translation review, paper writing support | Rhythm Thakur, Manish Raje |
 

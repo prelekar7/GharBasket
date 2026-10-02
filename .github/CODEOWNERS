@@ -5,13 +5,13 @@
 # Default: backend, infra and repo tooling — Prathamesh Relekar
 *                       @prelekar7
 
+# Backend (backend/) falls under the default owner above.
+
 # Frontend and design — Yash Salunkhe
-/apps/                  @YASH-6454
-/packages/ui/           @YASH-6454
-/packages/domain/       @YASH-6454
+/frontend/                         @YASH-6454
 
 # Generated API client: regenerated from the backend's OpenAPI spec
-/packages/api-client/   @prelekar7
+/frontend/packages/api-client/     @prelekar7
 
 # Docs are shared
 /docs/                  @prelekar7 @YASH-6454

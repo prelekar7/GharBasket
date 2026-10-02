@@ -3,7 +3,7 @@
 **Status:** Draft v1 — refine at phase start (spec-first)
 **Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje (also template copy and translations)
 **Phase / Sprint:** P2 / S3
-**Postgres schema:** `notify` · **Python package:** `gharbasket.modules.notify`
+**Postgres schema:** `notifications` · **Python package:** `gharbasket.modules.notifications`
 
 ## 1. Purpose
 Turns domain events into the right message, in the right language, on the right channel: push (FCM), WhatsApp (Cloud API, test number in the prototype) and an in-app inbox. Owns templates per event × locale × channel, user preferences, quiet hours, device push tokens and delivery logs. Contains no business decisions — it only reacts to events.
@@ -32,14 +32,14 @@ Turns domain events into the right message, in the right language, on the right 
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `notify.templates` | id, event_type, channel, locale, version, body (Jinja2), active |
-| `notify.messages` | id, user_id, event_id, channel, template_id, status, sent_at, read_at |
-| `notify.preferences` | user_id, category, channel, enabled, quiet_start, quiet_end |
-| `notify.devices` | user_id, platform, fcm_token, updated_at |
+| `notifications.templates` | id, event_type, channel, locale, version, body (Jinja2), active |
+| `notifications.messages` | id, user_id, event_id, channel, template_id, status, sent_at, read_at |
+| `notifications.preferences` | user_id, category, channel, enabled, quiet_start, quiet_end |
+| `notifications.devices` | user_id, platform, fcm_token, updated_at |
 
 ## 5. Events
 **Published:** none (terminal consumer).
-**Consumed:** `subscr.cycle_generated`, `subscr.box_approved`, `orders.*` (status), `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued`, `billing.points_credited`, `logistics.route_published`, `partners.assignment_created`, `partners.verified`, `community.donation_verified`, `community.society_live`.
+**Consumed:** `subscriptions.cycle_generated`, `subscriptions.box_approved`, `orders.*` (status), `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued`, `billing.points_credited`, `logistics.route_published`, `partners.assignment_created`, `partners.verified`, `community.donation_verified`, `community.society_live`.
 
 ## 6. Jobs
 | Job | Trigger | Notes |

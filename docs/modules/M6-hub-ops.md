@@ -3,7 +3,7 @@
 **Status:** Draft v1 — refine at phase start (spec-first)
 **Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S4
-**Postgres schema:** `ops` · **Python package:** `gharbasket.modules.ops`
+**Postgres schema:** `hub_ops` · **Python package:** `gharbasket.modules.hub_ops`
 
 ## 1. Purpose
 Everything inside the hub (franchise fulfilment centre): hubs and service areas, vendors and vendor scores, procurement plans (committed demand + forecast buffer), purchase orders, goods receipt and QC grading, inventory lots with expiry, packing tasks with bag QR codes, shortage handling, waste logging and the surplus cascade. Forecasting and newsvendor quantities come from M10; M6 turns them into operational plans.
@@ -36,17 +36,17 @@ Everything inside the hub (franchise fulfilment centre): hubs and service areas,
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `ops.hubs` | id, name, location geography, service_area geography(Polygon), franchise_owner_id |
-| `ops.vendors` | id, hub_id, name, kind (apmc, fpo, farmer), phone |
-| `ops.vendor_scores` | vendor_id, week, freshness, price, reliability, defects, score |
-| `ops.procurement_plans` / `ops.procurement_lines` | id, hub_id, for_date, status / plan_id, product_id, committed_qty, forecast_q50, forecast_qtau, order_qty, vendor_id, unit_cost_paise |
-| `ops.purchase_orders` | id, plan_id, vendor_id, lines jsonb, status, sent_at |
-| `ops.inventory_lots` | id, hub_id, product_id, qty, received_at, expires_at, cost_paise, grade |
-| `ops.packing_tasks` | id, order_id, packer_id, status, bag_qr, route_seq, started_at, done_at |
-| `ops.waste_logs` | id, hub_id, product_id, qty, reason (spoilage, damage, surplus), cascade_to (imperfect, kitchen, ngo, bin), at |
+| `hub_ops.hubs` | id, name, location geography, service_area geography(Polygon), franchise_owner_id |
+| `hub_ops.vendors` | id, hub_id, name, kind (apmc, fpo, farmer), phone |
+| `hub_ops.vendor_scores` | vendor_id, week, freshness, price, reliability, defects, score |
+| `hub_ops.procurement_plans` / `hub_ops.procurement_lines` | id, hub_id, for_date, status / plan_id, product_id, committed_qty, forecast_q50, forecast_qtau, order_qty, vendor_id, unit_cost_paise |
+| `hub_ops.purchase_orders` | id, plan_id, vendor_id, lines jsonb, status, sent_at |
+| `hub_ops.inventory_lots` | id, hub_id, product_id, qty, received_at, expires_at, cost_paise, grade |
+| `hub_ops.packing_tasks` | id, order_id, packer_id, status, bag_qr, route_seq, started_at, done_at |
+| `hub_ops.waste_logs` | id, hub_id, product_id, qty, reason (spoilage, damage, surplus), cascade_to (imperfect, kitchen, ngo, bin), at |
 
 ## 5. Events
-**Published:** `ops.procurement_plan_ready`, `ops.shortage_detected`, `ops.waste_logged`.
+**Published:** `hub_ops.procurement_plan_ready`, `hub_ops.shortage_detected`, `hub_ops.waste_logged`.
 **Consumed:** `orders.locked`, `intel.forecast_ready`, `logistics.route_published` (packing order).
 
 ## 6. Jobs
