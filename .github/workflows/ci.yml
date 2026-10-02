@@ -1,0 +1,123 @@
+# Continuous integration for every pull request and every push to main.
+# Jobs for parts that don't exist yet (Python API, JS apps) skip themselves until those files land.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect which parts exist
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.check.outputs.api }}
+      jsconfig: ${{ steps.check.outputs.jsconfig }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: check
+        run: |
+          echo "api=$([ -f services/api/pyproject.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          if ls apps/*/jsconfig.json packages/*/jsconfig.json >/dev/null 2>&1; then
+            echo "jsconfig=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "jsconfig=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: Lint and format (Biome, Ruff, agent docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Installs pnpm from package.json "packageManager", Node from .nvmrc, then runs pnpm install.
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+
+      - name: Biome (JS, JSON, CSS)
+        run: pnpm exec biome ci .
+
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Ruff lint
+        run: uvx ruff check .
+
+      - name: Ruff format check
+        run: uvx ruff format --check .
+
+      - name: AI-tool instruction files match AGENTS.md
+        run: ./scripts/sync-agent-docs.sh --check
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # gitleaks lists the PR's commits to scan
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # No license needed: the repository belongs to a personal account.
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  python:
+    name: Python API (types, boundaries, tests)
+    runs-on: ubuntu-latest
+    # Skips until feat/M0-api-app adds the API package.
+    needs: detect
+    if: needs.detect.outputs.api == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --all-packages --frozen
+
+      - name: Pyright
+        run: uv run pyright
+
+      - name: Module boundaries (import-linter)
+        if: hashFiles('services/api/.importlinter') != ''
+        run: uv run --directory services/api lint-imports
+
+      - name: Tests
+        run: uv run pytest services/api
+
+  js-hints:
+    name: JS editor hints (informational, never blocks)
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.jsconfig == 'true'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/setup@v3
+        with:
+          cache: true
+
+      - name: Type-check JS through jsconfig.json (checkJs)
+        run: |
+          status=0
+          for cfg in apps/*/jsconfig.json packages/*/jsconfig.json; do
+            [ -f "$cfg" ] || continue
+            echo "::group::$cfg"
+            pnpm dlx --package typescript tsc --noEmit -p "$cfg" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
