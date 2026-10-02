@@ -11,6 +11,10 @@ export function ProfileActions() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { roles, signOut } = useSession();
+  const leave = async (/** @type {boolean} */ everywhere) => {
+    await signOut({ everywhere });
+    navigate({ to: "/login" });
+  };
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -33,15 +37,11 @@ export function ProfileActions() {
           {t("profile.switchRole")}
         </Button>
       )}
-      <Button
-        variant="quiet"
-        block
-        onPress={() => {
-          signOut();
-          navigate({ to: "/login" });
-        }}
-      >
+      <Button variant="quiet" block onPress={() => leave(false)}>
         {t("profile.signOut")}
+      </Button>
+      <Button variant="quiet" block onPress={() => leave(true)}>
+        {t("profile.signOutAll")}
       </Button>
     </section>
   );

@@ -32,7 +32,8 @@
   "profile": {
     "language": "भाषा",
     "switchRole": "भूमिका बदला",
-    "signOut": "साइन आउट"
+    "signOut": "साइन आउट",
+    "signOutAll": "सर्व डिव्हाइसवरून साइन आउट करा"
   },
   "assistant": "घर साथी सहाय्यक",
   "pwa": {

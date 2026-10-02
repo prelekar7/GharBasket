@@ -6,8 +6,8 @@ import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 /** Role chooser: shown when a person holds more than one verified role (handbook ch. 03 §2). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/role")({
-  beforeLoad: () => {
-    if (!useSession.getState().accessToken) throw redirect({ to: "/login" });
+  beforeLoad: async () => {
+    if (!(await useSession.getState().restore())) throw redirect({ to: "/login" });
   },
   component: RoleChooser,
 });

@@ -32,7 +32,8 @@
   "profile": {
     "language": "Language",
     "switchRole": "Switch role",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "signOutAll": "Sign out of all devices"
   },
   "assistant": "Ghar Saathi assistant",
   "pwa": {

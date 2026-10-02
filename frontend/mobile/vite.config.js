@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 // Two builds: `vite build` is the web PWA (API at relative /v1), `vite build --mode native` is the
@@ -50,5 +50,15 @@ export default defineConfig(({ mode }) => ({
     // Same alias as jsconfig.json "paths", so editors and Vite agree.
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    // Web calls relative /v1 (Part 3); in dev Vite forwards it to a local backend when mocks are off.
+    proxy: {
+      "/v1": {
+        target:
+          loadEnv(mode, process.cwd(), "VITE_").VITE_API_PROXY_TARGET || "http://localhost:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 }));

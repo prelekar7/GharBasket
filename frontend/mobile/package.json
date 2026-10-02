@@ -30,6 +30,7 @@
     "workbox-strategies": "7.4.1"
   },
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@capacitor/core": "8.5.2",
     "@gharbasket/ui": "workspace:*",
     "@hookform/resolvers": "5.9.1",
