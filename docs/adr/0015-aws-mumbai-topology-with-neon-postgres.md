@@ -10,7 +10,7 @@ ADR-0011 chose AWS. The team also wanted shared development databases that do no
 ## Decision
 - **AWS Mumbai (ap-south-1):** one EC2 or Lightsail instance (about 2–4 vCPU, 8 GB) running Docker Compose: api, worker, ml, ml-worker, MLflow, OSRM, Valkey, Caddy, console.
 - **Neon** for Postgres: `main` (pilot), `staging`, and an automatic branch per pull request. Everyone also runs Postgres locally in Docker.
-- **S3** for media, the Parquet data lake and MLflow artifacts (code uses the S3 API; MinIO locally).
+- **S3** for media, the Parquet data lake and MLflow artifacts (code uses the S3 API; SeaweedFS locally).
 - Images in GHCR (ECR optional); secrets in SSM Parameter Store; nightly `pg_dump` to S3; DNS via Cloudflare or Route 53.
 - **Before Phase P6 (pilot):** decide whether to keep Neon (mitigate latency by batching queries and pooling) or move only the production database to Postgres in Mumbai (EC2 or RDS) while keeping Neon for development branches.
 

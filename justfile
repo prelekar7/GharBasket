@@ -29,13 +29,46 @@ sync-agent-docs:
 check-agent-docs:
     ./scripts/sync-agent-docs.sh --check
 
-# Start local infrastructure: Postgres, Valkey, MinIO, MLflow (arrives in chore/M0-infra-compose)
-up:
-    @echo "Not available yet: arrives in chore/M0-infra-compose"
+compose := "docker compose -f infra/compose/docker-compose.yml"
 
-# Stop local infrastructure (arrives in chore/M0-infra-compose)
+# Start the light stack: Postgres 18 (PostGIS, pgvector) and Valkey (~400 MB RAM)
+up:
+    {{compose}} up -d --wait
+
+# Also start S3-compatible storage (SeaweedFS) and create the buckets
+up-storage:
+    {{compose}} --profile storage up -d --wait seaweedfs
+    {{compose}} --profile storage up storage-init
+
+# Start everything including MLflow (needs about 1.5 GB RAM in total)
+up-all:
+    {{compose}} --profile storage --profile ml up -d --wait seaweedfs
+    {{compose}} --profile storage --profile ml up storage-init
+    {{compose}} --profile storage --profile ml up -d --wait
+
+# Stop all containers (data volumes are kept)
 down:
-    @echo "Not available yet: arrives in chore/M0-infra-compose"
+    {{compose}} --profile storage --profile ml down
+
+# Stop everything and DELETE all local data volumes (database, queue, storage)
+reset:
+    {{compose}} --profile storage --profile ml down -v
+
+# Show container status
+ps:
+    {{compose}} --profile storage --profile ml ps
+
+# Follow logs, e.g. `just logs postgres`
+logs *services:
+    {{compose}} --profile storage --profile ml logs -f --tail=100 {{services}}
+
+# Open a psql shell in the local database
+psql db="gharbasket":
+    {{compose}} exec postgres psql -U gharbasket -d {{db}}
+
+# Verify extensions and services of the running stack
+infra-check:
+    ./scripts/infra-check.sh
 
 # Run API, workers and frontends in dev mode (arrives in feat/M0-api-platform)
 dev:

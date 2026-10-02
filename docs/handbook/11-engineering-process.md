@@ -139,7 +139,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph LOCAL["Local (each laptop)"]
-        L1["Docker: Postgres 18 + PostGIS + pgvector,<br/>Valkey, MinIO, MLflow"]
+        L1["Docker: Postgres 18 + PostGIS + pgvector,<br/>Valkey, SeaweedFS (S3), MLflow"]
         L2["api / ml with reload,<br/>vite, next dev, Android emulator"]
     end
     subgraph PREVIEW["Preview (per PR)"]

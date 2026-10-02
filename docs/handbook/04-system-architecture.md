@@ -67,7 +67,7 @@ flowchart TB
     PG[("PostgreSQL 18<br/>Neon / Docker<br/>one schema per module")]
     VK[("Valkey<br/>cache, OTP, queue, pub/sub")]
     MLF["MLflow<br/>tracking + registry"]
-    OBJ[("S3 / MinIO<br/>files + Parquet lake")]
+    OBJ[("S3 / SeaweedFS (local)<br/>files + Parquet lake")]
     OSRM["OSRM<br/>Mumbai region extract"]
   end
   MOB -->|"HTTPS JSON + SSE"| CADDY

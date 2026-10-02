@@ -10,7 +10,7 @@ The team asked whether to use SQL or NoSQL (MongoDB, Firebase). GharBasket's dat
 ## Decision
 - **PostgreSQL 18** is the single source of truth, with extensions **PostGIS** (geo), **pgvector** (similarity), **pg_trgm + unaccent + full-text search** (Hinglish search), **JSONB** for flexible fields and **Row-Level Security** for franchise isolation. `uuidv7()` keys; money in integer paise; double-entry ledger; **one schema per module**.
 - **Valkey** for cache, OTP throttles, sessions, the Taskiq queue and live rider locations.
-- **S3-compatible object storage** for photos, KYC documents, invoices and the Parquet data lake (MinIO locally).
+- **S3-compatible object storage** for photos, KYC documents, invoices and the Parquet data lake (SeaweedFS locally).
 - **DuckDB + Parquet** for ML training and heavy analytics.
 - Substitution graph as Postgres tables with recursive queries; events in partitioned tables.
 
