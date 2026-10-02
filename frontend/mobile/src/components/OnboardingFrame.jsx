@@ -1,14 +1,16 @@
-import { IconButton } from "@gharbasket/ui";
+import { IconButton, ProgressBar } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { HOUSEHOLD_STEPS } from "@/features/onboarding/draft.js";
 
 /**
  * Layout shared by the onboarding screens (designs Hf04–Hf15): back button, content, and a footer
  * pinned to the bottom.
- * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode }} props
+ * `step` (1–5) adds the "Household · Step N of 5" progress bar of designs Hf07–Hf11.
+ * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode, step?: number }} props
  */
-export function OnboardingFrame({ children, footer }) {
+export function OnboardingFrame({ children, footer, step }) {
   const { t } = useTranslation();
   const router = useRouter();
   return (
@@ -22,6 +24,14 @@ export function OnboardingFrame({ children, footer }) {
           <ArrowLeftIcon size={24} />
         </IconButton>
       </div>
+      {step && (
+        <ProgressBar
+          label={t("onboarding.household")}
+          value={step}
+          max={HOUSEHOLD_STEPS}
+          valueLabel={t("onboarding.stepOf", { step, total: HOUSEHOLD_STEPS })}
+        />
+      )}
       {children}
       {footer && <div className="mt-auto flex flex-col gap-1 pt-2">{footer}</div>}
     </main>

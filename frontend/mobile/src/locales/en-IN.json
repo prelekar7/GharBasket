@@ -120,6 +120,24 @@
       "note": "The more neighbours who join from one society, the sooner delivery starts there.",
       "cta": "Send request",
       "sent": "Request sent. We’ll let you know."
+    },
+    "household": "Household",
+    "stepOf": "Step {step} of {total}",
+    "next": "Next",
+    "decrease": "Decrease",
+    "increase": "Increase",
+    "family": {
+      "title": "Who eats at home?",
+      "sub": "Autopilot plans portions for each person.",
+      "total": "{count, plural, one {# person} other {# people}}. You can add names and details later in Profile.",
+      "adults": "Adults",
+      "adultsAges": "18 to 59",
+      "seniors": "Seniors",
+      "seniorsAges": "60 and above",
+      "children": "Children",
+      "childrenAges": "5 to 17",
+      "little": "Little ones",
+      "littleAges": "Under 5"
     }
   }
 }
