@@ -18,13 +18,14 @@ from gharbasket.platform.db import SCHEMAS, is_local_database
 from gharbasket.platform.logging import configure_logging, scrub
 from gharbasket.platform.settings import Settings
 
-from .conftest import alembic_config, make_settings
+from .conftest import DEPLOYED_SECRETS, alembic_config, make_settings
 from .test_db import _schemas
 
 
 def test_without_app_env_the_app_runs_as_production(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.setenv("JOBS_TOKEN", "token")
+    for name, value in DEPLOYED_SECRETS.items():
+        monkeypatch.setenv(name.upper(), str(value))
 
     settings = Settings(_env_file=None)  # pyright: ignore[reportCallIssue]
 
@@ -34,8 +35,8 @@ def test_without_app_env_the_app_runs_as_production(monkeypatch: pytest.MonkeyPa
 
 
 def test_deployed_environments_refuse_to_start_without_a_jobs_token() -> None:
-    with pytest.raises(ValidationError, match="JOBS_TOKEN is required"):
-        make_settings(app_env="staging")
+    with pytest.raises(ValidationError, match="JOBS_TOKEN"):
+        make_settings(**{**DEPLOYED_SECRETS, "jobs_token": None}, app_env="staging")
 
 
 def test_secrets_never_appear_in_the_settings_repr() -> None:
@@ -93,7 +94,7 @@ def test_log_lines_and_tracebacks_are_scrubbed(capsys: pytest.CaptureFixture[str
 
 
 def test_ready_needs_the_operator_token_when_deployed() -> None:
-    settings = make_settings(app_env="staging", jobs_token="op-token")
+    settings = make_settings(app_env="staging", **DEPLOYED_SECRETS)
     with TestClient(create_app(settings)) as client:
         missing = client.get("/v1/ready")
         wrong = client.get("/v1/ready", headers={"Authorization": "Bearer nope"})

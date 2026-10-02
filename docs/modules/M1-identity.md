@@ -64,9 +64,10 @@ Errors    : application/problem+json { "type", "title", "status", "detail", "cod
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `identity.users` | id, phone_e164 (unique), name, locale, senior_mode, status, created_at |
-| `identity.devices` | id, user_id, platform, push_token_ref, refresh_token_hash, last_seen_at, revoked_at |
-| `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at |
+| `identity.users` | id (uuidv7), phone_e164 (unique, E.164 check), name, locale, senior_mode, status, data_source, created_at, updated_at |
+| `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at; unique (user, role, scope) with NULLS NOT DISTINCT |
+| `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
+| `identity.refresh_tokens` | id, session_id, token_hash (HMAC-SHA256 with a pepper; the token is never stored), parent_id (rotation chain), created_at, used_at, revoked_at |
 | `identity.households` | id, owner_user_id, hub_id, society_id, size, diet, cuisine_tags[], weekday_cook_minutes, no_cook_days[], budget_paise, autopilot_enabled, auto_approve, data_source, version |
 | `identity.household_members` | id, household_id, age_band, sex, health_tags[], fasting_rules jsonb |
 | `identity.addresses` | id, household_id, society_id, tower, flat, location geography(Point), h3_r9 |
@@ -94,6 +95,7 @@ Errors    : application/problem+json { "type", "title", "status", "detail", "cod
 
 ## 9. Tests required
 - Unit: token issue/rotation/reuse detection; permission checks; consent gating of health tags.
+- Refresh rotation rules (implemented in `identity/service.py`): each refresh uses its token and issues a child; re-presenting a used token within 2 minutes while its child is unused (lost response, two tabs) revokes the child and issues a fresh one; any other reuse revokes the whole session (`auth.refresh_reused`).
 - Integration: exchange with a mocked Firebase verifier; household create publishes outbox event; RLS on hub-scoped reads.
 - E2E: onboarding under 2 minutes on a mid-range device profile; role switch.
 - Security: OTP exchange rate limits; refresh token theft simulation.
