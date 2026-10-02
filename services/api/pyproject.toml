@@ -5,8 +5,12 @@ description = "GharBasket backend API: FastAPI modular monolith"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
     "fastapi>=0.142.2",
     "pydantic-settings>=2.15.0",
+    "redis>=8.1.0",
+    "sqlalchemy[asyncio]>=2.1.2",
     "structlog>=26.1.0",
     "uvicorn[standard]>=0.54.0",
 ]
@@ -21,3 +25,13 @@ module-name = "gharbasket"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = ["services: needs local Postgres and Valkey (`just up`); skipped when they are not running"]
+
+
+# Migrations: `just migrate` (upgrade) and `just migration "<module> <description>"` (autogenerate).
+[tool.alembic]
+script_location = "%(here)s/migrations"
+# YYYYMMDD_HHMM_<module>_<description>.py, as AGENTS.md asks.
+file_template = "%%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d_%%(slug)s"
+truncate_slug_length = 60
+timezone = "UTC"

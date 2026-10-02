@@ -3,17 +3,46 @@
 Run with `just dev`, or `uvicorn gharbasket.main:create_app --factory`.
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from gharbasket import __version__
 from gharbasket.platform import health
+from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.logging import configure_logging
 from gharbasket.platform.request_context import RequestContextMiddleware
 from gharbasket.platform.settings import Settings, get_settings
+from gharbasket.platform.valkey import create_valkey
 
 API_PREFIX = "/v1"
+
+
+def _lifespan(settings: Settings):
+    """Opens the database engine and Valkey client at startup and closes them at shutdown.
+
+    Neither connects until first use, so the app starts even when the database is asleep or down.
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        engine = create_engine(settings.database_url) if settings.database_url else None
+        valkey = create_valkey(settings.valkey_url) if settings.valkey_url else None
+        app.state.engine = engine
+        app.state.sessionmaker = create_sessionmaker(engine) if engine else None
+        app.state.valkey = valkey
+        try:
+            yield
+        finally:
+            if valkey is not None:
+                await valkey.aclose()
+            if engine is not None:
+                await engine.dispose()
+
+    return lifespan
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -33,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # A trailing-slash redirect would point at the API's own host and drop the cookies that
         # browsers send through the same-origin proxies.
         redirect_slashes=False,
+        lifespan=_lifespan(settings),
     )
     app.dependency_overrides[get_settings] = lambda: settings
 
