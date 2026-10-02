@@ -107,7 +107,12 @@ export const handlers = [
     const pair = issue(phone);
     if (request.headers.get("x-gb-client") === "web")
       webSession.set({ phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
-    return HttpResponse.json({ ...pair, is_new_user: false, user: userFor(phone) });
+    // +91 98000 00005 is a brand-new household, to walk through onboarding.
+    return HttpResponse.json({
+      ...pair,
+      is_new_user: phone === "+919800000005",
+      user: userFor(phone),
+    });
   }),
 
   http.get("*/v1/me", ({ request }) => {

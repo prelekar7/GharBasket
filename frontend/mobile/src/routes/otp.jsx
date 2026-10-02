@@ -51,9 +51,10 @@ function Otp() {
     setError(null);
     try {
       const { phone: verified, idToken } = await verifyCode(code);
-      await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
+      const out = await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
       signIn(await me());
-      navigate({ to: next ?? "/" });
+      // A new household sets up its society, flat and family first.
+      navigate({ to: out.is_new_user ? "/onboarding/society" : (next ?? "/") });
     } catch (e) {
       setError(t(errorKey(e)));
       setBusy(false);

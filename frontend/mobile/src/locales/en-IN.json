@@ -75,5 +75,39 @@
     "cta": "Install",
     "later": "Not now",
     "iosSteps": "Tap Share, then “Add to Home Screen”."
+  },
+  "onboarding": {
+    "back": "Back",
+    "continue": "Continue",
+    "error": "We couldn’t load this. Check your internet.",
+    "retry": "Try again",
+    "society": {
+      "title": "Which society do you live in?",
+      "search": "Search society or sector",
+      "placeholder": "e.g. Sunrise Towers",
+      "locate": "Use my location",
+      "near": "Near you",
+      "missing": "My society isn’t listed",
+      "km": "{km} km",
+      "captain": "Captain: {name}",
+      "joined": "{joined} of {target} homes joined",
+      "delivering": "Delivering",
+      "unlocking": "Unlocking",
+      "soon": "Coming soon"
+    },
+    "flat": {
+      "eyebrow": "Your address",
+      "tower": "Tower or wing",
+      "towerPh": "Choose your tower",
+      "flat": "Flat number",
+      "capTitle": "{name} is your Society Captain",
+      "capBody": "She lives in {flat}. She receives your society’s delivery and brings your box to your door."
+    },
+    "unlock": {
+      "count": "{joined} of {target} homes",
+      "remaining": "{n, plural, one {# more home} other {# more homes}} to unlock delivery. Invite a neighbour.",
+      "invite": "Invite neighbours",
+      "progress": "Homes joined"
+    }
   }
 }
