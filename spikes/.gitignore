@@ -1,0 +1,5 @@
+# Throwaway spike apps: generated native projects and installs stay local.
+*/android/
+*/node_modules/
+*/dist/
+*/.env
