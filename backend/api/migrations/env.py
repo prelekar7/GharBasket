@@ -6,12 +6,14 @@ read from the environment (Infisical) or the repository's .env file. Tests pass 
 """
 
 import asyncio
+from importlib import import_module
 from pathlib import Path
 
 from alembic import context
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+from gharbasket.modules import MODULES
 from gharbasket.platform.db import SCHEMAS, Base, create_engine
 from gharbasket.platform.logging import configure_logging
 from gharbasket.platform.settings import Settings
@@ -20,6 +22,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 VERSION_SCHEMA = "platform"
 
 config = context.config
+
+# Every module's tables must be registered on Base.metadata for autogenerate to see them.
+for module in MODULES:
+    import_module(f"gharbasket.modules.{module}.models")
 target_metadata = Base.metadata
 configure_logging("INFO", json=False)
 

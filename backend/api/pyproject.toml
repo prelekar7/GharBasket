@@ -35,3 +35,42 @@ script_location = "%(here)s/migrations"
 file_template = "%%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d_%%(slug)s"
 truncate_slug_length = 60
 timezone = "UTC"
+
+
+# Module boundaries (ADR-0019), checked by `lint-imports` in CI.
+[tool.importlinter]
+root_package = "gharbasket"
+
+[[tool.importlinter.contracts]]
+name = "Modules talk to each other only through api.py"
+type = "independence"
+modules = [
+    "gharbasket.modules.identity",
+    "gharbasket.modules.catalog",
+    "gharbasket.modules.subscriptions",
+    "gharbasket.modules.orders",
+    "gharbasket.modules.billing",
+    "gharbasket.modules.hub_ops",
+    "gharbasket.modules.logistics",
+    "gharbasket.modules.partners",
+    "gharbasket.modules.community",
+    "gharbasket.modules.intel_gateway",
+    "gharbasket.modules.notifications",
+    "gharbasket.modules.analytics",
+    "gharbasket.modules.assistant",
+]
+ignore_imports = [
+    "gharbasket.modules.** -> gharbasket.modules.*.api",
+]
+# Allowed until the first module actually uses another module's facade.
+unmatched_ignore_imports_alerting = "none"
+
+[[tool.importlinter.contracts]]
+name = "Platform never depends on modules; modules never depend on the app"
+type = "layers"
+layers = [
+    "gharbasket.tools",
+    "gharbasket.main",
+    "gharbasket.modules",
+    "gharbasket.platform",
+]
