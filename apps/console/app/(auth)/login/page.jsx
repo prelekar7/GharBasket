@@ -5,7 +5,7 @@ import { LoginForm } from "./LoginForm.jsx";
 
 export const metadata = { title: "Sign in" };
 
-/** Decided per request, so one Docker image can run with or without dev sign-in. */
+/** Decided per request, so one build can run with or without dev sign-in. */
 async function DevSignIn() {
   await connection();
   return devLoginEnabled ? (
