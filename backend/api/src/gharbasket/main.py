@@ -59,8 +59,9 @@ def _lifespan(settings: Settings):
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        engine = create_engine(settings.database_url) if settings.database_url else None
-        valkey = create_valkey(settings.valkey_url) if settings.valkey_url else None
+        database_url, valkey_url = settings.database_url, settings.valkey_url
+        engine = create_engine(database_url.get_secret_value()) if database_url else None
+        valkey = create_valkey(valkey_url.get_secret_value()) if valkey_url else None
         app.state.engine = engine
         app.state.sessionmaker = create_sessionmaker(engine) if engine else None
         app.state.valkey = valkey

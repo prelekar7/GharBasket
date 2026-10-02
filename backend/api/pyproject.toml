@@ -27,6 +27,16 @@ testpaths = ["tests"]
 addopts = "-q"
 markers = ["services: needs local Postgres and Valkey (`just up`); skipped when they are not running"]
 
+# `just test` and CI run with coverage; a single file can still be run without it.
+[tool.coverage.run]
+source = ["gharbasket"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
 
 # Migrations: `just migrate` (upgrade) and `just migration "<module> <description>"` (autogenerate).
 [tool.alembic]

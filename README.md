@@ -10,7 +10,7 @@ B.Tech major project, SIES Graduate School of Technology (2026–27), guide Prof
 |---|---|---|
 | `frontend/mobile` | Customer and field app: React + Vite → PWA and Android (Capacitor) | Yash Salunkhe |
 | `frontend/console` | Admin, hub and franchise web console (Next.js) | Yash Salunkhe |
-| `frontend/packages` | Shared UI kit, generated API client, shared constants | Yash Salunkhe |
+| `frontend/packages` | Shared UI kit and constants (Yash Salunkhe); `api-client` is generated from the backend (Prathamesh Relekar) | Yash Salunkhe |
 | `backend/api` | FastAPI modular monolith: platform + one folder per module (M1–M13) | Prathamesh Relekar |
 | `backend/ml` | ML and optimisation service (meal planner, forecasts, routing) | Prathamesh Relekar |
 | `infra/` | Local Docker stack: Postgres 18 (PostGIS, pgvector), Valkey, S3 storage, MLflow | Prathamesh Relekar |

@@ -3,20 +3,30 @@
 Run through `just migrate`. The URL comes from DATABASE_URL_DIRECT (falling back to DATABASE_URL),
 read from the environment (Infisical) or the repository's .env file. Tests pass their own URL in
 `config.attributes["database_url"]`.
+
+The team shares one Neon database, so it is protected:
+- any database other than this machine's is refused unless GB_ALLOW_REMOTE_MIGRATIONS=1, which only
+  the deploy workflow sets, after the change is merged into main;
+- downgrades on such a database are always refused (Postgres runs the whole migration in one
+  transaction, so the refusal rolls everything back).
 """
 
 import asyncio
+import os
+from collections.abc import Collection, Mapping
 from importlib import import_module
 from pathlib import Path
+from typing import Any
 
 from alembic import context
+from alembic.runtime.migration import MigrationContext, MigrationInfo
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 from gharbasket.modules import MODULES
-from gharbasket.platform.db import SCHEMAS, Base, create_engine
+from gharbasket.platform.db import LOCAL_HOSTS, SCHEMAS, Base, create_engine, is_local_database
 from gharbasket.platform.logging import configure_logging
-from gharbasket.platform.settings import Settings
+from gharbasket.platform.settings import DatabaseSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 VERSION_SCHEMA = "platform"
@@ -33,11 +43,24 @@ configure_logging("INFO", json=False)
 def _database_url() -> str:
     url = config.attributes.get("database_url")
     if url is None:
-        settings = Settings(_env_file=REPO_ROOT / ".env")  # pyright: ignore[reportCallIssue]
+        settings = DatabaseSettings(_env_file=REPO_ROOT / ".env")  # pyright: ignore[reportCallIssue]
         url = settings.migrations_url
     if not url:
         raise SystemExit("Set DATABASE_URL_DIRECT or DATABASE_URL (see .env.example).")
+    if not is_local_database(url) and os.environ.get("GB_ALLOW_REMOTE_MIGRATIONS") != "1":
+        raise SystemExit(
+            "Refusing to migrate a shared (non-local) database. Migrations reach Neon only through "
+            "the deploy workflow after merge; locally use `just up` and the Docker database."
+        )
     return url
+
+
+def _refuse_remote_downgrade(
+    ctx: MigrationContext, step: MigrationInfo, heads: Collection[Any], run_args: Mapping[str, Any]
+) -> None:
+    host = ctx.connection.engine.url.host if ctx.connection is not None else None
+    if not step.is_upgrade and host not in LOCAL_HOSTS:
+        raise SystemExit("Refusing to downgrade a shared database; write a new migration instead.")
 
 
 def _include_name(name: str | None, type_: str, parent_names: object) -> bool:
@@ -57,6 +80,7 @@ def _configure(connection: Connection) -> None:
         include_schemas=True,
         include_name=_include_name,
         compare_server_default=True,
+        on_version_apply=_refuse_remote_downgrade,
     )
     with context.begin_transaction():
         context.run_migrations()

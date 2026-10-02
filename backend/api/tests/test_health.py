@@ -46,7 +46,7 @@ def test_trailing_slash_is_not_redirected(client: TestClient) -> None:
 
 
 def test_api_docs_are_hidden_in_production() -> None:
-    with TestClient(create_app(make_settings(app_env="prod"))) as prod_client:
+    with TestClient(create_app(make_settings(app_env="prod", jobs_token="t"))) as prod_client:
         assert prod_client.get("/v1/openapi.json").status_code == 404
         assert prod_client.get("/v1/docs").status_code == 404
         assert prod_client.get("/v1/health").status_code == 200

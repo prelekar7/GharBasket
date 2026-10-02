@@ -8,7 +8,7 @@ pre-commit:
       stage_fixed: true
 
     - name: ruff
-      run: uvx ruff check --fix {staged_files} && uvx ruff format {staged_files}
+      run: uv run ruff check --fix {staged_files} && uv run ruff format {staged_files}
       glob: "*.py"
       stage_fixed: true
 

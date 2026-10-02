@@ -70,12 +70,26 @@ def asyncpg_url(raw: str) -> tuple[URL, dict[str, Any]]:
     connect_args: dict[str, Any] = {
         "statement_cache_size": 0,
         "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
-        "timeout": 10,
+        "timeout": 10,  # seconds to connect (a sleeping Neon compute wakes in about 1 s)
+        # Client-side limit per statement: a runaway query is cancelled instead of holding a
+        # pool slot. Set here, not as a server setting, because PgBouncer drops those.
+        "command_timeout": 15,
     }
     if isinstance(sslmode, str) and sslmode != "disable":
         connect_args["ssl"] = sslmode
 
     return url.set(drivername="postgresql+asyncpg", query=query), connect_args
+
+
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def is_local_database(raw_url: str) -> bool:
+    """True for the Docker database on this machine (or CI's service container).
+
+    Used as a guard: tests and unmerged migrations must never touch the shared Neon database.
+    """
+    return make_url(raw_url).host in LOCAL_HOSTS
 
 
 def create_engine(raw_url: str, *, pooled: bool = True) -> AsyncEngine:

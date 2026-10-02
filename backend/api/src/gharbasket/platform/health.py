@@ -3,7 +3,7 @@
 Render's health check uses /v1/health, which must never touch the database or Valkey: Neon's free
 plan has a monthly compute allowance, and a check that queries the database every few seconds would
 keep it awake and use it up. /v1/ready checks the dependencies and is called only on demand
-(after a deploy, or by a person).
+(after a deploy, or by a person), with the operator token outside local development.
 """
 
 import asyncio
@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from gharbasket import __version__
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.operator import require_operator
 from gharbasket.platform.settings import Settings, get_settings
 
 log = structlog.get_logger("gharbasket.health")
@@ -80,8 +81,12 @@ async def _check_valkey(valkey: Redis | None) -> CheckResult:
 
 @router.get(
     "/ready",
-    summary="Readiness check (database and Valkey)",
-    responses={503: {"description": "A dependency is not reachable (problem+json)"}},
+    summary="Readiness check (database and Valkey); operator token required when deployed",
+    dependencies=[Depends(require_operator)],
+    responses={
+        401: {"description": "Operator token missing or wrong (problem+json)"},
+        503: {"description": "A dependency is not reachable (problem+json)"},
+    },
 )
 async def ready(request: Request) -> Ready:
     database, valkey = await asyncio.gather(

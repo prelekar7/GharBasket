@@ -46,3 +46,10 @@ local.properties
 mlruns/
 data/sim_truth/
 *.parquet
+
+# Claude Code agent worktrees (temporary checkouts)
+.claude/worktrees/
+
+# Python test coverage data
+.coverage
+.coverage.*

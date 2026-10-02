@@ -11,15 +11,17 @@ install:
     pnpm install
     if [ -f pyproject.toml ]; then uv sync --all-packages; fi
 
-# Lint everything (Biome for TS/JSON/CSS, Ruff for Python)
+# Lint everything (Biome for JS/JSON/CSS, Ruff for Python, module boundaries)
 lint:
     pnpm exec biome check .
-    if ls backend data 2>/dev/null | grep -q .; then uvx ruff check .; fi
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run --directory backend/api lint-imports
 
 # Format everything
 fmt:
     pnpm exec biome format --write .
-    uvx ruff format .
+    uv run ruff format .
 
 # Copy AGENTS.md into every AI-tool instruction file
 sync-agent-docs:
@@ -72,11 +74,11 @@ infra-check:
 
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
-    LOG_JSON=false uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
+    APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
 
-# Run the Python test suite
+# Run the Python tests with the coverage gate (single file: `uv run --directory backend/api pytest tests/test_x.py`)
 test:
-    uv run pytest backend/api
+    uv run --directory backend/api pytest --cov
 
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
