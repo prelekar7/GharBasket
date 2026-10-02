@@ -64,10 +64,23 @@ export const useOnboardingDraft = create(
 );
 
 /** Onboarding screens in order; later PRs add health, cooking, budget, consent and payment. */
-export const ONBOARDING_STEPS = ["/onboarding/society", "/onboarding/flat", "/onboarding/family"];
+export const ONBOARDING_STEPS = [
+  "/onboarding/society",
+  "/onboarding/flat",
+  "/onboarding/family",
+  "/onboarding/food",
+];
 
 /** The household steps that show "Step N of 5" (designs Hf07–Hf11). */
 export const HOUSEHOLD_STEPS = 5;
 
-/** The screen after `path`, or home when onboarding is done. @param {string} path */
-export const nextStep = (path) => ONBOARDING_STEPS[ONBOARDING_STEPS.indexOf(path) + 1] ?? "/";
+/**
+ * The screen after `path`, or home when onboarding is done. Throws for a path missing from
+ * ONBOARDING_STEPS, so a forgotten step fails loudly instead of sending people back to the start.
+ * @param {string} path
+ */
+export function nextStep(path) {
+  const i = ONBOARDING_STEPS.indexOf(path);
+  if (i < 0) throw new Error(`${path} is not in ONBOARDING_STEPS`);
+  return ONBOARDING_STEPS[i + 1] ?? "/";
+}
