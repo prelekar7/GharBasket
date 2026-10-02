@@ -1,2 +1,48 @@
 # Added by code-review-graph
 .code-review-graph/
+
+# Old planning folder (superseded by docs/; kept locally only)
+/Major project/
+
+# Generated handbook PDF (published as a GitHub Release instead)
+docs/handbook/*.pdf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+storybook-static/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Android / Capacitor
+apps/mobile/android/build/
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+*.keystore
+local.properties
+
+# ML artifacts and data
+mlruns/
+data/sim_truth/
+*.parquet
