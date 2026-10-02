@@ -15,6 +15,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { InstallBanner } from "@/components/InstallBanner.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
@@ -44,6 +45,7 @@ function CustomerShell() {
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">
+        <InstallBanner />
         <Outlet />
       </main>
       <button
