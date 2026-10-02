@@ -20,6 +20,12 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 - Requests get a session through `DbSession`; services call `await session.commit()` themselves.
 - The app uses `DATABASE_URL` (on Neon: the pooled URL); migrations use `DATABASE_URL_DIRECT`.
 - Migrations live in `migrations/versions/`, named `YYYYMMDD_HHMM_<module>_<description>.py`; keep one head.
+- Events: `await publish(session, "orders.locked", {...})` (`platform/outbox.py`) in the same transaction
+  as the change; the relay delivers them later (at least once; consumers dedupe on the event id).
+- Money and order POSTs take `idem: Idempotent` and call `await idem.save(status, body)` before
+  committing (`platform/idempotency.py`); retries replay the stored answer.
+- Admin and money actions call `await audit.record(...)` (`platform/audit.py`).
+- Lists use cursor pagination: `Page[T]`, `Limit`, `Cursor`, `encode_cursor()` (`platform/pagination.py`).
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).

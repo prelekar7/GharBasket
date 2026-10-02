@@ -31,6 +31,8 @@ markers = ["services: needs local Postgres and Valkey (`just up`); skipped when 
 [tool.coverage.run]
 source = ["gharbasket"]
 branch = true
+# SQLAlchemy's async layer switches greenlets; without this, code after a database await is missed.
+concurrency = ["thread", "greenlet"]
 
 [tool.coverage.report]
 fail_under = 85
@@ -45,6 +47,19 @@ script_location = "%(here)s/migrations"
 file_template = "%%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d_%%(slug)s"
 truncate_slug_length = 60
 timezone = "UTC"
+
+# New migration files are cleaned up by the same Ruff the repository uses.
+[[tool.alembic.post_write_hooks]]
+name = "ruff_fix"
+type = "module"
+module = "ruff"
+options = "check --fix --quiet REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff_format"
+type = "module"
+module = "ruff"
+options = "format --quiet REVISION_SCRIPT_FILENAME"
 
 
 # Module boundaries (ADR-0019), checked by `lint-imports` in CI.
