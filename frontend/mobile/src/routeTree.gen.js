@@ -28,6 +28,7 @@ import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/w
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
 import { Route as AuthOnboardingCookingRouteImport } from "./routes/_auth/onboarding/cooking"
+import { Route as AuthOnboardingDoneRouteImport } from "./routes/_auth/onboarding/done"
 import { Route as AuthOnboardingFamilyRouteImport } from "./routes/_auth/onboarding/family"
 import { Route as AuthOnboardingFlatRouteImport } from "./routes/_auth/onboarding/flat"
 import { Route as AuthOnboardingFoodRouteImport } from "./routes/_auth/onboarding/food"
@@ -130,6 +131,11 @@ const AuthOnboardingCookingRoute = AuthOnboardingCookingRouteImport.update({
   path: "/onboarding/cooking",
   getParentRoute: () => AuthRoute,
 })
+const AuthOnboardingDoneRoute = AuthOnboardingDoneRouteImport.update({
+  id: "/onboarding/done",
+  path: "/onboarding/done",
+  getParentRoute: () => AuthRoute,
+})
 const AuthOnboardingFamilyRoute = AuthOnboardingFamilyRouteImport.update({
   id: "/onboarding/family",
   path: "/onboarding/family",
@@ -192,6 +198,7 @@ const AuthRouteChildren = {
   AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,
   AuthOnboardingConsentRoute: AuthOnboardingConsentRoute,
   AuthOnboardingCookingRoute: AuthOnboardingCookingRoute,
+  AuthOnboardingDoneRoute: AuthOnboardingDoneRoute,
   AuthOnboardingFamilyRoute: AuthOnboardingFamilyRoute,
   AuthOnboardingFlatRoute: AuthOnboardingFlatRoute,
   AuthOnboardingFoodRoute: AuthOnboardingFoodRoute,
