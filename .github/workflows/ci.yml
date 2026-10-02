@@ -98,6 +98,11 @@ jobs:
       - name: Tests
         run: uv run pytest services/api
 
+      - name: OpenAPI contract is up to date (run `just openapi` if this fails)
+        run: |
+          uv run python -m gharbasket.tools.export_openapi "$RUNNER_TEMP/openapi.json"
+          diff -u services/api/openapi.json "$RUNNER_TEMP/openapi.json"
+
   js-hints:
     name: JS editor hints (informational, never blocks)
     runs-on: ubuntu-latest
