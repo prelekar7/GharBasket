@@ -47,6 +47,7 @@
     "i18next-icu": "2.4.4",
     "idb-keyval": "6.3.0",
     "intl-messageformat": "11.2.15",
+    "maplibre-gl": "6.11.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-hook-form": "7.89.0",
