@@ -29,6 +29,14 @@
     "comingBody": "यह स्क्रीन मॉड्यूल {module} के साथ आएगी। डिज़ाइन Customer screens कैनवस पर तैयार है।",
     "fieldBody": "{role} की स्क्रीनें फ़ेज़ 3 की शुरुआत में डिज़ाइन होंगी।"
   },
-  "profile": { "language": "भाषा", "switchRole": "रोल बदलें", "signOut": "साइन आउट" },
-  "assistant": "घर साथी सहायक"
+  "profile": {
+    "language": "भाषा",
+    "switchRole": "रोल बदलें",
+    "signOut": "साइन आउट"
+  },
+  "assistant": "घर साथी सहायक",
+  "pwa": {
+    "updateTitle": "नया वर्ज़न उपलब्ध है",
+    "refresh": "रीफ़्रेश करें"
+  }
 }
