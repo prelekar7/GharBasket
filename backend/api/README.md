@@ -8,7 +8,7 @@ The GharBasket backend: a FastAPI modular monolith (see `docs/handbook/04-system
 | `just migrate` | Apply all migrations (`just migrate-down` undoes the last one) |
 | `just migration "orders add slots"` | Generate a migration from model changes; review it before committing |
 | `just dev` | Run the API with auto-reload on http://localhost:8000 (docs at `/v1/docs`) |
-| `just test` | Run the tests; database tests skip when `just up` is not running |
+| `just test` | Run the tests with the coverage gate (85%); database tests skip when `just up` is not running |
 | `just openapi` | Regenerate `backend/api/openapi.json` (the contract the frontend client is built from) |
 
 Configuration comes from environment variables (via Infisical, or a local `.env` copied from `.env.example`);
@@ -23,4 +23,12 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).
-- `GET /v1/ready`: checks the database and Valkey; 503 `platform.not_ready` if one is down.
+- `GET /v1/ready`: checks the database and Valkey; 503 `platform.not_ready` if one is down. On staging
+  and prod it needs `Authorization: Bearer $JOBS_TOKEN`, so nobody can poll it to keep Neon awake.
+
+## Safety rails (one Neon database is shared by the whole team)
+- Without `APP_ENV` the API assumes `prod`; staging and prod refuse to start without `JOBS_TOKEN`.
+- Tests refuse any `TEST_DATABASE_URL` that is not on this machine.
+- Migrations refuse a non-local database unless `GB_ALLOW_REMOTE_MIGRATIONS=1` (set only by the deploy
+  workflow after merge), and downgrades on a shared database are always refused.
+- Logs mask phone numbers, tokens and database passwords, including inside exception messages.

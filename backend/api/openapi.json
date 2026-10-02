@@ -58,6 +58,13 @@
         "title": "Ready",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "OperatorToken": {
+        "description": "JOBS_TOKEN from Infisical. Only for operators and scheduled jobs.",
+        "scheme": "bearer",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -102,11 +109,19 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Operator token missing or wrong (problem+json)"
+          },
           "503": {
             "description": "A dependency is not reachable (problem+json)"
           }
         },
-        "summary": "Readiness check (database and Valkey)",
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Readiness check (database and Valkey); operator token required when deployed",
         "tags": [
           "platform"
         ]

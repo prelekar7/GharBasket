@@ -11,6 +11,7 @@ from gharbasket.tools.export_openapi import main as export_openapi
 
 
 def test_cors_origins_read_from_comma_separated_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("CORS_ALLOW_ORIGINS", "https://localhost, capacitor://localhost")
 
     settings = Settings(_env_file=None)  # pyright: ignore[reportCallIssue]
@@ -19,6 +20,7 @@ def test_cors_origins_read_from_comma_separated_env(monkeypatch: pytest.MonkeyPa
 
 
 def test_unknown_env_variables_are_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("POSTGRES_USER", "someone")
 
     Settings(_env_file=None)  # pyright: ignore[reportCallIssue]

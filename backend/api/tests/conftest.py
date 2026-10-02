@@ -1,9 +1,10 @@
 import asyncio
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import NoReturn
 
+import httpx2
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -11,9 +12,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
-from gharbasket.platform.db import DbSession, create_engine
+from gharbasket.platform.db import DbSession, create_engine, get_session, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
 from gharbasket.platform.valkey import create_valkey
@@ -70,6 +72,9 @@ def alembic_config(database_url: str) -> Config:
 def database_url() -> str:
     """The test database, migrated to the latest revision."""
     url = os.environ.get("TEST_DATABASE_URL", LOCAL_TEST_DATABASE_URL)
+    if not is_local_database(url):
+        # Never skip this one: tests migrate and roll back, which must not happen on shared Neon.
+        pytest.fail("TEST_DATABASE_URL must point at the local Docker database, never at Neon")
 
     async def probe() -> None:
         engine = create_engine(url, pooled=False)
@@ -116,3 +121,46 @@ def app() -> FastAPI:
 def client(app: FastAPI) -> Iterator[TestClient]:
     with TestClient(app, raise_server_exceptions=False) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@pytest.fixture
+async def db_session(database_url: str) -> AsyncIterator[AsyncSession]:
+    """A session inside a transaction that is rolled back after the test.
+
+    Code under test may call `session.commit()`: with `create_savepoint` that only releases a
+    savepoint, so nothing a test writes survives it and tests never see each other's rows.
+    """
+    engine = create_engine(database_url, pooled=False)
+    try:
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+            session = AsyncSession(
+                bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+            )
+            try:
+                yield session
+            finally:
+                await session.close()
+                await transaction.rollback()
+    finally:
+        await engine.dispose()
+
+
+@pytest.fixture
+async def api(db_session: AsyncSession) -> AsyncIterator[httpx2.AsyncClient]:
+    """Async client for the app, with every request using the test's rolled-back session."""
+    app = create_app(make_settings())
+    add_test_routes(app)
+
+    async def session_override() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    app.dependency_overrides[get_session] = session_override
+    transport = httpx2.ASGITransport(app=app)
+    async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
