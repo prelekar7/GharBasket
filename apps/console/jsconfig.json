@@ -10,6 +10,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 0,
     "types": ["node", "next"]
   },
   "include": ["app", "components", "lib", "proxy.js", "next.config.js"]
