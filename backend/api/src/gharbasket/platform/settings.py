@@ -10,7 +10,7 @@ and connection strings and tokens are SecretStr so they never show up in a repr 
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BeforeValidator, SecretStr, model_validator
+from pydantic import BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -25,6 +25,12 @@ def _upper(value: Any) -> Any:
 
 
 CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
+
+# Used only when APP_ENV is dev or test and no key is configured, so local runs and tests need no
+# secrets. Deployed environments refuse to start without their own keys.
+_DEV_SIGNING_KEY = "gharbasket-dev-only-jwt-signing-key-never-deployed"
+_DEV_REFRESH_PEPPER = "gharbasket-dev-only-refresh-token-pepper-never-deployed"
+MIN_SECRET_BYTES = 32
 LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidator(_upper)]
 
 
@@ -59,11 +65,64 @@ class Settings(DatabaseSettings):
     # staging and prod; open locally so `curl localhost:8000/v1/ready` just works.
     jobs_token: SecretStr | None = None
 
+    # Sessions (ADR D25): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
+    # set a new JWT_SIGNING_KEY + JWT_KEY_ID and move the old pair to JWT_RETIRED_KEYS
+    # ("k1:<key>,k0:<key>") until the last old token has expired (15 minutes).
+    jwt_signing_key: SecretStr | None = None
+    jwt_key_id: str = Field(default="k1", pattern=r"^[a-z0-9-]{1,16}$")
+    jwt_retired_keys: SecretStr | None = None
+    jwt_issuer: str = "gharbasket-api"
+    jwt_audience: str = "gharbasket-apps"
+    # Refresh tokens are stored only as HMAC-SHA256(pepper, token).
+    refresh_token_pepper: SecretStr | None = None
+
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
-        if not self.is_local and self.jobs_token is None:
-            raise ValueError(f"JOBS_TOKEN is required when APP_ENV={self.app_env}")
+        if not self.is_local:
+            required = {
+                "JOBS_TOKEN": self.jobs_token,
+                "JWT_SIGNING_KEY": self.jwt_signing_key,
+                "REFRESH_TOKEN_PEPPER": self.refresh_token_pepper,
+            }
+            missing = [name for name, value in required.items() if value is None]
+            if missing:
+                raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
+        for name, secret in (
+            ("JWT_SIGNING_KEY", self.jwt_signing_key),
+            ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
+            *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
+        ):
+            if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
+                raise ValueError(f"{name} must be at least {MIN_SECRET_BYTES} bytes")
         return self
+
+    def _retired_pairs(self) -> list[tuple[str, SecretStr]]:
+        if self.jwt_retired_keys is None:
+            return []
+        pairs: list[tuple[str, SecretStr]] = []
+        for item in self.jwt_retired_keys.get_secret_value().split(","):
+            kid, sep, key = item.strip().partition(":")
+            if not sep or not kid or not key:
+                raise ValueError("JWT_RETIRED_KEYS must look like 'k0:<key>,k1:<key>'")
+            pairs.append((kid, SecretStr(key)))
+        return pairs
+
+    @property
+    def jwt_verification_keys(self) -> dict[str, bytes]:
+        """Every key a valid access token may be signed with, by key id."""
+        keys = {kid: key.get_secret_value().encode() for kid, key in self._retired_pairs()}
+        keys[self.jwt_key_id] = self.jwt_active_key
+        return keys
+
+    @property
+    def jwt_active_key(self) -> bytes:
+        key = self.jwt_signing_key.get_secret_value() if self.jwt_signing_key else _DEV_SIGNING_KEY
+        return key.encode()
+
+    @property
+    def refresh_pepper(self) -> bytes:
+        pepper = self.refresh_token_pepper
+        return (pepper.get_secret_value() if pepper else _DEV_REFRESH_PEPPER).encode()
 
     @property
     def is_local(self) -> bool:

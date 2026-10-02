@@ -28,6 +28,14 @@ LOCAL_TEST_DATABASE_URL = (
 LOCAL_TEST_VALKEY_URL = "redis://localhost:6380/15"
 
 
+# What staging and prod must have; used by tests that build a deployed configuration.
+DEPLOYED_SECRETS: dict[str, object] = {
+    "jobs_token": "op-token",
+    "jwt_signing_key": "test-deployed-jwt-signing-key-0123456789",
+    "refresh_token_pepper": "test-deployed-refresh-pepper-0123456789",
+}
+
+
 def make_settings(**overrides: object) -> Settings:
     """Settings for tests: never read a developer's .env file."""
     values: dict[str, object] = {"app_env": "test", "log_json": True, **overrides}

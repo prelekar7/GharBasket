@@ -1,1 +1,227 @@
-"""Business logic of M1 Identity & Household."""
+"""Business logic of M1 Identity & Household: accounts, sessions and refresh-token rotation (D25).
+
+Sign-up is implicit: the first successful phone verification creates the account and grants the
+`customer` role. Each device or browser gets a session; its refresh token is single-use and
+rotates on every refresh:
+
+- normal refresh: the presented token is marked used and a child token is issued;
+- grace rule: if a used token is presented again within REUSE_GRACE and its child was never used
+  (the response got lost, or two tabs refreshed at once), the unused child is revoked and a fresh
+  one issued, so the user is not logged out;
+- otherwise reuse means the token was copied: the whole session is revoked (`auth.refresh_reused`).
+"""
+
+import hashlib
+import hmac
+import secrets
+import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from gharbasket.modules.identity.models import LoginSession, RefreshToken, User, UserRole
+from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.settings import Settings
+from gharbasket.platform.tokens import invalid_token, issue_access_token
+
+SESSION_LIFETIME = timedelta(days=30)
+REUSE_GRACE = timedelta(minutes=2)
+
+
+@dataclass(frozen=True)
+class IssuedTokens:
+    access_token: str
+    access_expires_in: int
+    refresh_token: str
+    session_id: uuid.UUID
+    user: User
+
+
+def hash_refresh_token(settings: Settings, token: str) -> bytes:
+    return hmac.new(settings.refresh_pepper, token.encode(), hashlib.sha256).digest()
+
+
+def _now(now: datetime | None) -> datetime:
+    return now or datetime.now(UTC)
+
+
+async def find_or_create_user(session: AsyncSession, phone_e164: str) -> tuple[User, bool]:
+    """Return the account for a verified phone number, creating it on first sign-in."""
+    created = (
+        await session.execute(
+            insert(User)
+            .values(phone_e164=phone_e164)
+            .on_conflict_do_nothing(index_elements=[User.phone_e164])
+            .returning(User.id)
+        )
+    ).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.phone_e164 == phone_e164))).scalar_one()
+    if created is not None:
+        session.add(
+            UserRole(
+                user_id=user.id, role="customer", status="verified", verified_at=datetime.now(UTC)
+            )
+        )
+        await session.flush()
+    return user, created is not None
+
+
+async def active_grants(session: AsyncSession, user_id: uuid.UUID) -> tuple[str, ...]:
+    roles = await session.execute(
+        select(UserRole)
+        .where(UserRole.user_id == user_id, UserRole.status == "verified")
+        .order_by(UserRole.created_at, UserRole.id)
+    )
+    return tuple(role.grant for role in roles.scalars())
+
+
+async def _issue(
+    session: AsyncSession,
+    settings: Settings,
+    *,
+    user: User,
+    login: LoginSession,
+    parent_id: uuid.UUID | None,
+    now: datetime,
+) -> IssuedTokens:
+    refresh_token = secrets.token_urlsafe(32)
+    session.add(
+        RefreshToken(
+            session_id=login.id,
+            token_hash=hash_refresh_token(settings, refresh_token),
+            parent_id=parent_id,
+            created_at=now,
+        )
+    )
+    await session.flush()
+    access_token, expires_in = issue_access_token(
+        settings,
+        user_id=user.id,
+        session_id=login.id,
+        roles=await active_grants(session, user.id),
+        now=now,
+    )
+    return IssuedTokens(access_token, expires_in, refresh_token, login.id, user)
+
+
+async def start_session(
+    session: AsyncSession,
+    settings: Settings,
+    user: User,
+    *,
+    platform: str,
+    push_token: str | None = None,
+    now: datetime | None = None,
+) -> IssuedTokens:
+    """Sign a device in: a new session with its first refresh token and an access token."""
+    at = _now(now)
+    login = LoginSession(
+        user_id=user.id,
+        platform=platform,
+        push_token=push_token,
+        created_at=at,
+        last_seen_at=at,
+        expires_at=at + SESSION_LIFETIME,
+    )
+    session.add(login)
+    await session.flush()
+    return await _issue(session, settings, user=user, login=login, parent_id=None, now=at)
+
+
+async def rotate(
+    session: AsyncSession, settings: Settings, presented: str, *, now: datetime | None = None
+) -> IssuedTokens:
+    """Exchange a refresh token for a new one (and a new access token).
+
+    On detected reuse the session is revoked and committed *before* the 401 is raised, so the
+    revocation survives the request's rollback.
+    """
+    at = _now(now)
+    token = (
+        await session.execute(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == hash_refresh_token(settings, presented)
+            )
+        )
+    ).scalar_one_or_none()
+    if token is None:
+        raise invalid_token()
+
+    # Serialise every refresh of one session: two tabs refreshing at once take turns.
+    login = (
+        await session.execute(
+            select(LoginSession).where(LoginSession.id == token.session_id).with_for_update()
+        )
+    ).scalar_one()
+    await session.refresh(token)
+    user = await session.get(User, login.user_id)
+    if user is None or user.status != "active":
+        raise invalid_token()
+    if login.revoked_at is not None or login.expires_at <= at:
+        raise invalid_token()
+
+    if token.used_at is None and token.revoked_at is None:
+        token.used_at = at
+        login.last_seen_at = at
+        return await _issue(session, settings, user=user, login=login, parent_id=token.id, now=at)
+
+    if token.used_at is None:
+        # Revoked without being used: superseded by the grace rule, or signed out. Not theft.
+        raise invalid_token()
+
+    child = (
+        await session.execute(
+            select(RefreshToken)
+            .where(RefreshToken.parent_id == token.id)
+            .order_by(RefreshToken.created_at.desc(), RefreshToken.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    within_grace = at - token.used_at <= REUSE_GRACE
+    if within_grace and child is not None and child.used_at is None and child.revoked_at is None:
+        child.revoked_at = at
+        login.last_seen_at = at
+        return await _issue(session, settings, user=user, login=login, parent_id=token.id, now=at)
+
+    login.revoked_at = at
+    login.revoke_reason = "refresh_reused"
+    await session.commit()
+    raise ProblemError(
+        401,
+        "auth.refresh_reused",
+        "This sign-in was used from somewhere else, so it has been ended. Sign in again.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+async def revoke_session(
+    session: AsyncSession,
+    session_id: uuid.UUID,
+    *,
+    reason: str = "logout",
+    now: datetime | None = None,
+) -> None:
+    await session.execute(
+        update(LoginSession)
+        .where(LoginSession.id == session_id, LoginSession.revoked_at.is_(None))
+        .values(revoked_at=_now(now), revoke_reason=reason)
+    )
+
+
+async def revoke_all_sessions(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    reason: str = "logout_all",
+    now: datetime | None = None,
+) -> int:
+    result = await session.execute(
+        update(LoginSession)
+        .where(LoginSession.user_id == user_id, LoginSession.revoked_at.is_(None))
+        .values(revoked_at=_now(now), revoke_reason=reason)
+        .returning(LoginSession.id)
+    )
+    return len(result.all())
