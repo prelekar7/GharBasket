@@ -248,6 +248,59 @@
       "post": ". You can download or delete your data any time.",
       "cta": "Agree and continue",
       "failed": "We couldn’t save your household. Check your internet and try again."
+    },
+    "preview": {
+      "eyebrow": "Autopilot · sample week",
+      "title": "Here’s your first week",
+      "sub": "Planned for families like yours. It learns from every edit.",
+      "why": "Why these meals",
+      "box": "Sabzi box · {count, plural, one {# item} other {# items}}",
+      "when": "{day}, {range}",
+      "within": "within your {budget} Budget Lock",
+      "cta": "Looks good, continue",
+      "edit": "Change something first"
+    }
+  },
+  "days": {
+    "short": {
+      "d0": "Som",
+      "d1": "Mangal",
+      "d2": "Budh",
+      "d3": "Guru",
+      "d4": "Shukra",
+      "d5": "Shani",
+      "d6": "Ravi"
+    },
+    "long": {
+      "d0": "Monday",
+      "d1": "Tuesday",
+      "d2": "Wednesday",
+      "d3": "Thursday",
+      "d4": "Friday",
+      "d5": "Saturday",
+      "d6": "Sunday"
+    }
+  },
+  "week": {
+    "label": "This week",
+    "today": "Aaj",
+    "skip": "Skip",
+    "slot": {
+      "lunch": "Lunch",
+      "dinner": "Dinner"
+    }
+  },
+  "reasons": {
+    "in_season": "{item} is in season",
+    "tiffin_day": "{weekday}: tiffin by {cook}",
+    "health_tag": "{tag} for {member}",
+    "price_spike": "{item} +{pct}% this week",
+    "high_protein": "High protein for {member}",
+    "tags": {
+      "low_sugar": "Low sugar",
+      "low_salt": "Low salt",
+      "low_oil": "Low oil",
+      "high_protein": "High protein"
     }
   }
 }
