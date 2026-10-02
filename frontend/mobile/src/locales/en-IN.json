@@ -193,6 +193,29 @@
         "weight_loss": "Weight loss",
         "low_oil": "Low oil"
       }
+    },
+    "cooking": {
+      "title": "How much time do you have to cook?",
+      "sub": "Busy days get quicker recipes or a cut-veg kit.",
+      "weekdays": "On weekdays",
+      "weekends": "On weekends",
+      "times": {
+        "m15": "15 min",
+        "m30": "30 min",
+        "m45": "45 min",
+        "m60": "1 hr+"
+      },
+      "noCook": "No-cook days",
+      "noCookNote": "We’ll suggest a tiffin from a home cook in your society on these days.",
+      "days": {
+        "d0": "Som",
+        "d1": "Mangal",
+        "d2": "Budh",
+        "d3": "Guru",
+        "d4": "Shukra",
+        "d5": "Shani",
+        "d6": "Ravi"
+      }
     }
   }
 }
