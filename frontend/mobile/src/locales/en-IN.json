@@ -328,7 +328,33 @@
     "slot": {
       "lunch": "Lunch",
       "dinner": "Dinner"
-    }
+    },
+    "title": "Your week",
+    "status": {
+      "ready": "Ready to check",
+      "approved": "Approved",
+      "skipped": "Skipped",
+      "locked": "Being packed"
+    },
+    "lead": {
+      "ready": "Aapka hafte ka khana ready hai. Edits close {when}.",
+      "approved": "Approved. Your box comes on {day}.",
+      "skipped": "This week is skipped. No box and no charge.",
+      "locked": "Edits are closed. Your box is being packed."
+    },
+    "brings": "{name} brings it to {flat}",
+    "open": "Open box",
+    "lock": "Budget Lock · {month}",
+    "lockValue": "{spent} of {budget}",
+    "approve": "Approve this week",
+    "skipWeek": "Skip this week",
+    "approvedToast": "Week approved. See you on {day}.",
+    "skipTitle": "Skip the box for {day}?",
+    "skipBody": "No box this week and no charge ({amount}). You can plan next week as usual.",
+    "skipConfirm": "Skip this week",
+    "skipCancel": "Keep my box",
+    "skippedToast": "This week is skipped",
+    "changed": "Your box changed. Check it again."
   },
   "reasons": {
     "in_season": "{item} is in season",
