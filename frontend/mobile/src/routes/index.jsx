@@ -5,7 +5,10 @@ import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {
-    if (!(await useSession.getState().restore())) throw redirect({ to: "/login" });
+    if (!(await useSession.getState().restore())) {
+      // First visit: pick a language before signing in.
+      throw redirect({ to: localStorage.getItem("gb-locale") ? "/login" : "/welcome" });
+    }
     const { activeRole } = useSession.getState();
     if (!activeRole) throw redirect({ to: "/role" });
     throw redirect({ to: HOME_BY_ROLE[activeRole] });
