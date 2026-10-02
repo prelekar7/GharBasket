@@ -1,0 +1,62 @@
+/* Tailwind v4 theme built only from GharBasket tokens (tokens.css).
+   Tailwind's default colours, fonts and radii are switched off so that utilities can only use our tokens. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+}
+
+@theme inline {
+  /* Surfaces and text */
+  --color-bg: var(--gb-bg);
+  --color-surface: var(--gb-surface);
+  --color-line: var(--gb-line);
+  --color-line-strong: var(--gb-line-strong);
+  --color-fg: var(--gb-text);
+  --color-fg-secondary: var(--gb-text-secondary);
+  --color-fg-muted: var(--gb-text-muted);
+  --color-scrim: var(--gb-scrim);
+
+  /* Accents: fills, the label colour on each fill, and soft tints */
+  --color-primary: var(--gb-primary);
+  --color-on-primary: var(--gb-on-primary);
+  --color-primary-soft: var(--gb-primary-soft);
+  --color-accent: var(--gb-accent);
+  --color-on-accent: var(--gb-on-accent);
+  --color-accent-soft: var(--gb-accent-soft);
+  --color-accent-fg: var(--gb-accent-text);
+  --color-danger: var(--gb-danger);
+  --color-on-danger: var(--gb-on-danger);
+  --color-danger-soft: var(--gb-danger-soft);
+  --color-info: var(--gb-info);
+  --color-on-info: var(--gb-on-info);
+  --color-info-soft: var(--gb-info-soft);
+  --color-neutral: var(--gb-neutral);
+  --color-link: var(--gb-link);
+
+  /* Role accents (3px bar and tab tint) */
+  --color-role-customer: var(--gb-role-customer);
+  --color-role-captain: var(--gb-role-captain);
+  --color-role-kitchen: var(--gb-role-kitchen);
+  --color-role-rider: var(--gb-role-rider);
+  --color-role-packer: var(--gb-role-packer);
+
+  /* Type: Fraunces (variable, SOFT axis) for display, Mukta for all UI text */
+  --font-display: "Fraunces Variable", var(--gb-font-display);
+  --font-sans: var(--gb-font-ui);
+
+  /* Radius, shadows and motion */
+  --radius-xs: var(--gb-radius-xs);
+  --radius-sm: var(--gb-radius-sm);
+  --radius-md: var(--gb-radius-md);
+  --radius-lg: var(--gb-radius-lg);
+  --radius-full: var(--gb-radius-full);
+  --shadow-sheet: var(--gb-shadow-sheet);
+  --shadow-card: var(--gb-shadow-card);
+  --shadow-focus: var(--gb-focus-ring);
+  --ease-out-soft: var(--gb-ease-out-soft);
+  --ease-spring: var(--gb-ease-spring);
+}

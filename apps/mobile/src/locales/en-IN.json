@@ -1,0 +1,34 @@
+{
+  "login": {
+    "title": "What’s your phone number?",
+    "sub": "We’ll send a 6-digit code by SMS. No password needed.",
+    "phone": "Phone number",
+    "invalid": "Enter the 10-digit mobile number",
+    "failed": "We couldn’t sign you in. Check your internet and try again.",
+    "cta": "Continue",
+    "dev": "Developer sign-in: the SMS code arrives after spike S-2."
+  },
+  "role": {
+    "title": "Continue as",
+    "customer": "Customer",
+    "captain": "Society Captain",
+    "kitchen": "Kitchen partner",
+    "rider": "Rider",
+    "packer": "Packer"
+  },
+  "tabs": {
+    "week": "Week",
+    "box": "Box",
+    "orders": "Orders",
+    "kindness": "Kindness",
+    "profile": "Profile",
+    "main": "Main"
+  },
+  "shell": {
+    "comingTitle": "{screen} is on its way",
+    "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas.",
+    "fieldBody": "The {role} screens are designed at the start of Phase 3."
+  },
+  "profile": { "language": "Language", "switchRole": "Switch role", "signOut": "Sign out" },
+  "assistant": "Ghar Saathi assistant"
+}

@@ -1,0 +1,45 @@
+{
+  "name": "@gharbasket/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GharBasket mobile app: one app for customer, captain, kitchen, rider and packer (PWA + Capacitor Android)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p jsconfig.json"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/router-plugin": "1.168.42",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.2",
+    "vite-plugin-pwa": "1.3.0",
+    "workbox-core": "7.4.1",
+    "workbox-precaching": "7.4.1"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@gharbasket/ui": "workspace:*",
+    "@hookform/resolvers": "5.9.1",
+    "@phosphor-icons/react": "2.1.10",
+    "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-router": "1.170.41",
+    "i18next": "26.4.2",
+    "i18next-icu": "2.4.4",
+    "intl-messageformat": "11.2.15",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-hook-form": "7.89.0",
+    "react-i18next": "17.0.15",
+    "workbox-window": "7.4.1",
+    "zod": "4.6.5",
+    "zustand": "5.0.15"
+  }
+}

@@ -1,0 +1,22 @@
+/* Entry stylesheet for apps and Storybook: `import "@gharbasket/ui/styles.css"`. */
+@import "tailwindcss";
+@import "@fontsource-variable/fraunces/full.css";
+@import "@fontsource/mukta/400.css";
+@import "@fontsource/mukta/500.css";
+@import "@fontsource/mukta/600.css";
+@import "@fontsource/mukta/700.css";
+@import "./tokens.css";
+@import "./theme.css";
+
+/* Scan this package's components for class names, wherever the app's Tailwind runs. */
+@source "./";
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    background: var(--color-bg);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+/* Reduced motion: components add `motion-reduce:` variants (see Button) instead of a global override. */

@@ -6,3 +6,7 @@ packages:
 # Dependency install scripts are blocked unless reviewed and allowed here (pnpm supply-chain protection).
 allowBuilds:
   lefthook: true
+  # Frontend tooling (Vite/Storybook, Next.js image). Their prebuilt binaries arrive as optional
+  # dependencies, so the install scripts are reviewed and not needed.
+  esbuild: false
+  sharp: false
