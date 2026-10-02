@@ -1,10 +1,17 @@
 import { getResponse } from "msw";
+import { billingHandlers } from "./billing.js";
 import { communityHandlers } from "./community.js";
 import { handlers } from "./handlers.js";
 import { identityHandlers } from "./identity.js";
 import { subscriptionHandlers } from "./subscriptions.js";
 
-const all = [...handlers, ...communityHandlers, ...identityHandlers, ...subscriptionHandlers];
+const all = [
+  ...handlers,
+  ...communityHandlers,
+  ...identityHandlers,
+  ...subscriptionHandlers,
+  ...billingHandlers,
+];
 
 /**
  * Answers a request from the MSW handlers without a service worker, so mocks work the same in
