@@ -82,9 +82,17 @@ test:
 openapi:
     uv run python -m gharbasket.tools.export_openapi
 
-# Apply database migrations (arrives in feat/M0-api-db)
+# Apply all database migrations (uses DATABASE_URL_DIRECT, else DATABASE_URL)
 migrate:
-    @echo "Not available yet: arrives in feat/M0-api-db"
+    cd services/api && uv run alembic upgrade head
+
+# Undo the last migration(s), e.g. `just migrate-down` or `just migrate-down 2`
+migrate-down steps="1":
+    cd services/api && uv run alembic downgrade -{{steps}}
+
+# Create a migration from model changes, e.g. `just migration "orders add slot table"`
+migration message:
+    cd services/api && uv run alembic revision --autogenerate -m "{{message}}"
 
 # Regenerate the JS API client from openapi.json (arrives in feat/M1-auth-contract)
 gen-api:

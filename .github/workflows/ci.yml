@@ -78,8 +78,27 @@ jobs:
     # Skips until feat/M0-api-app adds the API package.
     needs: detect
     if: needs.detect.outputs.api == 'true'
+    services:
+      valkey:
+        image: valkey/valkey:8.1-alpine
+        ports: ["6380:6379"]
+        options: >-
+          --health-cmd "valkey-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # Database and Valkey tests must run here, not skip.
+      GB_REQUIRE_SERVICES: "1"
+      TEST_DATABASE_URL: postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/gharbasket_test
+      TEST_VALKEY_URL: redis://localhost:6380/15
     steps:
       - uses: actions/checkout@v7
+
+      # Same image as local development (PostGIS + pgvector on Postgres 18), built from infra/postgres.
+      - name: Start Postgres
+        run: |
+          docker build --quiet --tag gharbasket/postgres:ci infra/postgres
+          docker run --detach --name postgres --publish 5432:5432 \
+            -e POSTGRES_USER=gharbasket -e POSTGRES_PASSWORD=gharbasket -e POSTGRES_DB=gharbasket \
+            gharbasket/postgres:ci
 
       - uses: astral-sh/setup-uv@v10.2.0
         with:
@@ -95,8 +114,24 @@ jobs:
         if: hashFiles('services/api/.importlinter') != ''
         run: uv run --directory services/api lint-imports
 
+      # TCP only answers once the init scripts (test database, extensions) have finished.
+      - name: Wait for Postgres
+        run: |
+          for _ in $(seq 1 60); do
+            docker exec postgres psql -h 127.0.0.1 -U gharbasket -d gharbasket_test -c 'select 1' >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          docker logs postgres
+          exit 1
+
       - name: Tests
         run: uv run pytest services/api
+
+      - name: Migrations match the models (run `just migration "..."` if this fails)
+        working-directory: services/api
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: uv run alembic check
 
       - name: OpenAPI contract is up to date (run `just openapi` if this fails)
         run: |

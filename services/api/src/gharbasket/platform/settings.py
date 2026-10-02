@@ -31,9 +31,20 @@ class Settings(BaseSettings):
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []
 
+    # Postgres. On Neon, DATABASE_URL is the pooled (PgBouncer) URL used by the app and
+    # DATABASE_URL_DIRECT the direct one used by migrations. Locally both point at Docker.
+    database_url: str | None = None
+    database_url_direct: str | None = None
+    # Valkey (Redis protocol). Optional until something needs it; /v1/ready then reports "skipped".
+    valkey_url: str | None = None
+
     @property
     def docs_enabled(self) -> bool:
         return self.app_env != "prod"
+
+    @property
+    def migrations_url(self) -> str | None:
+        return self.database_url_direct or self.database_url
 
 
 @lru_cache

@@ -29,6 +29,34 @@
         ],
         "title": "Health",
         "type": "object"
+      },
+      "Ready": {
+        "properties": {
+          "checks": {
+            "additionalProperties": {
+              "enum": [
+                "ok",
+                "failed",
+                "not_configured",
+                "skipped"
+              ],
+              "type": "string"
+            },
+            "title": "Checks",
+            "type": "object"
+          },
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "Ready",
+        "type": "object"
       }
     }
   },
@@ -55,6 +83,30 @@
           }
         },
         "summary": "Liveness check (does not touch the database)",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/v1/ready": {
+      "get": {
+        "operationId": "ready_v1_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ready"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "503": {
+            "description": "A dependency is not reachable (problem+json)"
+          }
+        },
+        "summary": "Readiness check (database and Valkey)",
         "tags": [
           "platform"
         ]

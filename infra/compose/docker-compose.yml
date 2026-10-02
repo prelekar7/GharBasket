@@ -17,7 +17,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-gharbasket}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gharbasket}
       POSTGRES_DB: ${POSTGRES_DB:-gharbasket}
-      TZ: Asia/Kolkata
+      # UTC like Neon: the database stores UTC and the apps show IST, so local runs match staging.
+      TZ: UTC
     command:
       - postgres
       - -c
@@ -27,7 +28,7 @@ services:
       - -c
       - max_connections=100
       - -c
-      - timezone=Asia/Kolkata
+      - timezone=UTC
       - -c
       - log_min_duration_statement=500
     ports:
