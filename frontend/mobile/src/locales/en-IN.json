@@ -259,6 +259,32 @@
       "within": "within your {budget} Budget Lock",
       "cta": "Looks good, continue",
       "edit": "Change something first"
+    },
+    "payment": {
+      "title": "How do you want to pay?",
+      "sub": "Each week’s box is paid at the cut-off, 9 PM the day before delivery.",
+      "wallet": "GharBasket wallet",
+      "recommended": "Recommended",
+      "walletDesc": "Top up with UPI once. Each box is paid from the wallet, and refunds come back here instantly.",
+      "autopay": "UPI Autopay",
+      "autopayDesc": "Charged per box. We send a notice 24 hours before every charge. Cancel any time.",
+      "first": "First top-up",
+      "other": "Other",
+      "rules": "Usable only on GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request.",
+      "amount": "Top-up amount",
+      "ctaWallet": "Top up {amount} with UPI",
+      "ctaAutopay": "Set up UPI Autopay",
+      "description": "Wallet top-up",
+      "testTitle": "Test payment of {amount}?",
+      "testPay": "Pay {amount} (test)",
+      "testCancel": "Cancel",
+      "testBody": "Test mode: no real money moves. Razorpay Checkout replaces this once spike S-1 is done.",
+      "errors": {
+        "generic": "Payment didn’t go through. No money was taken. Try again.",
+        "billing_topup_too_small": "Top up at least ₹100",
+        "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
+        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
+      }
     }
   },
   "days": {
