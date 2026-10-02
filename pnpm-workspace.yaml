@@ -11,3 +11,7 @@ allowBuilds:
   # dependencies, so the install scripts are reviewed and not needed.
   esbuild: false
   sharp: false
+  # Firebase web SDK: @firebase/util writes a Firebase Hosting auto-config and protobufjs checks
+  # its CLI version; neither is needed by the app.
+  "@firebase/util": false
+  protobufjs: false
