@@ -1,7 +1,7 @@
 # Shared Ruff config for services/api, services/ml and data/simulator.
 target-version = "py313"
 line-length = 100
-extend-exclude = ["**/migrations/versions/**", "spikes/**"]
+extend-exclude = ["**/migrations/versions/**", "spikes/**", ".claude/**"]
 
 [lint]
 select = [

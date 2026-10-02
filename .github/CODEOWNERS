@@ -1,0 +1,20 @@
+# Who reviews what. GitHub requests these reviewers automatically once the repo has GitHub Pro
+# (Student Developer Pack); until then this file documents ownership (AGENTS.md, ADR 0009 as updated).
+# Later lines win over earlier ones.
+
+# Default: backend, infra and repo tooling — Prathamesh Relekar
+*                       @prelekar7
+
+# Frontend and design — Yash Salunkhe
+/apps/                  @YASH-6454
+/packages/ui/           @YASH-6454
+/packages/domain/       @YASH-6454
+
+# Generated API client: regenerated from the backend's OpenAPI spec
+/packages/api-client/   @prelekar7
+
+# Docs are shared
+/docs/                  @prelekar7 @YASH-6454
+
+# End-to-end tests: Rhythm Thakur and Manish Raje are added here once they are collaborators
+/e2e/                   @prelekar7
