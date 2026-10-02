@@ -158,7 +158,12 @@ async def api(db_session: AsyncSession) -> AsyncIterator[httpx2.AsyncClient]:
     add_test_routes(app)
 
     async def session_override() -> AsyncIterator[AsyncSession]:
-        yield db_session
+        # Like the real dependency: a request that fails leaves nothing behind.
+        try:
+            yield db_session
+        except Exception:
+            await db_session.rollback()
+            raise
 
     app.dependency_overrides[get_session] = session_override
     transport = httpx2.ASGITransport(app=app)

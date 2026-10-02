@@ -26,6 +26,7 @@ from gharbasket.modules.subscriptions.router import router as subscriptions_rout
 from gharbasket.platform import health
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
+from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
 from gharbasket.platform.logging import configure_logging
 from gharbasket.platform.request_context import RequestContextMiddleware
 from gharbasket.platform.settings import Settings, get_settings
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v1)
 
     register_error_handlers(app)
+    register_idempotency(app)
 
     if settings.cors_allow_origins:
         app.add_middleware(
@@ -112,7 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_credentials=False,
             allow_methods=["*"],
             allow_headers=["*"],
-            expose_headers=["X-Request-ID"],
+            expose_headers=["X-Request-ID", REPLAY_HEADER],
         )
     # Added last, so it wraps everything else (including CORS preflight responses).
     app.add_middleware(RequestContextMiddleware)

@@ -33,7 +33,8 @@ VERSION_SCHEMA = "platform"
 
 config = context.config
 
-# Every module's tables must be registered on Base.metadata for autogenerate to see them.
+# Every table must be registered on Base.metadata for autogenerate to see it.
+import_module("gharbasket.platform.models")
 for module in MODULES:
     import_module(f"gharbasket.modules.{module}.models")
 target_metadata = Base.metadata
