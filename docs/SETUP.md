@@ -26,7 +26,28 @@ cd GharBasket
 just install          # pnpm install (also installs git hooks) + uv sync
 just                  # lists every command
 ```
-After `chore/M0-infra-compose` merges: `just up` starts Postgres, Valkey, MinIO and MLflow.
+### Local infrastructure
+```bash
+cp .env.example .env     # optional: every value has a working default
+just up                  # Postgres 18 (PostGIS, pgvector) + Valkey          ~400 MB RAM
+just up-storage          # + SeaweedFS S3 with buckets gb-media, gb-lake, gb-mlflow
+just up-all              # + MLflow tracking server and model registry       ~1.2 GB RAM in total
+just infra-check         # verifies versions, extensions and services
+just psql                # psql shell in the local database
+just down                # stop (data is kept)      just reset   # stop and DELETE all local data
+```
+
+| Service | Host address | Notes |
+|---|---|---|
+| PostgreSQL 18 | `127.0.0.1:5432` | user/password/db `gharbasket`; also `gharbasket_test` and `mlflow` databases |
+| Valkey | `127.0.0.1:6380` | 6380, not 6379, so it never clashes with a Redis installed on your Mac |
+| S3 (SeaweedFS) | `http://127.0.0.1:8333` | key `gharbasket`, secret `gharbasket-local-secret`, region `ap-south-1` |
+| MLflow | `http://127.0.0.1:5001` | 5001, not 5000, because macOS AirPlay Receiver uses 5000 |
+
+Everything binds to `127.0.0.1` only. The Postgres image is built locally from the official multi-arch `postgres:18`, so it runs natively on Apple Silicon (the `postgis/postgis` image is amd64-only and would run under slow emulation). MinIO is not used because its community Docker images are no longer published; SeaweedFS speaks the same S3 API.
+
+Docker Desktop settings that work well on an 8 GB laptop: Resources, Memory 3-4 GB, CPUs 4, Swap 1 GB; General, use the Virtualization framework and VirtioFS.
+
 After `feat/M0-api-platform` merges: `just migrate` then `just dev`.
 
 ## 3. Editor

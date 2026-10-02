@@ -22,7 +22,7 @@
 | Franchise isolation | `hub_id` + Row-Level Security |
 | Team collaboration | Schema + Alembic migrations act as a contract between four developers |
 
-MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6, [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)). Supporting stores: **Valkey** (cache, OTP, rate limits, Taskiq queue, live rider positions), **S3** (media, data lake, MLflow artifacts; MinIO locally) and **DuckDB + Parquet** (ML training and heavy analytics).
+MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6, [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)). Supporting stores: **Valkey** (cache, OTP, rate limits, Taskiq queue, live rider positions), **S3** (media, data lake, MLflow artifacts; SeaweedFS locally) and **DuckDB + Parquet** (ML training and heavy analytics).
 
 ## 5.2 Global data rules
 

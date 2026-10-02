@@ -1,0 +1,145 @@
+# Local development stack. Run through the justfile: `just up`, `just up-all`, `just down`.
+#
+#   default profile : postgres, valkey                (always needed; about 400 MB RAM)
+#   "storage"       : seaweedfs (S3 API) + bucket init (about 300 MB RAM)
+#   "ml"            : mlflow tracking server           (needs "storage"; about 500 MB RAM)
+#
+# Everything binds to 127.0.0.1 only. Defaults match .env.example, so no .env is required.
+name: gharbasket
+
+services:
+  postgres:
+    build:
+      context: ../postgres
+    image: gharbasket/postgres:18-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gharbasket}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gharbasket}
+      POSTGRES_DB: ${POSTGRES_DB:-gharbasket}
+      TZ: Asia/Kolkata
+    command:
+      - postgres
+      - -c
+      - shared_buffers=192MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - max_connections=100
+      - -c
+      - timezone=Asia/Kolkata
+      - -c
+      - log_min_duration_statement=500
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gharbasket} -d ${POSTGRES_DB:-gharbasket}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    restart: unless-stopped
+    # noeviction: the Taskiq queue lives here, so keys must never be silently dropped.
+    command: ["valkey-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6380}:6379"
+    volumes:
+      - valkeydata:/data
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  seaweedfs:
+    profiles: ["storage"]
+    image: chrislusf/seaweedfs:4.48
+    restart: unless-stopped
+    # MinIO's community Docker images are no longer published; SeaweedFS speaks the same S3 API.
+    command: ["mini", "-dir=/data"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-gharbasket}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-gharbasket-local-secret}
+    ports:
+      - "127.0.0.1:${S3_PORT:-8333}:8333"
+    volumes:
+      - s3data:/data
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  storage-init:
+    profiles: ["storage"]
+    image: chrislusf/seaweedfs:4.48
+    restart: "no"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        existing=$$(echo "s3.bucket.list" | weed shell -master=seaweedfs:9333)
+        for b in ${S3_BUCKET_MEDIA:-gb-media} ${S3_BUCKET_LAKE:-gb-lake} ${S3_BUCKET_MLFLOW:-gb-mlflow}; do
+          if echo "$$existing" | grep -qw "$$b"; then
+            echo "bucket $$b already exists"
+          else
+            echo "s3.bucket.create -name $$b" | weed shell -master=seaweedfs:9333
+          fi
+        done
+
+  mlflow:
+    profiles: ["ml"]
+    build:
+      context: ../mlflow
+    image: gharbasket/mlflow:3.16-local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://seaweedfs:8333
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-gharbasket}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-gharbasket-local-secret}
+      AWS_DEFAULT_REGION: ${S3_REGION:-ap-south-1}
+      # MLflow 3 starts a background job runner (about 8 processes) for GenAI features we don't use.
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - postgresql+psycopg2://${POSTGRES_USER:-gharbasket}:${POSTGRES_PASSWORD:-gharbasket}@postgres:5432/mlflow
+      - --artifacts-destination
+      - s3://${S3_BUCKET_MLFLOW:-gb-mlflow}
+      - --serve-artifacts
+      # One worker: the default of four exceeds the memory limit and is pointless for local use.
+      - --workers
+      - "1"
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5001}:5000"
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+volumes:
+  pgdata:
+  valkeydata:
+  s3data:

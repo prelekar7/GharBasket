@@ -109,7 +109,7 @@ GharBasket is a 4-person B.Tech major project (accepted 13 Aug 2026), built coll
        │   └─────┬──────────┘   └────────┬─────────┘                      │
   ┌────▼─────────▼───┐  ┌────────┐  ┌────▼─────┐  ┌──────────┐  ┌─────────▼─┐
   │ PostgreSQL 18    │  │ Valkey │  │ MLflow   │  │ S3 /     │  │ OSRM      │
-  │ (Neon / Docker)  │  │        │  │ tracking │  │ MinIO    │  │ (MMR      │
+  │ (Neon / Docker)  │  │        │  │ tracking │  │ SeaweedFS│  │ (MMR      │
   │ 1 schema/module  │  │        │  │ registry │  │ (local)  │  │  extract) │
   └──────────────────┘  └────────┘  └──────────┘  └──────────┘  └───────────┘
 ```
@@ -233,7 +233,7 @@ All application containers (api, worker, ml, ml-worker, console, MLflow, OSRM, V
 | OLTP database | PostgreSQL 18 + PostGIS + pgvector + pg_trgm + unaccent + pgcrypto (custom image `infra/postgres/Dockerfile`) |
 | Hosted Postgres | Neon — `main`, `staging`, and an automatic branch per PR (`neondatabase/create-branch-action`) |
 | Cache / queue | Valkey 8 |
-| Files and data lake | Amazon S3 (`gb-media`, `gb-lake`, `gb-mlflow`); MinIO locally |
+| Files and data lake | Amazon S3 (`gb-media`, `gb-lake`, `gb-mlflow`); SeaweedFS locally |
 | Road network | OSRM with OpenStreetMap clipped to the Mumbai Metropolitan Region (osmium) |
 | Compute | AWS EC2 (ap-south-1), 2–4 vCPU / 8 GB, Docker Compose |
 | Reverse proxy | Caddy (automatic HTTPS) |
