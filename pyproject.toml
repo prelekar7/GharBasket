@@ -1,0 +1,23 @@
+# uv workspace root. Python services live in their own packages (services/api now; services/ml and
+# data/simulator later). Shared developer tools sit in the root "dev" group, installed by `uv sync`.
+[project]
+name = "gharbasket-workspace"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = ["gharbasket-api"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+gharbasket-api = { workspace = true }
+
+[tool.uv.workspace]
+members = ["services/api"]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+]

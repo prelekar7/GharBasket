@@ -70,21 +70,25 @@ psql db="gharbasket":
 infra-check:
     ./scripts/infra-check.sh
 
-# Run API, workers and frontends in dev mode (arrives in feat/M0-api-platform)
+# Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
-    @echo "Not available yet: arrives in feat/M0-api-platform"
+    LOG_JSON=false uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
 
-# Run all tests (arrives in feat/M0-api-platform)
+# Run the Python test suite
 test:
-    @echo "Not available yet: arrives in feat/M0-api-platform"
+    uv run pytest services/api
 
-# Apply database migrations (arrives in feat/M0-api-platform)
+# Regenerate services/api/openapi.json, the contract the frontend client is built from
+openapi:
+    uv run python -m gharbasket.tools.export_openapi
+
+# Apply database migrations (arrives in feat/M0-api-db)
 migrate:
-    @echo "Not available yet: arrives in feat/M0-api-platform"
+    @echo "Not available yet: arrives in feat/M0-api-db"
 
-# Regenerate the TypeScript API client from OpenAPI (arrives in feat/M0-walking-skeleton)
+# Regenerate the JS API client from openapi.json (arrives in feat/M1-auth-contract)
 gen-api:
-    @echo "Not available yet: arrives in feat/M0-walking-skeleton"
+    @echo "Not available yet: arrives in feat/M1-auth-contract"
 
 # Seed synthetic households with the simulator (arrives in feat/M10-simulator-v0)
 sim:

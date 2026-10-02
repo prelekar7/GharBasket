@@ -1,0 +1,23 @@
+[project]
+name = "gharbasket-api"
+version = "0.1.0"
+description = "GharBasket backend API: FastAPI modular monolith"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142.2",
+    "pydantic-settings>=2.15.0",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "gharbasket"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
