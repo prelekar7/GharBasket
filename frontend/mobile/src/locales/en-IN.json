@@ -228,6 +228,26 @@
       "exChip": "Tomato +40% → lauki in 2 meals",
       "later": "Not now",
       "min": "Set at least {amount}"
+    },
+    "consent": {
+      "title": "Your data, your choice",
+      "sub": "Here’s what we use and why. Change any of it later in Profile › Privacy.",
+      "needed": "Needed to deliver",
+      "accTitle": "Account and delivery",
+      "accBody": "Phone, address and household size, so we can plan and deliver your box.",
+      "always": "Always on",
+      "optional": "Optional",
+      "health": "Health personalisation",
+      "healthDesc": "Health tags you picked, used only for meal planning.",
+      "whatsapp": "WhatsApp updates",
+      "whatsappDesc": "Box ready, payment notices and delivery updates.",
+      "insights": "Improve plans for my society",
+      "insightsDesc": "Your edits, without your name, help plan better boxes for neighbours.",
+      "pre": "Read the full ",
+      "notice": "privacy notice",
+      "post": ". You can download or delete your data any time.",
+      "cta": "Agree and continue",
+      "failed": "We couldn’t save your household. Check your internet and try again."
     }
   }
 }
