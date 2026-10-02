@@ -64,5 +64,9 @@
     "tooMany": "Too many tries. Wait a few minutes and try again.",
     "region": "We can’t send SMS to this number yet.",
     "failed": "We couldn’t sign you in. Check your internet and try again."
+  },
+  "outbox": {
+    "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
+    "retry": "Try now"
   }
 }

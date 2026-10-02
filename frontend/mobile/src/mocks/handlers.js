@@ -156,3 +156,13 @@ export function expireAccessNow() {
   const web = webSession.get();
   if (web) webSession.set({ ...web, exp: 0 });
 }
+
+/** Mock-only: requests received by POST /v1/dev/echo, to check outbox replays and their keys. */
+export const received = /** @type {{ key: string | null, body: unknown }[]} */ ([]);
+handlers.push(
+  http.post("*/v1/dev/echo", async ({ request }) => {
+    if (!caller(request)) return problem(401, "auth.invalid_token", "Your session has expired.");
+    received.push({ key: request.headers.get("idempotency-key"), body: await request.json() });
+    return HttpResponse.json({ ok: true }, { status: 201 });
+  }),
+);
