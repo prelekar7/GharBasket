@@ -1,0 +1,8 @@
+/* Tailwind, fonts, tokens and theme come from the design system package. */
+@import "@gharbasket/ui/styles.css";
+
+html,
+body,
+#root {
+  min-height: 100dvh;
+}

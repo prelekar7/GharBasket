@@ -1,0 +1,8 @@
+{
+  "appId": "in.gharbasket.app",
+  "appName": "GharBasket",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}
