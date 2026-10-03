@@ -16,6 +16,7 @@ import { Route as OtpRouteImport } from "./routes/otp"
 import { Route as RoleRouteImport } from "./routes/role"
 import { Route as WelcomeRouteImport } from "./routes/welcome"
 import { Route as AuthCustomerRouteImport } from "./routes/_auth/_customer"
+import { Route as AuthAssistantRouteImport } from "./routes/_auth/assistant"
 import { Route as AuthCaptainRouteImport } from "./routes/_auth/captain"
 import { Route as AuthKitchenRouteImport } from "./routes/_auth/kitchen"
 import { Route as AuthPackerRouteImport } from "./routes/_auth/packer"
@@ -72,6 +73,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 })
 const AuthCustomerRoute = AuthCustomerRouteImport.update({
   id: "/_customer",
+  getParentRoute: () => AuthRoute,
+})
+const AuthAssistantRoute = AuthAssistantRouteImport.update({
+  id: "/assistant",
+  path: "/assistant",
   getParentRoute: () => AuthRoute,
 })
 const AuthCaptainRoute = AuthCaptainRouteImport.update({
@@ -213,6 +219,7 @@ const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
 
 const AuthRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
+  AuthAssistantRoute: AuthAssistantRoute,
   AuthCaptainRoute: AuthCaptainRoute,
   AuthKitchenRoute: AuthKitchenRoute,
   AuthPackerRoute: AuthPackerRoute,

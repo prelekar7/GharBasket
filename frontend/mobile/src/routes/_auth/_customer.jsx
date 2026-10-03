@@ -59,6 +59,7 @@ function CustomerShell() {
         <button
           type="button"
           aria-label={t("assistant")}
+          onClick={() => navigate({ to: "/assistant" })}
           className="fixed right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] grid size-14 place-items-center rounded-full bg-primary text-on-primary shadow-sheet outline-none focus-visible:shadow-focus"
         >
           <ChatCircleTextIcon size={26} />
