@@ -15,7 +15,8 @@
     "storybook": "storybook dev -p 6006",
     "build": "storybook build -o storybook-static --quiet",
     "typecheck": "tsc --noEmit -p jsconfig.json",
-    "sync-tokens": "node scripts/sync-tokens.js"
+    "sync-tokens": "node scripts/sync-tokens.js",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "react": "^19.0.0",
@@ -43,6 +44,7 @@
     "storybook": "10.6.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "vite": "8.3.2"
+    "vite": "8.3.2",
+    "vitest": "5.0.3"
   }
 }
