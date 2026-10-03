@@ -431,7 +431,7 @@
     "over": "Over your {budget} Budget Lock. Swap something to stay within it.",
     "sheetTitle": "Swap {item}",
     "sheetNote": "{item} is {price} this week. Three good options, best first.",
-    "useThis": "Use this",
+    "useThis": "Use {name}",
     "swapped": "{from} swapped for {to}",
     "closed": "Edits are closed for this week"
   },
@@ -464,7 +464,8 @@
     "upi": "Any UPI app",
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
-    "added": "{amount} added to your wallet"
+    "added": "{amount} added to your wallet",
+    "rules": "Only for GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request."
   },
   "society": {
     "title": "Your society",

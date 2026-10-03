@@ -3,6 +3,7 @@ import {
   ErrorState,
   formatPaise,
   ParchiList,
+  Sheet,
   Skeleton,
   StatusPill,
   SubstituteSheet,
@@ -118,20 +119,22 @@ function Box() {
             : undefined
         }
       />
-      {c.lines.length > FIRST_LINES && (
-        <div>
+      {/* "+ 9 more items" and the Budget Lock share one row (HcBox). */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        {c.lines.length > FIRST_LINES && (
           <Button variant="quiet" className="-ml-4" onPress={() => setAll((v) => !v)}>
             {all ? t("box.less") : t("box.more", { count: c.lines.length - FIRST_LINES })}
           </Button>
-        </div>
-      )}
-      {c.budget_lock && (
-        <p className="text-sm leading-[22px] text-fg-secondary">
-          {t(c.budget_lock.spent_paise <= c.budget_lock.budget_paise ? "box.within" : "box.over", {
-            budget: formatPaise(c.budget_lock.budget_paise),
-          })}
-        </p>
-      )}
+        )}
+        {c.budget_lock && (
+          <p className="text-sm leading-[22px] text-fg-secondary">
+            {t(
+              c.budget_lock.spent_paise <= c.budget_lock.budget_paise ? "box.within" : "box.over",
+              { budget: formatPaise(c.budget_lock.budget_paise) },
+            )}
+          </p>
+        )}
+      </div>
       {editable && (
         <Button
           variant="primary"
@@ -150,6 +153,23 @@ function Box() {
         >
           {t("week.approve")}
         </Button>
+      )}
+      {swapping && !subs.data && (
+        <Sheet
+          open
+          onOpenChange={(open) => !open && setSwapping(null)}
+          title={t("box.sheetTitle", { item: swapping.name })}
+        >
+          {subs.isError ? (
+            <ErrorState
+              title={t("onboarding.error")}
+              retryLabel={t("onboarding.retry")}
+              onRetry={() => subs.refetch()}
+            />
+          ) : (
+            <Skeleton lines={6} />
+          )}
+        </Sheet>
       )}
       {swapping && subs.data && (
         <SubstituteSheet
