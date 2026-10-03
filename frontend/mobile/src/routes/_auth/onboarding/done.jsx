@@ -1,9 +1,10 @@
-import { Button, MoneyText, Skeleton, StatusPill, toast } from "@gharbasket/ui";
+import { Button, MoneyText, Skeleton, StatusPill } from "@gharbasket/ui";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { useWallet } from "@/features/billing/queries.js";
+import { shareInvite } from "@/features/community/invite.js";
 import { useSociety } from "@/features/community/queries.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { shortDate, timeRange, weekdayOf } from "@/features/subscriptions/format.js";
@@ -46,19 +47,12 @@ function Done() {
   const { data: wallet } = useWallet();
   const tower = society?.towers.find((tw) => tw.id === towerId);
 
-  const invite = async () => {
-    const url = `${location.origin}/s/${societyId}`;
-    const text = t("onboarding.done.shareText", { society: society?.name ?? "" });
-    try {
-      if (navigator.share) await navigator.share({ title: "GharBasket", text, url });
-      else {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        toast(t("onboarding.done.copied"));
-      }
-    } catch {
-      // The person closed the share sheet.
-    }
-  };
+  const invite = () =>
+    shareInvite({
+      societyId: societyId ?? "",
+      text: t("onboarding.done.shareText", { society: society?.name ?? "" }),
+      copied: t("onboarding.done.copied"),
+    });
 
   const row = "flex items-baseline justify-between gap-3 border-b border-line py-3";
   return (

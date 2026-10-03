@@ -41,9 +41,9 @@ function CustomerShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  // Wallet lives under Profile in the design (HcWallet).
+  // Wallet and Society live under Profile in the designs (HcWallet, HcSociety).
   const segment = pathname.split("/")[1] || "week";
-  const current = segment === "wallet" ? "profile" : segment;
+  const current = segment === "wallet" || segment === "society" ? "profile" : segment;
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

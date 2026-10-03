@@ -422,5 +422,20 @@
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
     "added": "{amount} added to your wallet"
+  },
+  "society": {
+    "title": "Your society",
+    "live": "Delivering",
+    "unlocking": "Unlocking",
+    "remaining": "{n, plural, one {# more home} other {# more homes}} and deliveries start here, free for everyone.",
+    "unlocked": "Unlocked",
+    "started": "Deliveries are on. Your captain is {captain}.",
+    "captainIs": "{name} is your Society Captain",
+    "noCaptain": "Captain: not chosen yet",
+    "captainBody": "A captain receives the society’s delivery and earns for every box. Live in {society}?",
+    "becomeCaptain": "Become the captain",
+    "planTitle": "Your plan is ready",
+    "planBody": "Your Autopilot week starts as soon as the society unlocks.",
+    "progress": "Homes joined"
   }
 }
