@@ -17,6 +17,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
+import { DaySheet } from "@/features/subscriptions/DaySheet.jsx";
 import {
   clockTime,
   istClock,
@@ -58,6 +59,7 @@ function Week() {
   const unskip = useCycleAction("unskip");
   const pay = useCycleAction("pay");
   const [confirmSkip, setConfirmSkip] = useState(false);
+  const [openDay, setOpenDay] = useState(/** @type {number | null} */ (null));
   // After a top-up in the grace window, retry the box payment straight away.
   const topUp = useTopUp({
     onPaid: () => {
@@ -176,7 +178,8 @@ function Week() {
           <ThaliWeek
             label={t("week.title")}
             today={today >= 0 ? today : undefined}
-            labels={{ today: t("week.today"), skip: t("week.skip") }}
+            labels={{ today: t("week.today"), skip: t("week.skip"), open: t("week.day.open") }}
+            onDayPress={setOpenDay}
             days={c.meal_plan.days.map((d) => ({
               day: t(`days.short.d${weekdayOf(d.date)}`),
               date: shortDate(d.date, lang),
@@ -293,6 +296,13 @@ function Week() {
         {t("week.skipBody", { amount: formatPaise(c.total_paise) })}
       </Dialog>
       {topUp.dialog}
+      <DaySheet
+        cycle={c}
+        index={openDay}
+        onClose={() => setOpenDay(null)}
+        editable={editable}
+        onError={onError}
+      />
     </div>
   );
 }
