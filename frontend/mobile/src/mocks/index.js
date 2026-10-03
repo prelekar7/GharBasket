@@ -3,6 +3,7 @@ import { billingHandlers } from "./billing.js";
 import { communityHandlers } from "./community.js";
 import { handlers } from "./handlers.js";
 import { identityHandlers } from "./identity.js";
+import { orderHandlers } from "./orders.js";
 import { subscriptionHandlers } from "./subscriptions.js";
 
 const all = [
@@ -11,6 +12,7 @@ const all = [
   ...identityHandlers,
   ...subscriptionHandlers,
   ...billingHandlers,
+  ...orderHandlers,
 ];
 
 /**
