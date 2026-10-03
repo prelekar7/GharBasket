@@ -1,4 +1,14 @@
-import { Badge, Button, Chip, ErrorState, GullakMeter, Skeleton, toast } from "@gharbasket/ui";
+import {
+  Badge,
+  Button,
+  Chip,
+  EmptyState,
+  ErrorState,
+  GullakCoin,
+  GullakMeter,
+  Skeleton,
+  toast,
+} from "@gharbasket/ui";
 import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -170,6 +180,13 @@ function Kindness() {
           {t("kindness.cta", { day: day(pickupOn) })}
         </Button>
       </section>
+      {donations.data.items.length === 0 && (
+        <EmptyState
+          illustration={<GullakCoin className="h-auto w-28" />}
+          title={t("kindness.emptyTitle")}
+          body={t("kindness.emptyBody")}
+        />
+      )}
       {donations.data.items.length > 0 && (
         <ul aria-label={t("kindness.history")}>
           {donations.data.items.map((d) => (

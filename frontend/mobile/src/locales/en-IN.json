@@ -588,7 +588,9 @@
       "HANDED_TO_NGO": "given to the NGO",
       "REJECTED": "not accepted",
       "CANCELLED": "cancelled"
-    }
+    },
+    "emptyTitle": "Nothing given yet",
+    "emptyBody": "Your first pickup fills the gullak once the hub has checked the items."
   },
   "partner": {
     "title": "Become a partner",

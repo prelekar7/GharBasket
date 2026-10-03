@@ -1,9 +1,8 @@
-import { TabBar } from "@gharbasket/ui";
+import { GullakIcon, TabBar } from "@gharbasket/ui";
 import {
   BasketIcon,
   CalendarBlankIcon,
   ChatCircleTextIcon,
-  HeartIcon,
   ReceiptIcon,
   UserIcon,
 } from "@phosphor-icons/react";
@@ -42,7 +41,8 @@ const TABS = [
   { value: "week", Icon: CalendarBlankIcon },
   { value: "box", Icon: BasketIcon },
   { value: "orders", Icon: ReceiptIcon },
-  { value: "kindness", Icon: HeartIcon },
+  // The design uses the custom gullak icon for Kindness (HcOrders tab bar).
+  { value: "kindness", Icon: GullakIcon },
   { value: "profile", Icon: UserIcon },
 ];
 

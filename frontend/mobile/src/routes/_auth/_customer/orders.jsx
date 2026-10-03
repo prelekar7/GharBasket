@@ -9,6 +9,7 @@ import {
   Sheet,
   Skeleton,
   StatusPill,
+  TiffinSteam,
   toast,
 } from "@gharbasket/ui";
 import { createFileRoute } from "@tanstack/react-router";
@@ -107,7 +108,11 @@ function Orders() {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <EmptyState title={t("orders.emptyTitle")} body={t("orders.emptyBody")} />
+        <EmptyState
+          illustration={<TiffinSteam />}
+          title={t("orders.emptyTitle")}
+          body={t("orders.emptyBody")}
+        />
       </div>
     );
 
@@ -187,7 +192,11 @@ function Orders() {
           </div>
         </section>
       ) : (
-        <EmptyState title={t("orders.nothingTitle")} body={t("orders.nothingBody")} />
+        <EmptyState
+          illustration={<TiffinSteam className="h-auto w-28" />}
+          title={t("orders.nothingTitle")}
+          body={t("orders.nothingBody")}
+        />
       )}
       {upcoming.length > 0 && (
         <section className="flex flex-col">
