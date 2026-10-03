@@ -1,4 +1,4 @@
-import { Button as RACButton, ProgressBar as RACProgressBar } from "react-aria-components";
+import { Label, Button as RACButton, ProgressBar as RACProgressBar } from "react-aria-components";
 import { tv } from "tailwind-variants";
 
 /**
@@ -91,7 +91,7 @@ export function ProgressBar({ label, value, max = 100, valueLabel, tone = "prima
       {({ percentage }) => (
         <>
           <span className="flex items-baseline justify-between gap-2 text-sm leading-5">
-            <span className="font-semibold">{label}</span>
+            <Label className="font-semibold">{label}</Label>
             {valueLabel && <span className="text-fg-secondary tabular-nums">{valueLabel}</span>}
           </span>
           <span className="h-2 overflow-hidden rounded-full bg-bg ring-1 ring-line-strong ring-inset">
