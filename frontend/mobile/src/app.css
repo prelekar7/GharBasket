@@ -6,3 +6,37 @@ body,
 #root {
   min-height: 100dvh;
 }
+
+/* Senior mode (FDD §3, design system v12): screen and sheet text two steps up (16 → 22 body,
+   14 → 18 secondary, 12 → 16 small), titles 36px, and line height 1.6 for Devanagari. The
+   TabBar has its own senior size, so the bottom bar is left out. Set by data-senior on <html>. */
+html[data-senior] main,
+html[data-senior] [data-vaul-drawer],
+html[data-senior] [role="dialog"],
+html[data-senior] [role="alertdialog"] {
+  --text-xs: 1rem;
+  --text-xs--line-height: 1.5rem;
+  --text-sm: 1.125rem;
+  --text-sm--line-height: 1.75rem;
+  --text-base: 1.375rem;
+  --text-base--line-height: 2rem;
+  --text-lg: 1.75rem;
+  --text-lg--line-height: 2.25rem;
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+html[data-senior]:lang(hi) main,
+html[data-senior]:lang(mr) main,
+html[data-senior]:lang(hi) [data-vaul-drawer],
+html[data-senior]:lang(mr) [data-vaul-drawer] {
+  --text-sm--line-height: 1.8rem;
+  --text-base--line-height: 2.2rem;
+}
+html[data-senior] main h1 {
+  font-size: 36px;
+  line-height: 42px;
+}
+html[data-senior]:lang(hi) main h1,
+html[data-senior]:lang(mr) main h1 {
+  line-height: 48px;
+}

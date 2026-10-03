@@ -36,12 +36,16 @@ function rolesFor(/** @type {string} */ phone) {
   return roles;
 }
 
-const userFor = (/** @type {string} */ phone) => ({
+/** Profile edits from PATCH /v1/me (mocks/profile.js), by phone; they survive reloads. */
+export const PROFILE_KEY = "gb-mock-me";
+export const userFor = (/** @type {string} */ phone) => ({
   id: `0190f0aa-0000-7000-8000-${phone.replace(/\D/g, "").slice(-12).padStart(12, "0")}`,
   phone_e164: phone,
-  name: null,
-  locale: /** @type {const} */ ("en-IN"),
+  // The designs' household is Priya's; a brand-new user (…00005) has no name yet.
+  name: phone === "+919800000005" ? null : "Priya",
+  locale: /** @type {"en-IN" | "hi-IN" | "mr-IN"} */ ("en-IN"),
   senior_mode: false,
+  ...JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "{}")[phone],
 });
 
 /** @type {Map<string, { phone: string, exp: number }>} */ const accessTokens = new Map();

@@ -5,6 +5,7 @@ import { handlers } from "./handlers.js";
 import { identityHandlers } from "./identity.js";
 import { kindnessHandlers } from "./kindness.js";
 import { orderHandlers } from "./orders.js";
+import { profileHandlers } from "./profile.js";
 import { subscriptionHandlers } from "./subscriptions.js";
 
 const all = [
@@ -15,6 +16,7 @@ const all = [
   ...billingHandlers,
   ...orderHandlers,
   ...kindnessHandlers,
+  ...profileHandlers,
 ];
 
 /**
