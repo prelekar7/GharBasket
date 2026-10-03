@@ -55,9 +55,6 @@
     "privacyValue": "Export · Delete",
     "partner": "Become a partner",
     "saveFailed": "We couldn’t save that. Check your internet and try again.",
-    "householdLead": "Set when you joined. Editing your family and food rules comes in the next update.",
-    "peopleLabel": "People",
-    "flat": "Flat",
     "thisPhone": "This phone",
     "activeNow": "Active now",
     "lastSeen": "Last used {date}",
@@ -71,7 +68,35 @@
     "deleteBody": "Your box stops and your wallet balance is refunded to your UPI. You have 30 days to change your mind by signing in again.",
     "deleteConfirm": "Delete account",
     "keep": "Keep my account",
-    "deleted": "Your account will be deleted on {date}."
+    "deleted": "Your account will be deleted on {date}.",
+    "edit": {
+      "lead": "Change anything; next week’s plan follows it.",
+      "family": "Who eats at home",
+      "food": "Food rules",
+      "health": "Health needs",
+      "cooking": "Cooking time",
+      "budget": "Budget Lock",
+      "on": "On",
+      "off": "Off",
+      "minutes": "{n} min on weekdays",
+      "save": "Save",
+      "saved": "Saved. Next week’s plan uses it.",
+      "conflict": "Your household changed on another phone. Open it again."
+    },
+    "pause": {
+      "row": "Autopilot",
+      "on": "On",
+      "pausedValue": "Paused until {date}",
+      "title": "Pause Autopilot",
+      "lead": "No boxes and no charges while paused. Your plan, wallet and society stay as they are.",
+      "pausedLead": "Paused until {date}. Resume any time; the next open week gets a box.",
+      "weeks": "{n, plural, one {# week} other {# weeks}}",
+      "until": "Back on {date}",
+      "cta": "Pause for {n, plural, one {# week} other {# weeks}}",
+      "paused": "Autopilot paused until {date}",
+      "resume": "Resume Autopilot",
+      "resumed": "Autopilot is on again"
+    }
   },
   "assistant": "Ghar Saathi assistant",
   "pwa": {
@@ -426,7 +451,9 @@
       "offer": "{cook}’s {dish} from your society · {price} · order by {when}",
       "addTiffin": "Add tiffin",
       "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off."
-    }
+    },
+    "pauseLead": "Away for longer?",
+    "pauseLink": "Pause Autopilot in Profile"
   },
   "reasons": {
     "in_season": "{item} is in season",

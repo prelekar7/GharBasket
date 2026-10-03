@@ -2,7 +2,8 @@ import { Button, QtyStepper } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 /** @type {("adults" | "seniors" | "children" | "little")[]} */
 const GROUPS = ["adults", "seniors", "children", "little"];
@@ -13,8 +14,9 @@ export const Route = createFileRoute("/_auth/onboarding/family")({ component: Fa
 
 function Family() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household, updateHousehold } = useOnboardingDraft();
+  const step = useStepGo("/onboarding/family");
   const { members } = household;
   const total = GROUPS.reduce((n, g) => n + members[g], 0);
 
@@ -27,9 +29,10 @@ function Family() {
           size="lg"
           block
           isDisabled={total === 0}
-          onPress={() => navigate({ to: nextStep("/onboarding/family") })}
+          isPending={step.busy}
+          onPress={step.go}
         >
-          {t("onboarding.next")}
+          {step.label}
         </Button>
       }
     >

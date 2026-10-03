@@ -3,7 +3,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
 /** Tags shown before "More" (Hf09); a chosen tag always stays visible. */
@@ -27,9 +28,10 @@ export const Route = createFileRoute("/_auth/onboarding/health")({ component: He
 
 function Health() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
-  const go = () => navigate({ to: nextStep("/onboarding/health") });
+  const step = useStepGo("/onboarding/health");
+  const go = step.go;
   const [open, setOpen] = useState(/** @type {string[]} */ ([]));
 
   /** @param {string} person @param {string} tag @param {boolean} on */
@@ -45,19 +47,21 @@ function Health() {
       step={3}
       footer={
         <>
-          <Button variant="primary" size="lg" block onPress={go}>
-            {t("onboarding.next")}
+          <Button variant="primary" size="lg" block isPending={step.busy} onPress={go}>
+            {step.label}
           </Button>
-          <Button
-            variant="quiet"
-            block
-            onPress={() => {
-              updateHousehold({ healthConsent: false, health: {} });
-              go();
-            }}
-          >
-            {t("onboarding.health.skip")}
-          </Button>
+          {!step.editing && (
+            <Button
+              variant="quiet"
+              block
+              onPress={() => {
+                updateHousehold({ healthConsent: false, health: {} });
+                go();
+              }}
+            >
+              {t("onboarding.health.skip")}
+            </Button>
+          )}
         </>
       }
     >
