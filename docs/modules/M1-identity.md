@@ -73,6 +73,19 @@ More codes: "auth.refresh_reused" (401, a used refresh token was replayed: the s
             "auth.account_disabled" (403), "auth.provider_unavailable" (503, Firebase keys unreachable),
             "request.invalid" (422, e.g. both or neither of firebase_id_token / dev_phone).
 dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
+
+Browser (cookie) mode, implemented in `feat/M1-auth-web-cookies`:
+  Browsers send the header  X-GB-Client: web  on exchange, refresh and every request that changes
+  something. The API then sets httpOnly cookies instead of returning tokens: the JSON fields
+  access_token and refresh_token are null.
+    __Host-gb_at  access token   Secure; HttpOnly; SameSite=Lax; Path=/;          Max-Age=900
+    gb_rt         refresh token  Secure; HttpOnly; SameSite=Lax; Path=/v1/auth;   Max-Age=rest of the session
+  Refresh: POST /v1/auth/refresh with {} (the cookie carries the token). Logout clears both cookies.
+  CSRF: a cookie-authenticated POST/PATCH/PUT/DELETE without X-GB-Client: web, or from an Origin not
+  in WEB_ORIGINS, is 403 "auth.csrf_rejected". A Bearer header always wins over the cookie.
+Instant sign-out: logout, logout-all, device sign-out and refresh reuse take effect at once.
+Rate limits: exchange 30 per 10 min per address and 10 per 10 min per phone; refresh 300 per minute
+  per address; over the limit: 429 "auth.rate_limited" with Retry-After.
 ```
 
 ## 4. Tables owned

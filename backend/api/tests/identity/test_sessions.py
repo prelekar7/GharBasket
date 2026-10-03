@@ -206,7 +206,8 @@ async def test_logout_and_logout_everywhere(db_session: AsyncSession) -> None:
 
     ended = await revoke_all_sessions(db_session, user.id, now=T0 + timedelta(minutes=3))
 
-    assert ended == 2  # the phone and the tablet; the browser was already signed out
+    assert len(ended) == 2  # the phone and the tablet; the browser was already signed out
+    assert browser.session_id not in ended
     await _refused(db_session, phone_token, T0 + timedelta(minutes=4), "auth.invalid_token")
 
 

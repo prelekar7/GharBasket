@@ -33,12 +33,26 @@ SESSION_LIFETIME = timedelta(days=30)
 REUSE_GRACE = timedelta(minutes=2)
 
 
+class RefreshReused(ProblemError):
+    """A copied refresh token was replayed; the session is already revoked and committed."""
+
+    def __init__(self, session_id: uuid.UUID) -> None:
+        super().__init__(
+            401,
+            "auth.refresh_reused",
+            "This sign-in was used from somewhere else, so it has been ended. Sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        self.session_id = session_id
+
+
 @dataclass(frozen=True)
 class IssuedTokens:
     access_token: str
     access_expires_in: int
     refresh_token: str
     session_id: uuid.UUID
+    session_expires_at: datetime
     user: User
 
 
@@ -106,7 +120,7 @@ async def _issue(
         roles=await active_grants(session, user.id),
         now=now,
     )
-    return IssuedTokens(access_token, expires_in, refresh_token, login.id, user)
+    return IssuedTokens(access_token, expires_in, refresh_token, login.id, login.expires_at, user)
 
 
 async def start_session(
@@ -190,13 +204,9 @@ async def rotate(
 
     login.revoked_at = at
     login.revoke_reason = "refresh_reused"
+    session_id = login.id
     await session.commit()
-    raise ProblemError(
-        401,
-        "auth.refresh_reused",
-        "This sign-in was used from somewhere else, so it has been ended. Sign in again.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    raise RefreshReused(session_id)
 
 
 async def revoke_session(
@@ -219,14 +229,15 @@ async def revoke_all_sessions(
     *,
     reason: str = "logout_all",
     now: datetime | None = None,
-) -> int:
+) -> list[uuid.UUID]:
+    """Revoke every session of the user; returns the ids that were still active."""
     result = await session.execute(
         update(LoginSession)
         .where(LoginSession.user_id == user_id, LoginSession.revoked_at.is_(None))
         .values(revoked_at=_now(now), revoke_reason=reason)
         .returning(LoginSession.id)
     )
-    return len(result.all())
+    return list(result.scalars())
 
 
 async def list_devices(

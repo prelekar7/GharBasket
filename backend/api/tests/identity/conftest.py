@@ -5,10 +5,12 @@ from typing import Any
 
 import httpx2
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
 from gharbasket.platform.db import get_session
+from gharbasket.platform.valkey import create_valkey
 
 from ..conftest import make_settings
 from .fake_firebase import FakeGoogle
@@ -23,8 +25,20 @@ def google() -> FakeGoogle:
 
 
 @pytest.fixture
+async def valkey(valkey_url: str) -> AsyncIterator[Redis]:
+    """The test Valkey database (index 15), emptied before each test."""
+    client = create_valkey(valkey_url)
+    await client.flushdb()
+    yield client
+    await client.aclose()
+
+
+@pytest.fixture
 async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator[ClientFactory]:
-    """Build API clients for a given APP_ENV, all sharing the test's rolled-back session."""
+    """Build API clients for a given APP_ENV, all sharing the test's rolled-back session.
+
+    HTTPS base URL, because browsers (and httpx2's cookie jar) only send Secure cookies over HTTPS.
+    """
     opened: list[httpx2.AsyncClient] = []
 
     async def session_override() -> AsyncIterator[AsyncSession]:
@@ -34,11 +48,20 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
             await db_session.rollback()
             raise
 
-    def make(app_env: str = "test", firebase: bool = True) -> httpx2.AsyncClient:
-        app = create_app(make_settings(app_env=app_env))
+    def make(
+        app_env: str = "test",
+        firebase: bool = True,
+        valkey: Redis | None = None,
+        headers: dict[str, str] | None = None,
+        **settings: Any,
+    ) -> httpx2.AsyncClient:
+        app = create_app(make_settings(app_env=app_env, **settings))
         app.dependency_overrides[get_session] = session_override
         app.state.firebase_verifier = google.verifier() if firebase else None
-        client = httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="http://t")
+        app.state.valkey = valkey
+        client = httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="https://t", headers=headers
+        )
         opened.append(client)
         return client
 
