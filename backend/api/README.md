@@ -7,6 +7,7 @@ The GharBasket backend: a FastAPI modular monolith (see `docs/handbook/04-system
 | `just up` | Start local Postgres 18 (PostGIS, pgvector) and Valkey in Docker |
 | `just migrate` | Apply all migrations (`just migrate-down` undoes the last one) |
 | `just migration "orders add slots"` | Generate a migration from model changes; review it before committing |
+| `just seed` | Fill the local database with synthetic people, one per role (see "Seed data" below) |
 | `just dev` | Run the API with auto-reload on http://localhost:8000 (docs at `/v1/docs`) |
 | `just test` | Run the tests with the coverage gate (85%); database tests skip when `just up` is not running |
 | `just openapi` | Regenerate `backend/api/openapi.json` (the contract the frontend client is built from) |
@@ -40,6 +41,28 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
   (`platform/permissions.py`). `X-Active-Role` (optional) narrows the check to one of the caller's roles.
 - The first admin: sign in once, then `just grant-role +91XXXXXXXXXX admin` (add `--shared` and run via
   `infisical run --env=staging --` for staging). Later admins use `POST /v1/admin/user-roles`.
+
+## Seed data
+`just seed` (`tools/seed.py`) writes synthetic people through the module services, marked
+`data_source='synthetic'` (ADR-0008). It is local-only and safe to run again. Later module PRs add
+their rows (societies, households, catalog) to the same command. Sign in as anyone below with `dev_phone`:
+
+| Phone | Name | Roles (scope) |
+|---|---|---|
+| +919800001001 | Priya Sharma | customer |
+| +919800001002 | Sunita Patil | customer (Marathi) |
+| +919800001003 | Ramesh Kulkarni | customer (Marathi, senior mode) |
+| +919800001004 | Meena Jadhav | captain (Sunrise Towers) |
+| +919800001005 | Lata Shinde | kitchen_partner (Kharghar hub) |
+| +919800001006 | Arjun Pawar | rider (Kharghar hub) |
+| +919800001007 | Kavita More | packer (Kharghar hub) |
+| +919800001008 | Vikram Desai | hub_manager (Kharghar hub) |
+| +919800001009 | Sanjay Mehta | franchise_owner (Kharghar hub) |
+| +919800001010 | Asha Fernandes | ngo_coordinator |
+| +919800001011 | Neha Iyer | admin |
+
+Everyone is also a customer. The hub, society and NGO ids are fixed in `tools/seed.py`. Until M6 and
+M9 create those rows, the scoped roles point at ids that don't exist yet.
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).
