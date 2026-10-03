@@ -1,12 +1,11 @@
-import { Button, Chip, Dialog, formatPaise, RadioCards, TextField } from "@gharbasket/ui";
+import { Button, Chip, formatPaise, RadioCards, TextField } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
-import { ApiError, request } from "@/lib/api.js";
-import { PAYMENTS_MOCKED, PaymentError, payInMock, payWithRazorpay } from "@/lib/payments.js";
-import { useSession } from "@/lib/session.js";
+import { request } from "@/lib/api.js";
 
 const QUICK_RUPEES = [1000, 2000, 3000];
 
@@ -17,41 +16,25 @@ export const Route = createFileRoute("/_auth/onboarding/payment")({ component: P
 function Payment() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const phone = useSession((s) => s.user?.phone_e164);
   const [mode, setMode] = useState("wallet");
   const [rupees, setRupees] = useState(2000);
   const [other, setOther] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(/** @type {string | null} */ (null));
-  /** @type {[import("@/lib/payments.js").TopUpOrder | null, (o: import("@/lib/payments.js").TopUpOrder | null) => void]} */
-  const [testOrder, setTestOrder] = useState(/** @type {any} */ (null));
-  // One key per screen visit for the subscription; one per amount for the top-up.
-  const keys = useRef({
-    subscription: crypto.randomUUID(),
-    topups: /** @type {Record<number, string>} */ ({}),
-  });
+  const [setup, setSetup] = useState(false);
+  // One key per screen visit for the subscription; the top-up hook keeps one per amount.
+  const subscriptionKey = useRef(crypto.randomUUID());
   const amountPaise = rupees * 100;
   const done = () => navigate({ to: nextStep("/onboarding/payment") });
-
-  const fail = (/** @type {unknown} */ e) => {
-    setBusy(false);
-    if (e instanceof PaymentError && e.code === "dismissed") return;
-    const code =
-      e instanceof ApiError ? e.code : e instanceof PaymentError ? `payment.${e.code}` : "";
-    setError(
-      t(`onboarding.payment.errors.${code.replace(/\./g, "_")}`, {
-        defaultValue: t("onboarding.payment.errors.generic"),
-      }),
-    );
-  };
+  const topUp = useTopUp({ onPaid: done });
+  const busy = setup || topUp.busy;
+  const error = topUp.error;
 
   const pay = async () => {
-    setBusy(true);
-    setError(null);
+    setSetup(true);
+    topUp.setError(null);
     try {
       await request("/v1/subscriptions", {
         method: "POST",
-        headers: { "idempotency-key": keys.current.subscription },
+        headers: { "idempotency-key": subscriptionKey.current },
         body: { plan: "autopilot", payment_mode: mode },
       });
       if (mode === "autopay") {
@@ -62,22 +45,11 @@ function Payment() {
         });
         return done();
       }
-      keys.current.topups[amountPaise] ??= crypto.randomUUID();
-      const order = /** @type {import("@/lib/payments.js").TopUpOrder} */ (
-        await request("/v1/wallet/topups", {
-          method: "POST",
-          headers: { "idempotency-key": keys.current.topups[amountPaise] },
-          body: { amount_paise: amountPaise },
-        })
-      );
-      if (PAYMENTS_MOCKED) return setTestOrder(order); // test-payment dialog below
-      await payWithRazorpay(order, {
-        description: t("onboarding.payment.description"),
-        contact: phone,
-      });
-      done();
+      setSetup(false);
+      await topUp.start(amountPaise);
     } catch (e) {
-      fail(e);
+      setSetup(false);
+      topUp.fail(e);
     }
   };
 
@@ -165,35 +137,7 @@ function Payment() {
           </p>
         </section>
       )}
-      <Dialog
-        isOpen={!!testOrder}
-        onOpenChange={(open) => {
-          if (!open) {
-            setTestOrder(null);
-            setBusy(false);
-          }
-        }}
-        title={t("onboarding.payment.testTitle", {
-          amount: formatPaise(testOrder?.amount_paise ?? 0),
-        })}
-        confirmLabel={t("onboarding.payment.testPay", {
-          amount: formatPaise(testOrder?.amount_paise ?? 0),
-        })}
-        cancelLabel={t("onboarding.payment.testCancel")}
-        onConfirm={async () => {
-          const order = testOrder;
-          setTestOrder(null);
-          if (!order) return;
-          try {
-            await payInMock(order);
-            done();
-          } catch (e) {
-            fail(e);
-          }
-        }}
-      >
-        {t("onboarding.payment.testBody")}
-      </Dialog>
+      {topUp.dialog}
     </OnboardingFrame>
   );
 }
