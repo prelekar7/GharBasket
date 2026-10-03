@@ -9,9 +9,11 @@ import {
   SubstituteSheet,
   toast,
 } from "@gharbasket/ui";
+import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AddItemSheet } from "@/features/catalog/AddItemSheet.jsx";
 import { reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { QtySheet } from "@/features/subscriptions/QtySheet.jsx";
 import {
@@ -40,6 +42,7 @@ function Box() {
   const swap = useSwapLine();
   const edit = useEditLine();
   const [changing, setChanging] = useState(/** @type {string | null} */ (null));
+  const [adding, setAdding] = useState(false);
   const [all, setAll] = useState(false);
   const [swapping, setSwapping] = useState(
     /** @type {{ id: string, name: string, pricePaise: number } | null} */ (null),
@@ -133,6 +136,14 @@ function Box() {
             : undefined
         }
       />
+      {editable && (
+        <div>
+          <Button variant="secondary" onPress={() => setAdding(true)}>
+            <PlusIcon aria-hidden size={20} weight="bold" />
+            {t("box.add.cta")}
+          </Button>
+        </div>
+      )}
       {/* "+ 9 more items" and the Budget Lock share one row (HcBox). */}
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         {c.lines.length > FIRST_LINES && (
@@ -223,6 +234,18 @@ function Box() {
           }}
         />
       )}
+      <AddItemSheet
+        open={adding}
+        onClose={() => setAdding(false)}
+        inBox={new Set(c.lines.map((l) => l.product_id))}
+        busyId={edit.isPending && edit.variables?.op === "add" ? edit.variables.productId : null}
+        onAdd={(productId, name) =>
+          edit.mutate(
+            { cycle: c, productId, op: "add" },
+            { onSuccess: () => toast(t("box.add.added", { name })), onError },
+          )
+        }
+      />
       <QtySheet
         line={c.lines.find((l) => l.product_id === changing) ?? null}
         onClose={() => setChanging(null)}

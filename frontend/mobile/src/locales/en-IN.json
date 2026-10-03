@@ -445,7 +445,8 @@
     "half_qty": "Half quantity",
     "same_protein": "Same protein",
     "swapped_by_you": "You swapped this",
-    "quick_cook": "Ready in {minutes} minutes"
+    "quick_cook": "Ready in {minutes} minutes",
+    "added_by_you": "You added this"
   },
   "box": {
     "when": "{day} delivery",
@@ -477,6 +478,18 @@
       "save": "Save",
       "saved": "{name} updated",
       "removed": "{name} removed from your box"
+    },
+    "add": {
+      "cta": "Add item",
+      "title": "Add to this week’s box",
+      "lead": "Paid with the box at the cut-off. Search in English, Hindi or Hinglish.",
+      "search": "Search",
+      "placeholder": "Anda, doodh, atta…",
+      "results": "Results",
+      "inBox": "In your box",
+      "add": "Add",
+      "added": "{name} added to your box",
+      "none": "Nothing found for “{q}”. Try another name."
     }
   },
   "wallet": {

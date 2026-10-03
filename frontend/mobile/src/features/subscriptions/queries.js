@@ -100,14 +100,14 @@ export function useSwapMeal() {
 }
 
 /**
- * Change how much of a line comes, take it out, or put it back (PATCH /v1/cycles/{id}/lines with
- * op qty | remove | restore, our proposal for M3), with If-Match.
+ * Change how much of a line comes, take it out, put it back, or add a catalog item (PATCH
+ * /v1/cycles/{id}/lines with op qty | remove | restore | add, our proposal for M3), with If-Match.
  */
 export function useEditLine() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (
-      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore", qty?: number }} */ v,
+      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore" | "add", qty?: number }} */ v,
     ) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/lines`, {
