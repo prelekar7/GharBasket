@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { request } from "@/lib/api.js";
 
@@ -30,5 +30,31 @@ export function useSociety(id) {
     queryKey: ["society", id, i18n.resolvedLanguage],
     queryFn: () => /** @type {Promise<Society>} */ (request(`/v1/societies/${id}`)),
     enabled: !!id,
+  });
+}
+
+/** This month's counters for a society (GET /v1/impact?scope=society&id=, M9). @param {string | undefined} id */
+export function useImpact(id) {
+  return useQuery({
+    queryKey: ["impact", "society", id],
+    queryFn: () =>
+      /** @type {Promise<{ period: string, food_saved_kg: number, items_donated: number, cooks_earned_paise: number }>} */ (
+        request(`/v1/impact?${new URLSearchParams({ scope: "society", id: id ?? "" })}`)
+      ),
+    enabled: !!id,
+  });
+}
+
+/** Record an invite sent from the share sheet (POST /v1/referrals, M9); a new key per invite. */
+export function useRecordInvite() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {{ societyId: string, channel: "whatsapp" | "copy" }} */ v) =>
+      request("/v1/referrals", {
+        method: "POST",
+        body: { society_id: v.societyId, channel: v.channel },
+        headers: { "idempotency-key": crypto.randomUUID() },
+      }),
+    onSuccess: (_r, v) => client.invalidateQueries({ queryKey: ["society", v.societyId] }),
   });
 }

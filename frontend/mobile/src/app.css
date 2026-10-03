@@ -40,3 +40,31 @@ html[data-senior]:lang(hi) main h1,
 html[data-senior]:lang(mr) main h1 {
   line-height: 48px;
 }
+
+/* Society unlock celebration (Core-S4): a pop and a burst of dots, skipped with reduced motion. */
+@keyframes gb-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes gb-burst {
+  0% {
+    transform: rotate(var(--a)) translateY(0) scale(0.4);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--a)) translateY(-64px) scale(1);
+    opacity: 1;
+  }
+}

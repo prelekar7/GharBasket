@@ -6,7 +6,7 @@ import { toast } from "@gharbasket/ui";
  * @param {{ societyId: string, text: string, copied: string }} invite
  */
 export async function shareInvite({ societyId, text, copied }) {
-  const url = `${location.origin}/s/${societyId}`;
+  const url = inviteLink(societyId);
   try {
     if (navigator.share) await navigator.share({ title: "GharBasket", text, url });
     else {
@@ -17,3 +17,14 @@ export async function shareInvite({ societyId, text, copied }) {
     // The person closed the share sheet.
   }
 }
+
+/** The society's landing page that an invite points to (M9 `/s/<society>`). @param {string} societyId */
+export const inviteLink = (societyId) => `${location.origin}/s/${societyId}`;
+
+/** WhatsApp with the message ready to send (wa.me works in the app and on the web). @param {string} text */
+export const whatsappShare = (text) =>
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+
+/** A chat with one person on WhatsApp, e.g. the Society Captain. @param {string} phoneE164 */
+export const whatsappChat = (phoneE164) =>
+  window.open(`https://wa.me/${phoneE164.replace(/\D/g, "")}`, "_blank", "noopener");
