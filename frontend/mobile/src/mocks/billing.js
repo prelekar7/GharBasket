@@ -40,7 +40,57 @@ const needsKey = (/** @type {Request} */ r) =>
     ? null
     : problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
 
+/** Fills a demo household's wallet the first time it is read (designs: ₹1,310). @param {Request} request */
+function seed(request) {
+  // A demo household starts with the designs’ wallet (₹1,310); a new one at ₹0.
+  if (!localStorage.getItem(KEY) && !isNewUser(caller(request) ?? "")) {
+    save({
+      balance_paise: 131000,
+      entries: [
+        { id: "led-1", kind: "topup", amount_paise: 200000, at: "2026-10-02T10:15:00+05:30" },
+        {
+          id: "led-2",
+          kind: "box_debit",
+          amount_paise: -69000,
+          ref: "2026-10-06",
+          at: "2026-10-05T21:00:00+05:30",
+        },
+      ],
+      orders: {},
+      mandate: null,
+      subscription: { id: "sub-1", status: "active", plan: "autopilot", payment_mode: "wallet" },
+    });
+  }
+}
+
 export const billingHandlers = [
+  // A month of the ledger for the wallet (M5 §3: GET /v1/statements?period=YYYY-MM, JSON here).
+  http.get("*/v1/statements", ({ request }) => {
+    const period = new URL(request.url).searchParams.get("period") ?? "";
+    if (!/^\d{4}-\d{2}$/.test(period))
+      return problem(422, "billing.period_invalid", "period must be YYYY-MM");
+    seed(request);
+    const s = load();
+    const inPeriod = (/** @type {any} */ e) => (e.ref ?? e.at).slice(0, 7) === period;
+    const before = (/** @type {any} */ e) => (e.ref ?? e.at).slice(0, 7) < period;
+    const entries = s.entries.filter(inPeriod);
+    const opening = s.entries.filter(before).reduce((t, e) => t + e.amount_paise, 0);
+    const credits = entries
+      .filter((e) => e.amount_paise > 0)
+      .reduce((t, e) => t + e.amount_paise, 0);
+    const debits = entries
+      .filter((e) => e.amount_paise < 0)
+      .reduce((t, e) => t + e.amount_paise, 0);
+    return HttpResponse.json({
+      period,
+      opening_paise: opening,
+      credits_paise: credits,
+      debits_paise: debits,
+      closing_paise: opening + credits + debits,
+      entries: [...entries].reverse(),
+    });
+  }),
+
   // Kindness points are not money: a separate balance with its own expiry (M5, M9).
   http.get("*/v1/kindness/balance", () =>
     HttpResponse.json({
@@ -51,25 +101,7 @@ export const billingHandlers = [
   ),
 
   http.get("*/v1/wallet", ({ request }) => {
-    // A demo household starts with the designs’ wallet (₹1,310); a new one at ₹0.
-    if (!localStorage.getItem(KEY) && !isNewUser(caller(request) ?? "")) {
-      save({
-        balance_paise: 131000,
-        entries: [
-          { id: "led-1", kind: "topup", amount_paise: 200000, at: "2026-10-02T10:15:00+05:30" },
-          {
-            id: "led-2",
-            kind: "box_debit",
-            amount_paise: -69000,
-            ref: "2026-10-06",
-            at: "2026-10-05T21:00:00+05:30",
-          },
-        ],
-        orders: {},
-        mandate: null,
-        subscription: { id: "sub-1", status: "active", plan: "autopilot", payment_mode: "wallet" },
-      });
-    }
+    seed(request);
     const s = load();
     return HttpResponse.json({
       balance_paise: s.balance_paise,
