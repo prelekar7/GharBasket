@@ -76,7 +76,7 @@ function FlatStep() {
               </div>
               <div className="flex flex-col gap-0.5">
                 <strong>{t("onboarding.flat.capTitle", { name: society.captain.name })}</strong>
-                <p className="text-sm leading-[22px] text-fg-secondary">
+                <p className="text-sm leading-5 text-fg-secondary">
                   {t("onboarding.flat.capBody", { flat: society.captain.flat })}
                 </p>
               </div>

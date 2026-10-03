@@ -45,6 +45,30 @@ const SOCIETIES = [
   },
 ];
 
+/** Hindi for the words the server would localise; society names stay as people write them. */
+const HI = /** @type {Record<string, string>} */ ({
+  "Sector 20, Kharghar": "सेक्टर 20, खारघर",
+  "Sector 12, Kharghar": "सेक्टर 12, खारघर",
+  "New Panvel": "नया पनवेल",
+  "A wing": "A विंग",
+  "B wing": "B विंग",
+  "C wing": "C विंग",
+  "Building 1": "बिल्डिंग 1",
+  "Building 2": "बिल्डिंग 2",
+  "Main building": "मुख्य बिल्डिंग",
+  "Meena tai": "मीना ताई",
+});
+/** The society in the caller's language (Accept-Language), like the M3 mocks. */
+const localise = (/** @type {Society} */ s, /** @type {Request} */ r) => {
+  if (!(r.headers.get("accept-language") ?? "").startsWith("hi")) return s;
+  const hi = (/** @type {string} */ w) => HI[w] ?? w;
+  return {
+    ...s,
+    area: hi(s.area),
+    towers: s.towers.map((tw) => ({ ...tw, label: hi(tw.label) })),
+    captain: s.captain && { ...s.captain, name: hi(s.captain.name) },
+  };
+};
 const summary = (/** @type {Society} */ s) => {
   const { towers, ...rest } = s;
   return rest;
@@ -56,11 +80,11 @@ export const communityHandlers = [
     const q = new URL(request.url).searchParams.get("q")?.trim().toLowerCase() ?? "";
     const items = SOCIETIES.filter(
       (s) => !q || `${s.name} ${s.area}`.toLowerCase().includes(q),
-    ).map(summary);
+    ).map((s) => summary(localise(s, request)));
     return HttpResponse.json({ items, next_cursor: null });
   }),
 
-  http.get("*/v1/societies/:id", ({ params }) => {
+  http.get("*/v1/societies/:id", ({ request, params }) => {
     const society = SOCIETIES.find((s) => s.id === params.id);
     if (!society) {
       return HttpResponse.json(
@@ -73,7 +97,7 @@ export const communityHandlers = [
         { status: 404, headers: { "content-type": "application/problem+json" } },
       );
     }
-    return HttpResponse.json(society);
+    return HttpResponse.json(localise(society, request));
   }),
 
   http.post("*/v1/society-requests", async ({ request }) => {

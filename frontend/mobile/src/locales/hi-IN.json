@@ -230,7 +230,8 @@
         "high_bp": "हाई BP",
         "high_protein": "हाई प्रोटीन",
         "weight_loss": "वज़न घटाना",
-        "low_oil": "कम तेल"
+        "low_oil": "कम तेल",
+        "more": "और"
       }
     },
     "cooking": {
@@ -295,7 +296,7 @@
       "why": "ये खाने क्यों",
       "box": "सब्ज़ी बॉक्स · {count} चीज़ें",
       "when": "{day}, {range}",
-      "within": "आपके {budget} Budget Lock के अंदर",
+      "within": "{budget} के Budget Lock में",
       "cta": "ठीक है, आगे बढ़ें",
       "edit": "पहले कुछ बदलना है"
     },

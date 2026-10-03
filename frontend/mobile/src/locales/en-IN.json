@@ -234,7 +234,8 @@
         "high_bp": "High BP",
         "high_protein": "High protein",
         "weight_loss": "Weight loss",
-        "low_oil": "Low oil"
+        "low_oil": "Low oil",
+        "more": "More"
       }
     },
     "cooking": {

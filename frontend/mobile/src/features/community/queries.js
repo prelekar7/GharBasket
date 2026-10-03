@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { request } from "@/lib/api.js";
 
 /** @typedef {import("@/mocks/community.js").Society} Society */
@@ -11,8 +12,10 @@ export function useSocieties({ q = "", near = null }) {
   const search = new URLSearchParams();
   if (q) search.set("q", q);
   if (near) search.set("near", `${near.lat.toFixed(5)},${near.lng.toFixed(5)}`);
+  // Areas, wings and captains come back in the person's language, so the language is in the key.
+  const { i18n } = useTranslation();
   return useQuery({
-    queryKey: ["societies", q, near?.lat, near?.lng],
+    queryKey: ["societies", q, near?.lat, near?.lng, i18n.resolvedLanguage],
     queryFn: () =>
       /** @type {Promise<{ items: Omit<Society, "towers">[], next_cursor: string | null }>} */ (
         request(`/v1/societies?${search}`)
@@ -22,8 +25,9 @@ export function useSocieties({ q = "", near = null }) {
 
 /** One society with its towers and captain (GET /v1/societies/{id}). @param {string | undefined} id */
 export function useSociety(id) {
+  const { i18n } = useTranslation();
   return useQuery({
-    queryKey: ["society", id],
+    queryKey: ["society", id, i18n.resolvedLanguage],
     queryFn: () => /** @type {Promise<Society>} */ (request(`/v1/societies/${id}`)),
     enabled: !!id,
   });

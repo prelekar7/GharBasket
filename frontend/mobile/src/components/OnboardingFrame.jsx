@@ -8,22 +8,25 @@ import { HOUSEHOLD_STEPS } from "@/features/onboarding/draft.js";
  * Layout shared by the onboarding screens (designs Hf04–Hf15): back button, content, and a footer
  * pinned to the bottom.
  * `step` (1–5) adds the "Household · Step N of 5" progress bar of designs Hf07–Hf11.
- * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode, step?: number }} props
+ * `back={false}` hides the back button on the last screen, where there is nothing to go back to (Hf15).
+ * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode, step?: number, back?: boolean }} props
  */
-export function OnboardingFrame({ children, footer, step }) {
+export function OnboardingFrame({ children, footer, step, back = true }) {
   const { t } = useTranslation();
   const router = useRouter();
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-4 bg-bg px-5 pt-[calc(12px+env(safe-area-inset-top))] pb-6 text-fg">
-      <div className="-ml-3 flex min-h-12 items-center">
-        <IconButton
-          label={t("onboarding.back")}
-          variant="quiet"
-          onPress={() => router.history.back()}
-        >
-          <ArrowLeftIcon size={24} />
-        </IconButton>
-      </div>
+      {back && (
+        <div className="-ml-3 flex min-h-12 items-center">
+          <IconButton
+            label={t("onboarding.back")}
+            variant="quiet"
+            onPress={() => router.history.back()}
+          >
+            <ArrowLeftIcon size={24} />
+          </IconButton>
+        </div>
+      )}
       {step && (
         <ProgressBar
           label={t("onboarding.household")}
@@ -33,7 +36,7 @@ export function OnboardingFrame({ children, footer, step }) {
         />
       )}
       {children}
-      {footer && <div className="mt-auto flex flex-col gap-1 pt-2">{footer}</div>}
+      {footer && <div className="mt-auto flex flex-col gap-2 pt-2">{footer}</div>}
     </main>
   );
 }

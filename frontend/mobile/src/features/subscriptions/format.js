@@ -39,23 +39,42 @@ export function reasonText(t, { code, params }) {
   return t(`reasons.${code}`, p);
 }
 
+/** "to" between two times, per language, as the designs write a window. */
+const TO = { en: "to", hi: "से", mr: "ते" };
+
 /**
- * A delivery window, sharing the day period: "8–10 am", "सुबह 8–10".
+ * A delivery window as the designs write it, sharing the day period: "8 to 10 AM", "सुबह 8 से 10".
  * @param {{ from: string, to: string }} window
  * @param {string} locale
  */
 export function timeRange({ from, to }, locale) {
-  const at = (/** @type {string} */ hhmm) => {
-    const [h, m] = hhmm.split(":").map(Number);
-    return new Date(Date.UTC(2026, 0, 1, h, m));
-  };
-  return new Intl.DateTimeFormat(locale, {
+  const lang = /** @type {keyof typeof TO} */ (
+    locale.slice(0, 2) in TO ? locale.slice(0, 2) : "en"
+  );
+  const fmt = new Intl.DateTimeFormat(locale, {
     hour: "numeric",
-    minute: from.endsWith(":00") && to.endsWith(":00") ? undefined : "2-digit",
-    dayPeriod: locale.startsWith("en") ? undefined : "short",
+    dayPeriod: lang === "en" ? undefined : "short",
     numberingSystem: "latn",
     timeZone: "UTC",
-  }).formatRange(at(from), at(to));
+  });
+  const part = (/** @type {string} */ hhmm) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    const parts = fmt.formatToParts(new Date(Date.UTC(2026, 0, 1, h, m)));
+    const hour = parts.find((p) => p.type === "hour")?.value ?? String(h);
+    const period = parts.find((p) => p.type === "dayPeriod")?.value ?? "";
+    return { time: m ? `${hour}:${String(m).padStart(2, "0")}` : hour, period };
+  };
+  const a = part(from);
+  const b = part(to);
+  if (lang === "en") {
+    const up = (/** @type {string} */ p) => p.toUpperCase();
+    return a.period === b.period
+      ? `${a.time} ${TO.en} ${b.time} ${up(b.period)}`
+      : `${a.time} ${up(a.period)} ${TO.en} ${b.time} ${up(b.period)}`;
+  }
+  return a.period === b.period
+    ? `${a.period} ${a.time} ${TO[lang]} ${b.time}`
+    : `${a.period} ${a.time} ${TO[lang]} ${b.period} ${b.time}`;
 }
 
 /** "5–11 Oct" for the week starting on `weekStart`. @param {string} weekStart @param {string} locale */

@@ -1,10 +1,13 @@
 import { Button, Chip, ConsentCard } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
 const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
+/** Tags shown before "More" (Hf09); a chosen tag always stays visible. */
+const FIRST = 3;
 /** @type {("adults" | "seniors" | "children" | "little")[]} */
 const GROUPS = ["adults", "seniors", "children", "little"];
 
@@ -27,6 +30,7 @@ function Health() {
   const navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
   const go = () => navigate({ to: nextStep("/onboarding/health") });
+  const [open, setOpen] = useState(/** @type {string[]} */ ([]));
 
   /** @param {string} person @param {string} tag @param {boolean} on */
   const setTag = (person, tag, on) => {
@@ -81,7 +85,10 @@ function Health() {
               {t(`onboarding.health.person.${p.group}`, { n: p.n })}
             </span>
             <div className="flex flex-wrap gap-2">
-              {TAGS.map((tag) => (
+              {TAGS.filter(
+                (tag, i) =>
+                  i < FIRST || open.includes(p.key) || (h.health[p.key] ?? []).includes(tag),
+              ).map((tag) => (
                 <Chip
                   key={tag}
                   isSelected={(h.health[p.key] ?? []).includes(tag)}
@@ -90,6 +97,12 @@ function Health() {
                   {t(`onboarding.health.tags.${tag}`)}
                 </Chip>
               ))}
+              {!open.includes(p.key) &&
+                TAGS.some((tag, i) => i >= FIRST && !(h.health[p.key] ?? []).includes(tag)) && (
+                  <Chip isSelected={false} onChange={() => setOpen((o) => [...o, p.key])}>
+                    {t("onboarding.health.tags.more")}
+                  </Chip>
+                )}
             </div>
           </div>
         ))}

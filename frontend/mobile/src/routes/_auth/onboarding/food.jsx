@@ -93,7 +93,7 @@ function Food() {
             </Chip>
           ))}
         </div>
-        <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.food.fastNote")}</p>
+        <p className="text-sm leading-5 text-fg-secondary">{t("onboarding.food.fastNote")}</p>
       </div>
     </OnboardingFrame>
   );

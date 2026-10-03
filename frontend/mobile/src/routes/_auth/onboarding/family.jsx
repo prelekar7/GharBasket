@@ -43,7 +43,7 @@ function Family() {
         {GROUPS.map((g) => (
           <div
             key={g}
-            className="flex min-h-16 items-center justify-between gap-3 border-b border-line"
+            className="flex min-h-[72px] items-center justify-between gap-3 border-b border-line"
           >
             <div className="flex flex-col">
               <strong>{t(`onboarding.family.${g}`)}</strong>
@@ -60,7 +60,7 @@ function Family() {
           </div>
         ))}
       </div>
-      <p className="text-sm leading-[22px] text-fg-secondary">
+      <p className="text-sm leading-5 text-fg-secondary">
         {t("onboarding.family.total", { count: total })}
       </p>
     </OnboardingFrame>

@@ -47,6 +47,13 @@ function Consent() {
     <OnboardingFrame
       footer={
         <>
+          <p className="mb-1 text-sm leading-5 text-fg-secondary">
+            {t("onboarding.consent.pre")}
+            <a href="/privacy" className="font-semibold text-link underline">
+              {t("onboarding.consent.notice")}
+            </a>
+            {t("onboarding.consent.post")}
+          </p>
           {save.isError && (
             <p role="alert" className="text-sm font-semibold text-danger">
               {t("onboarding.consent.failed")}
@@ -92,7 +99,7 @@ function Consent() {
           {t("onboarding.consent.optional")}
         </span>
         {optional.map((o) => (
-          <div key={o.key} className="border-b border-line py-1 last:border-b-0">
+          <div key={o.key} className="border-b border-line py-1 [&>label]:max-w-none">
             <Switch
               label={o.label}
               description={o.desc}
@@ -108,13 +115,6 @@ function Consent() {
           </div>
         ))}
       </section>
-      <p className="text-sm leading-[22px] text-fg-secondary">
-        {t("onboarding.consent.pre")}
-        <a href="/privacy" className="font-semibold text-link underline">
-          {t("onboarding.consent.notice")}
-        </a>
-        {t("onboarding.consent.post")}
-      </p>
     </OnboardingFrame>
   );
 }
