@@ -1,0 +1,63 @@
+// M8 partner-application mocks (docs/modules/M8-partners.md §3, workflow W7). The spec lists
+// endpoints and tables, not JSON; these shapes are our proposal. One open application per person.
+import { HttpResponse, http } from "msw";
+import { caller } from "./handlers.js";
+
+const KEY = "gb-mock-partner";
+const KINDS = ["captain", "kitchen", "rider", "packer"];
+
+const problem = (
+  /** @type {number} */ status,
+  /** @type {string} */ code,
+  /** @type {string} */ title,
+) =>
+  HttpResponse.json(
+    { type: "about:blank", title, status, code },
+    { status, headers: { "content-type": "application/problem+json" } },
+  );
+/** @returns {Record<string, any>} application by phone, plus "keys" for idempotency */
+const load = () => JSON.parse(localStorage.getItem(KEY) ?? "{}");
+const save = (/** @type {Record<string, any>} */ s) => localStorage.setItem(KEY, JSON.stringify(s));
+
+export const partnerHandlers = [
+  http.get("*/v1/partner-applications/me", ({ request }) => {
+    const phone = caller(request);
+    if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+    const app = load()[phone];
+    return app
+      ? HttpResponse.json(app)
+      : problem(404, "partners.no_application", "No application yet");
+  }),
+
+  http.post("*/v1/partner-applications", async ({ request }) => {
+    const phone = caller(request);
+    if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+    const key = request.headers.get("idempotency-key");
+    if (!key)
+      return problem(
+        400,
+        "platform.idempotency_key_required",
+        "Idempotency-Key header is required",
+      );
+    const s = load();
+    s.keys ??= {};
+    if (s.keys[key]) return HttpResponse.json(s[s.keys[key]], { status: 201 });
+    if (s[phone] && s[phone].status !== "REJECTED")
+      return problem(409, "partners.already_applied", "You already have an application");
+    const body = /** @type {{ kind?: string, scope_id?: string }} */ (await request.json());
+    if (!KINDS.includes(body.kind ?? ""))
+      return problem(422, "partners.invalid_kind", "Pick a partner role");
+    s[phone] = {
+      id: `app-${Date.now()}`,
+      kind: body.kind,
+      // The server fills the scope from the household when the app does not send one.
+      scope_id: body.scope_id ?? "hub-kharghar",
+      status: "APPLIED",
+      submitted_at: new Date().toISOString(),
+      reason: null,
+    };
+    s.keys[key] = phone;
+    save(s);
+    return HttpResponse.json(s[phone], { status: 201 });
+  }),
+];

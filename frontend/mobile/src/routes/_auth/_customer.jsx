@@ -37,16 +37,18 @@ const TABS = [
   { value: "profile", Icon: UserIcon },
 ];
 
+const UNDER_PROFILE = ["wallet", "society", "partner"];
+
 function CustomerShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
-  // Wallet and Society live under Profile in the designs (HcWallet, HcSociety).
   const segment = pathname.split("/")[1] || "week";
-  const current = segment === "wallet" || segment === "society" ? "profile" : segment;
-  // The designs leave the assistant button off Profile (HcProfile).
-  const showAssistant = segment !== "profile";
+  // Wallet, Society and Become a partner open from Profile (HcWallet, HcSociety, HcPartner).
+  const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
+  // The designs leave the assistant button off Profile and Become a partner.
+  const showAssistant = segment !== "profile" && segment !== "partner";
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

@@ -572,5 +572,39 @@
       "REJECTED": "not accepted",
       "CANCELLED": "cancelled"
     }
+  },
+  "partner": {
+    "title": "Become a partner",
+    "intro": "Earn from home or inside your society. Training is free.",
+    "roles": {
+      "captain": {
+        "title": "Society Captain",
+        "body": "Receive your society’s delivery and bring boxes to each flat. Earn for every box."
+      },
+      "kitchen": {
+        "title": "Kitchen partner",
+        "body": "Cook tiffins in your home kitchen. FSSAI registration needed."
+      },
+      "rider": {
+        "title": "Rider",
+        "body": "Deliver with the hub van. Android phone needed."
+      },
+      "packer": {
+        "title": "Packer",
+        "body": "Pack boxes at the Kharghar hub, early mornings."
+      }
+    },
+    "nextTitle": "What happens next",
+    "steps": {
+      "apply": "Apply",
+      "kyc": "KYC check by the hub",
+      "training": "Training",
+      "verified": "Verified, start earning"
+    },
+    "cta": "Apply as {role}",
+    "sent": "Application sent. The hub will call you about KYC.",
+    "failed": "We couldn’t send your application. Check your internet and try again.",
+    "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
+    "rejected": "Your application as {role} needs another look. The hub will call you about what to send again."
   }
 }
