@@ -24,6 +24,7 @@ import { Route as AuthCustomerBoxRouteImport } from "./routes/_auth/_customer/bo
 import { Route as AuthCustomerKindnessRouteImport } from "./routes/_auth/_customer/kindness"
 import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer/orders"
 import { Route as AuthCustomerProfileRouteImport } from "./routes/_auth/_customer/profile"
+import { Route as AuthCustomerWalletRouteImport } from "./routes/_auth/_customer/wallet"
 import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/week"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
@@ -111,6 +112,11 @@ const AuthCustomerProfileRoute = AuthCustomerProfileRouteImport.update({
   path: "/profile",
   getParentRoute: () => AuthCustomerRoute,
 })
+const AuthCustomerWalletRoute = AuthCustomerWalletRouteImport.update({
+  id: "/wallet",
+  path: "/wallet",
+  getParentRoute: () => AuthCustomerRoute,
+})
 const AuthCustomerWeekRoute = AuthCustomerWeekRouteImport.update({
   id: "/week",
   path: "/week",
@@ -182,6 +188,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerKindnessRoute: AuthCustomerKindnessRoute,
   AuthCustomerOrdersRoute: AuthCustomerOrdersRoute,
   AuthCustomerProfileRoute: AuthCustomerProfileRoute,
+  AuthCustomerWalletRoute: AuthCustomerWalletRoute,
   AuthCustomerWeekRoute: AuthCustomerWeekRoute,
 }
 

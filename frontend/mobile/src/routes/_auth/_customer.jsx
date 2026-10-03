@@ -41,7 +41,9 @@ function CustomerShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const current = pathname.split("/")[1] || "week";
+  // Wallet lives under Profile in the design (HcWallet).
+  const segment = pathname.split("/")[1] || "week";
+  const current = segment === "wallet" ? "profile" : segment;
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

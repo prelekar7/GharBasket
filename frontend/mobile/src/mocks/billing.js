@@ -3,6 +3,7 @@
 // integer paise. A top-up order is only "paid" through the mock-only /v1/dev/razorpay/pay, which
 // stands in for Razorpay Checkout and its webhook until spike S-1.
 import { HttpResponse, http } from "msw";
+import { caller } from "./handlers.js";
 
 const KEY = "gb-mock-billing";
 const MAX_BALANCE_PAISE = 1_000_000; // ₹10,000 wallet cap
@@ -40,7 +41,35 @@ const needsKey = (/** @type {Request} */ r) =>
     : problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
 
 export const billingHandlers = [
-  http.get("*/v1/wallet", () => {
+  // Kindness points are not money: a separate balance with its own expiry (M5, M9).
+  http.get("*/v1/kindness/balance", () =>
+    HttpResponse.json({
+      points: 340,
+      goal: { points: 500, code: "child_meal" },
+      expiring: [{ points: 120, on: "2026-12-31" }],
+    }),
+  ),
+
+  http.get("*/v1/wallet", ({ request }) => {
+    // An existing household starts with the designs' wallet (₹1,310); a new one (…00005) at ₹0.
+    if (!localStorage.getItem(KEY) && caller(request) !== "+919800000005") {
+      save({
+        balance_paise: 131000,
+        entries: [
+          { id: "led-1", kind: "topup", amount_paise: 200000, at: "2026-10-02T10:15:00+05:30" },
+          {
+            id: "led-2",
+            kind: "box_debit",
+            amount_paise: -69000,
+            ref: "2026-10-06",
+            at: "2026-10-05T21:00:00+05:30",
+          },
+        ],
+        orders: {},
+        mandate: null,
+        subscription: { id: "sub-1", status: "active", plan: "autopilot", payment_mode: "wallet" },
+      });
+    }
     const s = load();
     return HttpResponse.json({
       balance_paise: s.balance_paise,
