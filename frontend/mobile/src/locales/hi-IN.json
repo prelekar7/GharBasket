@@ -442,7 +442,8 @@
     "same_protein": "वैसा ही प्रोटीन",
     "swapped_by_you": "आपने बदला",
     "quick_cook": "{minutes} मिनट में तैयार",
-    "added_by_you": "आपने जोड़ा"
+    "added_by_you": "आपने जोड़ा",
+    "kept_by_you": "आपने रखा"
   },
   "box": {
     "when": "{day} की डिलीवरी",
@@ -486,6 +487,15 @@
       "add": "जोड़ें",
       "added": "{name} बॉक्स में जुड़ गया",
       "none": "“{q}” नहीं मिला। कोई और नाम आज़माएँ।"
+    },
+    "undone": "{name} पहले जैसा वापस",
+    "spike": {
+      "title": "इस हफ़्ते दाम बदले",
+      "body": "{market} में {item} {pct}% महँगा है। आपको {budget} के अंदर रखने के लिए Autopilot ने {n} खानों में {sub} लिया।",
+      "bodyNoLock": "{market} में {item} {pct}% महँगा है, इसलिए Autopilot ने {n} खानों में {sub} लिया।",
+      "keep": "{item} रखें (+{delta})",
+      "ok": "ठीक है",
+      "kept": "{item} आपके बॉक्स में रखा"
     }
   },
   "wallet": {

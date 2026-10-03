@@ -446,7 +446,8 @@
     "same_protein": "Same protein",
     "swapped_by_you": "You swapped this",
     "quick_cook": "Ready in {minutes} minutes",
-    "added_by_you": "You added this"
+    "added_by_you": "You added this",
+    "kept_by_you": "You kept this"
   },
   "box": {
     "when": "{day} delivery",
@@ -490,6 +491,15 @@
       "add": "Add",
       "added": "{name} added to your box",
       "none": "Nothing found for “{q}”. Try another name."
+    },
+    "undone": "{name} is back as planned",
+    "spike": {
+      "title": "Prices moved this week",
+      "body": "{item} is up {pct}% at {market}. To keep you within {budget}, Autopilot used {sub} in {n, plural, one {# meal} other {# meals}} instead.",
+      "bodyNoLock": "{item} is up {pct}% at {market}, so Autopilot used {sub} in {n, plural, one {# meal} other {# meals}} instead.",
+      "keep": "Keep {item} (+{delta})",
+      "ok": "OK",
+      "kept": "{item} kept in your box"
     }
   },
   "wallet": {
