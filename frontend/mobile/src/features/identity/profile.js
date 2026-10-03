@@ -112,3 +112,13 @@ export function usePause(subscriptionId) {
     },
   });
 }
+
+/** Change wing or flat within the same society (PATCH /v1/addresses/{id}, M1). @param {string | null | undefined} addressId */
+export function useChangeAddress(addressId) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {{ tower: string, flat: string }} */ v) =>
+      request(`/v1/addresses/${addressId}`, { method: "PATCH", body: v }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["household", "me"] }),
+  });
+}

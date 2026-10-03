@@ -1,17 +1,10 @@
-import {
-  Button,
-  Chip,
-  ErrorState,
-  IconButton,
-  RadioCards,
-  Skeleton,
-  TextField,
-} from "@gharbasket/ui";
+import { Button, Chip, IconButton, RadioCards, Skeleton, TextField } from "@gharbasket/ui";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useSocieties } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
@@ -94,11 +87,7 @@ function SocietyPicker() {
       {isPending ? (
         <Skeleton lines={3} />
       ) : isError ? (
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       ) : (
         <RadioCards
           label={t("onboarding.society.near")}

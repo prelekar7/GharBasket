@@ -4,7 +4,7 @@
 const KEY = "gb-mock-households-full";
 
 /**
- * @typedef {{ id: string, version: number, society_id: string, flat: string | null, size: number,
+ * @typedef {{ id: string, version: number, society_id: string, flat: string | null, address_id: string | null, size: number,
  *   members: { adults: number, seniors: number, children: number, little: number }, diet: string,
  *   cuisine_tags: string[], rules: { jain: boolean, no_onion_some_days: boolean }, fasting: string[],
  *   health_consent: boolean, health: Record<string, string[]>, weekday_cook_minutes: number,
@@ -18,6 +18,7 @@ export const demoHousehold = () => ({
   version: 1,
   society_id: "sunrise-towers",
   flat: "B-402",
+  address_id: "addr-1",
   size: 4,
   members: { adults: 2, seniors: 0, children: 2, little: 0 },
   diet: "veg",

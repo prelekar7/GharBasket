@@ -2,7 +2,6 @@ import {
   Button,
   Chip,
   Dialog,
-  ErrorState,
   formatPaise,
   GullakMeter,
   IconButton,
@@ -17,6 +16,7 @@ import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useKindness, useWallet } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
@@ -50,13 +50,7 @@ function Wallet() {
 
   if (wallet.isPending) return <Skeleton lines={6} />;
   if (wallet.isError || !wallet.data) {
-    return (
-      <ErrorState
-        title={t("onboarding.error")}
-        retryLabel={t("onboarding.retry")}
-        onRetry={() => wallet.refetch()}
-      />
-    );
+    return <ScreenError onRetry={() => wallet.refetch()} />;
   }
   const balance = wallet.data.balance_paise;
   const amountPaise = rupees * 100;

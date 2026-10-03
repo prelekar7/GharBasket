@@ -1,7 +1,7 @@
 import { Button, Switch } from "@gharbasket/ui";
 import { LockSimpleIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
@@ -49,9 +49,9 @@ function Consent() {
         <>
           <p className="mb-1 text-sm leading-5 text-fg-secondary">
             {t("onboarding.consent.pre")}
-            <a href="/privacy" className="font-semibold text-link underline">
+            <Link to="/legal/privacy" className="font-semibold text-link underline">
               {t("onboarding.consent.notice")}
-            </a>
+            </Link>
             {t("onboarding.consent.post")}
           </p>
           {save.isError && (

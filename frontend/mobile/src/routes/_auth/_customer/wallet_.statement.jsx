@@ -1,15 +1,9 @@
-import {
-  EmptyState,
-  ErrorState,
-  IconButton,
-  MoneyText,
-  SegmentedControl,
-  Skeleton,
-} from "@gharbasket/ui";
+import { EmptyState, IconButton, MoneyText, SegmentedControl, Skeleton } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useStatement } from "@/features/billing/queries.js";
 import { monthName, shortDate, todayIst, weekdayOf } from "@/features/subscriptions/format.js";
 
@@ -72,11 +66,7 @@ function Statement() {
       {isPending ? (
         <Skeleton lines={6} />
       ) : isError || !s ? (
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       ) : (
         <>
           <dl className="rounded-md bg-surface px-4 py-1">

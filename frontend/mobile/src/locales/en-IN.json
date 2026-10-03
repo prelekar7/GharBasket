@@ -60,7 +60,7 @@
     "lastSeen": "Last used {date}",
     "signOutDevice": "Sign out",
     "revoked": "{device} is signed out.",
-    "privacyLead": "Your data stays in India. You can take a copy or delete your account at any time.",
+    "privacyLead": "Take a copy of your data or delete your account at any time.",
     "export": "Download my data",
     "exportQueued": "We’re preparing your file. You’ll get a notification with the link within {hours} hours.",
     "delete": "Delete my account",
@@ -96,6 +96,13 @@
       "paused": "Autopilot paused until {date}",
       "resume": "Resume Autopilot",
       "resumed": "Autopilot is on again"
+    },
+    "address": {
+      "row": "Address",
+      "title": "Change your flat",
+      "lead": "Within {society}. Your captain sees the new flat from the next delivery.",
+      "saved": "Address saved",
+      "move": "Moving to another society? Its hub and captain are different, so ask Help and we’ll move you."
     }
   },
   "assistant": "Ghar Saathi assistant",
@@ -794,6 +801,78 @@
       "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
       "orders_cutoff_passed": "That box is already locked. I can change the one after it.",
       "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    }
+  },
+  "help": {
+    "link": "Get help",
+    "title": "Help",
+    "lead": "Pick what you need. Each answer opens the right screen.",
+    "topics": {
+      "late": {
+        "q": "My box is late or something is missing",
+        "a": "Open Orders and tap Report a problem. The hub calls you back within 2 hours."
+      },
+      "change": {
+        "q": "Change, skip or pause a week",
+        "a": "Open Week. Edits stay open until Monday 9 PM; pause longer from Profile."
+      },
+      "money": {
+        "q": "Money, top-ups and refunds",
+        "a": "Your wallet statement shows every rupee. Unused money goes back to your bank on request."
+      },
+      "data": {
+        "q": "My data and privacy",
+        "a": "What we keep and why, and how to download or delete it."
+      },
+      "ask": {
+        "q": "Ask Ghar Saathi",
+        "a": "Type your question in English, Hindi or Marathi."
+      }
+    }
+  },
+  "legal": {
+    "draft": "Draft for review. The final wording comes from the GharBasket team before launch.",
+    "terms": {
+      "title": "Terms",
+      "sections": [
+        {
+          "h": "The wallet",
+          "p": "Your GharBasket wallet can be spent only on GharBasket orders. It holds up to ₹10,000. You can't withdraw cash or send money to someone else. Unused money goes back to the account you paid from, on request."
+        },
+        {
+          "h": "Your weekly box",
+          "p": "Autopilot plans each week. You can change, skip or pause until the cut-off at 9 PM the day before delivery. At the cut-off the box is paid from your wallet; if the wallet is short you have until 11 PM to top up, or the week is cancelled with no charge."
+        },
+        {
+          "h": "Kindness points",
+          "p": "Points are not money. They expire, and you can use them as a discount on a box."
+        },
+        {
+          "h": "Home cooks and captains",
+          "p": "Tiffins come from verified home kitchens and boxes come through your Society Captain. Report any problem from Orders."
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy notice",
+      "sections": [
+        {
+          "h": "What we keep",
+          "p": "Your phone number, address, who eats at home (age groups, not birth dates) and your food rules. Health needs only if you turn them on. We never ask for Aadhaar."
+        },
+        {
+          "h": "Why",
+          "p": "To plan, pack and deliver your box. Each optional use, like WhatsApp updates or health planning, has its own switch, recorded with the date you chose."
+        },
+        {
+          "h": "Who sees it",
+          "p": "Health tags are never shared with cooks, riders or captains. Your captain sees your flat and your box, not your health or payments."
+        },
+        {
+          "h": "Your rights",
+          "p": "From Profile › Privacy and data you can download your data or delete your account. Deleted accounts are removed within 30 days; money records stay without your name, as the law needs."
+        }
+      ]
     }
   }
 }

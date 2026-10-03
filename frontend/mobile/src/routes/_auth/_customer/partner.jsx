@@ -1,16 +1,9 @@
-import {
-  Button,
-  ErrorState,
-  IconButton,
-  OrderTimeline,
-  RadioCards,
-  Skeleton,
-  toast,
-} from "@gharbasket/ui";
+import { Button, IconButton, OrderTimeline, RadioCards, Skeleton, toast } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useMyHousehold } from "@/features/identity/profile.js";
 import { useApply, useMyApplication } from "@/features/partners/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
@@ -76,11 +69,7 @@ function Partner() {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => application.refetch()}
-        />
+        <ScreenError onRetry={() => application.refetch()} />
       </div>
     );
 

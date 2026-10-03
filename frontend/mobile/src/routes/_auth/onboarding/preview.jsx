@@ -1,15 +1,8 @@
-import {
-  Button,
-  Chip,
-  ErrorState,
-  formatPaise,
-  MoneyText,
-  Skeleton,
-  ThaliWeek,
-} from "@gharbasket/ui";
+import { Button, Chip, formatPaise, MoneyText, Skeleton, ThaliWeek } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
 import { reasonText, shortDate, timeRange, weekdayOf } from "@/features/subscriptions/format.js";
 import { useCurrentCycle } from "@/features/subscriptions/queries.js";
@@ -56,11 +49,7 @@ function Preview() {
       {isPending ? (
         <Skeleton lines={5} />
       ) : isError || !cycle ? (
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       ) : (
         <>
           {/* Edge to edge on the right, so the week visibly scrolls on (Hf13). */}

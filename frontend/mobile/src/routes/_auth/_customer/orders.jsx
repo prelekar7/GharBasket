@@ -1,7 +1,6 @@
 import {
   Button,
   EmptyState,
-  ErrorState,
   formatPaise,
   MoneyText,
   OrderTimeline,
@@ -15,6 +14,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useOrders, useReportIssue } from "@/features/orders/queries.js";
 import {
   clockTime,
@@ -97,11 +97,7 @@ function Orders() {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       </div>
     );
   if (data.length === 0)

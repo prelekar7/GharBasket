@@ -92,6 +92,21 @@ export const profileHandlers = [
     return HttpResponse.json(next);
   }),
 
+  // PATCH /v1/addresses/{id} (M1): a new wing or flat in the same society. Moving society means
+  // a new hub and captain, so it goes through support instead.
+  http.patch("*/v1/addresses/:id", async ({ request, params }) => {
+    const phone = caller(request);
+    const h = phone && householdOf(phone);
+    if (!phone || !h || h.address_id !== params.id)
+      return problem(404, "identity.address_not_found", "No such address");
+    const { tower, flat } = /** @type {{ tower?: string, flat?: string }} */ (await request.json());
+    if (!tower || !flat?.trim() || !/^[A-Za-z0-9-]{1,8}$/.test(flat.trim()))
+      return problem(422, "identity.address_invalid", "Pick a wing and enter the flat number");
+    const next = { ...h, flat: `${tower.toUpperCase()}-${flat.trim()}` };
+    saveHousehold(phone, next);
+    return HttpResponse.json({ id: params.id, tower, flat: flat.trim(), label: next.flat });
+  }),
+
   // PATCH /v1/subscriptions/{id} (M3): { paused_until: "YYYY-MM-DD" | null } pauses or resumes.
   http.patch("*/v1/subscriptions/:id", async ({ request }) => {
     const phone = caller(request);

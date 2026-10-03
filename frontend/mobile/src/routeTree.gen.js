@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from "./routes/__root"
 import { Route as IndexRouteImport } from "./routes/index"
 import { Route as AuthRouteImport } from "./routes/_auth"
+import { Route as HelpRouteImport } from "./routes/help"
 import { Route as LoginRouteImport } from "./routes/login"
 import { Route as OtpRouteImport } from "./routes/otp"
 import { Route as RoleRouteImport } from "./routes/role"
@@ -21,6 +22,7 @@ import { Route as AuthCaptainRouteImport } from "./routes/_auth/captain"
 import { Route as AuthKitchenRouteImport } from "./routes/_auth/kitchen"
 import { Route as AuthPackerRouteImport } from "./routes/_auth/packer"
 import { Route as AuthRiderRouteImport } from "./routes/_auth/rider"
+import { Route as LegalDocRouteImport } from "./routes/legal.$doc"
 import { Route as AuthCustomerBoxRouteImport } from "./routes/_auth/_customer/box"
 import { Route as AuthCustomerKindnessRouteImport } from "./routes/_auth/_customer/kindness"
 import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer/orders"
@@ -50,6 +52,11 @@ const IndexRoute = IndexRouteImport.update({
 })
 const AuthRoute = AuthRouteImport.update({
   id: "/_auth",
+  getParentRoute: () => rootRouteImport,
+})
+const HelpRoute = HelpRouteImport.update({
+  id: "/help",
+  path: "/help",
   getParentRoute: () => rootRouteImport,
 })
 const LoginRoute = LoginRouteImport.update({
@@ -100,6 +107,11 @@ const AuthRiderRoute = AuthRiderRouteImport.update({
   id: "/rider",
   path: "/rider",
   getParentRoute: () => AuthRoute,
+})
+const LegalDocRoute = LegalDocRouteImport.update({
+  id: "/legal/$doc",
+  path: "/legal/$doc",
+  getParentRoute: () => rootRouteImport,
 })
 const AuthCustomerBoxRoute = AuthCustomerBoxRouteImport.update({
   id: "/box",
@@ -251,9 +263,11 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
+  HelpRoute: HelpRoute,
   LoginRoute: LoginRoute,
   OtpRoute: OtpRoute,
   RoleRoute: RoleRoute,
   WelcomeRoute: WelcomeRoute,
+  LegalDocRoute: LegalDocRoute,
 }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)
