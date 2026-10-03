@@ -123,3 +123,40 @@ describe("week day: meal swap and tiffin", () => {
     expect(day.tiffin_offer).toBeNull();
   });
 });
+
+describe("box line quantity (Core-B3)", () => {
+  const patch = async (/** @type {object} */ body, /** @type {number} */ version) =>
+    mockFetch(
+      new Request("http://localhost/v1/cycles/cyc-2026-10-05/lines", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "if-match": String(version) },
+        body: JSON.stringify(body),
+      }),
+    );
+
+  it("prices a line by its steps and keeps the box total in step", async () => {
+    const c = await (await patch({ op: "qty", product_id: "methi", qty: 3 }, 1)).json();
+    const methi = c.lines.find((/** @type {any} */ l) => l.product_id === "methi");
+    expect(methi).toMatchObject({ qty: 3, qty_label: "3 judi", price_paise: 6000 });
+    expect(c.total_paise).toBe(69000 + 2000);
+  });
+
+  it("writes grams as kilos from 1000 up", async () => {
+    const c = await (await patch({ op: "qty", product_id: "bhindi", qty: 6 }, 1)).json();
+    expect(c.lines.find((/** @type {any} */ l) => l.product_id === "bhindi").qty_label).toBe(
+      "1.5 kg",
+    );
+  });
+
+  it("removes a line and puts it back", async () => {
+    let c = await (await patch({ op: "remove", product_id: "paneer" }, 1)).json();
+    expect(c.lines.some((/** @type {any} */ l) => l.product_id === "paneer")).toBe(false);
+    expect(c.total_paise).toBe(69000 - 9000);
+    c = await (await patch({ op: "restore", product_id: "paneer" }, 2)).json();
+    expect(c.total_paise).toBe(69000);
+  });
+
+  it("refuses a quantity outside 1 to 20", async () => {
+    expect((await patch({ op: "qty", product_id: "methi", qty: 0 }, 1)).status).toBe(422);
+  });
+});

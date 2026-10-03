@@ -459,7 +459,21 @@
     "sheetNote": "या आठवड्यात {item} {price} ची आहे. तीन चांगले पर्याय, सर्वात चांगला आधी.",
     "useThis": "{name} घ्या",
     "swapped": "{from} ऐवजी {to}",
-    "closed": "या आठवड्याचे बदल बंद झाले"
+    "closed": "या आठवड्याचे बदल बंद झाले",
+    "undo": "मागे घ्या",
+    "qty": {
+      "change": "{name} बदला",
+      "each": "{step} साठी {price}",
+      "for": "{meals} साठी.",
+      "use": "{day} चा {dish}",
+      "label": "किती {name}",
+      "less": "कमी",
+      "more": "जास्त",
+      "remove": "बॉक्समधून काढा · {price}",
+      "save": "सेव्ह करा",
+      "saved": "{name} बदललं",
+      "removed": "{name} बॉक्समधून काढलं"
+    }
   },
   "wallet": {
     "title": "वॉलेट",

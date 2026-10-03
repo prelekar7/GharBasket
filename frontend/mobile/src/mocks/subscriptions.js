@@ -70,6 +70,33 @@ const LINES = [
   ["cucumber", "Cucumber", "खीरा", "500 g", "500 ग्रा", 2100],
 ];
 
+/**
+ * How a line changes in the quantity sheet (Core-B3): one step is [amount, en unit, hi unit, paise],
+ * and the box starts with `qty` steps. Lines not listed step by their whole pack.
+ */
+const STEPS = /** @type {Record<string, [number, string, string, number, number]>} */ ({
+  methi: [1, "judi", "जुड़ी", 2000, 2],
+  bhindi: [250, "g", "ग्रा", 2000, 2],
+  paneer: [100, "g", "ग्रा", 4500, 2],
+  onion: [500, "g", "ग्रा", 1900, 2],
+});
+/** Which planned meals use a line: [day index, slot]. */
+const USED_IN = /** @type {Record<string, [number, "lunch" | "dinner"][]>} */ ({
+  methi: [[1, "lunch"]],
+  bhindi: [[0, "dinner"]],
+  paneer: [[4, "lunch"]],
+  rajma: [[2, "lunch"]],
+});
+/** "2 judi", "750 g", "1.5 kg": grams turn into kilos from 1000 up. */
+const qtyLabel = (
+  /** @type {number} */ amount,
+  /** @type {string} */ unit,
+  /** @type {"en" | "hi"} */ lang,
+) =>
+  (unit === "g" || unit === "ग्रा") && amount >= 1000
+    ? `${amount / 1000} ${lang === "hi" ? "किलो" : "kg"}`
+    : `${amount} ${unit}`;
+
 /** M2 substitutes: [id, en, hi, en qty, hi qty, price_paise, reason_code], best first. */
 /** @type {Record<string, [string, string, string, string, string, number, string][]>} */
 const SUBSTITUTES = {
@@ -102,7 +129,7 @@ const loadState = () => {
   }
 };
 const saveState = (
-  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]> }} */ s,
+  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[] }} */ s,
 ) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
@@ -110,18 +137,54 @@ const pick = (/** @type {any} */ v, /** @type {"en" | "hi"} */ lang) =>
   Array.isArray(v) ? v[lang === "hi" ? 1 : 0] : v;
 
 function cycle(/** @type {"en" | "hi"} */ lang) {
-  const { status, version, swaps = {}, approved_at = null, meals = {} } = loadState();
-  const base = LINES.map(([id, en, hi, qen, qhi, price, code, params, from]) => ({
-    product_id: id,
-    name: lang === "hi" ? hi : en,
-    qty_label: lang === "hi" ? qhi : qen,
-    price_paise: price,
-    reason_code: code ?? null,
-    reason_params: params
-      ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, pick(v, lang)]))
-      : null,
-    swapped_from_paise: from ?? null,
-  }));
+  const {
+    status,
+    version,
+    swaps = {},
+    approved_at = null,
+    meals = {},
+    qty = {},
+    removed = [],
+  } = loadState();
+  const base = LINES.filter(([id]) => !removed.includes(id)).map(
+    ([id, en, hi, qen, qhi, price, code, params, from]) => {
+      // A pack bought as a whole steps by itself: "1 kg" for ₹35 is one step of 1 kg.
+      const [n, uen] = qen.split(/ (.*)/);
+      const [, uhi] = qhi.split(/ (.*)/);
+      const [amount, stepEn, stepHi, stepPaise, startQty] = STEPS[id] ?? [
+        Number(n),
+        uen,
+        uhi,
+        price,
+        1,
+      ];
+      const count = qty[id] ?? startQty;
+      return {
+        product_id: id,
+        name: lang === "hi" ? hi : en,
+        qty_label: qtyLabel(count * amount, lang === "hi" ? stepHi : stepEn, lang),
+        qty: count,
+        step: {
+          label: qtyLabel(amount, lang === "hi" ? stepHi : stepEn, lang),
+          price_paise: stepPaise,
+        },
+        used_in: (USED_IN[id] ?? []).map(([d, slot]) => {
+          const date = `2026-10-${String(5 + d).padStart(2, "0")}`;
+          const swapped = meals[`${date}:${slot}`];
+          const dish = swapped
+            ? swapped[lang === "hi" ? 1 : 0]
+            : DISHES[lang][d][slot === "lunch" ? 0 : 1];
+          return { date, slot, dish };
+        }),
+        price_paise: count * stepPaise,
+        reason_code: code ?? null,
+        reason_params: params
+          ? Object.fromEntries(Object.entries(params).map(([k, v]) => [k, pick(v, lang)]))
+          : null,
+        swapped_from_paise: from ?? null,
+      };
+    },
+  );
   // A swapped line becomes its substitute, remembering the price it replaced.
   const lines = base.map((l) => {
     const sub = swaps[l.product_id];
@@ -310,6 +373,23 @@ export const subscriptionHandlers = [
     if (state.status !== "ready" && state.status !== "approved")
       return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
     const body = /** @type {any} */ (await request.json());
+    // { op: "qty", product_id, qty } | { op: "remove" | "restore", product_id } (Core-B3, B4).
+    if (body.op === "qty" || body.op === "remove" || body.op === "restore") {
+      if (!LINES.some(([id]) => id === body.product_id))
+        return problem(404, "subscriptions.line_not_found", "That item is not in the box");
+      if (body.op === "qty" && !(Number.isInteger(body.qty) && body.qty >= 1 && body.qty <= 20))
+        return problem(422, "subscriptions.qty_invalid", "Pick between 1 and 20");
+      const removed = (state.removed ?? []).filter(
+        (/** @type {string} */ id) => id !== body.product_id,
+      );
+      saveState({
+        ...state,
+        version: state.version + 1,
+        qty: body.op === "qty" ? { ...state.qty, [body.product_id]: body.qty } : state.qty,
+        removed: body.op === "remove" ? [...removed, body.product_id] : removed,
+      });
+      return HttpResponse.json(cycle(langOf(request)));
+    }
     const sub = (SUBSTITUTES[body.product_id] ?? DEFAULT_SUBS).find(
       ([id]) => id === body.substitute_id,
     );
