@@ -75,6 +75,10 @@ class Settings(DatabaseSettings):
     jwt_audience: str = "gharbasket-apps"
     # Refresh tokens are stored only as HMAC-SHA256(pepper, token).
     refresh_token_pepper: SecretStr | None = None
+    # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
+    # cookie-authenticated request that changes something must come from one of these origins.
+    # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
+    web_origins: CommaSeparated = []
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
@@ -132,6 +136,12 @@ class Settings(DatabaseSettings):
     def is_local(self) -> bool:
         """A developer machine or the test suite, never a deployed environment."""
         return self.app_env in ("dev", "test")
+
+    @property
+    def allowed_web_origins(self) -> frozenset[str]:
+        """WEB_ORIGINS, plus the local dev servers (Vite 5173, Next.js 3000) on a dev machine."""
+        local = {"http://localhost:5173", "http://localhost:3000"} if self.is_local else set()
+        return frozenset(self.web_origins) | local
 
     @property
     def dev_login_enabled(self) -> bool:

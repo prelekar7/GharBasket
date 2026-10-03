@@ -135,16 +135,30 @@
             "type": "integer"
           },
           "access_token": {
-            "title": "Access Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
           },
           "is_new_user": {
             "title": "Is New User",
             "type": "boolean"
           },
           "refresh_token": {
-            "title": "Refresh Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
           },
           "user": {
             "$ref": "#/components/schemas/UserOut"
@@ -333,17 +347,22 @@
         "type": "object"
       },
       "RefreshIn": {
+        "description": "Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.",
         "properties": {
           "refresh_token": {
-            "maxLength": 256,
-            "minLength": 1,
-            "title": "Refresh Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
           }
         },
-        "required": [
-          "refresh_token"
-        ],
         "title": "RefreshIn",
         "type": "object"
       },
@@ -507,6 +526,7 @@
         "type": "object"
       },
       "TokensOut": {
+        "description": "Apps get both tokens. Browsers (`X-GB-Client: web`) get null here: the tokens are set as\nhttpOnly cookies that JavaScript cannot read.",
         "properties": {
           "access_expires_in": {
             "examples": [
@@ -516,12 +536,26 @@
             "type": "integer"
           },
           "access_token": {
-            "title": "Access Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
           },
           "refresh_token": {
-            "title": "Refresh Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
           }
         },
         "required": [
@@ -768,7 +802,7 @@
             "content": {
               "application/problem+json": {}
             },
-            "description": "auth.dev_login_disabled, or auth.account_disabled"
+            "description": "auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"
           },
           "422": {
             "content": {
@@ -779,6 +813,12 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.rate_limited (see Retry-After)"
           },
           "503": {
             "content": {
@@ -812,7 +852,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Sign this device out",
+        "summary": "Sign this device out (takes effect at once)",
         "tags": [
           "identity"
         ]
@@ -837,7 +877,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Sign out on every device",
+        "summary": "Sign out on every device (takes effect at once)",
         "tags": [
           "identity"
         ]
@@ -873,6 +913,12 @@
             },
             "description": "auth.invalid_token, or auth.refresh_reused (session ended)"
           },
+          "403": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.csrf_rejected"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -882,6 +928,12 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.rate_limited (see Retry-After)"
           }
         },
         "summary": "Exchange a refresh token for new tokens (the old refresh token stops working)",

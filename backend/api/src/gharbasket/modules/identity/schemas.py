@@ -50,9 +50,12 @@ class UserOut(BaseModel):
 
 
 class TokensOut(BaseModel):
-    access_token: str
+    """Apps get both tokens. Browsers (`X-GB-Client: web`) get null here: the tokens are set as
+    httpOnly cookies that JavaScript cannot read."""
+
+    access_token: str | None
     access_expires_in: int = Field(examples=[900])
-    refresh_token: str
+    refresh_token: str | None
 
 
 class ExchangeOut(TokensOut):
@@ -61,7 +64,9 @@ class ExchangeOut(TokensOut):
 
 
 class RefreshIn(BaseModel):
-    refresh_token: str = Field(min_length=1, max_length=256)
+    """Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it."""
+
+    refresh_token: str | None = Field(default=None, min_length=1, max_length=256)
 
 
 class RoleOut(BaseModel):

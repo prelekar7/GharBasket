@@ -31,6 +31,9 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 - `POST /v1/auth/exchange` with a Firebase ID token (phone OTP) creates the account on first use and
   returns a 15-minute access token and a single-use refresh token. Locally (`APP_ENV=dev`) you can
   sign in without OTP: `{"dev_phone": "+919800000001", "device": {"platform": "web"}}`.
+- Browsers send `X-GB-Client: web` and get httpOnly cookies instead of tokens (`platform/web_session.py`);
+  cookie requests that change something must carry that header and come from `WEB_ORIGINS`.
+- Sign-out is instant (revoked sessions are listed in Valkey); sign-in is rate limited.
 - Protected endpoints take `principal: CurrentPrincipal` (`platform/auth.py`).
 - Staff endpoints take `permit: Annotated[Permit, require("orders:read")]` and call `permit.ensure(hub_id)`
   for hub/society-scoped data; modules register who may do what in their `permissions.py`
