@@ -23,7 +23,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import LoginSession, RefreshToken, User, UserRole
+from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.permissions import ROLE_SCOPE
 from gharbasket.platform.settings import Settings
 from gharbasket.platform.tokens import invalid_token, issue_access_token
 
@@ -225,3 +227,99 @@ async def revoke_all_sessions(
         .returning(LoginSession.id)
     )
     return len(result.all())
+
+
+async def list_devices(
+    session: AsyncSession, user_id: uuid.UUID, *, now: datetime | None = None
+) -> list[LoginSession]:
+    """The user's signed-in devices: sessions that are neither revoked nor expired."""
+    result = await session.execute(
+        select(LoginSession)
+        .where(
+            LoginSession.user_id == user_id,
+            LoginSession.revoked_at.is_(None),
+            LoginSession.expires_at > _now(now),
+        )
+        .order_by(LoginSession.last_seen_at.desc())
+    )
+    return list(result.scalars())
+
+
+async def sign_out_device(session: AsyncSession, user_id: uuid.UUID, device_id: uuid.UUID) -> bool:
+    """Revoke one of the user's own sessions; False if it is not theirs or already gone."""
+    result = await session.execute(
+        update(LoginSession)
+        .where(
+            LoginSession.id == device_id,
+            LoginSession.user_id == user_id,
+            LoginSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC), revoke_reason="signed_out_by_user")
+        .returning(LoginSession.id)
+    )
+    return result.first() is not None
+
+
+async def grant_role(
+    session: AsyncSession,
+    *,
+    phone_e164: str,
+    role: str,
+    scope_id: uuid.UUID | None,
+    granted_by: uuid.UUID | None,
+) -> UserRole:
+    """Give an existing user a staff role, e.g. hub manager of one hub (audit-logged).
+
+    `granted_by` is None only for the operator command that creates the first admin.
+    """
+    scope_type = ROLE_SCOPE[role]
+    if (scope_type is None) != (scope_id is None):
+        detail = (
+            f"A {role} role needs the id of its {scope_type}."
+            if scope_type
+            else f"A {role} role is not limited to one place; leave scope_id out."
+        )
+        raise ProblemError(422, "identity.invalid_scope", detail)
+
+    user = (
+        await session.execute(select(User).where(User.phone_e164 == phone_e164))
+    ).scalar_one_or_none()
+    if user is None:
+        raise ProblemError(
+            404, "identity.user_not_found", "No account with this number; they must sign in once."
+        )
+
+    existing = (
+        await session.execute(
+            select(UserRole).where(
+                UserRole.user_id == user.id,
+                UserRole.role == role,
+                UserRole.scope_id.is_(None) if scope_id is None else UserRole.scope_id == scope_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None and existing.status == "verified":
+        raise ProblemError(409, "identity.role_exists", "This user already has this role.")
+
+    before = {"status": existing.status} if existing is not None else None
+    grant = existing or UserRole(
+        user_id=user.id, role=role, scope_type=scope_type, scope_id=scope_id
+    )
+    grant.status = "verified"
+    grant.verified_at = datetime.now(UTC)
+    session.add(grant)
+    await session.flush()
+    await audit.record(
+        session,
+        actor_user_id=granted_by,
+        action="roles.granted",
+        entity_type="user",
+        entity_id=str(user.id),
+        before=before,
+        after={
+            "role": role,
+            "scope_type": scope_type,
+            "scope_id": str(scope_id) if scope_id else None,
+        },
+    )
+    return grant

@@ -30,6 +30,47 @@
         "title": "DeviceIn",
         "type": "object"
       },
+      "DeviceOut": {
+        "description": "A signed-in device or browser (one session).",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "platform": {
+            "enum": [
+              "android",
+              "web"
+            ],
+            "title": "Platform",
+            "type": "string"
+          },
+          "signed_in_at": {
+            "format": "date-time",
+            "title": "Signed In At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "platform",
+          "signed_in_at",
+          "last_seen_at",
+          "current"
+        ],
+        "title": "DeviceOut",
+        "type": "object"
+      },
       "ExchangeIn": {
         "description": "Exactly one of `firebase_id_token` (always) or `dev_phone` (only with APP_ENV=dev).",
         "properties": {
@@ -215,6 +256,54 @@
         "title": "MeOut",
         "type": "object"
       },
+      "MeUpdate": {
+        "additionalProperties": false,
+        "description": "Only the fields sent are changed. `name: null` clears the name.",
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "enum": [
+                  "en-IN",
+                  "hi-IN",
+                  "mr-IN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "senior_mode": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Senior Mode"
+          }
+        },
+        "title": "MeUpdate",
+        "type": "object"
+      },
       "Ready": {
         "properties": {
           "checks": {
@@ -256,6 +345,111 @@
           "refresh_token"
         ],
         "title": "RefreshIn",
+        "type": "object"
+      },
+      "RoleGrantIn": {
+        "additionalProperties": false,
+        "description": "Grant a role to an existing user (they must have signed in once).",
+        "properties": {
+          "phone_e164": {
+            "examples": [
+              "+919800000001"
+            ],
+            "title": "Phone E164",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "captain",
+              "kitchen_partner",
+              "rider",
+              "packer",
+              "hub_manager",
+              "franchise_owner",
+              "ngo_coordinator",
+              "admin"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          }
+        },
+        "required": [
+          "phone_e164",
+          "role"
+        ],
+        "title": "RoleGrantIn",
+        "type": "object"
+      },
+      "RoleGrantOut": {
+        "properties": {
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Id"
+          },
+          "scope_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "society",
+                  "hub",
+                  "ngo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Type"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "verified",
+              "suspended"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "scope_type",
+          "scope_id",
+          "status",
+          "user_id"
+        ],
+        "title": "RoleGrantOut",
         "type": "object"
       },
       "RoleOut": {
@@ -445,6 +639,101 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/admin/user-roles": {
+      "post": {
+        "operationId": "grant_role_v1_admin_user_roles_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleGrantIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleGrantOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "identity.user_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "identity.role_exists"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "identity.invalid_scope, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/v1/auth/exchange": {
       "post": {
         "operationId": "exchange_v1_auth_exchange_post",
@@ -649,6 +938,181 @@
           }
         ],
         "summary": "The signed-in user and all their roles",
+        "tags": [
+          "identity"
+        ]
+      },
+      "patch": {
+        "operationId": "update_me_v1_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change name, language or senior mode (only the fields sent)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me/devices": {
+      "get": {
+        "operationId": "my_devices_v1_me_devices_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceOut"
+                  },
+                  "title": "Response My Devices V1 Me Devices Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Devices and browsers where this account is signed in",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me/devices/{device_id}": {
+      "delete": {
+        "operationId": "sign_out_device_v1_me_devices__device_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "identity.device_not_found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Sign out one device (its refresh token stops working)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me/roles": {
+      "get": {
+        "operationId": "my_roles_v1_me_roles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RoleOut"
+                  },
+                  "title": "Response My Roles V1 Me Roles Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "All roles of the signed-in user, with scope and status (for the role switcher)",
         "tags": [
           "identity"
         ]

@@ -32,6 +32,11 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
   returns a 15-minute access token and a single-use refresh token. Locally (`APP_ENV=dev`) you can
   sign in without OTP: `{"dev_phone": "+919800000001", "device": {"platform": "web"}}`.
 - Protected endpoints take `principal: CurrentPrincipal` (`platform/auth.py`).
+- Staff endpoints take `permit: Annotated[Permit, require("orders:read")]` and call `permit.ensure(hub_id)`
+  for hub/society-scoped data; modules register who may do what in their `permissions.py`
+  (`platform/permissions.py`). `X-Active-Role` (optional) narrows the check to one of the caller's roles.
+- The first admin: sign in once, then `just grant-role +91XXXXXXXXXX admin` (add `--shared` and run via
+  `infisical run --env=staging --` for staging). Later admins use `POST /v1/admin/user-roles`.
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).

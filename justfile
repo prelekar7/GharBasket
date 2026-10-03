@@ -80,6 +80,10 @@ dev:
 test:
     uv run --directory backend/api pytest --cov
 
+# Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
+grant-role *args:
+    uv run python -m gharbasket.tools.grant_role {{args}}
+
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
     uv run python -m gharbasket.tools.export_openapi
