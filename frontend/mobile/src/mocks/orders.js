@@ -2,7 +2,7 @@
 // The spec lists tables, not JSON; these shapes are our proposal. Statuses follow handbook §6.2
 // (box) and §6.3 (tiffin). Names come back in the caller's language, like the M3 mocks.
 import { HttpResponse, http } from "msw";
-import { caller } from "./handlers.js";
+import { caller, isNewUser } from "./handlers.js";
 
 const problem = (
   /** @type {number} */ status,
@@ -76,8 +76,8 @@ const issuesByKey = {};
 export const orderHandlers = [
   http.get("*/v1/orders", ({ request }) => {
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
-    // A brand-new household (…00005) has no orders yet.
-    if (caller(request) === "+919800000005")
+    // A household still in onboarding has no orders yet.
+    if (isNewUser(caller(request) ?? ""))
       return HttpResponse.json({ items: [], next_cursor: null });
     return HttpResponse.json({ items: orders(langOf(request)), next_cursor: null });
   }),
