@@ -114,10 +114,14 @@ erDiagram
         int size
         text diet
         jsonb cuisine_tags
+        int weekday_cook_minutes
+        int weekend_cook_minutes
+        smallint_array no_cook_days
         bigint budget_paise
         boolean autopilot_enabled
         boolean auto_approve
         text data_source
+        int version
     }
     HOUSEHOLD_MEMBERS {
         uuid id PK
@@ -131,7 +135,7 @@ erDiagram
         uuid id PK
         uuid household_id FK
         uuid society_id FK
-        text tower
+        text tower_id
         text flat
         geography location
         text h3_r9
@@ -612,7 +616,9 @@ erDiagram
     SOCIETIES {
         uuid id PK
         uuid hub_id FK
+        text slug UK
         text name
+        text area
         geography boundary
         jsonb towers
         int flats
