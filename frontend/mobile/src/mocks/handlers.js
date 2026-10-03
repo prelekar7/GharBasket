@@ -2,6 +2,8 @@
 // must match the backend exactly; later these come from openapi.json. /v1/auth/refresh, logout
 // and logout-all are not in §3.1 yet, so their shapes here are our proposal (see the PR).
 import { HttpResponse, http } from "msw";
+import { seedShortWallet } from "./billing.js";
+import { seedPaymentFailed } from "./subscriptions.js";
 
 const ACCESS_TTL_S = 900;
 const WEB_SESSION_KEY = "gb-mock-web-session"; // stands in for the httpOnly cookie on web
@@ -121,6 +123,11 @@ export const handlers = [
     if (phone === "+919800000429")
       return problem(429, "auth.rate_limited", "Too many attempts. Try again later.");
     const pair = issue(phone);
+    // 98000 00004 signs in to the "payment didn't go through" week (design Core-D4).
+    if (phone === "+919800000004") {
+      seedShortWallet();
+      seedPaymentFailed();
+    }
     if (request.headers.get("x-gb-client") === "web")
       webSession.set({ phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
     return HttpResponse.json({

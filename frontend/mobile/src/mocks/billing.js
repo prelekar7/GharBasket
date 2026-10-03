@@ -148,3 +148,36 @@ export const billingHandlers = [
 
 /** Dev helper: empty the mock wallet. */
 export const resetBilling = () => localStorage.removeItem(KEY);
+
+/**
+ * Takes a box payment from the wallet (the cut-off charge, M5 W3); false when the balance is short.
+ * @param {number} amountPaise @param {string} ref delivery date of the box
+ */
+export function chargeBox(amountPaise, ref) {
+  const s = load();
+  if (s.balance_paise < amountPaise) return false;
+  s.balance_paise -= amountPaise;
+  s.entries.push({
+    id: `led-${s.entries.length + 1}`,
+    kind: "box_debit",
+    amount_paise: -amountPaise,
+    ref,
+    at: new Date().toISOString(),
+  });
+  save(s);
+  return true;
+}
+
+/** The wallet balance the cut-off would charge from. */
+export const walletBalance = () => load().balance_paise;
+
+/** Demo scenario for 98000 00004: ₹410 in the wallet, short of the ₹690 box (design Core-D4). */
+export function seedShortWallet() {
+  save({
+    balance_paise: 41000,
+    entries: [{ id: "led-1", kind: "topup", amount_paise: 41000, at: "2026-10-01T10:15:00+05:30" }],
+    orders: {},
+    mandate: null,
+    subscription: { id: "sub-1", status: "active", plan: "autopilot", payment_mode: "wallet" },
+  });
+}
