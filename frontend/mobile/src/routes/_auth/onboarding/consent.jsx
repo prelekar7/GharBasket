@@ -4,12 +4,14 @@ import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { hasConsent, nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { submitOnboarding } from "@/features/onboarding/submit.js";
+import { ApiError } from "@/lib/api.js";
 
 /**
- * Your data, your choice (DPDP, design Hf12). Account and delivery is needed; every optional use
- * is a switch. "Agree and continue" creates the household with the chosen consents.
+ * Your data, your choice (DPDP, design Hf12). Delivery and personalised plans are needed
+ * (service_delivery, personalisation); every optional use is a switch. "Agree and continue"
+ * creates the household with the chosen consents in one call, once.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/consent")({ component: Consent });
@@ -18,26 +20,37 @@ function Consent() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const draft = useOnboardingDraft();
-  const { household: h, updateHousehold } = draft;
+  const { household: h, setConsent, update } = draft;
   const save = useMutation({
-    mutationFn: () => submitOnboarding(useOnboardingDraft.getState()),
-    onSuccess: () => navigate({ to: nextStep("/onboarding/consent") }),
+    mutationFn: async () => {
+      const state = useOnboardingDraft.getState();
+      // Already created (the person came back to this screen): don't create it again.
+      if (state.householdId) return { id: state.householdId };
+      return submitOnboarding(state);
+    },
+    onSuccess: (household) => {
+      update({ householdId: household.id });
+      navigate({ to: nextStep("/onboarding/consent") });
+    },
   });
+  // The server's privacy notice moved on: the app shows an old one, so say so instead of retrying.
+  const stale =
+    save.error instanceof ApiError && save.error.code === "identity.consent_version_stale";
 
-  /** @type {{ key: "healthConsent" | "whatsappConsent" | "insightsConsent", label: string, desc: string }[]} */
+  /** @type {{ purpose: "health_personalisation" | "marketing" | "research_anonymised", label: string, desc: string }[]} */
   const optional = [
     {
-      key: "healthConsent",
+      purpose: "health_personalisation",
       label: t("onboarding.consent.health"),
       desc: t("onboarding.consent.healthDesc"),
     },
     {
-      key: "whatsappConsent",
+      purpose: "marketing",
       label: t("onboarding.consent.whatsapp"),
       desc: t("onboarding.consent.whatsappDesc"),
     },
     {
-      key: "insightsConsent",
+      purpose: "research_anonymised",
       label: t("onboarding.consent.insights"),
       desc: t("onboarding.consent.insightsDesc"),
     },
@@ -49,7 +62,7 @@ function Consent() {
         <>
           {save.isError && (
             <p role="alert" className="text-sm font-semibold text-danger">
-              {t("onboarding.consent.failed")}
+              {t(stale ? "onboarding.consent.stale" : "onboarding.consent.failed")}
             </p>
           )}
           <Button
@@ -92,18 +105,12 @@ function Consent() {
           {t("onboarding.consent.optional")}
         </span>
         {optional.map((o) => (
-          <div key={o.key} className="border-b border-line py-1 last:border-b-0">
+          <div key={o.purpose} className="border-b border-line py-1 last:border-b-0">
             <Switch
               label={o.label}
               description={o.desc}
-              isSelected={h[o.key]}
-              onChange={(on) =>
-                updateHousehold(
-                  o.key === "healthConsent" && !on
-                    ? { healthConsent: false, health: {} }
-                    : { [o.key]: on },
-                )
-              }
+              isSelected={hasConsent(h, o.purpose)}
+              onChange={(on) => setConsent(o.purpose, on)}
             />
           </div>
         ))}

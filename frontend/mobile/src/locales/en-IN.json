@@ -245,7 +245,8 @@
       "notice": "privacy notice",
       "post": ". You can download or delete your data any time.",
       "cta": "Agree and continue",
-      "failed": "We couldn’t save your household. Check your internet and try again."
+      "failed": "We couldn’t save your household. Check your internet and try again.",
+      "stale": "This privacy notice has been updated. Update the app to see the new one, then continue."
     },
     "preview": {
       "eyebrow": "Autopilot · sample week",

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 /**
  * Household profile for Autopilot (M1 households / household_members). Codes, not display text.
  * @typedef {{ adults: number, seniors: number, children: number, little: number }} Members
+ * @typedef {keyof Members} MemberGroup
  * @typedef {object} HouseholdDraft
  * @property {Members} members
  * @property {"veg" | "egg" | "nonveg"} diet
@@ -11,17 +12,15 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * @property {boolean} jain
  * @property {boolean} noOnionSomeDays
  * @property {string[]} fasting e.g. "shravan_mondays", "ekadashi"
- * @property {boolean} healthConsent DPDP: health tags are used only when this is true
+ * @property {Consents} consents DPDP: what the person agreed to, as codes (health tags need health_personalisation)
  * @property {Record<string, string[]>} health tags per member key ("adults-1"; see memberKeys)
  * @property {number} weekdayCookMinutes
  * @property {number} weekendCookMinutes
  * @property {number[]} noCookDays 0 = Monday … 6 = Sunday
  * @property {number | null} budgetLockPaise monthly vegetable budget for Budget Lock (M3); null = off
- * @property {boolean} whatsappConsent optional DPDP consent for WhatsApp updates
- * @property {boolean} insightsConsent optional DPDP consent to improve plans for the society (anonymised)
  */
 
-/** @type {(keyof Members)[]} */
+/** @type {MemberGroup[]} */
 export const MEMBER_GROUPS = ["adults", "seniors", "children", "little"];
 
 /** People in the household as "adults-1", "seniors-1"… from the Family step's counts. @param {Members} members */
@@ -38,6 +37,28 @@ export const pruneHealth = (health, members) => {
   return Object.fromEntries(Object.entries(health).filter(([key]) => keep.has(key)));
 };
 
+/**
+ * Consent purposes (M1 §3, contract #56). service_delivery and personalisation are what the app
+ * needs to run; the other three are optional switches.
+ * @typedef {"service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised"} ConsentPurpose
+ * @typedef {{ purpose: ConsentPurpose, version: string, granted_at: string }} ConsentGrant
+ * @typedef {Partial<Record<ConsentPurpose, ConsentGrant>>} Consents only granted purposes are present
+ */
+
+/** The privacy notice version the app shows; the server answers 409 consent_version_stale if it moved on. */
+export const CONSENT_VERSION = "v1";
+export const REQUIRED_PURPOSES = /** @type {const} */ (["service_delivery", "personalisation"]);
+
+/** @param {ConsentPurpose} purpose @returns {ConsentGrant} */
+export const grantOf = (purpose) => ({
+  purpose,
+  version: CONSENT_VERSION,
+  granted_at: new Date().toISOString(),
+});
+
+/** @param {HouseholdDraft} h @param {ConsentPurpose} purpose */
+export const hasConsent = (h, purpose) => !!h.consents[purpose];
+
 /** @type {HouseholdDraft} */
 const EMPTY_HOUSEHOLD = {
   members: { adults: 2, seniors: 0, children: 0, little: 0 },
@@ -46,14 +67,12 @@ const EMPTY_HOUSEHOLD = {
   jain: false,
   noOnionSomeDays: false,
   fasting: [],
-  healthConsent: false,
+  consents: {},
   health: {},
   weekdayCookMinutes: 30,
   weekendCookMinutes: 60,
   noCookDays: [],
   budgetLockPaise: 300000,
-  whatsappConsent: false,
-  insightsConsent: false,
 };
 
 /**
@@ -63,9 +82,11 @@ const EMPTY_HOUSEHOLD = {
  * @property {string | null} societyId
  * @property {string | null} towerId
  * @property {string} flat
+ * @property {string | null} householdId set once POST /v1/households has succeeded
  * @property {HouseholdDraft} household
- * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat">>) => void} update
+ * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat" | "householdId">>) => void} update
  * @property {(patch: Partial<HouseholdDraft>) => void} updateHousehold
+ * @property {(purpose: ConsentPurpose, granted: boolean) => void} setConsent withdrawing health_personalisation also erases every health tag
  * @property {() => void} reset
  */
 
@@ -76,6 +97,7 @@ export const useOnboardingDraft = create(
         societyId: null,
         towerId: null,
         flat: "",
+        householdId: null,
         household: EMPTY_HOUSEHOLD,
         update: (patch) => set(patch),
         updateHousehold: (patch) =>
@@ -84,9 +106,41 @@ export const useOnboardingDraft = create(
             if (patch.members) household.health = pruneHealth(household.health, patch.members);
             return { household };
           }),
-        reset: () => set({ societyId: null, towerId: null, flat: "", household: EMPTY_HOUSEHOLD }),
+        setConsent: (purpose, granted) =>
+          set((s) => {
+            const consents = { ...s.household.consents };
+            if (granted) consents[purpose] ??= grantOf(purpose);
+            else delete consents[purpose];
+            const health =
+              purpose === "health_personalisation" && !granted ? {} : s.household.health;
+            return { household: { ...s.household, consents, health } };
+          }),
+        reset: () =>
+          set({
+            societyId: null,
+            towerId: null,
+            flat: "",
+            householdId: null,
+            household: EMPTY_HOUSEHOLD,
+          }),
       }),
-      { name: "gb-onboarding", storage: createJSONStorage(() => sessionStorage) },
+      {
+        name: "gb-onboarding",
+        storage: createJSONStorage(() => sessionStorage),
+        version: 1,
+        // v0 kept consents as booleans (healthConsent, whatsappConsent, insightsConsent).
+        migrate: (/** @type {any} */ old) => {
+          const h = old?.household;
+          if (!h || h.consents) return old;
+          const { healthConsent, whatsappConsent, insightsConsent, ...rest } = h;
+          /** @type {Consents} */
+          const consents = {};
+          if (healthConsent) consents.health_personalisation = grantOf("health_personalisation");
+          if (whatsappConsent) consents.marketing = grantOf("marketing");
+          if (insightsConsent) consents.research_anonymised = grantOf("research_anonymised");
+          return { ...old, household: { ...rest, consents } };
+        },
+      },
     )
   ),
 );

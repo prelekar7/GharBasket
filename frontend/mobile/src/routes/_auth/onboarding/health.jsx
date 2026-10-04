@@ -2,7 +2,12 @@ import { Button, Chip, ConsentCard } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { MEMBER_GROUPS, nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import {
+  hasConsent,
+  MEMBER_GROUPS,
+  nextStep,
+  useOnboardingDraft,
+} from "@/features/onboarding/draft.js";
 
 const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
 /** People in the household, keyed as in memberKeys (draft.js), with their group for the label. */
@@ -22,7 +27,8 @@ export const Route = createFileRoute("/_auth/onboarding/health")({ component: He
 function Health() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { household: h, updateHousehold } = useOnboardingDraft();
+  const { household: h, updateHousehold, setConsent } = useOnboardingDraft();
+  const consented = hasConsent(h, "health_personalisation");
   const go = () => navigate({ to: nextStep("/onboarding/health") });
 
   /** @param {string} person @param {string} tag @param {boolean} on */
@@ -45,7 +51,7 @@ function Health() {
             variant="quiet"
             block
             onPress={() => {
-              updateHousehold({ healthConsent: false, health: {} });
+              setConsent("health_personalisation", false);
               go();
             }}
           >
@@ -67,11 +73,11 @@ function Health() {
         ]}
         version={t("onboarding.health.version")}
         switchLabel={t("onboarding.health.switchLabel")}
-        granted={h.healthConsent}
-        onChange={(on) => updateHousehold({ healthConsent: on, health: on ? h.health : {} })}
+        granted={consented}
+        onChange={(on) => setConsent("health_personalisation", on)}
         labels={{ optional: t("onboarding.health.optional"), why: t("onboarding.health.whyLead") }}
       />
-      {h.healthConsent &&
+      {consented &&
         people(h.members).map((p) => (
           <div key={p.key} className="flex flex-col gap-2">
             <span className="text-sm leading-5 font-semibold">

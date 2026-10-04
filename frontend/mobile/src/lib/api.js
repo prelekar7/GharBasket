@@ -16,12 +16,15 @@ const MOCK = import.meta.env.VITE_API_MOCK !== "false";
 /** @typedef {{ access_token: string, access_expires_in: number, refresh_token: string, is_new_user: boolean, user: UserOut }} ExchangeOut */
 
 export class ApiError extends Error {
-  /** @param {{ title?: string, status: number, code?: string, detail?: string }} problem RFC 9457 problem+json */
+  /** @param {{ title?: string, status: number, code?: string, detail?: string, [extra: string]: unknown }} problem RFC 9457 problem+json */
   constructor(problem) {
-    super(problem.title ?? `HTTP ${problem.status}`);
-    this.status = problem.status;
-    this.code = problem.code ?? "http.error";
-    this.detail = problem.detail;
+    const { title, status, code, detail, type: _type, instance: _instance, ...extra } = problem;
+    super(title ?? `HTTP ${status}`);
+    this.status = status;
+    this.code = code ?? "http.error";
+    this.detail = detail;
+    /** Fields beyond the standard ones, e.g. household_id or current_version. @type {Record<string, unknown>} */
+    this.extra = extra;
   }
 
   /** @param {Response} res */
