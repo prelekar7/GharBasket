@@ -6,7 +6,8 @@
 > - **Deploys:** GitHub Actions on `main` after CI runs `alembic upgrade head` on Neon, then calls the Render deploy hook. Scheduled jobs are internal endpoints called by a GitHub Actions schedule (D21). Secrets live in **Infisical**.
 > - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs and runbooks.
-> - **Still open:** hosting for the ML service, OSRM and MLflow (needed from P3/P4; local Docker until then), and paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
+> - **Decided (ADR-0025):** the ML service and OSRM run on one Hugging Face Space; training and snapshots in GitHub Actions; the lake and the registry on R2; MLflow stays local.
+> - **Still open:** paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
 
 ---
 
@@ -84,7 +85,8 @@ flowchart TB
 | postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
 | files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
 | PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
-| ml, MLflow, OSRM | Not decided yet | Planners, routing, forecasts, assistant; model registry; road matrix | Run in Docker Compose locally; hosting is decided before P3/P4 |
+| ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` uploads `backend/ml` after CI on `main`; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
+| MLflow | Local Docker only (ADR-0025) | Experiment tracking | The registry is a `latest.json` pointer on R2 |
 | worker | None until the pilot | — | No broker for now (D21): the outbox relay and the job endpoints do the work. Taskiq returns when a paid worker exists |
 
 Production for the pilot is not set up yet. Before P6 we decide on paid plans (Render Starter for the API, a worker, Firebase Blaze for real OTPs) and on where the pilot database lives.
@@ -141,7 +143,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Postgres | Neon point-in-time restore (free tier); a scheduled `pg_dump` to R2 can be added via the jobs workflow | Neon's free-tier restore window | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist) |
 | Valkey | Not backed up | — | Nothing to restore: it only holds rate-limit counters and the sign-out deny-list |
 | R2 files | Staging holds test files only | — | Strategy decided with the pilot plans before P6 |
-| MLflow, OSRM | Local Docker until hosting is decided | — | Rebuild script for OSRM in `infra/osrm` (spike S-3) |
+| OSRM | Inside the ML Space image (and local Docker) | — | `infra/osrm/prepare.sh` locally; the `Dockerfile` repeats it at build time |
 | Config | Dockerfile, Compose files and workflows in git; secrets in Infisical | git history | Redeploy-from-scratch drill once before the pilot |
 
 ## 12.5 Observability
@@ -198,6 +200,6 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 - **D6** — Postgres-centric data layer ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md) in [`docs/adr/`](../adr/)).
 - **D20** — Free-tier hosting: Render, Vercel, Neon, Cloudflare R2, Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0011 and ADR-0015).
 - **D21** — Jobs without a broker until the pilot ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
-- **Open:** hosting for the ML service, OSRM and MLflow (before P3/P4); paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
+- **Decided:** ML service, OSRM and the lake (ADR-0025). **Open:** paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

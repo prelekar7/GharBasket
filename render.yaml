@@ -45,6 +45,11 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # The ML service on its Hugging Face Space (ADR-0025); unset: the rule fallbacks answer.
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_SERVICE_TOKEN
+        sync: false
       # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
       - key: WEB_ORIGINS
         sync: false

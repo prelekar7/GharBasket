@@ -135,6 +135,10 @@ gen-api: openapi
 sim *args:
     uv run python -m gharbasket_sim {{args}}
 
+# Smoke-test a deployed ML service, e.g. `just cloud-ml https://<space>.hf.space $ML_SERVICE_TOKEN`
+cloud-ml url token="":
+    uv run --directory backend/ml python -m gharbasket_ml.smoke {{url}} {{token}}
+
 # Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
 eval *args:
     uv run python -m gharbasket_training.eval {{args}}

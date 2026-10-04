@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     ml_service_token: SecretStr | None = None
     # A local stand-in for the R2 registry pointer (tests, laptops); unset: built-in solvers only.
     models_manifest: Path | None = None
+    # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
+    # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
+    osrm_url: str | None = None
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

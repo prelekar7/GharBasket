@@ -1,5 +1,6 @@
 """The ML service's HTTP surface: health, the service token, validation, and settings."""
 
+import httpx2
 import pytest
 from fastapi.testclient import TestClient
 from gharbasket_ml.main import create_app
@@ -81,3 +82,30 @@ def test_models_and_ai_health_list_the_built_in_solvers(client: TestClient, tmp_
         "kind": "learned",
         "source": "manifest",
     }
+
+
+# --- the Space: the road network's status and the smoke check -----------------------------------
+
+
+@pytest.mark.anyio
+async def test_health_ai_reports_the_road_network() -> None:
+    from gharbasket_ml import registry, smoke
+
+    def osrm(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, json={"code": "Ok", "routes": []})
+
+    def broken(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(500)
+
+    assert await registry.osrm_status(None) == "not_configured"
+    assert await registry.osrm_status("http://osrm", transport=httpx2.MockTransport(osrm)) == "ok"
+    assert (
+        await registry.osrm_status("http://osrm", transport=httpx2.MockTransport(broken)) == "down"
+    )
+    health = await registry.health(None, None)
+    assert health["osrm"] == "not_configured" and health["status"] == "ok"
+
+    app = create_app(Settings(app_env="test", ml_service_token=SecretStr(TOKEN)))
+    lines = await smoke.check("http://ml", TOKEN, transport=httpx2.ASGITransport(app=app))
+    assert len(lines) == 5 and all(" 200 " in line for line in lines), lines
+    assert "osrm=not_configured" in lines[1] and "/plan/week 200" in lines[3]
