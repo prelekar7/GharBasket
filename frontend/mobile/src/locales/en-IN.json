@@ -108,6 +108,18 @@
       "remaining": "{n, plural, one {# more home} other {# more homes}} to unlock delivery. Invite a neighbour.",
       "invite": "Invite neighbours",
       "progress": "Homes joined"
+    },
+    "request": {
+      "title": "Request your society",
+      "sub": "Put the pin on your building. We’ll tell you when GharBasket starts there.",
+      "caption": "Drag the pin onto your building",
+      "name": "Society name",
+      "namePh": "e.g. Shree Ganesh CHS",
+      "area": "Sector or area",
+      "areaPh": "e.g. Sector 35, Kharghar",
+      "note": "The more neighbours who join from one society, the sooner delivery starts there.",
+      "cta": "Send request",
+      "sent": "Request sent. We’ll let you know."
     }
   }
 }

@@ -26,6 +26,7 @@ import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer
 import { Route as AuthCustomerProfileRouteImport } from "./routes/_auth/_customer/profile"
 import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/week"
 import { Route as AuthOnboardingFlatRouteImport } from "./routes/_auth/onboarding/flat"
+import { Route as AuthOnboardingRequestRouteImport } from "./routes/_auth/onboarding/request"
 import { Route as AuthOnboardingSocietyRouteImport } from "./routes/_auth/onboarding/society"
 
 const IndexRoute = IndexRouteImport.update({
@@ -111,6 +112,11 @@ const AuthOnboardingFlatRoute = AuthOnboardingFlatRouteImport.update({
   path: "/onboarding/flat",
   getParentRoute: () => AuthRoute,
 })
+const AuthOnboardingRequestRoute = AuthOnboardingRequestRouteImport.update({
+  id: "/onboarding/request",
+  path: "/onboarding/request",
+  getParentRoute: () => AuthRoute,
+})
 const AuthOnboardingSocietyRoute = AuthOnboardingSocietyRouteImport.update({
   id: "/onboarding/society",
   path: "/onboarding/society",
@@ -136,6 +142,7 @@ const AuthRouteChildren = {
   AuthPackerRoute: AuthPackerRoute,
   AuthRiderRoute: AuthRiderRoute,
   AuthOnboardingFlatRoute: AuthOnboardingFlatRoute,
+  AuthOnboardingRequestRoute: AuthOnboardingRequestRoute,
   AuthOnboardingSocietyRoute: AuthOnboardingSocietyRoute,
 }
 

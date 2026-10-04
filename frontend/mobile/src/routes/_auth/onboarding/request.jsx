@@ -1,0 +1,127 @@
+import { Button, TextField, toast } from "@gharbasket/ui";
+import { useMutation } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { lazy, Suspense, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { request } from "@/lib/api.js";
+
+// MapLibre is large, so it loads only on this screen.
+const PinMap = lazy(() => import("@/components/PinMap.jsx"));
+const KHARGHAR = { lat: 19.033, lng: 73.071 };
+
+/** The design's map illustration: shown while the map loads, and on phones without WebGL2. */
+function MapSketch() {
+  return (
+    <svg
+      viewBox="0 0 350 210"
+      aria-hidden
+      className="block h-[210px] w-full rounded-md border border-line bg-surface"
+    >
+      <path
+        d="M-10 150C80 130 160 140 360 96M120 -10C130 70 140 140 118 220"
+        className="fill-none stroke-line-strong"
+        strokeWidth="10"
+      />
+      <path
+        d="M-10 60h380M240 -10v230M30 -10l40 230"
+        className="fill-none stroke-line"
+        strokeWidth="3"
+      />
+      {[
+        [150, 30, 70, 52],
+        [256, 20, 80, 58],
+        [150, 160, 64, 40],
+        [260, 120, 70, 70],
+        [44, 76, 56, 48],
+      ].map(([x, y, w, h]) => (
+        <rect key={x} x={x} y={y} width={w} height={h} rx="6" className="fill-bg stroke-line" />
+      ))}
+      <path
+        d="M188 58c-12 0-21 9-21 20.5 0 15 21 34.5 21 34.5s21-19.5 21-34.5C209 67 200 58 188 58z"
+        className="fill-primary"
+      />
+      <circle cx="188" cy="78.5" r="7" className="fill-on-primary" />
+    </svg>
+  );
+}
+
+/** Request a society we don't serve yet, with a pin on the building (design Hf05, M9). */
+// @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
+export const Route = createFileRoute("/_auth/onboarding/request")({ component: RequestSociety });
+
+function RequestSociety() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [area, setArea] = useState("");
+  const [point, setPoint] = useState(KHARGHAR);
+  const send = useMutation({
+    mutationFn: () =>
+      request("/v1/society-requests", {
+        method: "POST",
+        body: { name: name.trim(), area: area.trim(), location: point },
+      }),
+    onSuccess: () => {
+      toast(t("onboarding.request.sent"));
+      navigate({ to: "/onboarding/society" });
+    },
+  });
+
+  return (
+    <OnboardingFrame
+      footer={
+        <>
+          <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.request.note")}</p>
+          {send.isError && (
+            <p role="alert" className="text-sm font-semibold text-danger">
+              {t("onboarding.error")}
+            </p>
+          )}
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            isDisabled={!name.trim()}
+            isPending={send.isPending}
+            onPress={() => send.mutate()}
+          >
+            {t("onboarding.request.cta")}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <h1 className="font-display text-[28px] leading-[34px] font-semibold">
+          {t("onboarding.request.title")}
+        </h1>
+        <p className="text-fg-secondary">{t("onboarding.request.sub")}</p>
+      </div>
+      <figure className="flex flex-col gap-1.5">
+        <Suspense fallback={<MapSketch />}>
+          <PinMap
+            center={KHARGHAR}
+            onChange={setPoint}
+            label={t("onboarding.request.caption")}
+            fallback={<MapSketch />}
+          />
+        </Suspense>
+        <figcaption className="text-sm leading-[22px] text-fg-secondary">
+          {t("onboarding.request.caption")}
+        </figcaption>
+      </figure>
+      <TextField
+        label={t("onboarding.request.name")}
+        placeholder={t("onboarding.request.namePh")}
+        value={name}
+        onChange={setName}
+      />
+      <TextField
+        label={t("onboarding.request.area")}
+        placeholder={t("onboarding.request.areaPh")}
+        value={area}
+        onChange={setArea}
+      />
+    </OnboardingFrame>
+  );
+}
