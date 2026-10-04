@@ -76,7 +76,14 @@ def fuzz_database_url(database_url: str) -> Iterator[str]:
 @pytest.fixture(scope="module")
 def fuzz_app(fuzz_database_url: str) -> FastAPI:
     # APP_ENV=dev: the fuzzer signs in with dev_phone. No Valkey: rate limits stay out of the way.
-    return create_app(make_settings(app_env="dev", database_url=fuzz_database_url))
+    # A webhook secret, so fuzzed webhooks reach the signature check (401) instead of the
+    # "payments not configured" 503 a server error check would flag.
+    settings = make_settings(
+        app_env="dev",
+        database_url=fuzz_database_url,
+        razorpay_webhook_secret="fuzz-webhook-secret",
+    )
+    return create_app(settings)
 
 
 @pytest.fixture(scope="module")

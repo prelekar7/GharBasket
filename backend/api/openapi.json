@@ -2898,6 +2898,85 @@
         "title": "TokensOut",
         "type": "object"
       },
+      "TopUpIn": {
+        "properties": {
+          "amount_paise": {
+            "description": "₹100 to ₹10,000 in whole rupees",
+            "examples": [
+              200000
+            ],
+            "maximum": 10000000.0,
+            "minimum": 1.0,
+            "title": "Amount Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amount_paise"
+        ],
+        "title": "TopUpIn",
+        "type": "object"
+      },
+      "TopUpOut": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "const": "INR",
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key_id": {
+            "description": "Pass to Razorpay Checkout as `key`",
+            "examples": [
+              "rzp_test_x"
+            ],
+            "title": "Key Id",
+            "type": "string"
+          },
+          "razorpay_order_id": {
+            "examples": [
+              "order_EKwxwAgItmmXdp"
+            ],
+            "title": "Razorpay Order Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "created",
+              "paid",
+              "failed",
+              "expired",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "razorpay_order_id",
+          "key_id",
+          "amount_paise",
+          "currency",
+          "status",
+          "created_at"
+        ],
+        "title": "TopUpOut",
+        "type": "object"
+      },
       "TopUpRef": {
         "properties": {
           "id": {
@@ -3070,6 +3149,20 @@
           "entries"
         ],
         "title": "WalletOut",
+        "type": "object"
+      },
+      "WebhookAck": {
+        "properties": {
+          "outcome": {
+            "description": "What the event did (for Razorpay's dashboard and logs)",
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "WebhookAck",
         "type": "object"
       }
     },
@@ -5117,6 +5210,90 @@
         ]
       }
     },
+    "/v1/payments/webhook/razorpay": {
+      "post": {
+        "operationId": "razorpay_webhook_v1_payments_webhook_razorpay_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-razorpay-signature",
+            "required": true,
+            "schema": {
+              "maxLength": 256,
+              "title": "X-Razorpay-Signature",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-razorpay-event-id",
+            "required": true,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 1,
+              "title": "X-Razorpay-Event-Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid: not JSON"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.bad_signature"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.payments_unavailable: no webhook secret configured"
+          }
+        },
+        "summary": "Razorpay's webhook (signed); not for the apps",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/v1/prices": {
       "get": {
         "operationId": "get_prices_v1_prices_get",
@@ -6606,6 +6783,232 @@
           }
         ],
         "summary": "Older wallet entries, newest first",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/wallet/topups": {
+      "post": {
+        "operationId": "create_topup_v1_wallet_topups_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopUpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.topup_too_small, billing.wallet_limit or billing.monthly_topup_limit (with room_paise), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.too_many_topups"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.payments_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Start a top-up: a Razorpay order for Checkout (the webhook credits the wallet)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/wallet/topups/{topup_id}": {
+      "get": {
+        "operationId": "get_topup_v1_wallet_topups__topup_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Topup Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopUpOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.topup_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A top-up's status: poll it after Checkout until it is paid",
         "tags": [
           "billing"
         ]

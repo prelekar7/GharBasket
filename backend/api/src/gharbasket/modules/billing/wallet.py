@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import service
-from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Posting
+from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Payment, Posting
 from gharbasket.modules.billing.service import Leg
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
@@ -176,10 +176,13 @@ async def balance(session: AsyncSession, user_id: uuid.UUID) -> int:
 async def summary(session: AsyncSession, user_id: uuid.UUID, latest: int = 20) -> Summary:
     wallet = await service.find_account(session, "wallet", "user", user_id)
     if wallet is None:
-        return Summary(0, min(CAP_PAISE, MONTHLY_TOPUP_PAISE), [])
+        held = await held_paise(session, user_id)  # a first top-up may still be unpaid
+        return Summary(0, max(0, min(CAP_PAISE, MONTHLY_TOPUP_PAISE) - held), [])
     current = await service.balance(session, wallet)
+    held = await held_paise(session, user_id)
     room = min(
-        CAP_PAISE - current, MONTHLY_TOPUP_PAISE - await _topped_up_this_month(session, wallet)
+        CAP_PAISE - current - held,
+        MONTHLY_TOPUP_PAISE - await topped_up_this_month(session, wallet) - held,
     )
     entries, _ = await _entries(session, wallet, None, latest)
     return Summary(current, max(0, room), entries)
@@ -217,7 +220,8 @@ async def _entries(
     return found, next_cursor
 
 
-async def _topped_up_this_month(session: AsyncSession, wallet: LedgerAccount) -> int:
+async def topped_up_this_month(session: AsyncSession, wallet: LedgerAccount) -> int:
+    """Top-ups credited since the 1st of this month (IST)."""
     now = datetime.now(IST)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     total = (
@@ -228,6 +232,20 @@ async def _topped_up_this_month(session: AsyncSession, wallet: LedgerAccount) ->
                 Posting.account_id == wallet.id,
                 JournalEntry.kind == "topup",
                 JournalEntry.created_at >= month_start,
+            )
+        )
+    ).scalar_one()
+    return int(total)
+
+
+async def held_paise(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """Unpaid top-ups that have not expired yet: their amounts stay free under the limits."""
+    total = (
+        await session.execute(
+            select(func.coalesce(func.sum(Payment.amount_paise), 0)).where(
+                Payment.user_id == user_id,
+                Payment.status == "created",
+                Payment.expires_at > func.now(),
             )
         )
     ).scalar_one()

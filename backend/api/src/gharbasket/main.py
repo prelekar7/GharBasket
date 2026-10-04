@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gharbasket import __version__
 from gharbasket.modules.analytics.router import router as analytics_router
 from gharbasket.modules.assistant.router import router as assistant_router
+from gharbasket.modules.billing.razorpay import RazorpayClient
 from gharbasket.modules.billing.router import router as billing_router
 from gharbasket.modules.catalog.router import router as catalog_router
 from gharbasket.modules.community.router import router as community_router
@@ -71,6 +72,15 @@ def _lifespan(settings: Settings):
         # Outbound HTTP (Google's Firebase keys now; Razorpay later): short timeouts.
         http = httpx2.AsyncClient(timeout=httpx2.Timeout(5.0))
         app.state.http = http
+        app.state.razorpay = (
+            RazorpayClient(
+                http,
+                settings.razorpay_key_id,  # pyright: ignore[reportArgumentType]
+                settings.razorpay_key_secret.get_secret_value(),  # pyright: ignore[reportOptionalMemberAccess]
+            )
+            if settings.razorpay_enabled
+            else None
+        )
         app.state.firebase_verifier = (
             FirebaseTokenVerifier(settings.firebase_project_id, http)
             if settings.firebase_project_id

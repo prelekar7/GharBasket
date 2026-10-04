@@ -4,6 +4,8 @@ The double-entry ledger (spec §4.1, handbook 05 §5.7): accounts, journal entri
 postings. Amounts are signed minor units, debit positive and credit negative, so the postings of
 an entry sum to zero per currency; a deferred constraint trigger (see the migration) refuses any
 transaction where they don't, and entries and postings can never be updated or deleted.
+
+Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1).
 """
 
 import uuid
@@ -34,6 +36,10 @@ ACCOUNT_KINDS = ("asset", "liability", "revenue", "expense")
 OWNER_TYPES = ("platform", "user", "partner")
 ENTRY_KINDS = ("topup", "topup_bonus", "box_debit", "refund", "adjustment")
 REF_TYPES = ("topup", "order")
+PROVIDERS = ("razorpay", "dev")
+PAYMENT_PURPOSES = ("topup",)
+# Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
+PAYMENT_STATUSES = ("created", "paid", "failed", "refunded")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -100,3 +106,50 @@ class Posting(Base):
         ForeignKey(f"{SCHEMA}.ledger_accounts.id", ondelete="RESTRICT"), primary_key=True
     )
     amount: Mapped[int] = mapped_column(BigInteger)  # minor units: paise or points
+
+
+class Payment(Base):
+    """A wallet top-up: our record of a Razorpay order (or a dev order) and how it ended."""
+
+    __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint(_one_of("provider", PROVIDERS), name="provider"),
+        CheckConstraint(_one_of("purpose", PAYMENT_PURPOSES), name="purpose"),
+        CheckConstraint(_one_of("status", PAYMENT_STATUSES), name="status"),
+        CheckConstraint("amount_paise > 0", name="amount_paise"),
+        Index(None, "user_id", "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M1's user; no foreign key across schemas
+    provider: Mapped[str] = mapped_column(String(16))
+    purpose: Mapped[str] = mapped_column(String(16), server_default="topup")
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16), server_default="created")
+    provider_order_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    provider_payment_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    provider_refund_id: Mapped[str | None] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class PaymentWebhook(Base):
+    """Every webhook delivery, stored once by Razorpay's event id (they arrive at least once)."""
+
+    __tablename__ = "payment_webhooks"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    provider: Mapped[str] = mapped_column(String(16))
+    event_id: Mapped[str] = mapped_column(String(80), unique=True)
+    event: Mapped[str] = mapped_column(String(80))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    outcome: Mapped[str | None] = mapped_column(String(40))  # credited, ignored, unknown_order…
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
