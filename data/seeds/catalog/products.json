@@ -1,0 +1,1160 @@
+{
+  "products": [
+    {
+      "slug": "palak",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Spinach (palak)",
+        "hi": "पालक",
+        "mr": "पालक"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy", "high_fibre"],
+      "synonyms": ["spinach", "paalak"]
+    },
+    {
+      "slug": "methi",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Fenugreek leaves (methi)",
+        "hi": "मेथी",
+        "mr": "मेथी"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy", "high_fibre"],
+      "synonyms": ["fenugreek", "methi bhaji"]
+    },
+    {
+      "slug": "coriander",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Coriander (dhania)",
+        "hi": "हरा धनिया",
+        "mr": "कोथिंबीर"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy"],
+      "synonyms": ["dhania", "dhaniya", "cilantro", "kothimbir"]
+    },
+    {
+      "slug": "mint",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Mint (pudina)",
+        "hi": "पुदीना",
+        "mr": "पुदिना"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy"],
+      "synonyms": ["pudina", "pudeena"]
+    },
+    {
+      "slug": "dill",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Dill (shepu)",
+        "hi": "सोआ",
+        "mr": "शेपू"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy"],
+      "synonyms": ["shepu", "suva", "soya"]
+    },
+    {
+      "slug": "curry-leaves",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Curry leaves (kadi patta)",
+        "hi": "करी पत्ता",
+        "mr": "कढीपत्ता"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 72,
+      "tags": ["leafy"],
+      "synonyms": ["kadi patta", "kadipatta", "curry patta"]
+    },
+    {
+      "slug": "red-amaranth",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Red amaranth (lal math)",
+        "hi": "लाल चौलाई",
+        "mr": "लाल माठ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy", "high_fibre"],
+      "synonyms": ["lal math", "chaulai", "laal maath"]
+    },
+    {
+      "slug": "spring-onion",
+      "kind": "veg",
+      "category": "leafy-greens",
+      "names": {
+        "en": "Spring onion",
+        "hi": "हरा प्याज",
+        "mr": "कांद्याची पात"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "bunch"
+      },
+      "shelf_life_h": 48,
+      "tags": ["leafy", "onion_garlic"],
+      "synonyms": ["kandyachi paat", "hara pyaz", "green onion"]
+    },
+    {
+      "slug": "tomato",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Tomato",
+        "hi": "टमाटर",
+        "mr": "टोमॅटो"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": [],
+      "synonyms": ["tamatar", "tamater", "tometo"]
+    },
+    {
+      "slug": "bhindi",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Okra (bhindi)",
+        "hi": "भिंडी",
+        "mr": "भेंडी"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 72,
+      "tags": ["high_fibre"],
+      "synonyms": ["okra", "lady finger", "ladies finger", "bhendi"]
+    },
+    {
+      "slug": "brinjal",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Brinjal (baingan)",
+        "hi": "बैंगन",
+        "mr": "वांगी"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": [],
+      "synonyms": ["baingan", "vangi", "eggplant", "aubergine", "vange"]
+    },
+    {
+      "slug": "cauliflower",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Cauliflower",
+        "hi": "फूलगोभी",
+        "mr": "फुलकोबी"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 96,
+      "tags": [],
+      "synonyms": ["phool gobhi", "gobi", "phulkobi"]
+    },
+    {
+      "slug": "cabbage",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Cabbage",
+        "hi": "पत्तागोभी",
+        "mr": "कोबी"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 168,
+      "tags": [],
+      "synonyms": ["patta gobhi", "band gobhi", "kobi"]
+    },
+    {
+      "slug": "green-peas",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Green peas (matar)",
+        "hi": "हरी मटर",
+        "mr": "हिरवा वाटाणा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["high_protein"],
+      "synonyms": ["matar", "mutter", "vatana", "peas"]
+    },
+    {
+      "slug": "cucumber",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Cucumber",
+        "hi": "खीरा",
+        "mr": "काकडी"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["fasting_ok"],
+      "synonyms": ["kheera", "khira", "kakdi"]
+    },
+    {
+      "slug": "bottle-gourd",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Bottle gourd (lauki)",
+        "hi": "लौकी",
+        "mr": "दुधी भोपळा"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 120,
+      "tags": ["gourd"],
+      "synonyms": ["lauki", "dudhi", "ghiya", "doodhi"]
+    },
+    {
+      "slug": "ridge-gourd",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Ridge gourd (turai)",
+        "hi": "तोरई",
+        "mr": "दोडका"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["gourd"],
+      "synonyms": ["turai", "torai", "dodka"]
+    },
+    {
+      "slug": "bitter-gourd",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Bitter gourd (karela)",
+        "hi": "करेला",
+        "mr": "कारले"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["gourd"],
+      "synonyms": ["karela", "karle", "karli"]
+    },
+    {
+      "slug": "red-pumpkin",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Red pumpkin",
+        "hi": "कद्दू",
+        "mr": "लाल भोपळा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 240,
+      "tags": ["gourd", "fasting_ok"],
+      "synonyms": ["kaddu", "bhopla", "pumpkin"]
+    },
+    {
+      "slug": "capsicum",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Capsicum (shimla mirch)",
+        "hi": "शिमला मिर्च",
+        "mr": "ढोबळी मिरची"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": [],
+      "synonyms": ["shimla mirch", "bell pepper", "dhobli mirchi"]
+    },
+    {
+      "slug": "french-beans",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "French beans",
+        "hi": "फ्रेंच बीन्स",
+        "mr": "फरसबी"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["high_fibre"],
+      "synonyms": ["beans", "farasbi", "pharasbi"]
+    },
+    {
+      "slug": "cluster-beans",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Cluster beans (gavar)",
+        "hi": "ग्वार फली",
+        "mr": "गवार"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["high_fibre"],
+      "synonyms": ["gavar", "guar", "gawar"]
+    },
+    {
+      "slug": "drumstick",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Drumstick (shevga)",
+        "hi": "सहजन",
+        "mr": "शेवगा"
+      },
+      "step": {
+        "qty": 250,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": [],
+      "synonyms": ["shevga", "sahjan", "moringa", "drumsticks"]
+    },
+    {
+      "slug": "green-chilli",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Green chilli",
+        "hi": "हरी मिर्च",
+        "mr": "हिरवी मिरची"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": [],
+      "synonyms": ["mirchi", "hari mirch", "hirvi mirchi", "chilli"]
+    },
+    {
+      "slug": "lemon",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Lemon (nimbu)",
+        "hi": "नींबू",
+        "mr": "लिंबू"
+      },
+      "step": {
+        "qty": 4,
+        "unit": "piece"
+      },
+      "shelf_life_h": 168,
+      "tags": [],
+      "synonyms": ["nimbu", "limbu", "lime"]
+    },
+    {
+      "slug": "onion",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Onion",
+        "hi": "प्याज",
+        "mr": "कांदा"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 720,
+      "tags": ["root", "onion_garlic"],
+      "synonyms": ["pyaz", "pyaaz", "kanda", "kaanda"]
+    },
+    {
+      "slug": "potato",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Potato",
+        "hi": "आलू",
+        "mr": "बटाटा"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 720,
+      "tags": ["root", "fasting_ok"],
+      "synonyms": ["aloo", "alu", "batata"]
+    },
+    {
+      "slug": "garlic",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Garlic",
+        "hi": "लहसुन",
+        "mr": "लसूण"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 720,
+      "tags": ["root", "onion_garlic"],
+      "synonyms": ["lahsun", "lehsun", "lasun"]
+    },
+    {
+      "slug": "ginger",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Ginger",
+        "hi": "अदरक",
+        "mr": "आले"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 336,
+      "tags": ["root"],
+      "synonyms": ["adrak", "aale"]
+    },
+    {
+      "slug": "carrot",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Carrot",
+        "hi": "गाजर",
+        "mr": "गाजर"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 168,
+      "tags": ["root"],
+      "synonyms": ["gajar"]
+    },
+    {
+      "slug": "radish",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Radish (mooli)",
+        "hi": "मूली",
+        "mr": "मुळा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": ["root"],
+      "synonyms": ["mooli", "muli", "mula"]
+    },
+    {
+      "slug": "beetroot",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Beetroot",
+        "hi": "चुकंदर",
+        "mr": "बीट"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 240,
+      "tags": ["root"],
+      "synonyms": ["chukandar", "beet"]
+    },
+    {
+      "slug": "sweet-potato",
+      "kind": "veg",
+      "category": "roots-tubers",
+      "names": {
+        "en": "Sweet potato",
+        "hi": "शकरकंद",
+        "mr": "रताळे"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 336,
+      "tags": ["root", "fasting_ok"],
+      "synonyms": ["shakarkand", "ratale", "ratali"]
+    },
+    {
+      "slug": "banana",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Banana",
+        "hi": "केला",
+        "mr": "केळी"
+      },
+      "step": {
+        "qty": 6,
+        "unit": "piece"
+      },
+      "shelf_life_h": 96,
+      "tags": ["fasting_ok"],
+      "synonyms": ["kela", "keli", "bananas"]
+    },
+    {
+      "slug": "apple",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Apple",
+        "hi": "सेब",
+        "mr": "सफरचंद"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 336,
+      "tags": ["fasting_ok"],
+      "synonyms": ["seb", "safarchand", "apples"]
+    },
+    {
+      "slug": "papaya",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Papaya",
+        "hi": "पपीता",
+        "mr": "पपई"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 96,
+      "tags": ["fasting_ok"],
+      "synonyms": ["papita", "papai"]
+    },
+    {
+      "slug": "orange",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Orange",
+        "hi": "संतरा",
+        "mr": "संत्रे"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 240,
+      "tags": ["fasting_ok"],
+      "synonyms": ["santra", "santre", "oranges"]
+    },
+    {
+      "slug": "pomegranate",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Pomegranate",
+        "hi": "अनार",
+        "mr": "डाळिंब"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 336,
+      "tags": ["fasting_ok"],
+      "synonyms": ["anar", "dalimb", "dalimbh"]
+    },
+    {
+      "slug": "guava",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Guava",
+        "hi": "अमरूद",
+        "mr": "पेरू"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 120,
+      "tags": ["fasting_ok", "high_fibre"],
+      "synonyms": ["amrud", "amrood", "peru"]
+    },
+    {
+      "slug": "watermelon",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Watermelon",
+        "hi": "तरबूज",
+        "mr": "कलिंगड"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 240,
+      "tags": ["fasting_ok"],
+      "synonyms": ["tarbooz", "kalingad", "tarbuj"]
+    },
+    {
+      "slug": "grapes",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Grapes",
+        "hi": "अंगूर",
+        "mr": "द्राक्षे"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["fasting_ok"],
+      "synonyms": ["angoor", "angur", "draksha"]
+    },
+    {
+      "slug": "chikoo",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Sapota (chikoo)",
+        "hi": "चीकू",
+        "mr": "चिकू"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["fasting_ok"],
+      "synonyms": ["chikoo", "chiku", "sapota"]
+    },
+    {
+      "slug": "mosambi",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Sweet lime (mosambi)",
+        "hi": "मौसमी",
+        "mr": "मोसंबी"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 240,
+      "tags": ["fasting_ok"],
+      "synonyms": ["mosambi", "mausambi", "sweet lime"]
+    },
+    {
+      "slug": "custard-apple",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Custard apple (sitaphal)",
+        "hi": "सीताफल",
+        "mr": "सीताफळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 72,
+      "tags": ["fasting_ok"],
+      "synonyms": ["sitaphal", "seetaphal"]
+    },
+    {
+      "slug": "pineapple",
+      "kind": "fruit",
+      "category": "fruits",
+      "names": {
+        "en": "Pineapple",
+        "hi": "अनानास",
+        "mr": "अननस"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 168,
+      "tags": ["fasting_ok"],
+      "synonyms": ["ananas", "annanas"]
+    },
+    {
+      "slug": "toor-dal",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Toor dal",
+        "hi": "अरहर दाल",
+        "mr": "तूर डाळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_protein"],
+      "synonyms": ["tur dal", "arhar dal", "toor daal", "tuvar dal"]
+    },
+    {
+      "slug": "moong-dal",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Moong dal",
+        "hi": "मूंग दाल",
+        "mr": "मूग डाळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_protein"],
+      "synonyms": ["moong daal", "mung dal", "mug dal"]
+    },
+    {
+      "slug": "masoor-dal",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Masoor dal",
+        "hi": "मसूर दाल",
+        "mr": "मसूर डाळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_protein"],
+      "synonyms": ["masoor daal", "red lentils"]
+    },
+    {
+      "slug": "chana-dal",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Chana dal",
+        "hi": "चना दाल",
+        "mr": "हरभरा डाळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_protein"],
+      "synonyms": ["chana daal", "harbhara dal", "bengal gram"]
+    },
+    {
+      "slug": "basmati-rice",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Basmati rice",
+        "hi": "बासमती चावल",
+        "mr": "बासमती तांदूळ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 8640,
+      "tags": [],
+      "synonyms": ["basmati", "chawal", "tandul"]
+    },
+    {
+      "slug": "kolam-rice",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Kolam rice",
+        "hi": "कोलम चावल",
+        "mr": "कोलम तांदूळ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 8640,
+      "tags": [],
+      "synonyms": ["kolam", "chawal", "tandul"]
+    },
+    {
+      "slug": "wheat-atta",
+      "kind": "staple",
+      "category": "flours",
+      "names": {
+        "en": "Wheat atta",
+        "hi": "गेहूं का आटा",
+        "mr": "गव्हाचे पीठ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 2160,
+      "tags": ["high_fibre"],
+      "synonyms": ["atta", "aata", "gehu atta", "kanik"]
+    },
+    {
+      "slug": "jowar-atta",
+      "kind": "staple",
+      "category": "flours",
+      "names": {
+        "en": "Jowar flour",
+        "hi": "ज्वार का आटा",
+        "mr": "ज्वारीचे पीठ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 2160,
+      "tags": ["high_fibre"],
+      "synonyms": ["jowar", "jwari", "jowar atta", "sorghum"]
+    },
+    {
+      "slug": "besan",
+      "kind": "staple",
+      "category": "flours",
+      "names": {
+        "en": "Besan (gram flour)",
+        "hi": "बेसन",
+        "mr": "बेसन"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 2880,
+      "tags": ["high_protein"],
+      "synonyms": ["besan", "gram flour", "chickpea flour"]
+    },
+    {
+      "slug": "poha",
+      "kind": "staple",
+      "category": "poha-sabudana-nuts",
+      "names": {
+        "en": "Poha (flattened rice)",
+        "hi": "पोहा",
+        "mr": "पोहे"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["pohe", "chivda rice", "flattened rice"]
+    },
+    {
+      "slug": "sabudana",
+      "kind": "staple",
+      "category": "poha-sabudana-nuts",
+      "names": {
+        "en": "Sabudana",
+        "hi": "साबूदाना",
+        "mr": "साबुदाणा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8640,
+      "tags": ["fasting_ok"],
+      "synonyms": ["sago", "tapioca pearls"]
+    },
+    {
+      "slug": "groundnuts",
+      "kind": "staple",
+      "category": "poha-sabudana-nuts",
+      "names": {
+        "en": "Groundnuts (peanuts)",
+        "hi": "मूंगफली",
+        "mr": "शेंगदाणे"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["fasting_ok", "high_protein"],
+      "synonyms": ["moongphali", "shengdane", "peanuts", "shengdana"]
+    },
+    {
+      "slug": "groundnut-oil",
+      "kind": "staple",
+      "category": "oils-ghee",
+      "names": {
+        "en": "Groundnut oil",
+        "hi": "मूंगफली का तेल",
+        "mr": "शेंगदाणा तेल"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "l"
+      },
+      "shelf_life_h": 8640,
+      "tags": [],
+      "synonyms": ["peanut oil", "shengdana tel", "oil"]
+    },
+    {
+      "slug": "ghee",
+      "kind": "staple",
+      "category": "oils-ghee",
+      "names": {
+        "en": "Ghee",
+        "hi": "घी",
+        "mr": "तूप"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "ml"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["fasting_ok", "dairy"],
+      "synonyms": ["toop", "tup", "desi ghee"]
+    },
+    {
+      "slug": "salt",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Salt",
+        "hi": "नमक",
+        "mr": "मीठ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 17280,
+      "tags": [],
+      "synonyms": ["namak", "meeth"]
+    },
+    {
+      "slug": "turmeric",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Turmeric powder",
+        "hi": "हल्दी",
+        "mr": "हळद"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 8640,
+      "tags": [],
+      "synonyms": ["haldi", "halad"]
+    },
+    {
+      "slug": "red-chilli-powder",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Red chilli powder",
+        "hi": "लाल मिर्च पाउडर",
+        "mr": "लाल तिखट"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 8640,
+      "tags": [],
+      "synonyms": ["lal mirch", "mirchi powder", "tikhat", "chilli powder"]
+    },
+    {
+      "slug": "sugar",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Sugar",
+        "hi": "चीनी",
+        "mr": "साखर"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "kg"
+      },
+      "shelf_life_h": 17280,
+      "tags": [],
+      "synonyms": ["cheeni", "chini", "sakhar"]
+    },
+    {
+      "slug": "jaggery",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Jaggery (gul)",
+        "hi": "गुड़",
+        "mr": "गूळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["gud", "gur", "gul"]
+    },
+    {
+      "slug": "milk",
+      "kind": "staple",
+      "category": "dairy-eggs",
+      "names": {
+        "en": "Milk",
+        "hi": "दूध",
+        "mr": "दूध"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "ml"
+      },
+      "shelf_life_h": 48,
+      "tags": ["dairy", "fasting_ok"],
+      "synonyms": ["doodh", "dudh"]
+    },
+    {
+      "slug": "curd",
+      "kind": "staple",
+      "category": "dairy-eggs",
+      "names": {
+        "en": "Curd (dahi)",
+        "hi": "दही",
+        "mr": "दही"
+      },
+      "step": {
+        "qty": 400,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["dairy", "fasting_ok"],
+      "synonyms": ["dahi", "yogurt", "yoghurt"]
+    },
+    {
+      "slug": "paneer",
+      "kind": "staple",
+      "category": "dairy-eggs",
+      "names": {
+        "en": "Paneer",
+        "hi": "पनीर",
+        "mr": "पनीर"
+      },
+      "step": {
+        "qty": 200,
+        "unit": "g"
+      },
+      "shelf_life_h": 96,
+      "tags": ["dairy", "fasting_ok", "high_protein"],
+      "synonyms": ["cottage cheese"]
+    },
+    {
+      "slug": "eggs",
+      "kind": "staple",
+      "category": "dairy-eggs",
+      "names": {
+        "en": "Eggs",
+        "hi": "अंडे",
+        "mr": "अंडी"
+      },
+      "step": {
+        "qty": 6,
+        "unit": "piece"
+      },
+      "shelf_life_h": 336,
+      "tags": ["egg", "high_protein"],
+      "synonyms": ["anda", "ande", "andi", "egg"]
+    }
+  ]
+}

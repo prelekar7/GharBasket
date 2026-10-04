@@ -317,6 +317,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Products, alphabetical (names in the Accept-Language language) */
+        get: operations["list_products_v1_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One product */
+        get: operations["get_product_v1_products__product_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ready": {
         parameters: {
             query?: never;
@@ -326,6 +360,23 @@ export interface paths {
         };
         /** Readiness check (database and Valkey); operator token required when deployed */
         get: operations["ready_v1_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find products by any spelling: English, Hindi, Marathi or Hinglish */
+        get: operations["search_v1_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -473,6 +524,24 @@ export interface components {
             display_name: string;
             /** Photo Url */
             photo_url: string | null;
+        };
+        /** CategoryRef */
+        CategoryRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Leafy greens
+             */
+            name: string;
+            /**
+             * Slug
+             * @example leafy-greens
+             */
+            slug: string;
         };
         /** ConsentIn */
         ConsentIn: {
@@ -819,12 +888,49 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** Names */
+        Names: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
+        /** Page[ProductOut] */
+        Page_ProductOut_: {
+            /** Items */
+            items: components["schemas"]["ProductOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** Price */
+        Price: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Mrp Paise */
+            mrp_paise: number | null;
+            /**
+             * Price Paise
+             * @description For one step, in paise
+             * @example 2000
+             */
+            price_paise: number;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
         };
         /**
          * Problem
@@ -848,6 +954,47 @@ export interface components {
             type: string;
         } & {
             [key: string]: unknown;
+        };
+        /** ProductOut */
+        ProductOut: {
+            category: components["schemas"]["CategoryRef"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad";
+            /**
+             * Name
+             * @description In the requested language
+             * @example Okra (bhindi)
+             */
+            name: string;
+            names: components["schemas"]["Names"];
+            /** @description For the caller's hub; null without one */
+            price: components["schemas"]["Price"] | null;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /**
+             * Slug
+             * @example bhindi
+             */
+            slug: string;
+            step: components["schemas"]["Step"];
+            /**
+             * Tags
+             * @example [
+             *       "green",
+             *       "high_fibre"
+             *     ]
+             */
+            tags: string[];
         };
         /** Ready */
         Ready: {
@@ -919,6 +1066,32 @@ export interface components {
              * @enum {string}
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
+        };
+        /** SearchItem */
+        SearchItem: {
+            /**
+             * Matched
+             * @description The spelling that matched
+             * @example bhendi
+             */
+            matched: string;
+            /** Name */
+            name: string;
+            /** Price Paise */
+            price_paise: number | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
+        };
+        /** SearchResults */
+        SearchResults: {
+            /** Items */
+            items: components["schemas"]["SearchItem"][];
         };
         /** SocietyOut */
         SocietyOut: {
@@ -1037,6 +1210,28 @@ export interface components {
              * @enum {string}
              */
             status: "prospect" | "unlocking" | "live" | "paused";
+        };
+        /**
+         * Step
+         * @description The unit a person adds or removes in the app; prices are per step.
+         */
+        Step: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
         };
         /**
          * TokensOut
@@ -2323,6 +2518,105 @@ export interface operations {
             };
         };
     };
+    list_products_v1_products_get: {
+        parameters: {
+            query?: {
+                kind?: ("veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad") | null;
+                /** @description Category slug */
+                category?: string | null;
+                tag?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ProductOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_product_v1_products__product_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     ready_v1_ready_get: {
         parameters: {
             query?: never;
@@ -2352,6 +2646,49 @@ export interface operations {
             };
             /** @description A dependency is not reachable (problem+json) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    search_v1_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResults"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
