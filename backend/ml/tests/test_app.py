@@ -55,3 +55,29 @@ def test_without_a_token_only_local_development_works() -> None:
     for env in ("staging", "prod"):
         with pytest.raises(ValidationError, match="ML_SERVICE_TOKEN"):
             Settings(app_env=env)  # pyright: ignore[reportArgumentType]
+
+
+def test_models_and_ai_health_list_the_built_in_solvers(client: TestClient, tmp_path) -> None:
+    auth = {"Authorization": f"Bearer {TOKEN}"}
+    assert client.get("/models").status_code == 401
+
+    models = client.get("/models", headers=auth).json()
+    health = client.get("/health/ai", headers=auth).json()
+
+    assert [(m["name"], m["version"], m["source"]) for m in models] == [
+        ("planner", "cpsat-v0", "builtin"),
+        ("routing", "cvrptw-waves-v0", "builtin"),
+    ]
+    assert health["status"] == "ok" and health["osrm"] == "not_configured"
+    assert [m["name"] for m in health["models"]] == ["planner", "routing"]
+
+    manifest = tmp_path / "latest.json"
+    manifest.write_text('{"models": [{"name": "pantry", "version": "2026.10.04-1"}]}')
+    settings = Settings(app_env="test", ml_service_token=SecretStr(TOKEN), models_manifest=manifest)
+    with_manifest = TestClient(create_app(settings)).get("/models", headers=auth).json()
+    assert with_manifest[-1] == {
+        "name": "pantry",
+        "version": "2026.10.04-1",
+        "kind": "learned",
+        "source": "manifest",
+    }

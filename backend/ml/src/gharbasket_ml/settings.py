@@ -1,6 +1,7 @@
 """Settings of the ML service (environment variables)."""
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import SecretStr, model_validator
@@ -13,6 +14,8 @@ class Settings(BaseSettings):
     app_env: Literal["dev", "test", "staging", "prod"] = "prod"
     # The shared secret the API sends (`Authorization: Bearer`); optional only in local dev.
     ml_service_token: SecretStr | None = None
+    # A local stand-in for the R2 registry pointer (tests, laptops); unset: built-in solvers only.
+    models_manifest: Path | None = None
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

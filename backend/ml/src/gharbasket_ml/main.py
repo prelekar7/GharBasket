@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__
+from gharbasket_ml import __version__, registry
 from gharbasket_ml.planner import plan_week
 from gharbasket_ml.schemas import PlanRequest, PlanResponse
 from gharbasket_ml.settings import Settings, get_settings
@@ -62,6 +62,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "gharbasket-ml", "version": __version__}
+
+    @app.get(
+        "/models",
+        dependencies=[Depends(require_service_token)],
+        summary="The models this service is serving, with versions (M10 §3)",
+    )
+    async def models(settings: Annotated[Settings, Depends(get_settings)]) -> list[dict[str, str]]:
+        return [m.__dict__ for m in registry.served_models(settings.models_manifest)]
+
+    @app.get(
+        "/health/ai",
+        dependencies=[Depends(require_service_token)],
+        summary="Health with the served models and the road network",
+    )
+    async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
+        return registry.health(settings.models_manifest)
 
     @app.post(
         "/plan/week",

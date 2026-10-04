@@ -698,7 +698,7 @@ erDiagram
     FEATURE_SNAPSHOTS ||--o{ PREDICTIONS : "feeds"
 ```
 
-`feature_snapshots` are stored "as of" the cut-off time to prevent data leakage. `predictions.kind` ∈ {weekly_plan, basket_rank, consumption, forecast, route, assignment, slot_price, churn}. Each row records the exact model name and version.
+`feature_snapshots` are stored "as of" the cut-off time to prevent data leakage. `predictions.kind` ∈ {weekly_plan, pantry, basket_rank, forecast, route, assignment, slot_price, churn}, with `subject_type`, `subject_id`, `for_date` and `source` (ml or fallback). Each row records the exact model name and version. `model_metrics` keeps one row per metric, split and data source for every evaluation run.
 
 ### 5.5.11 notify and platform (summary)
 
