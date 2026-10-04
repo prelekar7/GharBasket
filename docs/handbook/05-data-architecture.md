@@ -832,7 +832,8 @@ classDiagram
 | `kindness:<user>` | liability (points) | KINDNESS_PTS | customer |
 | `partner_payable:<partner>` | liability | INR | partner |
 | `razorpay_clearing`, `payout_clearing` | asset / clearing | INR | platform |
-| `unearned_revenue`, `sales_revenue` | revenue | INR | platform |
+| `unearned_revenue` | liability (boxes paid for, not yet delivered) | INR | platform |
+| `sales_revenue` | revenue | INR | platform |
 | `promo_expense`, `fulfilment_expense`, `kindness_expense` | expense | INR / PTS | platform |
 
 ### 5.7.2 Posting examples (amounts in paise)

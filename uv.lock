@@ -592,6 +592,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "hypothesis" },
     { name = "import-linter" },
     { name = "pyright" },
     { name = "pytest" },
@@ -610,6 +611,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "hypothesis", specifier = ">=6.168.3" },
     { name = "import-linter", specifier = ">=2.15" },
     { name = "pyright", specifier = ">=1.1.414" },
     { name = "pytest", specifier = ">=9.1.1" },

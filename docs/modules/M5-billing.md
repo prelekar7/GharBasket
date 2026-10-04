@@ -139,8 +139,8 @@ POST /v1/dev/razorpay/pay             only with APP_ENV=dev or test (404 otherwi
 | Table | Key columns |
 |---|---|
 | `billing.ledger_accounts` | id, owner_type, owner_id, currency (INR, KINDNESS_PTS), kind (asset, liability, revenue, expense) |
-| `billing.journal_entries` | id, kind, ref_type, ref_id, idempotency_key (unique), created_at |
-| `billing.postings` | entry_id, account_id, amount (signed minor units) — deferred trigger enforces Σ = 0 per currency |
+| `billing.journal_entries` | id, kind, ref_type, ref_id, details jsonb (e.g. delivery_date, reason), idempotency_key (unique), created_at; append-only |
+| `billing.postings` | entry_id, account_id, amount (signed minor units: debit +, credit −) — deferred trigger enforces Σ = 0 per currency; append-only |
 | `billing.payments` | id, user_id, provider, provider_ref, amount_paise, status, purpose |
 | `billing.mandates` | id, user_id, provider_ref, max_paise, status, last_notice_at |
 | `billing.payment_webhooks` | id, provider, event_id (unique), payload jsonb, processed_at |
