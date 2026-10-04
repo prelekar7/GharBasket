@@ -8,7 +8,7 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Kind = Literal["veg", "fruit", "staple", "kit", "tiffin", "salad"]
 Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
@@ -66,3 +66,57 @@ class SearchItem(BaseModel):
 
 class SearchResults(BaseModel):
     items: list[SearchItem]
+
+
+class SubstituteOut(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    step: Step
+    price_paise: int | None
+    price_delta_paise: int | None = Field(
+        description="Substitute price minus the original's, per step; null without both prices"
+    )
+    score: float = Field(ge=0, le=1, examples=[0.82])
+    reason_code: Literal["similar_use", "same_family", "cheaper", "in_season"]
+    reason_params: dict[str, int | str] = Field(examples=[{"saves_paise": 200}])
+
+
+class Substitutes(BaseModel):
+    items: list[SubstituteOut]
+
+
+class PriceItem(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    product_id: uuid.UUID
+    price_paise: int = Field(gt=0, le=10_000_000, examples=[2000])
+    mrp_paise: int | None = Field(default=None, gt=0, le=10_000_000, examples=[2400])
+
+
+class PriceListOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    valid_from: date
+    items: list[PriceItem]
+
+
+class PriceListIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    valid_from: date = Field(description="Today or later, in Asia/Kolkata")
+    items: list[PriceItem] = Field(min_length=1, max_length=1000)
+
+    @field_validator("items")
+    @classmethod
+    def _one_price_per_product(cls, items: list[PriceItem]) -> list[PriceItem]:
+        if len({item.product_id for item in items}) != len(items):
+            raise ValueError("each product once")
+        return items
+
+
+class PriceListCreated(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    valid_from: date
+    items_count: int

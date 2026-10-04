@@ -248,6 +248,23 @@ export interface paths {
         patch: operations["update_member_v1_households__household_id__members__member_id__patch"];
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/price-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a hub's prices from a date (hub manager of that hub; audit-logged) */
+        post: operations["publish_price_list_v1_hubs__hub_id__price_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -317,6 +334,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's current price list (prices per step, in paise) */
+        get: operations["get_prices_v1_prices_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/products": {
         parameters: {
             query?: never;
@@ -343,6 +377,23 @@ export interface paths {
         };
         /** One product */
         get: operations["get_product_v1_products__product_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/products/{product_id}/substitutes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ranked substitutes, with the price difference and why */
+        get: operations["substitutes_v1_products__product_id__substitutes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -932,6 +983,75 @@ export interface components {
              */
             valid_from: string;
         };
+        /** PriceItem */
+        PriceItem: {
+            /**
+             * Mrp Paise
+             * @example 2400
+             */
+            mrp_paise?: number | null;
+            /**
+             * Price Paise
+             * @example 2000
+             */
+            price_paise: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** PriceListCreated */
+        PriceListCreated: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items Count */
+            items_count: number;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+        };
+        /** PriceListIn */
+        PriceListIn: {
+            /** Items */
+            items: components["schemas"]["PriceItem"][];
+            /**
+             * Valid From
+             * Format: date
+             * @description Today or later, in Asia/Kolkata
+             */
+            valid_from: string;
+        };
+        /** PriceListOut */
+        PriceListOut: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PriceItem"][];
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+        };
         /**
          * Problem
          * @description RFC 9457 problem details. Clients branch on `code`, never on the text.
@@ -1232,6 +1352,50 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** SubstituteOut */
+        SubstituteOut: {
+            /** Name */
+            name: string;
+            /**
+             * Price Delta Paise
+             * @description Substitute price minus the original's, per step; null without both prices
+             */
+            price_delta_paise: number | null;
+            /** Price Paise */
+            price_paise: number | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Reason Code
+             * @enum {string}
+             */
+            reason_code: "similar_use" | "same_family" | "cheaper" | "in_season";
+            /**
+             * Reason Params
+             * @example {
+             *       "saves_paise": 200
+             *     }
+             */
+            reason_params: {
+                [key: string]: number | string;
+            };
+            /**
+             * Score
+             * @example 0.82
+             */
+            score: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
+        };
+        /** Substitutes */
+        Substitutes: {
+            /** Items */
+            items: components["schemas"]["SubstituteOut"][];
         };
         /**
          * TokensOut
@@ -2333,6 +2497,80 @@ export interface operations {
             };
         };
     };
+    publish_price_list_v1_hubs__hub_id__price_lists_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceListIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListCreated"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     me_v1_me_get: {
         parameters: {
             query?: never;
@@ -2518,6 +2756,57 @@ export interface operations {
             };
         };
     };
+    get_prices_v1_prices_get: {
+        parameters: {
+            query: {
+                hub_id: string;
+                /** @description Default: today (IST) */
+                date?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_products_v1_products_get: {
         parameters: {
             query?: {
@@ -2525,6 +2814,8 @@ export interface operations {
                 /** @description Category slug */
                 category?: string | null;
                 tag?: string | null;
+                /** @description Price at this hub; by default the hub of the caller's household */
+                hub_id?: string | null;
                 /** @description `next_cursor` from the last page */
                 cursor?: string | null;
                 limit?: number;
@@ -2568,7 +2859,10 @@ export interface operations {
     };
     get_product_v1_products__product_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Price at this hub; by default the hub of the caller's household */
+                hub_id?: string | null;
+            };
             header?: {
                 "accept-language"?: string | null;
             };
@@ -2586,6 +2880,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    substitutes_v1_products__product_id__substitutes_get: {
+        parameters: {
+            query?: {
+                /** @description Price at this hub; by default the hub of the caller's household */
+                hub_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Substitutes"];
                 };
             };
             /** @description auth.invalid_token */
@@ -2659,6 +3008,8 @@ export interface operations {
         parameters: {
             query: {
                 q: string;
+                /** @description Price at this hub; by default the hub of the caller's household */
+                hub_id?: string | null;
                 limit?: number;
             };
             header?: {

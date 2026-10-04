@@ -1,17 +1,19 @@
 """Tables of M2 Catalog & Pricing. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
-Products part (this file, so far): categories, products and the search terms that make one product
-findable by every spelling (spec §3.1). Prices, substitutes, recipes and festivals follow.
+Categories, products, the search terms that make one product findable by every spelling, and
+hub price lists (spec §3.1). Recipes and festivals follow.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Computed,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -131,3 +133,43 @@ class SearchTerm(Base):
     term_norm: Mapped[str] = mapped_column(Text, Computed(TERM_NORM, persisted=True))
     lang: Mapped[str] = mapped_column(String(10))
     source: Mapped[str] = mapped_column(String(16))
+
+
+class PriceList(Base):
+    """A hub's prices from `valid_from` on; the newest list on or before a date is current."""
+
+    __tablename__ = "price_lists"
+    __table_args__ = (
+        UniqueConstraint("hub_id", "valid_from"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    # No foreign key until M6 owns hubs (the same pattern as societies and role scopes).
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    valid_from: Mapped[date] = mapped_column(Date)
+    published_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Price(Base):
+    """The price of one step of a product (e.g. one 250 g pack), in paise."""
+
+    __tablename__ = "prices"
+    __table_args__ = (
+        CheckConstraint("price_paise > 0", name="price_paise"),
+        CheckConstraint("mrp_paise IS NULL OR mrp_paise >= price_paise", name="mrp_paise"),
+        {"schema": SCHEMA},
+    )
+
+    price_list_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.price_lists.id", ondelete="CASCADE"), primary_key=True
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.products.id", ondelete="RESTRICT"), primary_key=True, index=True
+    )
+    price_paise: Mapped[int] = mapped_column(BigInteger)
+    # Printed MRP for packaged goods; null for fresh produce.
+    mrp_paise: Mapped[int | None] = mapped_column(BigInteger)
