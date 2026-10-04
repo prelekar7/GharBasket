@@ -88,6 +88,11 @@ class Settings(DatabaseSettings):
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
     web_origins: CommaSeparated = []
+    # Razorpay (M5 top-ups), test mode only: live keys are refused, no real money moves in the
+    # prototype. Unset locally: top-ups use dev orders, paid with POST /v1/dev/razorpay/pay.
+    razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
+    razorpay_key_secret: SecretStr | None = None
+    razorpay_webhook_secret: SecretStr | None = None
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
@@ -156,6 +161,10 @@ class Settings(DatabaseSettings):
     def dev_login_enabled(self) -> bool:
         """Sign in with just a phone number, no OTP: only ever on a developer's own machine."""
         return self.app_env == "dev"
+
+    @property
+    def razorpay_enabled(self) -> bool:
+        return self.razorpay_key_id is not None and self.razorpay_key_secret is not None
 
     @property
     def docs_enabled(self) -> bool:

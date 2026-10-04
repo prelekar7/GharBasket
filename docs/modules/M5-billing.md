@@ -93,14 +93,19 @@ POST /v1/payments/webhook/razorpay    Razorpay only; no sign-in. Not for the app
   a bad signature gets 401. Each event is stored once by its x-razorpay-event-id, then processed:
   payment.captured for a top-up's order → status "paid" and one journal entry
   (razorpay_clearing → wallet). The same event or payment is never credited twice. payment.failed
-  → "failed". Unknown events are stored and ignored. 200 once stored and processed; any other
-  answer makes Razorpay deliver it again.
+  → "failed". Unknown events are stored and ignored. 200 { "outcome": "credited" | "duplicate" |
+  "already_settled" | "failed" | "refunded_over_cap" | "unknown_order" | "amount_mismatch" |
+  "malformed" | "ignored" } once stored and processed; any other answer makes Razorpay deliver
+  it again. Without RAZORPAY_WEBHOOK_SECRET configured: 503 "billing.payments_unavailable".
 
 POST /v1/dev/razorpay/pay             only with APP_ENV=dev or test (404 otherwise)
   request : { "razorpay_order_id": "order_…" }
   200 : { "razorpay_payment_id": "pay_dev_…", "status": "captured" }
   Stands in for Checkout plus the webhook: it runs the same processing as a real
   payment.captured event, so mock mode, E2E tests and local runs need no Razorpay account.
+  Only the top-up's owner may pay it. Not in openapi.json (call it with a plain request).
+  Without Razorpay keys, APP_ENV dev and test create dev orders (`order_dev_…`, key_id
+  `rzp_test_dev`); a deployed environment answers 503 instead.
 ```
 
 - **Unpaid top-ups:** a top-up stays `created` for 30 minutes, holding its amount against the cap, then becomes `expired`.

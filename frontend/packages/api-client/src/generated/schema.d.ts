@@ -351,6 +351,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/payments/webhook/razorpay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Razorpay's webhook (signed); not for the apps */
+        post: operations["razorpay_webhook_v1_payments_webhook_razorpay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/prices": {
         parameters: {
             query?: never;
@@ -581,6 +598,40 @@ export interface paths {
         };
         /** Older wallet entries, newest first */
         get: operations["list_entries_v1_wallet_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a top-up: a Razorpay order for Checkout (the webhook credits the wallet) */
+        post: operations["create_topup_v1_wallet_topups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/topups/{topup_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A top-up's status: poll it after Checkout until it is paid */
+        get: operations["get_topup_v1_wallet_topups__topup_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1722,6 +1773,51 @@ export interface components {
             /** Refresh Token */
             refresh_token: string | null;
         };
+        /** TopUpIn */
+        TopUpIn: {
+            /**
+             * Amount Paise
+             * @description ₹100 to ₹10,000 in whole rupees
+             * @example 200000
+             */
+            amount_paise: number;
+        };
+        /** TopUpOut */
+        TopUpOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Key Id
+             * @description Pass to Razorpay Checkout as `key`
+             * @example rzp_test_x
+             */
+            key_id: string;
+            /**
+             * Razorpay Order Id
+             * @example order_EKwxwAgItmmXdp
+             */
+            razorpay_order_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "paid" | "failed" | "expired" | "refunded";
+        };
         /** TopUpRef */
         TopUpRef: {
             /**
@@ -1816,6 +1912,14 @@ export interface components {
              * @example 869000
              */
             topup_room_paise: number;
+        };
+        /** WebhookAck */
+        WebhookAck: {
+            /**
+             * Outcome
+             * @description What the event did (for Razorpay's dashboard and logs)
+             */
+            outcome: string;
         };
     };
     responses: never;
@@ -3148,6 +3252,65 @@ export interface operations {
             };
         };
     };
+    razorpay_webhook_v1_payments_webhook_razorpay_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-razorpay-signature": string;
+                "x-razorpay-event-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookAck"];
+                };
+            };
+            /** @description request.invalid: not JSON */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.bad_signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payments_unavailable: no webhook secret configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_prices_v1_prices_get: {
         parameters: {
             query: {
@@ -3846,6 +4009,147 @@ export interface operations {
             };
             /** @description auth.forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_topup_v1_wallet_topups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopUpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopUpOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.topup_too_small, billing.wallet_limit or billing.monthly_topup_limit (with room_paise), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.too_many_topups */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payments_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_topup_v1_wallet_topups__topup_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                topup_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopUpOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.topup_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

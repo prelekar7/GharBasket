@@ -38,6 +38,13 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
+      # Razorpay test mode (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
       - key: WEB_ORIGINS
         sync: false

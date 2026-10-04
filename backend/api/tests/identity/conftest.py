@@ -53,12 +53,14 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
         firebase: bool = True,
         valkey: Redis | None = None,
         headers: dict[str, str] | None = None,
+        razorpay: Any = None,
         **settings: Any,
     ) -> httpx2.AsyncClient:
         app = create_app(make_settings(app_env=app_env, **settings))
         app.dependency_overrides[get_session] = session_override
         app.state.firebase_verifier = google.verifier() if firebase else None
         app.state.valkey = valkey
+        app.state.razorpay = razorpay  # a RazorpayClient on a fake transport (billing tests)
         client = httpx2.AsyncClient(
             transport=httpx2.ASGITransport(app=app), base_url="https://t", headers=headers
         )
