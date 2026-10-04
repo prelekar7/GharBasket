@@ -144,6 +144,27 @@ One delivery slot's van routes for a hub: a stop is a society (the captain does 
 - **Checker:** every answer is replayed on the matrix (windows with waiting, loads at every stop, pairing, return time, reload gaps); `summary.problems` lists what fails, so M7 never publishes a route the checker rejects.
 - **Fallbacks:** OSRM down → haversine distances; no plan → nearest neighbour; the service down → the gateway returns `None` and M7 keeps the previous day's sequence (M7 §6).
 
+### 3.5 `POST /assign/kitchens` (v0, M-G; greedy baseline inside)
+Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` at T-1 21:30, through `intel_gateway.api.assign_kitchens`, recorded in `intel.predictions` kind `assignment`).
+
+```
+  request:
+    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],
+    "kitchens": [ { "id": "<partner id>", "lat", "lng", "max_portions", "skills": [...], "rating": 4.5,
+                    "earnings_paise": 120000 } ],                      rolling earnings before tonight
+    "fairness_lambda": 0.5,            0 = cost only; the eval harness sweeps it for the Pareto curve
+    "rating_floor": 3.8, "max_km": 5, "paise_per_portion": 6000, "quality_paise_per_star": 500,
+    "time_limit_s": 5
+  200:
+    "status": "solved" | "fallback" | "infeasible",   fallback = greedy nearest kitchen
+    "assignments": [ { "order_id", "kitchen_id", "portions", "km" } ],
+    "summary": { "portions", "kitchens_used", "km_per_portion", "cost_paise_per_portion",
+                 "gini", "earnings_paise": [...] } | null,
+    "seconds", "model": "assignment-cpsat-v0"
+```
+- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × the largest deviation of any kitchen's earnings (rolling + tonight) from the fair share — the linear proxy for the Gini in handbook 08 M-G.
+- **Fallbacks:** no plan or too many orders → greedy nearest kitchen with room (`status: fallback`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**

@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
+    AssignRequest,
+    KitchenAssignment,
     PantryItem,
     PantryObservation,
     PantryQuantities,
@@ -116,6 +118,49 @@ async def pantry_quantities(
             model_name=answer.model,
         )
     return answer
+
+
+async def assign_kitchens(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: AssignRequest,
+    *,
+    session: AsyncSession | None = None,
+    hub_id: uuid.UUID | None = None,
+    for_date: date | None = None,
+) -> KitchenAssignment | None:
+    """Tomorrow's tiffin portions to kitchens from the ML service (M10 §3.5), kept in
+    `intel.predictions` (kind `assignment`, subject the hub). None when the service does not
+    answer: M8's job assigns greedily by distance itself (M8 §6)."""
+    if not settings.ml_service_url:
+        return None
+    headers = {}
+    if settings.ml_service_token is not None:
+        headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
+    try:
+        response = await http.post(
+            f"{settings.ml_service_url.rstrip('/')}/assign/kitchens",
+            json=request.model_dump(mode="json"),
+            headers=headers,
+            timeout=max(settings.ml_timeout_s, request.time_limit_s + 5.0),
+        )
+        response.raise_for_status()
+        plan = KitchenAssignment.model_validate(response.json())
+    except (httpx2.HTTPError, ValueError) as exc:
+        log.warning("ml_fallback", call="assign_kitchens", reason=type(exc).__name__)
+        return None
+    if session is not None and hub_id is not None and for_date is not None:
+        await service.record_prediction(
+            session,
+            kind="assignment",
+            subject_type="hub",
+            subject_id=hub_id,
+            for_date=for_date,
+            source="ml",
+            payload=plan.model_dump(mode="json"),
+            model_name=plan.model,
+        )
+    return plan
 
 
 async def solve_routes(

@@ -264,3 +264,66 @@ class RouteResponse(BaseModel):
     summary: RouteSummary
     seconds: float
     model: str = "cvrptw-waves-v0"
+
+
+# --- POST /assign/kitchens (M10 §3.5): tomorrow's tiffin portions to home kitchens ------------
+
+
+class TiffinOrderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80, description="The order id (opaque here)")
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    portions: int = Field(ge=1, le=200)
+    skills: list[str] = Field(default_factory=list, description="Menu skills the order needs")
+
+
+class KitchenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    max_portions: int = Field(ge=0, le=1000, description="Capacity for this meal")
+    skills: list[str] = Field(default_factory=list)
+    rating: float = Field(default=4.5, ge=0, le=5)
+    earnings_paise: int = Field(default=0, ge=0, description="Rolling earnings before tonight")
+
+
+class AssignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    orders: list[TiffinOrderIn] = Field(min_length=1, max_length=2000)
+    kitchens: list[KitchenIn] = Field(min_length=1, max_length=300)
+    fairness_lambda: float = Field(default=0.5, ge=0, le=10, description="0 = cost only")
+    rating_floor: float = Field(default=3.8, ge=0, le=5)
+    max_km: float = Field(default=5.0, gt=0, le=50)
+    paise_per_portion: int = Field(default=6000, ge=0, description="What a kitchen earns")
+    quality_paise_per_star: int = Field(default=500, ge=0, description="Penalty per star below 5")
+    time_limit_s: float = Field(default=5.0, ge=0.1, le=20.0)
+    max_orders_for_solver: int = Field(default=1500, ge=1)
+
+
+class AssignmentOut(BaseModel):
+    order_id: str
+    kitchen_id: str
+    portions: int
+    km: float
+
+
+class AssignSummary(BaseModel):
+    portions: int
+    kitchens_used: int
+    km_per_portion: float
+    cost_paise_per_portion: int
+    gini: float = Field(description="Of the kitchens' rolling earnings after tonight")
+    earnings_paise: list[int]
+
+
+class AssignResponse(BaseModel):
+    status: Literal["solved", "fallback", "infeasible"]
+    assignments: list[AssignmentOut]
+    summary: AssignSummary | None
+    seconds: float
+    model: str = "assignment-cpsat-v0"

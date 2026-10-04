@@ -229,3 +229,58 @@ class RoutePlan(BaseModel):
     summary: RouteSummary
     seconds: float
     model: str
+
+
+# --- POST /assign/kitchens (M10 §3.5): tiffin portions to home kitchens ------------------------
+
+
+class TiffinOrder(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    portions: int
+    skills: list[str] = Field(default_factory=list)
+
+
+class Kitchen(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    max_portions: int
+    skills: list[str] = Field(default_factory=list)
+    rating: float = 4.5
+    earnings_paise: int = 0
+
+
+class AssignRequest(BaseModel):
+    orders: list[TiffinOrder] = Field(min_length=1)
+    kitchens: list[Kitchen] = Field(min_length=1)
+    fairness_lambda: float = 0.5
+    rating_floor: float = 3.8
+    max_km: float = 5.0
+    paise_per_portion: int = 6000
+    time_limit_s: float = 5.0
+
+
+class Assignment(BaseModel):
+    order_id: str
+    kitchen_id: str
+    portions: int
+    km: float
+
+
+class AssignSummary(BaseModel):
+    portions: int
+    kitchens_used: int
+    km_per_portion: float
+    cost_paise_per_portion: int
+    gini: float
+    earnings_paise: list[int]
+
+
+class KitchenAssignment(BaseModel):
+    status: Literal["solved", "fallback", "infeasible"]
+    assignments: list[Assignment]
+    summary: AssignSummary | None
+    seconds: float
+    model: str

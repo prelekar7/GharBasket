@@ -190,6 +190,7 @@ sequenceDiagram
   - Constraints: capacity, menu skills, rating floor, distance ≤ X km.
 - **Objective:** minimise distance + quality penalty + **λ × earnings inequality**. The inequality term is the maximum deviation from the fair share over a rolling 4 weeks (a linear proxy for the Gini coefficient).
 - **Metrics:** Gini of weekly partner earnings, cost per portion, rating. Compared with a greedy nearest-kitchen baseline. A λ-sweep produces a Pareto curve (paper figure).
+- **Status (5 Oct 2026, v0):** `POST /assign/kitchens` serves the CP-SAT model with the λ term and greedy nearest as baseline and fallback; the gateway records the plan per hub. The λ sweep in the eval harness and M8's tables and job come with the January product PR.
 
 ### M-H Slot pricing ("green slots")
 - The marginal insertion cost of an address into existing tentative routes → slot discount ranking.
