@@ -138,6 +138,35 @@
       "childrenAges": "5 to 17",
       "little": "Little ones",
       "littleAges": "Under 5"
+    },
+    "food": {
+      "title": "What does your family eat?",
+      "diet": "Diet",
+      "diets": {
+        "veg": "Veg",
+        "egg": "Eggetarian",
+        "nonveg": "Non-veg"
+      },
+      "cuisine": "Food you cook most",
+      "cuisines": {
+        "maharashtrian": "Maharashtrian",
+        "north_indian": "North Indian",
+        "gujarati": "Gujarati",
+        "south_indian": "South Indian",
+        "bengali": "Bengali"
+      },
+      "rules": "Food rules",
+      "jain": "Jain",
+      "jainDesc": "No onion, garlic or root vegetables",
+      "noOnion": "No onion and garlic on some days",
+      "fasting": "Fasting days",
+      "fastList": {
+        "shravan_mondays": "Shravan Mondays",
+        "ekadashi": "Ekadashi",
+        "navratri": "Navratri",
+        "tuesdays": "Tuesdays"
+      },
+      "fastNote": "On fasting days Autopilot plans upvas food like sabudana khichdi."
     }
   }
 }
