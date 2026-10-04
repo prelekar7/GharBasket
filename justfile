@@ -48,21 +48,29 @@ up-all:
     {{compose}} --profile storage --profile ml up storage-init
     {{compose}} --profile storage --profile ml up -d --wait
 
+# Build the Mumbai-region road network for OSRM once (downloads ~220 MB; see infra/osrm/README.md)
+osrm-prepare:
+    ./infra/osrm/prepare.sh
+
+# Start the OSRM routing server on http://localhost:5050 (after `just osrm-prepare`)
+up-routing:
+    {{compose}} --profile routing up -d --wait osrm
+
 # Stop all containers (data volumes are kept)
 down:
-    {{compose}} --profile storage --profile ml down
+    {{compose}} --profile storage --profile ml --profile routing down
 
 # Stop everything and DELETE all local data volumes (database, queue, storage)
 reset:
-    {{compose}} --profile storage --profile ml down -v
+    {{compose}} --profile storage --profile ml --profile routing down -v
 
 # Show container status
 ps:
-    {{compose}} --profile storage --profile ml ps
+    {{compose}} --profile storage --profile ml --profile routing ps
 
 # Follow logs, e.g. `just logs postgres`
 logs *services:
-    {{compose}} --profile storage --profile ml logs -f --tail=100 {{services}}
+    {{compose}} --profile storage --profile ml --profile routing logs -f --tail=100 {{services}}
 
 # Open a psql shell in the local database
 psql db="gharbasket":

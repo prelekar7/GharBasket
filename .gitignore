@@ -46,6 +46,8 @@ local.properties
 mlruns/
 data/sim_truth/
 *.parquet
+# OSRM road network (built by `just osrm-prepare`, about 1 GB)
+infra/osrm/data/
 
 # Claude Code agent worktrees (temporary checkouts)
 .claude/worktrees/

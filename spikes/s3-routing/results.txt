@@ -1,0 +1,82 @@
+Instance (seed 7): 50 societies, 614 orders, 2750 kg, 222 crates out, 143 empties back, 8 donation pickups for the food bank; 14 vans available (400 kg, 24 crates each)
+OSRM: snapping and a 59x59 table took 0.19 s
+
+| Method | Vehicles | ₹/order | km/order | km | Hours | On time | Time | Checks |
+|---|---|---|---|---|---|---|---|---|
+| One trip per order (bikes) | 72 | 76.57 | 13.07 | 8026 | 249.6 | 96 % | 0.05 s | ok |
+| Nearest neighbour (vans) | 10 | 7.93 | 0.48 | 295 | 20.3 | 92 % | 0.00 s | ok |
+| OR-Tools CVRPTW (5 s) | 10 | 6.87 | 0.35 | 216 | 14.7 | 100 % | 5.02 s | ok |
+| OR-Tools CVRPTW (30 s) | 10 | 6.87 | 0.35 | 216 | 14.7 | 100 % | 30.00 s | ok |
+| OR-Tools CVRPTW (30 s), then routes packed onto vans | 10 | 6.87 | 0.35 | 216 | 14.7 | 100 % | 30.00 s | ok |
+| OR-Tools trips of <= 90 min (30 s), then routes packed onto vans | 11 | 7.42 | 0.39 | 238 | 15.4 | 100 % | 30.01 s | ok |
+| OR-Tools, 6 vans x 2 trips (30 s) | 6 | 5.39 | 0.39 | 242 | 15.4 | 100 % | 30.00 s | ok |
+| OR-Tools in two waves (30 s) | 6 | 5.49 | 0.42 | 255 | 15.9 | 100 % | 30.00 s | ok |
+
+Bikes needed for 95 % on time: 72
+Two trips a van: fleets tried [5, 6]; the first with every society on time is used
+
+If van riders are paid for the whole 06:30-11:00 shift instead of route time:
+  Nearest neighbour (vans): ₹13.15 an order
+  OR-Tools CVRPTW (30 s): ₹13.08 an order
+  OR-Tools, 6 vans x 2 trips (30 s): ₹7.96 an order
+  OR-Tools in two waves (30 s): ₹7.97 an order
+
+OR-Tools best objective so far (₹, includes lateness penalties):
+  first solution after 0.03 s: ₹5,723
+  by  1 s: ₹4,266
+  by  2 s: ₹4,236
+  by  5 s: ₹4,219
+  by 10 s: ₹4,219
+  by 20 s: ₹4,219
+  by 30 s: ₹4,219
+
+Routes (OR-Tools CVRPTW (30 s); FB = food bank):
+  van 1: leaves 08:18  hub → 18 → 22 → 16 → 37 → 32 → 17 → FB → FB → FB → FB → hub
+  van 2: leaves 06:48  hub → 50 → 49 → 25 → 4 → 24 → 36 → FB → FB → FB → FB → hub
+  van 3: leaves 07:24  hub → 38 → 44 → 26 → 23 → 14 → 11 → hub
+  van 4: leaves 06:48  hub → 28 → 33 → 31 → 10 → 20 → hub
+  van 5: leaves 07:42  hub → 40 → 43 → 48 → 6 → 12 → hub
+  van 6: leaves 08:21  hub → 1 → 3 → 9 → 21 → hub
+  van 8: leaves 07:45  hub → 42 → 5 → 47 → 29 → hub
+  van 9: leaves 06:45  hub → 39 → 7 → 45 → 13 → hub
+  van 10: leaves 07:56  hub → 2 → 46 → 19 → 34 → 27 → hub
+  van 11: leaves 07:48  hub → 35 → 15 → 41 → 30 → 8 → hub
+
+Routes (OR-Tools in two waves (30 s); FB = food bank):
+  van 1: leaves 06:44  hub → 33 → 31 → 10 → 20 → 14 → hub
+  van 1: leaves 08:21  hub → 29 → 41 → 30 → 46 → 19 → hub
+  van 2: leaves 06:53  hub → 21 → 11 → hub
+  van 2: leaves 07:52  hub → 22 → 32 → 17 → 35 → 36 → 43 → FB → FB → 6 → hub
+  van 3: leaves 06:45  hub → 39 → 7 → 45 → 13 → hub
+  van 3: leaves 08:27  hub → 42 → 47 → 26 → 44 → 16 → hub
+  van 4: leaves 06:47  hub → 37 → 23 → 38 → 50 → 25 → 24 → FB → FB → FB → hub
+  van 4: leaves 09:18  hub → 2 → 34 → 3 → 1 → hub
+  van 5: leaves 07:38  hub → 18 → FB → 40 → 8 → 48 → 12 → hub
+  van 5: leaves 09:33  hub → 27 → 9 → hub
+  van 6: leaves 08:04  hub → 4 → 28 → 15 → 49 → 5 → FB → FB → hub
+
+Map: spikes/s3-routing/routes.geojson (open in geojson.io)
+
+Scale (same model, vans = 1.5 x the crates needed):
+| Method | Vehicles | ₹/order | km/order | km | Hours | On time | Time | Checks |
+|---|---|---|---|---|---|---|---|---|
+<!-- 100 societies, 1285 orders, 5749 kg, 463 crates out, 332 empties back, 16 donation pickups for the food bank; 29 vans available (400 kg, 24 crates each) -->
+| 100 stops: One trip per order (bikes) | 145 | 73.27 | 12.54 | 16108 | 498.9 | 95 % | 0.27 s | ok |
+| 100 stops: Nearest neighbour (vans) | 20 | 7.21 | 0.36 | 467 | 36.8 | 99 % | 0.00 s | van 4: over capacity at Society 46 (251.4 kg, 25 cr); van 4: over capacity at Society 74 (162.1 kg, 25 cr) |
+| 100 stops: OR-Tools CVRPTW (5 s) | 20 | 6.44 | 0.31 | 397 | 28.1 | 100 % | 5.00 s | ok |
+| 100 stops: OR-Tools CVRPTW (30 s) | 20 | 6.44 | 0.31 | 397 | 28.1 | 100 % | 30.00 s | ok |
+| 100 stops: OR-Tools CVRPTW (30 s), then routes packed onto vans | 19 | 6.24 | 0.31 | 397 | 28.1 | 100 % | 30.00 s | ok |
+| 100 stops: OR-Tools trips of <= 90 min (30 s), then routes packed onto vans | 22 | 6.91 | 0.33 | 423 | 28.9 | 100 % | 30.00 s | ok |
+| 100 stops: OR-Tools in two waves (30 s) | 11 | 4.93 | 0.37 | 473 | 30.5 | 100 % | 30.00 s | ok |
+100 stops: chained 2 trips found no all-on-time plan for fleets [10, 11, 12, 13, 14, 15]
+first CP solution after 0.15 s
+<!-- 200 societies, 2387 orders, 10784 kg, 871 crates out, 613 empties back, 33 donation pickups for the food bank; 55 vans available (400 kg, 24 crates each) -->
+| 200 stops: One trip per order (bikes) | 282 | 75.19 | 12.91 | 30808 | 948.8 | 95 % | 1.48 s | ok |
+| 200 stops: Nearest neighbour (vans) | 38 | 7.46 | 0.37 | 892 | 72.0 | 98 % | 0.00 s | van 9: over capacity at Society 176 (46.9 kg, 25 cr); van 9: over capacity at Society 200 (20.0 kg, 25 cr) |
+| 200 stops: OR-Tools CVRPTW (5 s) | 37 | 6.51 | 0.31 | 749 | 54.0 | 100 % | 5.00 s | ok |
+| 200 stops: OR-Tools CVRPTW (30 s) | 37 | 6.51 | 0.31 | 749 | 54.0 | 100 % | 30.00 s | ok |
+| 200 stops: OR-Tools CVRPTW (30 s), then routes packed onto vans | 37 | 6.51 | 0.31 | 749 | 54.0 | 100 % | 30.00 s | ok |
+| 200 stops: OR-Tools trips of <= 90 min (30 s), then routes packed onto vans | 43 | 7.25 | 0.35 | 825 | 56.2 | 100 % | 30.00 s | ok |
+| 200 stops: OR-Tools in two waves (30 s) | 22 | 5.06 | 0.34 | 818 | 56.3 | 100 % | 30.01 s | ok |
+200 stops: chained 2 trips found no all-on-time plan for fleets [19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+first CP solution after 0.83 s

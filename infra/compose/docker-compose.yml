@@ -3,6 +3,7 @@
 #   default profile : postgres, valkey                (always needed; about 400 MB RAM)
 #   "storage"       : seaweedfs (S3 API) + bucket init (about 300 MB RAM)
 #   "ml"            : mlflow tracking server           (needs "storage"; about 500 MB RAM)
+#   "routing"       : osrm road network for Mumbai     (needs `just osrm-prepare`; about 100 MB RAM)
 #
 # Everything binds to 127.0.0.1 only. Defaults match .env.example, so no .env is required.
 name: gharbasket
@@ -139,6 +140,25 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  osrm:
+    profiles: ["routing"]
+    image: ghcr.io/project-osrm/osrm-backend:v26.10.0-debian
+    restart: unless-stopped
+    # MLD matches osrm-partition/osrm-customize in infra/osrm/prepare.sh. The table limit covers a
+    # hub's day (about 200 stops) in one matrix request; the default of 100 is too small.
+    command: ["osrm-routed", "--algorithm", "mld", "--max-table-size", "500", "/data/mmr.osrm"]
+    ports:
+      - "127.0.0.1:${OSRM_PORT:-5050}:5000"
+    volumes:
+      - ../osrm/data:/data:ro
+    mem_limit: 768m
+    healthcheck:
+      # The image has no curl or wget; bash can open a TCP socket itself.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/5000'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
 volumes:
   pgdata:
