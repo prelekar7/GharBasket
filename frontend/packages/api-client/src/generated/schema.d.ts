@@ -72,6 +72,23 @@ export interface paths {
         patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/v1/admin/societies/{society_id}/delivery-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set a society's delivery days (hub manager of its hub, or admin; audit-logged) */
+        put: operations["put_delivery_days_v1_admin_societies__society_id__delivery_days_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/user-roles": {
         parameters: {
             query?: never;
@@ -169,6 +186,57 @@ export interface paths {
         put?: never;
         /** Give or withdraw one consent (withdrawing health erases health details) */
         post: operations["set_consent_v1_consents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** This week's cycle: meal plan, lines with reasons, Budget Lock (ETag = version) */
+        get: operations["current_cycle_v1_cycles_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The first week, from today's prices and the household's rules; nothing is saved */
+        get: operations["preview_cycle_v1_cycles_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One week (history) */
+        get: operations["get_cycle_v1_cycles__cycle_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -521,6 +589,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The plan catalogue */
+        get: operations["list_plans_v1_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/prices": {
         parameters: {
             query?: never;
@@ -708,6 +793,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/societies/{society_id}/delivery-days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A society's delivery days and slots */
+        get: operations["get_delivery_days_v1_societies__society_id__delivery_days_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/societies/{society_id}/unlock": {
         parameters: {
             query?: never;
@@ -740,6 +842,41 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Subscribe the caller's household (one subscription per household) */
+        post: operations["subscribe_v1_subscriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/subscriptions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's subscription */
+        get: operations["get_subscription_v1_subscriptions_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Pause or resume, or set auto-approve */
+        patch: operations["patch_subscription_v1_subscriptions_current_patch"];
         trace?: never;
     };
     "/v1/wallet": {
@@ -890,6 +1027,20 @@ export interface components {
             /** Tower Id */
             tower_id?: string | null;
         };
+        /** BudgetLockOut */
+        BudgetLockOut: {
+            /** Budget Paise */
+            budget_paise: number;
+            /**
+             * Month
+             * @example 2026-10
+             */
+            month: string;
+            /** Remaining Paise */
+            remaining_paise: number;
+            /** Spent Paise */
+            spent_paise: number;
+        };
         /** CaptainCard */
         CaptainCard: {
             /**
@@ -899,6 +1050,13 @@ export interface components {
             display_name: string;
             /** Photo Url */
             photo_url: string | null;
+        };
+        /** CaptainOut */
+        CaptainOut: {
+            /** Flat */
+            flat: string;
+            /** Name */
+            name: string;
         };
         /** CategoryRef */
         CategoryRef: {
@@ -948,6 +1106,139 @@ export interface components {
             revoked_at: string | null;
             /** Version */
             version: string;
+        };
+        /** CycleLineOut */
+        CycleLineOut: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /** Reason Code */
+            reason_code: string;
+            /** Reason Params */
+            reason_params: {
+                [key: string]: unknown;
+            } | null;
+            replaces: components["schemas"]["ReplacedOut"] | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ai" | "rule" | "customer";
+            step: components["schemas"]["CycleStep"];
+            /** Total Paise */
+            total_paise: number;
+            /** Unit Price Paise */
+            unit_price_paise: number;
+        };
+        /** CycleOut */
+        CycleOut: {
+            /** Approved At */
+            approved_at: string | null;
+            budget_lock: components["schemas"]["BudgetLockOut"] | null;
+            captain: components["schemas"]["CaptainOut"] | null;
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /** Generated At */
+            generated_at: string | null;
+            /** Highlights */
+            highlights: components["schemas"]["HighlightOut"][];
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Id
+             * @description null for a preview
+             */
+            id: string | null;
+            /** Lines */
+            lines: components["schemas"]["CycleLineOut"][];
+            meal_plan: components["schemas"]["MealPlanOut"];
+            /** Order Id */
+            order_id: string | null;
+            slot: components["schemas"]["SlotRefOut"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview";
+            /** Total Paise */
+            total_paise: number;
+            /** Version */
+            version: number;
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+        };
+        /** CycleStep */
+        CycleStep: {
+            /** Label */
+            label: string;
+            /** Qty */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** DayOut */
+        DayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Meals */
+            meals: components["schemas"]["MealOut"][];
+        };
+        /** DeliveryDayIn */
+        DeliveryDayIn: {
+            /**
+             * Slot Id
+             * Format: uuid
+             */
+            slot_id: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** DeliveryDayOut */
+        DeliveryDayOut: {
+            slot: components["schemas"]["SlotRefOut"];
+            /**
+             * Weekday
+             * @description 0 = Monday
+             */
+            weekday: number;
+        };
+        /** DeliveryDaysIn */
+        DeliveryDaysIn: {
+            /** Items */
+            items: components["schemas"]["DeliveryDayIn"][];
+        };
+        /** DeliveryDaysOut */
+        DeliveryDaysOut: {
+            /** Items */
+            items: components["schemas"]["DeliveryDayOut"][];
         };
         /** DeviceIn */
         DeviceIn: {
@@ -1116,6 +1407,15 @@ export interface components {
             status: "ok";
             /** Version */
             version: string;
+        };
+        /** HighlightOut */
+        HighlightOut: {
+            /** Code */
+            code: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
         };
         /**
          * HouseholdIn
@@ -1357,6 +1657,32 @@ export interface components {
             /** Senior Mode */
             senior_mode?: boolean | null;
         };
+        /** MealOut */
+        MealOut: {
+            /** Name */
+            name: string | null;
+            /** Recipe Id */
+            recipe_id: string | null;
+            /** Sides */
+            sides: string[];
+            /**
+             * Slot
+             * @enum {string}
+             */
+            slot: "breakfast" | "lunch" | "dinner";
+            /** Tiffin */
+            tiffin: boolean;
+        };
+        /** MealPlanOut */
+        MealPlanOut: {
+            /** Days */
+            days: components["schemas"]["DayOut"][];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+        };
         /** MemberIn */
         MemberIn: {
             /**
@@ -1449,7 +1775,7 @@ export interface components {
             shortage_qty: number;
             /** Slug */
             slug: string;
-            step: components["schemas"]["gharbasket__modules__orders__schemas__Step"];
+            step: components["schemas"]["OrderStep"];
             substituted_from: components["schemas"]["ProductRef"] | null;
             /** Total Paise */
             total_paise: number;
@@ -1541,6 +1867,28 @@ export interface components {
              * @enum {string}
              */
             type: "order";
+        };
+        /**
+         * OrderStep
+         * @description The unit a person adds or removes (the same shape as M2's `Step`); prices are per step.
+         */
+        OrderStep: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
         };
         /** OrderSummaryOut */
         OrderSummaryOut: {
@@ -1640,6 +1988,25 @@ export interface components {
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** PlanOut */
+        PlanOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "autopilot" | "tiffin" | "salad";
+            /** Features */
+            features: string[];
+            /** Fee Paise */
+            fee_paise: number;
+            /** Name */
+            name: string;
+        };
+        /** PlansOut */
+        PlansOut: {
+            /** Items */
+            items: components["schemas"]["PlanOut"][];
         };
         /** Price */
         Price: {
@@ -1816,7 +2183,7 @@ export interface components {
              * @example bhindi
              */
             slug: string;
-            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
+            step: components["schemas"]["Step"];
             /**
              * Tags
              * @example [
@@ -1978,6 +2345,20 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** ReplacedOut */
+        ReplacedOut: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            /** Unit Price Paise */
+            unit_price_paise: number;
+        };
         /**
          * RoleGrantIn
          * @description Grant a role to an existing user (they must have signed in once).
@@ -2048,7 +2429,7 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
-            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
+            step: components["schemas"]["Step"];
         };
         /** SearchResults */
         SearchResults: {
@@ -2141,6 +2522,26 @@ export interface components {
         };
         /** SlotRef */
         SlotRef: {
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: time
+             */
+            start: string;
+        };
+        /** SlotRefOut */
+        SlotRefOut: {
             /**
              * End
              * Format: time
@@ -2287,6 +2688,90 @@ export interface components {
              */
             status: "prospect" | "unlocking" | "live" | "paused";
         };
+        /**
+         * Step
+         * @description The unit a person adds or removes in the app; prices are per step.
+         */
+        Step: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** SubscriptionIn */
+        SubscriptionIn: {
+            /**
+             * Payment Mode
+             * @default wallet
+             * @enum {string}
+             */
+            payment_mode: "wallet" | "autopay";
+            /**
+             * Plan
+             * @default autopilot
+             * @enum {string}
+             */
+            plan: "autopilot" | "tiffin" | "salad";
+        };
+        /** SubscriptionOut */
+        SubscriptionOut: {
+            /** Auto Approve */
+            auto_approve: boolean;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Paused Until */
+            paused_until: string | null;
+            /**
+             * Payment Mode
+             * @enum {string}
+             */
+            payment_mode: "wallet" | "autopay";
+            /**
+             * Plan
+             * @enum {string}
+             */
+            plan: "autopilot" | "tiffin" | "salad";
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "ended";
+        };
+        /** SubscriptionPatch */
+        SubscriptionPatch: {
+            /** Auto Approve */
+            auto_approve?: boolean | null;
+            /**
+             * Paused Until
+             * @description null resumes
+             */
+            paused_until?: string | null;
+        };
         /** SubstituteOut */
         SubstituteOut: {
             /** Name */
@@ -2324,7 +2809,7 @@ export interface components {
             score: number;
             /** Slug */
             slug: string;
-            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
+            step: components["schemas"]["Step"];
         };
         /** Substitutes */
         Substitutes: {
@@ -2512,50 +2997,6 @@ export interface components {
              * @description What the event did (for Razorpay's dashboard and logs)
              */
             outcome: string;
-        };
-        /**
-         * Step
-         * @description The unit a person adds or removes in the app; prices are per step.
-         */
-        gharbasket__modules__catalog__schemas__Step: {
-            /**
-             * Label
-             * @description In the requested language
-             * @example 250 g
-             */
-            label: string;
-            /**
-             * Qty
-             * @example 250
-             */
-            qty: number;
-            /**
-             * Unit
-             * @enum {string}
-             */
-            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
-        };
-        /**
-         * Step
-         * @description The unit a person adds or removes (the same shape as M2's `Step`); prices are per step.
-         */
-        gharbasket__modules__orders__schemas__Step: {
-            /**
-             * Label
-             * @description In the requested language
-             * @example 250 g
-             */
-            label: string;
-            /**
-             * Qty
-             * @example 250
-             */
-            qty: number;
-            /**
-             * Unit
-             * @enum {string}
-             */
-            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
         };
     };
     responses: never;
@@ -2816,6 +3257,71 @@ export interface operations {
                 };
             };
             /** @description orders.slot_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_delivery_days_v1_admin_societies__society_id__delivery_days_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryDaysIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryDaysOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.delivery_days_invalid, subscriptions.society_unknown */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3179,6 +3685,185 @@ export interface operations {
             };
             /** @description identity.consent_version_stale (with current_version) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    current_cycle_v1_cycles_current_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_cycle_v1_cycles_preview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_delivery_day */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_cycle_v1_cycles__cycle_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4544,6 +5229,56 @@ export interface operations {
             };
         };
     };
+    list_plans_v1_plans_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_prices_v1_prices_get: {
         parameters: {
             query: {
@@ -5092,6 +5827,57 @@ export interface operations {
             };
         };
     };
+    get_delivery_days_v1_societies__society_id__delivery_days_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryDaysOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     society_unlock_v1_societies__society_id__unlock_get: {
         parameters: {
             query?: never;
@@ -5204,6 +5990,216 @@ export interface operations {
             };
             /** @description community.request_rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    subscribe_v1_subscriptions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_found: no household yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.payment_mode_unavailable, subscriptions.plan_unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_subscription_v1_subscriptions_current_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_subscription_v1_subscriptions_current_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

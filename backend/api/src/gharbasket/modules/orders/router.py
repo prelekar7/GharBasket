@@ -16,6 +16,7 @@ from gharbasket.modules.orders.schemas import (
     AddonsIn,
     OrderLineOut,
     OrderOut,
+    OrderStep,
     OrderSummaryOut,
     ProductRef,
     SlotIn,
@@ -24,7 +25,6 @@ from gharbasket.modules.orders.schemas import (
     SlotRef,
     SlotsOut,
     Status,
-    Step,
     TimelineEntry,
 )
 from gharbasket.modules.orders.service import IST, SlotLoad
@@ -136,7 +136,7 @@ async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
                 name=localised(product.names, lang) if product else "",
                 kind=line.kind,  # pyright: ignore[reportArgumentType]
                 qty=line.qty,
-                step=Step(
+                step=OrderStep(
                     qty=line.step_qty,
                     unit=line.step_unit,  # pyright: ignore[reportArgumentType]
                     label=step_label(line.step_qty, line.step_unit, lang),

@@ -6,6 +6,8 @@
 """
 
 import uuid
+from dataclasses import dataclass
+from datetime import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,12 +28,14 @@ __all__ = [
     "Order",
     "OrderLine",
     "OrderSummary",
+    "SlotRef",
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
     "get",
     "mark_shortage",
     "orders_for_delivery",
+    "slot_ref",
     "transition",
 ]
 
@@ -70,4 +74,26 @@ async def mark_shortage(
     order = await service.get(session, order_id, for_update=True)
     return await service.mark_shortage(
         session, order, product_id, shortage_qty, substitute_product_id
+    )
+
+
+@dataclass(frozen=True)
+class SlotRef:
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    label: str
+    kind: str
+    start: time
+    end: time
+    active: bool
+
+
+async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
+    """A slot by id (M3's delivery days point at M4's slots); None if unknown."""
+    try:
+        slot = await service.get_slot(session, slot_id)
+    except Exception:
+        return None
+    return SlotRef(
+        slot.id, slot.hub_id, slot.label, slot.kind, slot.start_time, slot.end_time, slot.active
     )

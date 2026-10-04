@@ -45,3 +45,14 @@ async def contains(session: AsyncSession, society_id: uuid.UUID, lat: float, lng
         )
     )
     return bool(inside.scalar_one_or_none())
+
+
+async def hubs_with_societies(session: AsyncSession) -> list[uuid.UUID]:
+    """Every hub that serves at least one society (the generation job runs per hub)."""
+    rows = await session.execute(
+        select(Society.hub_id)
+        .where(Society.hub_id.is_not(None))
+        .distinct()
+        .order_by(Society.hub_id)
+    )
+    return [hub_id for hub_id in rows.scalars() if hub_id is not None]

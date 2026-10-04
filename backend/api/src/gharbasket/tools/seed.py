@@ -11,8 +11,9 @@ with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made
 Kharghar, Kamothe and Panvel sectors, with approximate boundaries; four of the people have a
 household there, created through the same onboarding service as `POST /v1/households`. The
 catalog (categories and products with English, Hindi and Marathi names) comes from
-data/seeds/catalog/*.json. Later module PRs add their rows here and use the hub, society and NGO
-ids below.
+data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed society with a
+hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
+Later module PRs add their rows here and use the hub, society and NGO ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
 """
@@ -47,6 +48,8 @@ from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
+from gharbasket.modules.orders import service as orders_service
+from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import DatabaseSettings
@@ -404,12 +407,53 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
     return saved
 
 
+SEED_SLOT_LABEL = "Morning 7-9"
+SEED_DELIVERY_WEEKDAY = 1  # Tuesday
+
+
+async def seed_delivery(session: AsyncSession) -> tuple[uuid.UUID, int]:
+    """One morning box slot at the seed hub, and Tuesday delivery for each seed society with a
+    hub (M3/M4). Returns (slot id, societies set). Existing rows are kept."""
+    from datetime import time
+
+    from sqlalchemy import select
+
+    from gharbasket.modules.orders.models import Slot
+
+    slot = (
+        await session.execute(
+            select(Slot).where(Slot.hub_id == SEED_HUB_ID, Slot.label == SEED_SLOT_LABEL)
+        )
+    ).scalar_one_or_none()
+    if slot is None:
+        slot = await orders_service.create_slot(
+            session,
+            hub_id=SEED_HUB_ID,
+            label=SEED_SLOT_LABEL,
+            kind="box",
+            start=time(7, 0),
+            end=time(9, 0),
+            capacity=120,
+        )
+    societies = 0
+    for data in SOCIETIES:
+        if data.hub_id is None:
+            continue
+        if not await subscriptions_service.delivery_days(session, data.id):
+            await subscriptions_service.set_delivery_days(
+                session, data.id, SEED_HUB_ID, [(SEED_DELIVERY_WEEKDAY, slot.id)]
+            )
+        societies += 1
+    return slot.id, societies
+
+
 @dataclass(frozen=True)
 class Report:
     people: list[Seeded]
     societies: list[tuple[str, bool]]
     households: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
+    delivery: tuple[uuid.UUID, int] | None = None
 
 
 async def run(database_url: str) -> Report:
@@ -421,6 +465,7 @@ async def run(database_url: str) -> Report:
                 societies=await seed_societies(session),
                 households=await seed_households(session),
                 products=await seed_catalog(session),
+                delivery=await seed_delivery(session),
             )
             await session.commit()
             return report
@@ -452,6 +497,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{len(report.households)} synthetic households")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
+    if report.delivery:
+        print(f"delivery: slot {report.delivery[0]} on Tuesdays for {report.delivery[1]} societies")
     return 0
 
 

@@ -10,7 +10,7 @@ Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
 SlotKind = Literal["box", "tiffin"]
 
 
-class Step(BaseModel):
+class OrderStep(BaseModel):
     """The unit a person adds or removes (the same shape as M2's `Step`); prices are per step."""
 
     qty: int = Field(examples=[250])
@@ -91,7 +91,7 @@ class OrderLineOut(BaseModel):
     name: str = Field(description="In the Accept-Language language")
     kind: LineKind
     qty: int = Field(description="Steps", examples=[2])
-    step: Step
+    step: OrderStep
     unit_price_paise: int = Field(description="Per step, frozen when the line was made")
     total_paise: int
     reason_code: str | None
