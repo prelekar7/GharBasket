@@ -8,6 +8,7 @@ name: Training jobs
 on:
   schedule:
     - cron: "3 13 * * *" # 18:33 IST daily: collect_mandi (Agmarknet publishes during the day)
+    - cron: "33 20 * * *" # 02:03 IST daily: export_snapshots (the lake and the feature snapshots)
   workflow_dispatch:
     inputs:
       job:
@@ -41,6 +42,7 @@ jobs:
       S3_BUCKET_LAKE: gb-lake
       API_URL: ${{ secrets.STAGING_API_URL }}
       JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+      DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}
     steps:
       - name: Check that the secrets exist
         id: configured
@@ -67,6 +69,7 @@ jobs:
       - name: Run it
         if: steps.configured.outputs.ready == 'true'
         env:
-          JOB: ${{ inputs.job || 'collect_mandi' }}
-          ARGS: ${{ inputs.args || '--push-index' }}
+          # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots.
+          JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || 'collect_mandi') }}
+          ARGS: ${{ inputs.args || (github.event.schedule == '33 20 * * *' && '--push-features' || '--push-index') }}
         run: uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS

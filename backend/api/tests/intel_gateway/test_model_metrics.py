@@ -41,3 +41,35 @@ async def test_rows_are_stored_and_the_latest_read_back(
     assert by_metric["acceptance"].value == 0.84 and by_metric["acceptance"].version == "def5678"
     assert by_metric["distinct_perishables"].value == 9.5
     assert by_metric["acceptance"].details == {"seeds": [7, 11], "ci95": 0.02}
+
+
+async def test_feature_snapshots_are_stored_as_of_a_cut_off(
+    api: httpx2.AsyncClient, db_session: AsyncSession
+) -> None:
+    import uuid
+    from datetime import UTC, datetime
+
+    from sqlalchemy import select
+
+    from gharbasket.modules.intel_gateway.models import FeatureSnapshot
+
+    household = uuid.uuid4()
+    body = {
+        "as_of": "2026-10-09T00:00:00Z",
+        "items": [
+            {"subject_type": "household", "subject_id": str(household), "features": {"weeks": 1}}
+        ],
+    }
+    first = await api.post("/v1/internal/intel/feature-snapshots", json=body)
+    body["items"][0]["features"] = {"weeks": 2}
+    again = await api.post("/v1/internal/intel/feature-snapshots", json=body)
+    bad = await api.post(
+        "/v1/internal/intel/feature-snapshots",
+        json={**body, "items": [{**body["items"][0], "subject_type": "x"}]},
+    )
+
+    assert first.json() == {"accepted": 1} and again.json() == {"accepted": 1}
+    assert bad.status_code == 422
+    rows = (await db_session.execute(select(FeatureSnapshot))).scalars().all()
+    assert len(rows) == 1 and rows[0].features == {"weeks": 2}  # the same as_of replaces
+    assert rows[0].as_of == datetime(2026, 10, 9, tzinfo=UTC)

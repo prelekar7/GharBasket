@@ -470,6 +470,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/feature-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store point-in-time features as of a cut-off (the snapshot job; operator token) */
+        post: operations["put_feature_snapshots_v1_internal_intel_feature_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/model-metrics": {
         parameters: {
             query?: never;
@@ -479,7 +496,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Store an evaluation run's metrics (the eval harness and training jobs; operator token) */
+        /** Store an evaluation run's metrics (the eval harness, training jobs; operator token) */
         post: operations["put_model_metrics_v1_internal_intel_model_metrics_post"];
         delete?: never;
         options?: never;
@@ -1469,6 +1486,38 @@ export interface components {
              * @default false
              */
             no_onion_garlic_on_fast_days: boolean;
+        };
+        /** FeatureSnapshotIn */
+        FeatureSnapshotIn: {
+            /** Features */
+            features: {
+                [key: string]: unknown;
+            };
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "household" | "hub" | "society" | "order" | "partner" | "product";
+        };
+        /** FeatureSnapshotsIn */
+        FeatureSnapshotsIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items: components["schemas"]["FeatureSnapshotIn"][];
+        };
+        /** FeatureSnapshotsOut */
+        FeatureSnapshotsOut: {
+            /** Accepted */
+            accepted: number;
         };
         /** FeedbackIn */
         FeedbackIn: {
@@ -5278,6 +5327,57 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_feature_snapshots_v1_internal_intel_feature_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureSnapshotsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureSnapshotsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

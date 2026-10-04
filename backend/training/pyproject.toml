@@ -29,6 +29,7 @@ module-name = "gharbasket_training"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = ["services: needs local Postgres (`just up`); skipped when it is not running"]
 
 [tool.coverage.run]
 source = ["gharbasket_training"]
