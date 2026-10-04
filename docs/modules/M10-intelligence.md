@@ -1,6 +1,6 @@
 # M10 — Intelligence (ML & Optimisation Service)
 
-**Status:** Draft v1 — refine at phase start (spec-first)
+**Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
 **Deployables:** `backend/ml` (FastAPI; hosting to be decided before P3/P4) — long jobs run in the service or offline until a paid `ml-worker` (Taskiq queue `ml`) exists at the pilot (ADR-0021); gateway module in the API: `gharbasket.modules.intel_gateway`
@@ -33,6 +33,44 @@ All prediction and optimisation: the household simulator, pantry digital twin, n
 | POST | `/slots/price` | orders / community | — | Marginal insertion cost |
 | POST | `/embed` | catalog (job) | — | bge-m3 embeddings |
 | GET | `/models`, `/health/ai` | console (admin) | — | Champion versions, drift metrics |
+
+### 3.1 `POST /plan/week` (v0, from spike S-4)
+Stateless: the API sends everything the planner needs, so the ML service needs no database for it. The API calls it only through `intel_gateway.api.plan_week()`, with a timeout (default 3 s). On a timeout, an error or no service configured, the gateway uses its rule-based planner instead, so ML never blocks a customer.
+
+```
+POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-ID passed through)
+  request : {
+    "household": { "size": 4, "diet": "veg" | "egg", "jain": false, "diabetic": false,
+                   "cuisines": ["maharashtrian"], "weekday_cook_minutes": 30,
+                   "weekend_cook_minutes": 60, "no_cook_days": [6],     0 = Monday
+                   "weekly_budget_paise": 138568 | null },
+    "fasting_days": [ { "day": 1, "no_onion_garlic": true } ],          days of this week
+    "recipes": [ { "slug": "kanda-poha", "cuisine": "maharashtrian",
+                   "slots": ["breakfast"], "cook_minutes": 20, "diet": "veg",
+                   "jain_ok": false, "no_onion_garlic": false, "fasting_ok": false,
+                   "diabetic_ok": false, "no_cook": false,
+                   "cost_per_serving_paise": 1268, "perishables": ["coriander"] } ],  1 to 500
+    "time_limit_s": 2.0 }                                                0.1 to 5
+  200 : { "status": "optimal" | "feasible" | "infeasible",
+          "relaxed": ["repeat"],          comfort rules relaxed to find a plan (see below)
+          "plan": [ { "day": 0, "slot": "breakfast", "recipe": "kanda-poha" | null } ] | null,
+                                          21 entries (7 days × breakfast, lunch, dinner);
+                                          null recipe = tiffin (no-cook days, lunch and dinner)
+          "score": { "preference": 17, "variety": 15, "perishables": 7, "cost_paise": 111904 } | null,
+          "seconds": 0.012, "model": "cpsat-v0" }
+  401 "ml.unauthorized" (wrong or missing token) · 422 "request.invalid"
+```
+
+**Rules** (handbook 08 M-C; the S-4 note gives the evidence):
+- **Hard:**
+  - one choice per (day, slot); tiffin only for lunch and dinner on no-cook days, with a no-cook breakfast;
+  - no egg dishes for veg households; Jain households only `jain_ok` dishes; diabetic households only `diabetic_ok` lunches and dinners;
+  - on a fasting day at least one `fasting_ok` dish, and no onion or garlic all day if the fast says so;
+  - cook time **per meal** within the weekday or weekend limit;
+  - no dish twice within 2 days (breakfast) or 3 days (lunch and dinner);
+  - the week's cost (`cost_per_serving_paise` × size) within the budget.
+- **Soft:** 3 × cuisine match + 5 × variety − 4 × distinct perishables.
+- **Fallback when infeasible:** relax `repeat` (a dish may come back on a later day, never twice on the same day), then `cook_time`, then `budget`, one rule and then two. **Never** relax diet, Jain, diabetic or fasting rules. `relaxed` says what was used, and `infeasible` is returned if nothing works.
 
 ## 4. Tables owned
 | Table | Key columns |

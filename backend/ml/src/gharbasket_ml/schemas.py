@@ -1,0 +1,77 @@
+"""Request and response of POST /plan/week (M10 §3.1)."""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+Slot = Literal["breakfast", "lunch", "dinner"]
+Rule = Literal["repeat", "cook_time", "budget"]
+
+
+class HouseholdRules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    size: int = Field(ge=1, le=12)
+    diet: Literal["veg", "egg", "nonveg"]
+    jain: bool = False
+    diabetic: bool = False
+    cuisines: list[str] = Field(default_factory=list, max_length=10)
+    weekday_cook_minutes: int = Field(ge=1, le=600)
+    weekend_cook_minutes: int = Field(ge=1, le=600)
+    no_cook_days: list[int] = Field(default_factory=list, max_length=7)
+    weekly_budget_paise: int | None = Field(default=None, ge=0)
+
+
+class FastingDay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    day: int = Field(ge=0, le=6)
+    no_onion_garlic: bool = False
+
+
+class RecipeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    slug: str = Field(min_length=1, max_length=80)
+    cuisine: str
+    slots: list[Slot] = Field(min_length=1)
+    cook_minutes: int = Field(ge=1, le=600)
+    diet: Literal["veg", "egg", "nonveg"]
+    jain_ok: bool
+    no_onion_garlic: bool
+    fasting_ok: bool
+    diabetic_ok: bool
+    no_cook: bool = False
+    cost_per_serving_paise: int = Field(ge=0)
+    perishables: list[str] = Field(default_factory=list)
+
+
+class PlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    household: HouseholdRules
+    fasting_days: list[FastingDay] = Field(default_factory=list, max_length=7)
+    recipes: list[RecipeIn] = Field(min_length=1, max_length=500)
+    time_limit_s: float = Field(default=2.0, ge=0.1, le=5.0)
+
+
+class PlannedMeal(BaseModel):
+    day: int
+    slot: Slot
+    recipe: str | None = Field(description="null = tiffin")
+
+
+class Score(BaseModel):
+    preference: int
+    variety: int
+    perishables: int
+    cost_paise: int
+
+
+class PlanResponse(BaseModel):
+    status: Literal["optimal", "feasible", "infeasible"]
+    relaxed: list[Rule]
+    plan: list[PlannedMeal] | None
+    score: Score | None
+    seconds: float
+    model: str = "cpsat-v0"

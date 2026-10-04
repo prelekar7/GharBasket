@@ -76,9 +76,14 @@ infra-check:
 dev:
     APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
 
+# Run the ML service (M10) on http://localhost:8100; point the API at it with ML_SERVICE_URL
+dev-ml:
+    APP_ENV=${APP_ENV:-dev} uv run uvicorn gharbasket_ml.main:create_app --factory --reload --port 8100
+
 # Run the Python tests with the coverage gate (single file: `uv run --directory backend/api pytest tests/test_x.py`)
 test:
     uv run --directory backend/api pytest --cov
+    uv run --directory backend/ml pytest --cov
 
 # Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
 grant-role *args:
