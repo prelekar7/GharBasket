@@ -56,23 +56,48 @@ const LINES = [
   ["cucumber", "Cucumber", "खीरा", "500 g", "500 ग्रा", 2100],
 ];
 
+/** M2 substitutes: [id, en, hi, en qty, hi qty, price_paise, reason_code], best first. */
+/** @type {Record<string, [string, string, string, string, string, number, string][]>} */
+const SUBSTITUTES = {
+  bhindi: [
+    ["tondli", "Tondli", "तोंडली", "500 g", "500 ग्रा", 3200, "same_style"],
+    ["gawar", "Gawar", "ग्वार", "500 g", "500 ग्रा", 3600, "seasonal"],
+    ["bhindi-half", "Bhindi", "भिंडी", "250 g", "250 ग्रा", 2000, "half_qty"],
+  ],
+  paneer: [
+    ["tofu", "Tofu", "टोफ़ू", "200 g", "200 ग्रा", 7000, "same_protein"],
+    ["chana", "Kala chana", "काला चना", "500 g", "500 ग्रा", 5500, "same_protein"],
+    ["paneer-half", "Paneer", "पनीर", "100 g", "100 ग्रा", 4500, "half_qty"],
+  ],
+};
+const DEFAULT_SUBS = [
+  ["seasonal-mix", "Seasonal sabzi", "मौसमी सब्ज़ी", "500 g", "500 ग्रा", 3500, "seasonal"],
+];
+
 const loadState = () => {
   try {
-    return JSON.parse(localStorage.getItem(STATE_KEY) ?? "null") ?? { status: "ready", version: 1 };
+    return (
+      JSON.parse(localStorage.getItem(STATE_KEY) ?? "null") ?? {
+        status: "ready",
+        version: 1,
+        swaps: {},
+      }
+    );
   } catch {
-    return { status: "ready", version: 1 };
+    return { status: "ready", version: 1, swaps: {} };
   }
 };
-const saveState = (/** @type {{ status: string, version: number }} */ s) =>
-  localStorage.setItem(STATE_KEY, JSON.stringify(s));
+const saveState = (
+  /** @type {{ status: string, version: number, swaps?: Record<string, any> }} */ s,
+) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
 const pick = (/** @type {any} */ v, /** @type {"en" | "hi"} */ lang) =>
   Array.isArray(v) ? v[lang === "hi" ? 1 : 0] : v;
 
 function cycle(/** @type {"en" | "hi"} */ lang) {
-  const { status, version } = loadState();
-  const lines = LINES.map(([id, en, hi, qen, qhi, price, code, params, from]) => ({
+  const { status, version, swaps = {} } = loadState();
+  const base = LINES.map(([id, en, hi, qen, qhi, price, code, params, from]) => ({
     product_id: id,
     name: lang === "hi" ? hi : en,
     qty_label: lang === "hi" ? qhi : qen,
@@ -83,6 +108,21 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       : null,
     swapped_from_paise: from ?? null,
   }));
+  // A swapped line becomes its substitute, remembering the price it replaced.
+  const lines = base.map((l) => {
+    const sub = swaps[l.product_id];
+    if (!sub) return l;
+    return {
+      product_id: sub.id,
+      replaces: l.product_id,
+      name: lang === "hi" ? sub.hi : sub.en,
+      qty_label: lang === "hi" ? sub.qhi : sub.qen,
+      price_paise: sub.price,
+      reason_code: "swapped_by_you",
+      reason_params: null,
+      swapped_from_paise: l.price_paise,
+    };
+  });
   return {
     id: "cyc-2026-10-05",
     week_start: "2026-10-05",
@@ -111,7 +151,14 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       { code: "health_tag", params: { tag: "low_sugar", member: "adults-2" } },
     ],
     // A skipped week spends nothing from the Budget Lock.
+feat/mobile-box
+    budget_lock: {
+      budget_paise: 300000,
+      spent_paise: status === "skipped" ? 0 : lines.reduce((t, l) => t + l.price_paise, 0),
+    },
+
     budget_lock: { budget_paise: 300000, spent_paise: status === "skipped" ? 0 : 69000 },
+main
     captain: { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
   };
 }
@@ -141,15 +188,56 @@ const transition = (/** @type {"approved" | "skipped"} */ to) =>
     const ifMatch = request.headers.get("if-match");
     if (ifMatch && Number(ifMatch) !== state.version)
       return problem(412, "subscriptions.version_conflict", "The box changed; reload it");
-    saveState({ status: to, version: state.version + 1 });
+    saveState({ ...state, status: to, version: state.version + 1 });
     return HttpResponse.json(cycle(langOf(request)));
   });
 
 export const subscriptionHandlers = [
+  http.get("*/v1/products/:id/substitutes", ({ request, params }) => {
+    const lang = langOf(request);
+    const line = LINES.find(([id]) => id === params.id);
+    const price = line ? line[5] : 0;
+    const items = (SUBSTITUTES[String(params.id)] ?? DEFAULT_SUBS)
+      .slice(0, 3)
+      .map(([id, en, hi, qen, qhi, p, code]) => ({
+        product_id: id,
+        name: lang === "hi" ? hi : en,
+        qty_label: lang === "hi" ? qhi : qen,
+        price_paise: p,
+        price_delta_paise: p - price,
+        reason_code: code,
+        reason_params: null,
+      }));
+    return HttpResponse.json({ items });
+  }),
+
+  // PATCH lines: { op: "substitute", product_id, substitute_id } with If-Match: <version>.
+  http.patch("*/v1/cycles/:id/lines", async ({ request }) => {
+    const state = loadState();
+    if (Number(request.headers.get("if-match")) !== state.version) {
+      return problem(412, "subscriptions.version_conflict", "The box changed; reload it");
+    }
+    if (state.status !== "ready")
+      return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
+    const body = /** @type {any} */ (await request.json());
+    const sub = (SUBSTITUTES[body.product_id] ?? DEFAULT_SUBS).find(
+      ([id]) => id === body.substitute_id,
+    );
+    if (!sub)
+      return problem(422, "subscriptions.substitute_unknown", "That substitute is not available");
+    const [id, en, hi, qen, qhi, price] = sub;
+    saveState({
+      ...state,
+      version: state.version + 1,
+      swaps: { ...state.swaps, [body.product_id]: { id, en, hi, qen, qhi, price } },
+    });
+    return HttpResponse.json(cycle(langOf(request)));
+  }),
+
   http.get("*/v1/cycles/current", ({ request }) => HttpResponse.json(cycle(langOf(request)))),
   transition("approved"),
   transition("skipped"),
 ];
 
 /** Dev helper: put the mock cycle back to "ready". */
-export const resetCycle = () => saveState({ status: "ready", version: 1 });
+export const resetCycle = () => saveState({ status: "ready", version: 1, swaps: {} });

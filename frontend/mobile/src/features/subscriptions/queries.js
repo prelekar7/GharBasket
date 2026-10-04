@@ -48,3 +48,33 @@ export function useCycleAction(action) {
     onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
   });
 }
+
+/** @typedef {{ product_id: string, name: string, qty_label: string, price_paise: number, price_delta_paise: number, reason_code: string | null, reason_params: Record<string, string | number> | null }} Substitute */
+
+/** Three ranked substitutes for a box line (GET /v1/products/{id}/substitutes, M2). @param {string | null} productId @param {string} lang */
+export function useSubstitutes(productId, lang) {
+  return useQuery({
+    queryKey: ["substitutes", productId, lang],
+    queryFn: () =>
+      /** @type {Promise<{ items: Substitute[] }>} */ (
+        request(`/v1/products/${productId}/substitutes`)
+      ),
+    enabled: !!productId,
+  });
+}
+
+/** Swap a box line for a substitute (PATCH /v1/cycles/{id}/lines with If-Match). */
+export function useSwapLine() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {{ cycle: Cycle, productId: string, substituteId: string }} */ v) =>
+      /** @type {Promise<Cycle>} */ (
+        request(`/v1/cycles/${v.cycle.id}/lines`, {
+          method: "PATCH",
+          headers: { "if-match": String(v.cycle.version) },
+          body: { op: "substitute", product_id: v.productId, substitute_id: v.substituteId },
+        })
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+  });
+}

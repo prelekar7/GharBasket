@@ -367,6 +367,29 @@
       "low_salt": "Low salt",
       "low_oil": "Low oil",
       "high_protein": "High protein"
-    }
+    },
+    "same_style": "Same sabzi style",
+    "seasonal": "In season",
+    "half_qty": "Half quantity",
+    "same_protein": "Same protein",
+    "swapped_by_you": "You swapped this"
+  },
+  "box": {
+    "when": "{day} delivery",
+    "title": "Your box",
+    "parchi": "Is hafte ki parchi",
+    "total": "Total · {count, plural, one {# item} other {# items}}",
+    "swap": "Swap",
+    "up": "up {amount}",
+    "saves": "saves {amount}",
+    "more": "+ {count} more items",
+    "less": "Show fewer items",
+    "within": "Within your {budget} Budget Lock",
+    "over": "Over your {budget} Budget Lock. Swap something to stay within it.",
+    "sheetTitle": "Swap {item}",
+    "sheetNote": "{item} is {price} this week. Three good options, best first.",
+    "useThis": "Use this",
+    "swapped": "{from} swapped for {to}",
+    "closed": "Edits are closed for this week"
   }
 }

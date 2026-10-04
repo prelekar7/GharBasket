@@ -367,6 +367,29 @@
       "low_salt": "कमी मीठ",
       "low_oil": "कमी तेल",
       "high_protein": "जास्त प्रथिने"
-    }
+    },
+    "same_style": "तशीच भाजी",
+    "seasonal": "हंगामाची भाजी",
+    "half_qty": "अर्धे प्रमाण",
+    "same_protein": "तसेच प्रथिने",
+    "swapped_by_you": "तुम्ही बदलले"
+  },
+  "box": {
+    "when": "{day} ची डिलिव्हरी",
+    "title": "तुमचा बॉक्स",
+    "parchi": "या आठवड्याची यादी",
+    "total": "एकूण · {count} वस्तू",
+    "swap": "बदला",
+    "up": "{amount} वाढ",
+    "saves": "{amount} बचत",
+    "more": "+ आणखी {count} वस्तू",
+    "less": "कमी वस्तू दाखवा",
+    "within": "तुमच्या {budget} Budget Lock मध्ये",
+    "over": "तुमच्या {budget} Budget Lock पेक्षा जास्त. आत राहण्यासाठी काहीतरी बदला.",
+    "sheetTitle": "{item} बदला",
+    "sheetNote": "या आठवड्यात {item} {price} ची आहे. तीन चांगले पर्याय, सर्वात चांगला आधी.",
+    "useThis": "हे घ्या",
+    "swapped": "{from} ऐवजी {to}",
+    "closed": "या आठवड्याचे बदल बंद झाले"
   }
 }

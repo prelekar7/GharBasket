@@ -367,6 +367,29 @@
       "low_salt": "कम नमक",
       "low_oil": "कम तेल",
       "high_protein": "हाई प्रोटीन"
-    }
+    },
+    "same_style": "वैसी ही सब्ज़ी",
+    "seasonal": "मौसम की सब्ज़ी",
+    "half_qty": "आधी मात्रा",
+    "same_protein": "वैसा ही प्रोटीन",
+    "swapped_by_you": "आपने बदला"
+  },
+  "box": {
+    "when": "{day} की डिलीवरी",
+    "title": "आपका बॉक्स",
+    "parchi": "इस हफ़्ते की पर्ची",
+    "total": "कुल · {count} चीज़ें",
+    "swap": "बदलें",
+    "up": "{amount} बढ़ा",
+    "saves": "{amount} बचत",
+    "more": "+ {count} और चीज़ें",
+    "less": "कम चीज़ें दिखाएँ",
+    "within": "आपके {budget} Budget Lock के अंदर",
+    "over": "आपके {budget} Budget Lock से ज़्यादा। अंदर रहने के लिए कुछ बदलें।",
+    "sheetTitle": "{item} बदलें",
+    "sheetNote": "इस हफ़्ते {item} {price} की है। तीन अच्छे विकल्प, सबसे अच्छा पहले।",
+    "useThis": "यह लें",
+    "swapped": "{from} की जगह {to}",
+    "closed": "इस हफ़्ते के बदलाव बंद हो गए"
   }
 }
