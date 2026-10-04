@@ -30,6 +30,13 @@ class Product:
     price_paise: int | None = None  # per step at the hub, today
     shelf_life_h: int | None = None
     category: str = ""  # category slug (a substitute comes from the same category)
+    unit_g: int | None = None  # grams of one piece or bunch (IFCT mapping)
+
+    def base_units(self, grams: float) -> float:
+        """Grams in this product's base unit (pieces and bunches by their weight)."""
+        if self.unit in ("g", "ml"):
+            return grams
+        return grams / (self.unit_g or 100)
 
     @property
     def perishable(self) -> bool:
@@ -87,6 +94,7 @@ async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: dat
             prices[p.id].price_paise if p.id in prices else None,
             p.shelf_life_h,
             category,
+            (p.nutrition or {}).get("unit_g"),
         )
         for p, category in found_products
     }

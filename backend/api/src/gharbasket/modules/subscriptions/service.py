@@ -250,7 +250,10 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    lines = planning.lines_from_plan(profile, catalog, meals, fallback=plan.plan is None)
+    carried = await carried_over(session, profile.id, delivery_date, catalog)
+    lines = planning.lines_from_plan(
+        profile, catalog, meals, fallback=plan.plan is None, carried=carried
+    )
     monthly_budget = profile.budget_paise
     budget_near = (
         monthly_budget is not None
@@ -268,6 +271,36 @@ async def draft(
         )
         prediction = kept.id if kept else None
     return draft_box, plan.source, prediction
+
+
+async def carried_over(
+    session: AsyncSession,
+    household_id: uuid.UUID,
+    delivery_date: date,
+    catalog: catalog_api.PlanCatalog,
+) -> dict[uuid.UUID, float]:
+    """Base units of each staple the household's approved or locked boxes of the last
+    CARRY_WEEKS weeks carried: the cupboard the next draft can count on."""
+    since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
+    rows = await session.execute(
+        select(BoxLine)
+        .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+        .where(
+            WeeklyCycle.household_id == household_id,
+            WeeklyCycle.delivery_date >= since,
+            WeeklyCycle.delivery_date < delivery_date,
+            WeeklyCycle.status.in_(("approved", "locked")),
+        )
+    )
+    carried: dict[uuid.UUID, float] = {}
+    for line in rows.scalars():
+        product = catalog.products.get(line.product_id)
+        if product is None or planning.perishable(product):
+            continue
+        carried[line.product_id] = carried.get(line.product_id, 0.0) + (
+            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        )
+    return carried
 
 
 async def generate_cycle(
@@ -328,6 +361,7 @@ async def generate_cycle(
         highlights=box.highlights,
         status="awaiting_approval" if notice_now else "draft",
         notice_sent_at=datetime.now(UTC) if notice_now else None,
+        data_source=profile.data_source,
     )
     try:
         async with session.begin_nested():

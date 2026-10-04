@@ -99,6 +99,16 @@ class Rows:
     box_lines: list[dict[str, Any]] = field(default_factory=list)
     edits: list[dict[str, Any]] = field(default_factory=list)
     pantry: list[dict[str, Any]] = field(default_factory=list)
+    outcomes: list[dict[str, Any]] = field(default_factory=list)  # --write-db only
+
+
+@dataclass(frozen=True)
+class Provided:
+    """Plans and drafted boxes that came from M3 (`--write-db`), one per week, in place of the
+    in-process planner and the simulator's own draft."""
+
+    plans: list[Planned]
+    drafts: list[list[pantry_sim.Line]]
 
 
 def simulate(
@@ -112,6 +122,7 @@ def simulate(
     *,
     price_sensitivity: float = 0.5,
     feedback_rate: float = 0.4,
+    provided: Provided | None = None,
 ) -> Rows:
     rows = Rows([], [], [])
     pantry = pantry_sim.initial_stock(random.Random(f"gharbasket-sim:{seed}:{h.key}"), h, catalog)
@@ -125,7 +136,7 @@ def simulate(
             "recipes": catalog.recipes,
             "time_limit_s": TIME_LIMIT_S,
         }
-        planned = planner(request)
+        planned = provided.plans[w] if provided is not None else planner(request)
         ordered = rng.random() >= h.skip_week
         rows.weeks.append(
             {
@@ -170,6 +181,7 @@ def simulate(
             rows,
             price_sensitivity=price_sensitivity,
             feedback_rate=feedback_rate,
+            drafted=provided.drafts[w] if provided is not None else None,
         )
     return rows
 
@@ -188,10 +200,12 @@ def _week_of_box(
     *,
     price_sensitivity: float,
     feedback_rate: float,
+    drafted: list[pantry_sim.Line] | None = None,
 ) -> None:
     """The box as drafted and as approved, its delivery into the pantry, the week's draw-down."""
     planned_dishes = [d for d in planned.meals.values() if d]
-    drafted = pantry_sim.draft_box(h, catalog, planned_dishes, factor)
+    if drafted is None:
+        drafted = pantry_sim.draft_box(h, catalog, planned_dishes, factor, pantry)
     final, edits = pantry_sim.edit_box(
         rng,
         h,

@@ -143,7 +143,7 @@ def test_the_plan_request_carries_rules_recipes_and_a_weekly_budget() -> None:
     assert request["household"]["weekly_budget_paise"] == 600_000 * 7 // 30
     assert request["household"]["no_cook_days"] == [6]
     slugs = [r["slug"] for r in request["recipes"]]
-    assert slugs == ["dal-tadka", "chapati", "tomato-sabzi"]
+    assert slugs == ["dal-tadka", "tomato-sabzi"]  # chapati is a side, not a meal
     assert request["recipes"][0]["cost_per_serving_paise"] == 1200
 
 

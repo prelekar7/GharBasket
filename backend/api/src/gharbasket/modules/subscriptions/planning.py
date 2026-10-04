@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from gharbasket.modules.catalog.api import PlanCatalog, PlanIngredient
+from gharbasket.modules.catalog.api import PlanCatalog, PlanIngredient, PlanProduct
 from gharbasket.modules.identity.api import HouseholdPlanProfile
 from gharbasket.modules.subscriptions import rules
 from gharbasket.modules.subscriptions.rules import Member
@@ -66,7 +66,8 @@ def plan_request(
             "weekly_budget_paise": None if budget is None else budget * 7 // 30,
         },
         "fasting_days": fasting_days(profile, monday, festivals),
-        "recipes": [r.as_plan_recipe() for r in catalog.recipes],
+        # Mains only: a side (chapati, a chutney) is paired by the planner, never a meal.
+        "recipes": [r.as_plan_recipe() for r in catalog.recipes if not r.is_side],
         "time_limit_s": 2.0,
     }
 
@@ -125,15 +126,38 @@ def meal_plan_days(
     return days
 
 
+PERISHABLE_H = 96  # bought fresh every week; anything longer-lived carries over
+CARRY_WEEKS = 3  # how far back the cupboard is assumed to hold a staple
+
+
+DEFAULT_UNIT_G = 100  # a piece or bunch without a known weight
+
+
+def in_base_units(product: PlanProduct, grams: float) -> float:
+    """Grams in the product's base unit: as they are for g and ml, divided by the weight of one
+    piece or bunch (`unit_g` from the IFCT mapping) otherwise."""
+    if BASE_FACTOR[product.step_unit] and product.step_unit in ("g", "kg", "ml", "l"):
+        return grams
+    unit_g = (product.nutrition or {}).get("unit_g") or DEFAULT_UNIT_G
+    return grams / unit_g
+
+
+def perishable(product: PlanProduct) -> bool:
+    return product.shelf_life_h is not None and product.shelf_life_h <= PERISHABLE_H
+
+
 def lines_from_plan(
     profile: HouseholdPlanProfile,
     catalog: PlanCatalog,
     plan: list[dict[str, Any]] | None,
     *,
     fallback: bool,
+    carried: dict[uuid.UUID, float] | None = None,
 ) -> list[DraftLine]:
     """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
-    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table."""
+    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
+    `carried`: base units of staples the household bought in the last weeks (M3 §3.1 step 2):
+    what is still in the cupboard is not ordered again; perishables always are."""
     by_slug = {r.slug: r for r in catalog.recipes}
     needed: dict[uuid.UUID, float] = defaultdict(float)  # base units
     recipes_for: dict[uuid.UUID, set[str]] = defaultdict(set)
@@ -164,13 +188,17 @@ def lines_from_plan(
         rules.FRUIT_PER_ADULT_WEEK_G * equivalents / max(1, min(rules.FRUIT_KINDS, len(fruits)))
     )
     for product in fruits[: rules.FRUIT_KINDS]:
-        needed[product.id] += per_fruit
+        needed[product.id] += in_base_units(product, per_fruit)
 
     lines: list[DraftLine] = []
     for product_id, base_units in sorted(needed.items(), key=lambda kv: str(kv[0])):
         product = catalog.products.get(product_id)
         if product is None or product.price_paise is None:
             continue  # no price at this hub: the hub manager's problem, not the customer's
+        if carried and not perishable(product):
+            base_units -= carried.get(product_id, 0.0)
+            if base_units <= 0:
+                continue  # still in the cupboard
         qty = rules.steps_needed(base_units, product.step_qty, BASE_FACTOR[product.step_unit])
         if product.slug in daily or product.kind == "fruit":
             reason, params, source = "daily_use", None, "rule"

@@ -75,40 +75,52 @@ def steps(product: Product, base_units: float) -> int:
 
 
 def draft_box(
-    h: SimHousehold, catalog: Catalog, planned: list[str], factor: dict[str, float]
+    h: SimHousehold,
+    catalog: Catalog,
+    planned: list[str],
+    factor: dict[str, float],
+    pantry: "Pantry | None" = None,
 ) -> list[Line]:
     """M3's draft: the planned dishes' ingredients (per serving x adult equivalents, optional
-    ones included) rounded up to steps, the rule table for daily use, two fruits in season."""
+    ones included) rounded up to steps, the rule table for daily use, two fruits in season;
+    staples the pantry still holds are not ordered again (M3's carry-over rule)."""
     need: dict[str, float] = defaultdict(float)
     for slug in planned:
         for i in catalog.ingredients.get(slug, ()):
             need[i.product] += i.qty * h.adult_equivalents
+    stock = pantry.stock if pantry is not None else {}
+
+    def spare(product: Product, base_units: float) -> float:
+        return base_units - (0.0 if product.perishable else stock.get(product.slug, 0.0))
+
+    def line(product: Product, base_units: float, reason: str, source: str) -> Line | None:
+        price = price_of(product, factor)
+        wanted = spare(product, base_units)
+        if price is None or wanted <= 0:
+            return None
+        return Line(product.slug, steps(product, wanted), product.step, price, reason, source)
+
     lines: list[Line] = []
     for slug in sorted(need):
         product = catalog.products.get(slug)
-        price = price_of(product, factor) if product else None
-        if product is None or price is None:
-            continue
-        lines.append(Line(slug, steps(product, need[slug]), product.step, price, "meal_plan", "ai"))
-    carried = {line.product for line in lines}
+        if product is not None and (made := line(product, need[slug], "meal_plan", "ai")):
+            lines.append(made)
     for slug, base_units in rules.daily_use_plan(h.adult_equivalents).items():
         product = catalog.products.get(slug)
-        price = price_of(product, factor) if product else None
-        if product is None or price is None or slug in carried:
+        if product is None or slug in need:
             continue
-        lines.append(
-            Line(slug, steps(product, base_units), product.step, price, "daily_use", "rule")
-        )
+        if made := line(product, base_units, "daily_use", "rule"):
+            lines.append(made)
     fruits = [
         (price_of(p, factor), slug)
         for slug in catalog.fruits()
         if (p := catalog.products[slug]).price_paise is not None
     ]
     grams = rules.FRUIT_PER_ADULT_WEEK_G * h.adult_equivalents / rules.FRUIT_KINDS
-    for price, slug in sorted(fruits)[: rules.FRUIT_KINDS]:
+    for _, slug in sorted(fruits)[: rules.FRUIT_KINDS]:
         product = catalog.products[slug]
-        assert price is not None
-        lines.append(Line(slug, steps(product, grams), product.step, price, "in_season", "rule"))
+        if made := line(product, product.base_units(grams), "in_season", "rule"):
+            lines.append(made)
     return lines
 
 

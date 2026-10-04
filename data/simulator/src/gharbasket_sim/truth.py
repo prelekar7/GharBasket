@@ -21,6 +21,8 @@
   delivered, used, bought_elsewhere, end_stock, wasted, signal (ran_out, wasted, just_right
   or null: the tap, when given)
 - prices (week x product): week, product, price_paise, multiplier (shocks.json episodes)
+- outcomes (--write-db; household x week): household, week, cycle_id, order_id, cycle_status,
+  order_status, ops (line ops applied), refused (problem codes met), feedback (taps recorded)
 
 `manifest.json` records the run's arguments and row counts.
 """

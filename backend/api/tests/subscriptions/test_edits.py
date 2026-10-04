@@ -63,8 +63,9 @@ async def test_edit_approve_hand_over_and_skip(
         offered = (
             await api.get(f"/v1/products/{line['product_id']}/substitutes", headers=priya)
         ).json()["items"]
-        if offered:
-            swap = (line, offered[0])
+        fresh = [o for o in offered if o["product_id"] not in on_box]  # not on the box already
+        if fresh:
+            swap = (line, fresh[0])
             break
     assert swap is not None
     await db_session.commit()
