@@ -1,16 +1,26 @@
-import { Button, Chip, Dialog, formatPaise, RadioCards, TextField } from "@gharbasket/ui";
+import { Button, Chip, Dialog, formatPaise, RadioCards, TextField, toast } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
 import { ApiError, request } from "@/lib/api.js";
-import { PAYMENTS_MOCKED, PaymentError, payInMock, payWithRazorpay } from "@/lib/payments.js";
+import {
+  PAYMENTS_MOCKED,
+  PaymentError,
+  payInMock,
+  payWithRazorpay,
+  waitForCredit,
+} from "@/lib/payments.js";
 import { useSession } from "@/lib/session.js";
 
 const QUICK_RUPEES = [1000, 2000, 3000];
 
-/** How do you want to pay? Wallet with a first UPI top-up, or UPI Autopay (design Hf14, M5). */
+/**
+ * How do you want to pay? Wallet with a first UPI top-up, or UPI Autopay (design Hf14, M5).
+ * Autopay mandates come in the pilot (M5 §3: MS-A pays from the wallet), so choosing it explains
+ * that instead of pretending a mandate was set up without Razorpay's authorisation.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/payment")({ component: Payment });
 
@@ -23,15 +33,24 @@ function Payment() {
   const [other, setOther] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(/** @type {string | null} */ (null));
-  /** @type {[import("@/lib/payments.js").TopUpOrder | null, (o: import("@/lib/payments.js").TopUpOrder | null) => void]} */
+  const [confirming, setConfirming] = useState(false);
+  /** @type {[{ order: import("@/lib/payments.js").TopUpOrder, expected: number } | null, (o: { order: import("@/lib/payments.js").TopUpOrder, expected: number } | null) => void]} */
   const [testOrder, setTestOrder] = useState(/** @type {any} */ (null));
-  // One key per screen visit for the subscription; one per amount for the top-up.
+  // Keys live for this visit: one for the subscription per payment mode, one per top-up amount.
   const keys = useRef({
-    subscription: crypto.randomUUID(),
+    subscriptions: /** @type {Record<string, string>} */ ({}),
     topups: /** @type {Record<number, string>} */ ({}),
   });
   const amountPaise = rupees * 100;
   const done = () => navigate({ to: nextStep("/onboarding/payment") });
+
+  /** Success only once the wallet shows the money; after a minute, move on and say it's on its way. @param {number} expected */
+  const confirm = async (expected) => {
+    setConfirming(true);
+    const credited = await waitForCredit(expected);
+    if (!credited) toast(t("onboarding.payment.stillConfirming"));
+    done();
+  };
 
   const fail = (/** @type {unknown} */ e) => {
     setBusy(false);
@@ -49,19 +68,14 @@ function Payment() {
     setBusy(true);
     setError(null);
     try {
+      keys.current.subscriptions[mode] ??= crypto.randomUUID();
       await request("/v1/subscriptions", {
         method: "POST",
-        headers: { "idempotency-key": keys.current.subscription },
+        headers: { "idempotency-key": keys.current.subscriptions[mode] },
         body: { plan: "autopilot", payment_mode: mode },
       });
-      if (mode === "autopay") {
-        await request("/v1/mandates", {
-          method: "POST",
-          headers: { "idempotency-key": crypto.randomUUID() },
-          body: {},
-        });
-        return done();
-      }
+      const before = /** @type {{ balance_paise: number }} */ (await request("/v1/wallet"));
+      const expected = before.balance_paise + amountPaise;
       keys.current.topups[amountPaise] ??= crypto.randomUUID();
       const order = /** @type {import("@/lib/payments.js").TopUpOrder} */ (
         await request("/v1/wallet/topups", {
@@ -70,12 +84,12 @@ function Payment() {
           body: { amount_paise: amountPaise },
         })
       );
-      if (PAYMENTS_MOCKED) return setTestOrder(order); // test-payment dialog below
+      if (PAYMENTS_MOCKED) return setTestOrder({ order, expected }); // test-payment dialog below
       await payWithRazorpay(order, {
         description: t("onboarding.payment.description"),
         contact: phone,
       });
-      done();
+      await confirm(expected);
     } catch (e) {
       fail(e);
     }
@@ -95,12 +109,14 @@ function Payment() {
             size="lg"
             block
             isPending={busy}
-            isDisabled={amountPaise < 10_000}
+            isDisabled={mode !== "wallet" || amountPaise < 10_000}
             onPress={pay}
           >
-            {mode === "wallet"
-              ? t("onboarding.payment.ctaWallet", { amount: formatPaise(amountPaise) })
-              : t("onboarding.payment.ctaAutopay")}
+            {confirming
+              ? t("onboarding.payment.confirming")
+              : mode === "wallet"
+                ? t("onboarding.payment.ctaWallet", { amount: formatPaise(amountPaise) })
+                : t("onboarding.payment.ctaAutopay")}
           </Button>
         </>
       }
@@ -129,6 +145,11 @@ function Payment() {
           },
         ]}
       />
+      {mode === "autopay" && (
+        <p className="text-sm leading-[22px] text-fg-secondary">
+          {t("onboarding.payment.autopaySoon")}
+        </p>
+      )}
       {mode === "wallet" && (
         <section className="flex flex-col gap-2">
           <span className="text-sm leading-5 font-semibold">{t("onboarding.payment.first")}</span>
@@ -174,19 +195,19 @@ function Payment() {
           }
         }}
         title={t("onboarding.payment.testTitle", {
-          amount: formatPaise(testOrder?.amount_paise ?? 0),
+          amount: formatPaise(testOrder?.order.amount_paise ?? 0),
         })}
         confirmLabel={t("onboarding.payment.testPay", {
-          amount: formatPaise(testOrder?.amount_paise ?? 0),
+          amount: formatPaise(testOrder?.order.amount_paise ?? 0),
         })}
         cancelLabel={t("onboarding.payment.testCancel")}
         onConfirm={async () => {
-          const order = testOrder;
+          const pending = testOrder;
           setTestOrder(null);
-          if (!order) return;
+          if (!pending) return;
           try {
-            await payInMock(order);
-            done();
+            await payInMock(pending.order);
+            await confirm(pending.expected);
           } catch (e) {
             fail(e);
           }

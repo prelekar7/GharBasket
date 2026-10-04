@@ -37,7 +37,7 @@ const problem = (
 const needsKey = (/** @type {Request} */ r) =>
   r.headers.get("idempotency-key")
     ? null
-    : problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
+    : problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
 
 export const billingHandlers = [
   http.get("*/v1/wallet", () => {

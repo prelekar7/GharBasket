@@ -30,8 +30,9 @@ export function useCurrentCycle(lang) {
 }
 
 /**
- * Approve or skip this week (POST /v1/cycles/{id}/approve|skip). Each attempt has its own
- * Idempotency-Key and sends If-Match with the version the person saw.
+ * Approve or skip this week (POST /v1/cycles/{id}/approve|skip), with If-Match on the version the
+ * person saw. The Idempotency-Key belongs to the intent, not the tap: approving version 3 of this
+ * week always sends the same key, so a retry after a lost response replays instead of acting twice.
  * @param {"approve" | "skip"} action
  */
 export function useCycleAction(action) {
@@ -42,7 +43,10 @@ export function useCycleAction(action) {
         request(`/v1/cycles/${cycle.id}/${action}`, {
           method: "POST",
           body: {},
-          headers: { "idempotency-key": crypto.randomUUID(), "if-match": String(cycle.version) },
+          headers: {
+            "idempotency-key": `cycle:${cycle.id}:${action}:v${cycle.version}`,
+            "if-match": String(cycle.version),
+          },
         })
       ),
     onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),

@@ -131,11 +131,7 @@ const problem = (
 const transition = (/** @type {"approved" | "skipped"} */ to) =>
   http.post(`*/v1/cycles/:id/${to === "approved" ? "approve" : "skip"}`, ({ request }) => {
     if (!request.headers.get("idempotency-key"))
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const state = loadState();
     const ifMatch = request.headers.get("if-match");
     if (ifMatch && Number(ifMatch) !== state.version)

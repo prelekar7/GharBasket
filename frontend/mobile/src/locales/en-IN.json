@@ -67,7 +67,8 @@
   },
   "outbox": {
     "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
-    "retry": "Try now"
+    "retry": "Try now",
+    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}"
   },
   "install": {
     "title": "Install GharBasket",
@@ -284,7 +285,10 @@
         "billing_topup_too_small": "Top up at least ₹100",
         "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
         "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
-      }
+      },
+      "confirming": "Confirming your payment…",
+      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute.",
+      "autopaySoon": "UPI Autopay arrives with the pilot. For now, top up your wallet once and each box is paid from it."
     },
     "done": {
       "title": "You’re all set. First box on {day}.",
