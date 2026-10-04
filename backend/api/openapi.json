@@ -1,6 +1,48 @@
 {
   "components": {
     "schemas": {
+      "AddonItem": {
+        "additionalProperties": false,
+        "properties": {
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Steps; 0 removes the add-on",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Qty",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "qty"
+        ],
+        "title": "AddonItem",
+        "type": "object"
+      },
+      "AddonsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AddonItem"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AddonsIn",
+        "type": "object"
+      },
       "AddressIn": {
         "additionalProperties": false,
         "properties": {
@@ -1563,6 +1605,256 @@
         "title": "Names",
         "type": "object"
       },
+      "OrderLineOut": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "box",
+              "addon"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Steps",
+            "examples": [
+              2
+            ],
+            "title": "Qty",
+            "type": "integer"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Params"
+          },
+          "shortage_qty": {
+            "title": "Shortage Qty",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__Step"
+          },
+          "substituted_from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "unit_price_paise": {
+            "description": "Per step, frozen when the line was made",
+            "title": "Unit Price Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "kind",
+          "qty",
+          "step",
+          "unit_price_paise",
+          "total_paise",
+          "reason_code",
+          "reason_params",
+          "substituted_from",
+          "shortage_qty"
+        ],
+        "title": "OrderLineOut",
+        "type": "object"
+      },
+      "OrderOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cutoff_at": {
+            "description": "21:00 IST the day before delivery",
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "cycle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Id"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "discount_paise": {
+            "title": "Discount Paise",
+            "type": "integer"
+          },
+          "fees_paise": {
+            "title": "Fees Paise",
+            "type": "integer"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin",
+              "addon"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/SlotRef"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subtotal_paise": {
+            "title": "Subtotal Paise",
+            "type": "integer"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "cycle_id",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "slot",
+          "cutoff_at",
+          "subtotal_paise",
+          "fees_paise",
+          "discount_paise",
+          "total_paise",
+          "version",
+          "created_at",
+          "locked_at",
+          "lines",
+          "timeline"
+        ],
+        "title": "OrderOut",
+        "type": "object"
+      },
       "OrderRef": {
         "properties": {
           "delivery_date": {
@@ -1596,6 +1888,141 @@
         "title": "OrderRef",
         "type": "object"
       },
+      "OrderSummaryOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "cutoff_at": {
+            "description": "21:00 IST the day before delivery",
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "cycle_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Id"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "discount_paise": {
+            "title": "Discount Paise",
+            "type": "integer"
+          },
+          "fees_paise": {
+            "title": "Fees Paise",
+            "type": "integer"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin",
+              "addon"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/SlotRef"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subtotal_paise": {
+            "title": "Subtotal Paise",
+            "type": "integer"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "cycle_id",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "slot",
+          "cutoff_at",
+          "subtotal_paise",
+          "fees_paise",
+          "discount_paise",
+          "total_paise",
+          "version",
+          "created_at",
+          "locked_at"
+        ],
+        "title": "OrderSummaryOut",
+        "type": "object"
+      },
       "Page_Entry_": {
         "properties": {
           "items": {
@@ -1622,6 +2049,34 @@
           "next_cursor"
         ],
         "title": "Page[Entry]",
+        "type": "object"
+      },
+      "Page_OrderSummaryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrderSummaryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[OrderSummaryOut]",
         "type": "object"
       },
       "Page_ProductOut_": {
@@ -2098,7 +2553,7 @@
             "type": "string"
           },
           "step": {
-            "$ref": "#/components/schemas/Step"
+            "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__Step"
           },
           "tags": {
             "examples": [
@@ -2128,6 +2583,30 @@
           "price"
         ],
         "title": "ProductOut",
+        "type": "object"
+      },
+      "ProductRef": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name"
+        ],
+        "title": "ProductRef",
         "type": "object"
       },
       "Ready": {
@@ -2601,7 +3080,7 @@
             "type": "string"
           },
           "step": {
-            "$ref": "#/components/schemas/Step"
+            "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__Step"
           }
         },
         "required": [
@@ -2629,6 +3108,218 @@
           "items"
         ],
         "title": "SearchResults",
+        "type": "object"
+      },
+      "SlotIn": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "examples": [
+              120
+            ],
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "end": {
+            "examples": [
+              "09:00"
+            ],
+            "format": "time",
+            "title": "End",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "box",
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "Morning 7-9"
+            ],
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "07:00"
+            ],
+            "format": "time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hub_id",
+          "label",
+          "start",
+          "end",
+          "capacity"
+        ],
+        "title": "SlotIn",
+        "type": "object"
+      },
+      "SlotOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "booked": {
+            "description": "For the requested date",
+            "title": "Booked",
+            "type": "integer"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "end": {
+            "format": "time",
+            "title": "End",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "start": {
+            "description": "IST clock time",
+            "examples": [
+              "07:00"
+            ],
+            "format": "time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "label",
+          "kind",
+          "start",
+          "end",
+          "capacity",
+          "booked",
+          "available"
+        ],
+        "title": "SlotOut",
+        "type": "object"
+      },
+      "SlotPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          }
+        },
+        "title": "SlotPatch",
+        "type": "object"
+      },
+      "SlotRef": {
+        "properties": {
+          "end": {
+            "format": "time",
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "start": {
+            "format": "time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "start",
+          "end"
+        ],
+        "title": "SlotRef",
+        "type": "object"
+      },
+      "SlotsOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "items"
+        ],
+        "title": "SlotsOut",
         "type": "object"
       },
       "SocietyOut": {
@@ -2900,46 +3591,6 @@
         "title": "SocietySummary",
         "type": "object"
       },
-      "Step": {
-        "description": "The unit a person adds or removes in the app; prices are per step.",
-        "properties": {
-          "label": {
-            "description": "In the requested language",
-            "examples": [
-              "250 g"
-            ],
-            "title": "Label",
-            "type": "string"
-          },
-          "qty": {
-            "examples": [
-              250
-            ],
-            "title": "Qty",
-            "type": "integer"
-          },
-          "unit": {
-            "enum": [
-              "g",
-              "kg",
-              "ml",
-              "l",
-              "piece",
-              "bunch",
-              "pack"
-            ],
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "qty",
-          "unit",
-          "label"
-        ],
-        "title": "Step",
-        "type": "object"
-      },
       "SubstituteOut": {
         "properties": {
           "name": {
@@ -3017,7 +3668,7 @@
             "type": "string"
           },
           "step": {
-            "$ref": "#/components/schemas/Step"
+            "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__Step"
           }
         },
         "required": [
@@ -3048,6 +3699,49 @@
           "items"
         ],
         "title": "Substitutes",
+        "type": "object"
+      },
+      "TimelineEntry": {
+        "properties": {
+          "actor": {
+            "enum": [
+              "customer",
+              "system",
+              "hub"
+            ],
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "actor"
+        ],
+        "title": "TimelineEntry",
         "type": "object"
       },
       "TokensOut": {
@@ -3357,6 +4051,86 @@
         ],
         "title": "WebhookAck",
         "type": "object"
+      },
+      "gharbasket__modules__catalog__schemas__Step": {
+        "description": "The unit a person adds or removes in the app; prices are per step.",
+        "properties": {
+          "label": {
+            "description": "In the requested language",
+            "examples": [
+              "250 g"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "qty": {
+            "examples": [
+              250
+            ],
+            "title": "Qty",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "unit",
+          "label"
+        ],
+        "title": "Step",
+        "type": "object"
+      },
+      "gharbasket__modules__orders__schemas__Step": {
+        "description": "The unit a person adds or removes (the same shape as M2's `Step`); prices are per step.",
+        "properties": {
+          "label": {
+            "description": "In the requested language",
+            "examples": [
+              "250 g"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "qty": {
+            "examples": [
+              250
+            ],
+            "title": "Qty",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "unit",
+          "label"
+        ],
+        "title": "Step",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -3577,6 +4351,232 @@
         "tags": [
           "identity",
           "households"
+        ]
+      }
+    },
+    "/v1/admin/slots": {
+      "post": {
+        "operationId": "create_slot_v1_admin_slots_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.slot_exists"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.slot_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Define a delivery slot for a hub (hub manager of that hub, or admin; audit-logged)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/admin/slots/{slot_id}": {
+      "patch": {
+        "operationId": "patch_slot_v1_admin_slots__slot_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Slot Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.slot_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change a slot's capacity or close it",
+        "tags": [
+          "orders"
         ]
       }
     },
@@ -5606,6 +6606,658 @@
         ]
       }
     },
+    "/v1/orders": {
+      "get": {
+        "operationId": "list_orders_v1_orders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "approved",
+                    "locked",
+                    "payment_failed",
+                    "cancelled",
+                    "picking",
+                    "packed",
+                    "dispatched",
+                    "at_society",
+                    "delivered",
+                    "undelivered",
+                    "redelivery",
+                    "refunded"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_OrderSummaryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found: the caller has no household yet"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required, request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Orders of the caller's household, or of a hub for its staff (newest delivery first)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}": {
+      "get": {
+        "operationId": "get_order_v1_orders__order_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "One order with its lines and timeline (ETag = version)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}/addons": {
+      "post": {
+        "operationId": "set_addons_v1_orders__order_id__addons_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddonsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.cutoff_passed, orders.not_editable"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.product_unknown, orders.qty_invalid, orders.no_price"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Add, change or remove add-on lines before the cut-off (Idempotency-Key, If-Match)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}/cancel": {
+      "post": {
+        "operationId": "cancel_order_v1_orders__order_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.cutoff_passed, orders.already_locked"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Cancel before the cut-off (Idempotency-Key); nothing was paid yet",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/v1/payments/webhook/razorpay": {
       "post": {
         "operationId": "razorpay_webhook_v1_payments_webhook_razorpay_post",
@@ -6619,6 +8271,119 @@
         "summary": "Find products by any spelling: English, Hindi, Marathi or Hinglish",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/slots": {
+      "get": {
+        "operationId": "list_slots_v1_slots_get",
+        "parameters": [
+          {
+            "description": "Default: the caller's household's hub",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: the caller's household's hub",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "Default: tomorrow (IST)",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: tomorrow (IST)",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.date_out_of_range, orders.hub_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Delivery slots of a hub on a date, with availability",
+        "tags": [
+          "orders"
         ]
       }
     },

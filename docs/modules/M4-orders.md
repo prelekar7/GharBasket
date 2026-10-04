@@ -171,9 +171,10 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 ## 7. Permissions
 | Permission | Roles (scope) |
 |---|---|
-| `orders:read` | customer (own), packer/rider/captain/hub_manager (hub/society) |
+| `orders:read` | customer (own), packer/rider/hub_manager/franchise_owner (hub, with `X-Active-Role` and `hub_id`), admin; captains read through M7's handover endpoints |
 | `orders:write` | customer (own, before lock) |
 | `orders:transition` | Internal (M6/M7 via api.py), admin |
+| `slots:write` | hub_manager (hub), admin |
 
 ## 8. Screens
 **Mobile:** Orders list, order detail with timeline and live tracking, add-ons. **Console:** orders board (by status/slot), cut-off monitor, slot configuration.

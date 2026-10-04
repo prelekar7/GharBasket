@@ -1,0 +1,10 @@
+"""Permissions of M4 Orders & Checkout (spec §7)."""
+
+from gharbasket.platform.permissions import PERMISSIONS
+
+# Customers see their own household's orders; hub staff their hub's (X-Active-Role, hub_id).
+PERMISSIONS.allow("customer", "orders:read", "orders:write")
+for role in ("packer", "rider", "hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "orders:read")
+PERMISSIONS.allow("hub_manager", "slots:write")
+PERMISSIONS.allow("admin", "slots:write")
