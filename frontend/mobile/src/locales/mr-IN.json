@@ -391,5 +391,39 @@
     "useThis": "हे घ्या",
     "swapped": "{from} ऐवजी {to}",
     "closed": "या आठवड्याचे बदल बंद झाले"
+feat/mobile-wallet
+  },
+  "wallet": {
+    "title": "वॉलेट",
+    "balance": "वॉलेट शिल्लक",
+    "nextBox": "पुढचा बॉक्स, {day}: ",
+    "topUpNeeded": " · {amount} टॉप-अप करा",
+    "covered": " · पुरेसं आहे",
+    "topUp": "टॉप-अप",
+    "statement": "स्टेटमेंट",
+    "statementSoon": "स्टेटमेंट बिलिंग मॉड्यूलसोबत येतील",
+    "kindness": "काइंडनेस पॉइंट",
+    "kindnessProgress": "{goal} कडे काइंडनेस पॉइंट",
+    "kindnessRemaining": "{goal} साठी आणखी {n}",
+    "goals": {
+      "child_meal": "एका मुलाचं जेवण"
+    },
+    "pointsNote": "काइंडनेस पॉइंट म्हणजे पैसे नाहीत. {points} पॉइंट {date} ला संपतील. ते बॉक्सवर सवलत म्हणून वापरा.",
+    "recent": "अलीकडील",
+    "noEntries": "अजून कोणतेही पेमेंट नाही.",
+    "entry": {
+      "topup": "UPI ने टॉप-अप · {date}",
+      "box": "{day} चा बॉक्स",
+      "refund": "परतावा · {date}"
+    },
+    "addMoney": "पैसे जोडा",
+    "newBalance": "नवी शिल्लक",
+    "payWith": "पेमेंट",
+    "upi": "कोणतेही UPI ॲप",
+    "cap": "तुमची शिल्लक ₹10,000 पर्यंत असू शकते.",
+    "continue": "पुढे चला",
+    "added": "वॉलेटमध्ये {amount} जोडले"
+
+main
   }
 }

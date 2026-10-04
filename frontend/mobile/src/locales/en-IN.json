@@ -391,5 +391,39 @@
     "useThis": "Use this",
     "swapped": "{from} swapped for {to}",
     "closed": "Edits are closed for this week"
+eat/mobile-wallet
+  },
+  "wallet": {
+    "title": "Wallet",
+    "balance": "Wallet balance",
+    "nextBox": "Next box, {day}: ",
+    "topUpNeeded": " · top up {amount}",
+    "covered": " · covered",
+    "topUp": "Top up",
+    "statement": "Statement",
+    "statementSoon": "Statements arrive with the billing module",
+    "kindness": "Kindness points",
+    "kindnessProgress": "Kindness points toward {goal}",
+    "kindnessRemaining": "{n} more for {goal}",
+    "goals": {
+      "child_meal": "a meal for a child"
+    },
+    "pointsNote": "Kindness points are not money. {points} expire on {date}. Use them as a discount on a box.",
+    "recent": "Recent",
+    "noEntries": "No payments yet.",
+    "entry": {
+      "topup": "Top-up with UPI · {date}",
+      "box": "Box for {day}",
+      "refund": "Refund · {date}"
+    },
+    "addMoney": "Add money",
+    "newBalance": "New balance",
+    "payWith": "Pay with",
+    "upi": "Any UPI app",
+    "cap": "Your balance can be up to ₹10,000.",
+    "continue": "Continue",
+    "added": "{amount} added to your wallet"
+
+main
   }
 }

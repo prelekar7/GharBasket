@@ -77,7 +77,7 @@ const webSession = {
 };
 
 /** Who is calling: Bearer token on native, the cookie stand-in on web. Expired → null. */
-function caller(/** @type {Request} */ request) {
+export function caller(/** @type {Request} */ request) {
   const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "");
   const session = bearer ? accessTokens.get(bearer) : webSession.get();
   return session && session.exp > Date.now() ? session.phone : null;

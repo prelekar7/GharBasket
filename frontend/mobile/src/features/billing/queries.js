@@ -10,3 +10,13 @@ export function useWallet() {
     queryFn: () => /** @type {Promise<Wallet>} */ (request("/v1/wallet")),
   });
 }
+
+/** @typedef {{ points: number, goal: { points: number, code: string }, expiring: { points: number, on: string }[] }} KindnessBalance */
+
+/** Kindness points, kept apart from money (GET /v1/kindness/balance, M5). */
+export function useKindness() {
+  return useQuery({
+    queryKey: ["kindness"],
+    queryFn: () => /** @type {Promise<KindnessBalance>} */ (request("/v1/kindness/balance")),
+  });
+}
