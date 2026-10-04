@@ -10,10 +10,12 @@ API's rule-based fallback is checked with it too.
 
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from ortools.sat.python import cp_model
 
+from gharbasket_ml import nutrition
 from gharbasket_ml.schemas import (
     HouseholdRules,
     PlannedMeal,
@@ -23,6 +25,7 @@ from gharbasket_ml.schemas import (
     Rule,
     Score,
     Slot,
+    Weights,
 )
 
 DAYS = range(7)
@@ -47,14 +50,25 @@ GROUPS: tuple[tuple[tuple[Slot, ...], str], ...] = (
 class Week:
     household: HouseholdRules
     fasting: dict[int, bool]  # day → no onion or garlic that day
-    recipes: dict[str, RecipeIn]
+    recipes: dict[str, RecipeIn]  # the mains (sides are never planned as meals)
+    sides: dict[str, RecipeIn] = field(default_factory=dict)
+    weights: Weights = field(default_factory=Weights)
 
     @classmethod
     def of(cls, request: PlanRequest) -> "Week":
         fasting: dict[int, bool] = {}
         for f in request.fasting_days:
             fasting[f.day] = fasting.get(f.day, False) or f.no_onion_garlic
-        return cls(request.household, fasting, {r.slug: r for r in request.recipes})
+        return cls(
+            request.household,
+            fasting,
+            {r.slug: r for r in request.recipes if not r.is_side},
+            {r.slug: r for r in request.recipes if r.is_side},
+            request.weights or Weights(),
+        )
+
+    def meal_nutrition(self, slug: str) -> tuple[float, float] | None:
+        return nutrition.per_person(self.recipes[slug], self.sides)
 
 
 def allowed(week: Week, r: RecipeIn, day: int, slot: Slot, relax: frozenset[Rule]) -> bool:
@@ -128,14 +142,39 @@ def cost(week: Week, plan: Plan) -> int:
     return sum(week.recipes[s].cost_per_serving_paise * size for s in plan.values() if s)
 
 
+def adherent_days(week: Week, plan: Plan) -> list[bool] | None:
+    """Per day, whether the three meals' kcal and protein per person fall within ±20 % of the
+    household's target (M10 §3.2); None when no dish carries nutrition data (a v0 request)."""
+    if not any(week.meal_nutrition(s) for s in week.recipes):
+        return None
+    target = nutrition.target(week.household)
+    days = []
+    for day in DAYS:
+        kcal = protein = 0.0
+        for slot in SLOTS:
+            slug = plan.get((day, slot))
+            got = week.meal_nutrition(slug) if slug else None
+            if got is not None:
+                kcal, protein = kcal + got[0], protein + got[1]
+        days.append(target.within(kcal, protein))
+    return days
+
+
+def price_penalty(week: Week, plan: Plan) -> float:
+    return round(sum(week.recipes[s].price_spike or 0.0 for s in plan.values() if s), 3)
+
+
 def score(week: Week, plan: Plan) -> Score:
     used = [week.recipes[s] for s in plan.values() if s]
     cuisines = set(week.household.cuisines)
+    days = adherent_days(week, plan)
     return Score(
         preference=sum(r.cuisine in cuisines for r in used),
         variety=len({r.slug for r in used}),
         perishables=len({p for r in used for p in r.perishables}),
         cost_paise=cost(week, plan),
+        nutrition=None if days is None else round(sum(days) / len(days), 3),
+        price_penalty=price_penalty(week, plan) if any(r.price_spike for r in used) else None,
     )
 
 
@@ -198,11 +237,47 @@ def solve(
         _any(m, [used[r.slug] for r in week.recipes.values() if p in r.perishables], f"buy_{p}")
         for p in sorted(perishables)
     ]
-    m.maximize(
-        WEIGHTS["preference"] * preference
-        + WEIGHTS["variety"] * sum(used.values())
-        - WEIGHTS["perishables"] * sum(bought)
+    w = week.weights
+    objective = (
+        w.preference * preference
+        + w.variety * sum(used.values())
+        - w.perishables * sum(bought)
+        - w.price
+        * sum(
+            round(100 * (week.recipes[slug].price_spike or 0)) * v for (_, _, slug), v in x.items()
+        )
     )
+    # v1 nutrition: a day counts when its meals' kcal and protein per person are within ±20 %
+    # of the target; linearised with a big M (an indicator per day and nutrient bound).
+    nourished = {slug: week.meal_nutrition(slug) for slug in week.recipes}
+    if any(nourished.values()):
+        target = nutrition.target(week.household)
+        big = 100_000
+        for day in DAYS:
+            ok = m.new_bool_var(f"nourished_{day}")
+            meals = [
+                (got, v) for (d, _, slug), v in x.items() if d == day and (got := nourished[slug])
+            ]
+            kcal = sum(round(got[0]) * v for got, v in meals)
+            protein = sum(round(10 * got[1]) * v for got, v in meals)
+            for total, low, high in (
+                (
+                    kcal,
+                    (1 - nutrition.TOLERANCE) * target.kcal,
+                    (1 + nutrition.TOLERANCE) * target.kcal,
+                ),
+                (
+                    protein,
+                    10 * (1 - nutrition.TOLERANCE) * target.protein_g,
+                    10 * (1 + nutrition.TOLERANCE) * target.protein_g,
+                ),
+            ):
+                m.add(total >= round(low) - big * (1 - ok))
+                m.add(total <= round(high) + big * (1 - ok))
+            objective += (
+                100 * w.nutrition * ok
+            )  # one adherent day ≈ a hundred points of variety-scale
+    m.maximize(objective)
 
     solver = cp_model.CpSolver()
     solver.parameters.num_workers = 8
@@ -243,6 +318,25 @@ def _any(m: cp_model.CpModel, literals: Iterable[cp_model.IntVar], name: str) ->
     return flag
 
 
+def meal(week: Week, plan: Plan, day: int, slot: Slot, relax: frozenset[Rule]) -> PlannedMeal:
+    """A planned meal with its sides and reason codes (M10 §3.2)."""
+    slug = plan[day, slot]
+    reasons: list[Any] = []
+    if slug is None:
+        reasons.append("TIFFIN")
+    if slug is not None and day in week.fasting:
+        reasons.append("FESTIVAL")
+    if slug is not None and "budget" in relax:
+        reasons.append("BUDGET")
+    return PlannedMeal(
+        day=day,
+        slot=slot,
+        recipe=slug,
+        sides=list(week.recipes[slug].sides) if slug else [],
+        reasons=reasons,
+    )
+
+
 def relaxations() -> list[frozenset[Rule]]:
     """No relaxation, then each comfort rule alone, then adjacent pairs, in FALLBACK order."""
     pairs = [frozenset(FALLBACK[i : i + 2]) for i in range(len(FALLBACK) - 1)]
@@ -260,11 +354,7 @@ def plan_week(request: PlanRequest, *, deterministic: bool = False) -> PlanRespo
             return PlanResponse(
                 status=solved.status,  # pyright: ignore[reportArgumentType]
                 relaxed=[rule for rule in FALLBACK if rule in relax],
-                plan=[
-                    PlannedMeal(day=d, slot=s, recipe=solved.plan[d, s])
-                    for d in DAYS
-                    for s in SLOTS
-                ],
+                plan=[meal(week, solved.plan, d, s, relax) for d in DAYS for s in SLOTS],
                 score=score(week, solved.plan),
                 seconds=round(time.perf_counter() - started, 4),
             )

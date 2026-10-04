@@ -247,7 +247,8 @@ async def draft(
     """A box for the week of `delivery_date`: (draft, plan source, prediction id)."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
-    request = planning.plan_request(profile, catalog, monday, festivals)
+    price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
+    request = planning.plan_request(profile, catalog, monday, festivals, price_index)
     plan = await intel_api.plan_week(
         http,
         settings,

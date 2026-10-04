@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from gharbasket.modules.catalog.api import PlanCatalog, PlanIngredient, PlanProduct
+from gharbasket.modules.catalog.api import PlanCatalog, PlanIngredient, PlanProduct, PlanRecipe
 from gharbasket.modules.identity.api import HouseholdPlanProfile
 from gharbasket.modules.subscriptions import rules
 from gharbasket.modules.subscriptions.rules import Member
@@ -50,11 +50,16 @@ def plan_request(
     catalog: PlanCatalog,
     monday: date,
     festivals: list[tuple[date, str, dict[str, bool]]],
+    price_index: dict[uuid.UUID, float] | None = None,
 ) -> dict[str, Any]:
+    """The planner's request (M10 §3.1 + v1 §3.2): the household's rules and members, the
+    week's fasting days, every active recipe (sides flagged, never planned alone) with its
+    nutrition and the price spike of its costliest ingredient from `intel.price_index`."""
     budget = profile.budget_paise
     return {
         "household": {
             "size": profile.size,
+            "members": [{"age_band": band, "sex": "other"} for band in profile.member_age_bands],
             "diet": profile.diet,
             "jain": profile.jain,
             "diabetic": profile.diabetic,
@@ -66,10 +71,23 @@ def plan_request(
             "weekly_budget_paise": None if budget is None else budget * 7 // 30,
         },
         "fasting_days": fasting_days(profile, monday, festivals),
-        # Mains only: a side (chapati, a chutney) is paired by the planner, never a meal.
-        "recipes": [r.as_plan_recipe() for r in catalog.recipes if not r.is_side],
+        "recipes": [
+            {**r.as_plan_recipe(), "price_spike": price_spike(r, price_index or {})}
+            for r in catalog.recipes
+        ],
         "time_limit_s": 2.0,
     }
+
+
+def price_spike(recipe: PlanRecipe, price_index: dict[uuid.UUID, float]) -> float | None:
+    """(price - 4-week index) / index of the recipe's costliest spiked ingredient; None when
+    nothing in it is above its usual price (M10 §3.2)."""
+    spikes = [
+        price_index[i.product_id] - 1.0
+        for i in recipe.ingredients
+        if i.product_id in price_index and price_index[i.product_id] > 1.0
+    ]
+    return round(max(spikes), 3) if spikes else None
 
 
 @dataclass

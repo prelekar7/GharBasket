@@ -1,5 +1,7 @@
 """The CP-SAT meal planner (M10 §3.1): valid plans, the comfort-rule fallback, and the checker."""
 
+from typing import Any
+
 import pytest
 from gharbasket_ml.planner import FALLBACK, Week, check, plan_week, relaxations
 from gharbasket_ml.schemas import PlanRequest, PlanResponse
@@ -160,3 +162,74 @@ def test_the_checker_catches_a_missing_slot_and_the_budget() -> None:
 
     assert any("nothing planned" in p for p in problems)
     assert any("over the budget" in p for p in problems)
+
+
+# --- v1 (M10 §3.2): nutrition, sides, price spikes ---------------------------------------------
+
+
+def v1_request(**overrides: Any) -> PlanRequest:
+    """A v1 request: every recipe gets a nutrition row (a plain dal-and-roti day lands near the
+    adult target), sides are listed, and one dish is spiked."""
+    body = request(**overrides).model_dump()
+    for r in body["recipes"]:
+        r["nutrition_per_serving"] = {"kcal": 520, "protein_g": 14, "fibre_g": 5}
+        r["sides"] = ["chapati"] if "lunch" in r["slots"] else []
+    body["recipes"].append(
+        {
+            "slug": "chapati",
+            "cuisine": "common",
+            "slots": ["lunch", "dinner"],
+            "cook_minutes": 20,
+            "diet": "veg",
+            "jain_ok": True,
+            "no_onion_garlic": True,
+            "fasting_ok": False,
+            "diabetic_ok": True,
+            "cost_per_serving_paise": 300,
+            "nutrition_per_serving": {"kcal": 120, "protein_g": 4},
+            "is_side": True,
+        }
+    )
+    body["household"]["members"] = [
+        {"age_band": "18_59", "sex": "f"},
+        {"age_band": "18_59", "sex": "m"},
+        {"age_band": "5_17", "sex": "f"},
+        {"age_band": "under_5", "sex": "m"},
+    ]
+    return PlanRequest.model_validate(body)
+
+
+def test_v1_scores_nutrition_adherence_and_echoes_sides_and_reasons() -> None:
+    req = v1_request(no_cook_days=[6], fasting_days=[{"day": 1, "no_onion_garlic": True}])
+
+    response = plan_week(req)
+
+    plan = verify(req, response)
+    assert response.score is not None and response.score.nutrition is not None
+    assert 0 <= response.score.nutrition <= 1
+    assert "chapati" not in plan.values()  # a side is never a meal
+    meals = {(m.day, m.slot): m for m in response.plan or []}
+    lunch = meals[0, "lunch"]
+    assert lunch.recipe and lunch.sides == ["chapati"]
+    assert "FESTIVAL" in meals[1, "lunch"].reasons and "TIFFIN" in meals[6, "dinner"].reasons
+    v0 = plan_week(request())
+    assert v0.score is not None and v0.score.nutrition is None  # a v0 request gets a v0 answer
+
+
+def test_v1_avoids_a_spiked_dish_when_another_is_as_good() -> None:
+    req = v1_request()
+    body = req.model_dump()
+    spiked = next(r for r in body["recipes"] if r["slug"] == "bhindi-masala")
+    spiked["price_spike"] = 0.8  # bhindi is 80 % above its 4-week index
+    req = PlanRequest.model_validate(body)
+
+    with_spike = plan_week(req, deterministic=True)
+    without = plan_week(v1_request(), deterministic=True)
+
+    assert with_spike.score is not None and without.score is not None
+    assert (with_spike.score.price_penalty or 0) <= 0.8
+    assert (
+        "bhindi-masala" not in as_plan(with_spike).values()
+        or "bhindi-masala" in as_plan(without).values()
+    )
+    assert without.score.price_penalty is None

@@ -138,13 +138,27 @@ def test_fasting_days_come_from_the_household_and_the_calendar() -> None:
 
 
 def test_the_plan_request_carries_rules_recipes_and_a_weekly_budget() -> None:
-    request = planning.plan_request(profile(), catalog(), MONDAY, [])
+    cat = catalog()
+    tomato = next(p.id for p in cat.products.values() if p.slug == "tomato")
+    request = planning.plan_request(profile(), cat, MONDAY, [], {tomato: 1.4})
 
     assert request["household"]["weekly_budget_paise"] == 600_000 * 7 // 30
     assert request["household"]["no_cook_days"] == [6]
-    slugs = [r["slug"] for r in request["recipes"]]
-    assert slugs == ["dal-tadka", "tomato-sabzi"]  # chapati is a side, not a meal
-    assert request["recipes"][0]["cost_per_serving_paise"] == 1200
+    assert [m["age_band"] for m in request["household"]["members"]] == [
+        "18_59",
+        "18_59",
+        "5_17",
+        "under_5",
+    ]
+    by_slug = {r["slug"]: r for r in request["recipes"]}
+    assert list(by_slug) == ["dal-tadka", "chapati", "tomato-sabzi"]
+    assert by_slug["chapati"]["is_side"] is True and by_slug["dal-tadka"]["sides"] == ["chapati"]
+    assert by_slug["dal-tadka"]["cost_per_serving_paise"] == 1200
+    # Tomato is 40 % above its 4-week index: the sabzi carries the spike, the dal does not.
+    assert (
+        by_slug["tomato-sabzi"]["price_spike"] == 0.4
+        and by_slug["dal-tadka"]["price_spike"] is None
+    )
 
 
 def test_the_rule_table_scales_with_adult_equivalents() -> None:

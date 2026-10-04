@@ -76,7 +76,7 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
 - **Fallback when infeasible:** relax `repeat` (a dish may come back on a later day, never twice on the same day), then `cook_time`, then `budget`, one rule and then two. **Never** relax diet, Jain, diabetic or fasting rules. `relaxed` says what was used, and `infeasible` is returned if nothing works.
 - **Deterministic mode:** in-process callers (the simulator) can pass `deterministic=True` to `plan_week`. CP-SAT then interleaves its workers in fixed batches with a deterministic time limit, so the same request always gives the same plan. Several plans can tie for the best score, and the faster default can return any of them. The HTTP endpoint keeps the default.
 
-### 3.2 `POST /plan/week` v1 (planned for Nov–Dec 2026; additive, so v0 clients keep working)
+### 3.2 `POST /plan/week` v1 (implemented 5 Oct 2026; additive, so v0 clients keep working)
 Every new field is optional; a request without them is a v0 request and gets a v0 answer.
 
 ```
@@ -100,8 +100,8 @@ Every new field is optional; a request without them is a v0 request and gets a v
     "score": { …v0…, "nutrition": 0.82, "price_penalty": 3 }   nutrition = share of member-days
                                          within ±20 % of the RDA targets for kcal and protein
 ```
-- **Soft objective v1:** v0 terms + `nutrition` × adherence − `price` × Σ price_spike of chosen dishes (an ingredient 62 % above its 4-week index costs 0.62 × its share). Hard rules are unchanged; the relaxation order is unchanged.
-- **Fallback:** the rule-based planner gains sides pairing and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
+- **Soft objective v1:** v0 terms + `nutrition` × adherent days − `price` × Σ price_spike of chosen dishes (a dish whose costliest ingredient is 62 % above its 4-week index costs 0.62 × the weight). A day is adherent when its three meals' kcal and protein per person (mains plus their sides) fall within ±20 % of the household's average ICMR-NIN target (`gharbasket_ml/nutrition.py`, from `data/external/nutrition/rda.json`); CP-SAT linearises it with one indicator per day. Hard rules are unchanged; the relaxation order is unchanged. Reason codes: `FESTIVAL` on fasting days, `TIFFIN` on no-cook slots, `BUDGET` when the budget rule was relaxed, `FALLBACK` from the rules planner.
+- **Fallback:** the rule-based planner pairs sides, never plans a side as a meal, and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
 ### 3.3 `POST /pantry/quantities` (v0, the pantry twin; M-A)
