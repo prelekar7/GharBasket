@@ -17,6 +17,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * @property {number} weekendCookMinutes
  * @property {number[]} noCookDays 0 = Monday … 6 = Sunday
  * @property {number | null} budgetLockPaise monthly vegetable budget for Budget Lock (M3); null = off
+ * @property {boolean} whatsappConsent optional DPDP consent for WhatsApp updates
+ * @property {boolean} insightsConsent optional DPDP consent to improve plans for the society (anonymised)
  */
 
 /** @type {HouseholdDraft} */
@@ -33,6 +35,8 @@ const EMPTY_HOUSEHOLD = {
   weekendCookMinutes: 60,
   noCookDays: [],
   budgetLockPaise: 300000,
+  whatsappConsent: false,
+  insightsConsent: false,
 };
 
 /**
@@ -74,6 +78,7 @@ export const ONBOARDING_STEPS = [
   "/onboarding/health",
   "/onboarding/cooking",
   "/onboarding/budget",
+  "/onboarding/consent",
 ];
 
 /** The household steps that show "Step N of 5" (designs Hf07–Hf11). */
