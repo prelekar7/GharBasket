@@ -9,6 +9,15 @@ export {
   Select,
   Tabs,
 } from "./components/Choice.jsx";
+export {
+  ConsentCard,
+  GullakMeter,
+  OrderTimeline,
+  RoleSwitcher,
+  ScanButton,
+  SocietyUnlockBar,
+  WalletCard,
+} from "./components/Community.jsx";
 export { Description, FieldError, Label } from "./components/Field.jsx";
 export {
   KnowYourCookCard,
