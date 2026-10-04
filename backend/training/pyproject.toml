@@ -1,0 +1,36 @@
+[project]
+name = "gharbasket-training"
+version = "0.1.0"
+description = "GharBasket training, forecasting and data jobs (M10, ADR-0025): run in GitHub Actions, never in the API or the serving image"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.43.108",
+    "httpx2>=2.13.1",
+    "pyarrow>=25.0.1",
+    "pydantic-settings>=2.15.0",
+]
+
+[project.optional-dependencies]
+# torch-based models (Chronos-2, bge-m3) are a stretch item; installed only by the jobs that need them.
+foundation = []
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "gharbasket_training"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["gharbasket_training"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = true

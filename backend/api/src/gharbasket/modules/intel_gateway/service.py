@@ -5,11 +5,11 @@ by the console's AI health page. Nothing here calls the ML service.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from gharbasket.modules.intel_gateway.models import (
     FeatureSnapshot,
     ModelMetric,
     Prediction,
+    PriceIndex,
 )
 
 
@@ -161,3 +162,64 @@ async def assign_variant(
         )
     ).scalar_one()
     return found
+
+
+async def save_price_index(
+    session: AsyncSession, rows: list[dict[str, Any]], ids: dict[str, uuid.UUID]
+) -> int:
+    """Upsert (product, day, market) rows from the mandi collector; returns how many were kept.
+
+    `rows` carry `slug`, `day`, `market`, `modal_paise_per_kg`, `index_4w`; slugs not in `ids`
+    (unknown products) are skipped.
+    """
+    kept = 0
+    for row in rows:
+        product_id = ids.get(row["slug"])
+        if product_id is None:
+            continue
+        await session.execute(
+            insert(PriceIndex)
+            .values(
+                product_id=product_id,
+                day=row["day"],
+                market=row["market"],
+                modal_paise_per_kg=row["modal_paise_per_kg"],
+                index_4w=row["index_4w"],
+            )
+            .on_conflict_do_update(
+                index_elements=[PriceIndex.product_id, PriceIndex.day, PriceIndex.market],
+                set_={
+                    "modal_paise_per_kg": row["modal_paise_per_kg"],
+                    "index_4w": row["index_4w"],
+                    "updated_at": func.now(),
+                },
+            )
+        )
+        kept += 1
+    return kept
+
+
+async def price_spikes(
+    session: AsyncSession, product_ids: list[uuid.UUID], on: date
+) -> dict[uuid.UUID, float]:
+    """The latest index (within 7 days of `on`) per product, averaged over markets: 1.0 = usual.
+
+    Products with no recent row are left out; the planner treats them as usual-priced.
+    """
+    if not product_ids:
+        return {}
+    rows = await session.execute(
+        select(PriceIndex.product_id, PriceIndex.day, PriceIndex.index_4w).where(
+            PriceIndex.product_id.in_(product_ids),
+            PriceIndex.day <= on,
+            PriceIndex.day >= on - timedelta(days=7),
+        )
+    )
+    latest_day: dict[uuid.UUID, date] = {}
+    values: dict[uuid.UUID, list[float]] = {}
+    for product_id, day, index in rows.all():
+        if product_id not in latest_day or day > latest_day[product_id]:
+            latest_day[product_id], values[product_id] = day, [index]
+        elif day == latest_day[product_id]:
+            values[product_id].append(index)
+    return {pid: round(sum(v) / len(v), 3) for pid, v in values.items()}

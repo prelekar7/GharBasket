@@ -1,0 +1,23 @@
+# backend/training: data, training and forecasting jobs (M10, ADR-0025)
+
+Batch work that must not run inside an API request or the serving image: it runs in **GitHub Actions** (`.github/workflows/training-jobs.yml`), reads Neon through a read-only role and R2 through the S3 API, and hands results to the API's internal endpoints with `JOBS_TOKEN`. Locally the same jobs run against the Docker stack (`just up-storage` for S3).
+
+```
+uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi --out data/external/mandi
+uv run --directory backend/training pytest --cov
+```
+
+## Jobs
+| Job | Schedule | What it does |
+|---|---|---|
+| `collect_mandi` | daily 18:33 IST (Actions) | Pulls today's wholesale prices for Maharashtra markets from data.gov.in (Agmarknet), maps commodities to our product slugs, writes `external/mandi/date=<day>/maharashtra.parquet` to the lake, and pushes a 4-week price index per product to `POST /v1/internal/intel/price-index` |
+
+The data.gov.in resource keeps no history, so this collector is the history: it has run every day since 4 Oct 2026. The 2019–2025 bulk history (India Data Portal) is imported separately in January (forecast v0).
+
+## Settings (environment)
+`DATA_GOV_IN_API_KEY` (your own key; the public sample key returns 10 rows), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_LAKE`, `API_URL`, `JOBS_TOKEN`, `MANDI_MARKETS` (comma-separated, default `Mumbai,Vashi New Mumbai,Pune`).
+
+## Conventions
+- Prices: Agmarknet reports ₹ per quintal; ₹ X per quintal is exactly X paise per kg, which is what we store (`modal_paise_per_kg`).
+- Commodity names are mapped in `src/gharbasket_training/data/commodities.json`; unmapped names are logged, never guessed.
+- Tests use recorded responses and a local folder instead of S3; the coverage gate is 70 %.

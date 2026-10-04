@@ -1,4 +1,4 @@
-# Shared Ruff config for backend/api, backend/ml and data/simulator.
+# Shared Ruff config for backend/api, backend/ml, backend/training and data/simulator.
 target-version = "py313"
 line-length = 100
 # First-party packages (for import sorting).

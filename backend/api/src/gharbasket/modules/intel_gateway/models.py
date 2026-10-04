@@ -6,6 +6,8 @@
 - `model_metrics`: evaluation and monitoring numbers per model version, split and data source.
 - `feature_snapshots`: point-in-time features (as of a cut-off), so training never sees the future.
 - `experiments`: which variant a subject was assigned in an A/B test.
+- `price_index`: today's wholesale price per product and market against its 4-week median, from
+  the mandi collector (backend/training); the planner's price-spike penalty reads it.
 """
 
 import uuid
@@ -18,6 +20,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     Uuid,
@@ -126,4 +129,25 @@ class Experiment(Base):
     subject_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class PriceIndex(Base):
+    __tablename__ = "price_index"
+    __table_args__ = (
+        CheckConstraint("modal_paise_per_kg > 0", name="modal_paise_per_kg"),
+        CheckConstraint("index_4w > 0", name="index_4w"),
+        Index("ix_price_index_day", "day"),
+        {"schema": SCHEMA},
+    )
+
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # catalog.products
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    market: Mapped[str] = mapped_column(String(80), primary_key=True)
+    modal_paise_per_kg: Mapped[int] = mapped_column(Integer)
+    # Today's modal price over the median of the previous 4 weeks: 1.62 means 62 % above usual.
+    index_4w: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(20), server_default="agmarknet")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

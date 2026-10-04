@@ -8,6 +8,8 @@
 !backend/ml/README.md
 !data/simulator/pyproject.toml
 !data/simulator/README.md
+!backend/training/pyproject.toml
+!backend/training/README.md
 !backend/api/src/**
 **/__pycache__
 **/*.pyc
