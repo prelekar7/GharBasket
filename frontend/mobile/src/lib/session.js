@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { logout, logoutAll, me, setActiveRoleHeader } from "@/lib/api.js";
+import { clearLocalData } from "@/lib/localData.js";
 
 /** @typedef {import("./api.js").FieldRole} FieldRole */
 /** @typedef {import("./api.js").RoleGrant} RoleGrant */
@@ -73,6 +74,7 @@ export const useSession = create(
         },
         signOut: async ({ everywhere = false } = {}) => {
           await (everywhere ? logoutAll() : logout()).catch(() => {});
+          await clearLocalData();
           get().clear();
         },
         clear: () => {

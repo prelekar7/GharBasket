@@ -32,6 +32,8 @@ export class ApiError extends Error {
   }
 }
 
+/** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string> }} RequestOptions */
+
 /** @type {string | null} */
 let activeRole = null;
 /** `X-Active-Role: <role>:<scope_id>` (or just `<role>` when unscoped), set by the session store. */
@@ -47,11 +49,11 @@ export function onSessionExpired(/** @type {() => void} */ fn) {
 
 /**
  * @param {string} path
- * @param {{ method?: string, body?: unknown }} [init]
+ * @param {RequestOptions} [init]
  */
-async function send(path, { method = "GET", body } = {}) {
+async function send(path, { method = "GET", body, headers: extra } = {}) {
   /** @type {Record<string, string>} */
-  const headers = { accept: "application/json", "accept-language": i18n.language };
+  const headers = { accept: "application/json", "accept-language": i18n.language, ...extra };
   if (body !== undefined) headers["content-type"] = "application/json";
   if (activeRole) headers["x-active-role"] = activeRole;
   if (NATIVE) {
@@ -111,7 +113,7 @@ export function refresh() {
  * Any API call. A 401 outside /v1/auth/* triggers one refresh and one retry; if that fails the
  * session has expired.
  * @param {string} path
- * @param {{ method?: string, body?: unknown }} [init]
+ * @param {RequestOptions} [init]
  */
 export async function request(path, init) {
   let res = await send(path, init);
