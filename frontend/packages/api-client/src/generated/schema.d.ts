@@ -2152,6 +2152,24 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * ProductNutrition
+         * @description Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.
+         */
+        ProductNutrition: {
+            /** Carb G */
+            carb_g: number;
+            /** Fat G */
+            fat_g: number;
+            /** Fibre G */
+            fibre_g: number;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number;
+            /** Unit G */
+            unit_g?: number | null;
+        };
         /** ProductOut */
         ProductOut: {
             category: components["schemas"]["CategoryRef"];
@@ -2174,6 +2192,8 @@ export interface components {
              */
             name: string;
             names: components["schemas"]["Names"];
+            /** @description Per 100 g (IFCT 2017) */
+            nutrition?: components["schemas"]["ProductNutrition"] | null;
             /** @description For the caller's hub; null without one */
             price: components["schemas"]["Price"] | null;
             /** Shelf Life H */

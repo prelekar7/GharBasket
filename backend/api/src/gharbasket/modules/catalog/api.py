@@ -87,6 +87,7 @@ class PlanProduct:
     tags: frozenset[str]
     shelf_life_h: int | None
     price_paise: int | None  # at the hub, today
+    nutrition: dict[str, Any] | None = None  # per 100 g (IFCT 2017), unit_g for pieces
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,9 @@ class PlanRecipe:
     ingredients: tuple[PlanIngredient, ...]
     cost_per_serving_paise: int | None
     perishables: tuple[str, ...]  # product slugs with <= 96 h shelf life
+    # kcal, protein_g, fibre_g from the ingredients' IFCT rows; None when any required
+    # ingredient has no nutrition data
+    nutrition_per_serving: dict[str, float] | None = None
 
     def as_plan_recipe(self) -> dict[str, Any]:
         """The ML service's `recipes[]` item (M10 §3.1)."""
@@ -145,6 +149,16 @@ class PlanCatalog:
 PERISHABLE_H = 96
 
 
+def grams_of(product: PlanProduct, qty_base_units: float) -> float | None:
+    """A recipe quantity (in the product's base unit: g, ml, piece or bunch) in grams; ml count
+    as grams, a piece or bunch needs the product's `unit_g`."""
+    base = BASE_UNIT[product.step_unit][0]
+    if base in ("g", "ml"):
+        return qty_base_units
+    unit_g = (product.nutrition or {}).get("unit_g")
+    return None if unit_g is None else qty_base_units * unit_g
+
+
 async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanCatalog:
     """Every active product with today's hub price, and every active recipe with its
     ingredients and cost per serving; the planner's whole menu, loaded once per job run."""
@@ -162,6 +176,7 @@ async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanC
             frozenset(p.tags),
             p.shelf_life_h,
             prices[p.id].price_paise if p.id in prices else None,
+            p.nutrition,
         )
         for p in products_rows
     }
@@ -180,6 +195,8 @@ async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanC
         cost = Decimal(0)
         priced = True
         perishables = []
+        nutrition = {"kcal": 0.0, "protein_g": 0.0, "fibre_g": 0.0}
+        nourished = True
         for link in sorted(by_recipe[r.id], key=lambda link: str(link.product_id)):
             product = products.get(link.product_id)
             if product is None:
@@ -187,6 +204,12 @@ async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanC
             ingredients.append(
                 PlanIngredient(product.id, product.slug, float(link.qty_per_serving), link.optional)
             )
+            grams = grams_of(product, float(link.qty_per_serving))
+            if product.nutrition is None or grams is None:
+                nourished = nourished and link.optional
+            else:
+                for key in nutrition:
+                    nutrition[key] += product.nutrition[key] * grams / 100
             if product.price_paise is None:
                 priced = False
             else:
@@ -211,6 +234,7 @@ async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanC
                 tuple(ingredients),
                 round(cost) if priced else None,
                 tuple(sorted(perishables)),
+                {k: round(v, 1) for k, v in nutrition.items()} if nourished else None,
             )
         )
     return PlanCatalog(products, tuple(recipes))

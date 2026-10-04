@@ -41,6 +41,17 @@ class Price(BaseModel):
     valid_from: date
 
 
+class ProductNutrition(BaseModel):
+    """Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch."""
+
+    kcal: int
+    protein_g: float
+    fat_g: float
+    carb_g: float
+    fibre_g: float
+    unit_g: int | None = None
+
+
 class ProductOut(BaseModel):
     id: uuid.UUID
     slug: str = Field(examples=["bhindi"])
@@ -53,6 +64,7 @@ class ProductOut(BaseModel):
     shelf_life_h: int | None
     image_url: str | None
     price: Price | None = Field(description="For the caller's hub; null without one")
+    nutrition: ProductNutrition | None = Field(default=None, description="Per 100 g (IFCT 2017)")
 
 
 class SearchItem(BaseModel):

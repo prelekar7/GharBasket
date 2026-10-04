@@ -27,6 +27,7 @@ from gharbasket.modules.catalog.schemas import (
     PriceListCreated,
     PriceListIn,
     PriceListOut,
+    ProductNutrition,
     ProductOut,
     RecipeOut,
     RecipeRules,
@@ -102,6 +103,7 @@ def _product_out(row: service.ProductRow, lang: Language, price: HubPrice | None
         shelf_life_h=product.shelf_life_h,
         image_url=None,
         price=_price(price),
+        nutrition=ProductNutrition.model_validate(product.nutrition) if product.nutrition else None,
     )
 
 

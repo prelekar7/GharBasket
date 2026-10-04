@@ -3088,6 +3088,51 @@
         "title": "Problem",
         "type": "object"
       },
+      "ProductNutrition": {
+        "description": "Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.",
+        "properties": {
+          "carb_g": {
+            "title": "Carb G",
+            "type": "number"
+          },
+          "fat_g": {
+            "title": "Fat G",
+            "type": "number"
+          },
+          "fibre_g": {
+            "title": "Fibre G",
+            "type": "number"
+          },
+          "kcal": {
+            "title": "Kcal",
+            "type": "integer"
+          },
+          "protein_g": {
+            "title": "Protein G",
+            "type": "number"
+          },
+          "unit_g": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit G"
+          }
+        },
+        "required": [
+          "kcal",
+          "protein_g",
+          "fat_g",
+          "carb_g",
+          "fibre_g"
+        ],
+        "title": "ProductNutrition",
+        "type": "object"
+      },
       "ProductOut": {
         "properties": {
           "category": {
@@ -3131,6 +3176,17 @@
           },
           "names": {
             "$ref": "#/components/schemas/Names"
+          },
+          "nutrition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductNutrition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per 100 g (IFCT 2017)"
           },
           "price": {
             "anyOf": [

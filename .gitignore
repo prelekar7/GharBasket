@@ -60,3 +60,4 @@ infra/osrm/data/
 data/external/mandi/
 data/external/**/*.parquet
 data/external/**/raw/
+data/external/nutrition/ifct2017_compositions.csv
