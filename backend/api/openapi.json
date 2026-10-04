@@ -2336,6 +2336,105 @@
         "title": "MemberUpdate",
         "type": "object"
       },
+      "ModelMetricIn": {
+        "properties": {
+          "data_source": {
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live",
+              "mixed"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "metric": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Metric",
+            "type": "string"
+          },
+          "model_name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Model Name",
+            "type": "string"
+          },
+          "split": {
+            "enum": [
+              "train",
+              "holdout",
+              "backtest",
+              "live"
+            ],
+            "title": "Split",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "version": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_name",
+          "version",
+          "metric",
+          "value",
+          "split",
+          "data_source"
+        ],
+        "title": "ModelMetricIn",
+        "type": "object"
+      },
+      "ModelMetricsIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelMetricIn"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ModelMetricsIn",
+        "type": "object"
+      },
+      "ModelMetricsOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "ModelMetricsOut",
+        "type": "object"
+      },
       "Names": {
         "properties": {
           "en": {
@@ -8545,6 +8644,72 @@
         "summary": "Publish a hub's prices from a date (hub manager of that hub; audit-logged)",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/internal/intel/model-metrics": {
+      "post": {
+        "operationId": "put_model_metrics_v1_internal_intel_model_metrics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelMetricsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelMetricsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Store an evaluation run's metrics (the eval harness and training jobs; operator token)",
+        "tags": [
+          "intel_gateway"
         ]
       }
     },

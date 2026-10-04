@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.schemas import PlanRequest, WeekPlan  # re-exported
 from gharbasket.modules.intel_gateway.service import (
+    latest_metrics,
     latest_prediction,
     price_spikes,
     record_metrics,
@@ -26,6 +27,7 @@ log = structlog.get_logger("gharbasket.intel_gateway")
 __all__ = [
     "PlanRequest",
     "WeekPlan",
+    "latest_metrics",
     "latest_prediction",
     "plan_week",
     "price_spikes",

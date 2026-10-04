@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.43.108",
+    "gharbasket-sim",
     "httpx2>=2.13.1",
     "pyarrow>=25.0.1",
     "pydantic-settings>=2.15.0",
@@ -14,6 +15,9 @@ dependencies = [
 [project.optional-dependencies]
 # torch-based models (Chronos-2, bge-m3) are a stretch item; installed only by the jobs that need them.
 foundation = []
+
+[tool.uv.sources]
+gharbasket-sim = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
