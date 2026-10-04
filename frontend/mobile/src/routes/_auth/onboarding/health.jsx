@@ -1,0 +1,98 @@
+import { Button, Chip, ConsentCard } from "@gharbasket/ui";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
+import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+
+const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
+/** @type {("adults" | "seniors" | "children" | "little")[]} */
+const GROUPS = ["adults", "seniors", "children", "little"];
+
+/** People in the household as "adults-1", "seniors-1"… from the Family step's counts. */
+function people(/** @type {import("@/features/onboarding/draft.js").Members} */ members) {
+  return GROUPS.flatMap((g) =>
+    Array.from({ length: members[g] }, (_, i) => ({ key: `${g}-${i + 1}`, group: g, n: i + 1 })),
+  );
+}
+
+/**
+ * Any health needs? Optional, and only with consent (DPDP): the switch starts off, and the tags
+ * appear only once it is on. Turning it off or skipping clears every tag (design Hf09).
+ */
+// @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
+export const Route = createFileRoute("/_auth/onboarding/health")({ component: Health });
+
+function Health() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { household: h, updateHousehold } = useOnboardingDraft();
+  const go = () => navigate({ to: nextStep("/onboarding/health") });
+
+  /** @param {string} person @param {string} tag @param {boolean} on */
+  const setTag = (person, tag, on) => {
+    const tags = h.health[person] ?? [];
+    updateHousehold({
+      health: { ...h.health, [person]: on ? [...tags, tag] : tags.filter((x) => x !== tag) },
+    });
+  };
+
+  return (
+    <OnboardingFrame
+      step={3}
+      footer={
+        <>
+          <Button variant="primary" size="lg" block onPress={go}>
+            {t("onboarding.next")}
+          </Button>
+          <Button
+            variant="quiet"
+            block
+            onPress={() => {
+              updateHousehold({ healthConsent: false, health: {} });
+              go();
+            }}
+          >
+            {t("onboarding.health.skip")}
+          </Button>
+        </>
+      }
+    >
+      <h1 className="font-display text-[28px] leading-[34px] font-semibold">
+        {t("onboarding.health.title")}
+      </h1>
+      <ConsentCard
+        title={t("onboarding.health.cTitle")}
+        why={t("onboarding.health.why")}
+        uses={[
+          t("onboarding.health.use1"),
+          t("onboarding.health.use2"),
+          t("onboarding.health.use3"),
+        ]}
+        version={t("onboarding.health.version")}
+        switchLabel={t("onboarding.health.switchLabel")}
+        granted={h.healthConsent}
+        onChange={(on) => updateHousehold({ healthConsent: on, health: on ? h.health : {} })}
+        labels={{ optional: t("onboarding.health.optional"), why: t("onboarding.health.whyLead") }}
+      />
+      {h.healthConsent &&
+        people(h.members).map((p) => (
+          <div key={p.key} className="flex flex-col gap-2">
+            <span className="text-sm leading-5 font-semibold">
+              {t(`onboarding.health.person.${p.group}`, { n: p.n })}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {TAGS.map((tag) => (
+                <Chip
+                  key={tag}
+                  isSelected={(h.health[p.key] ?? []).includes(tag)}
+                  onChange={(on) => setTag(p.key, tag, on)}
+                >
+                  {t(`onboarding.health.tags.${tag}`)}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        ))}
+    </OnboardingFrame>
+  );
+}

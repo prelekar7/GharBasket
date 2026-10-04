@@ -167,6 +167,32 @@
         "tuesdays": "Tuesdays"
       },
       "fastNote": "On fasting days Autopilot plans upvas food like sabudana khichdi."
+    },
+    "health": {
+      "title": "Any health needs?",
+      "cTitle": "Health personalisation",
+      "why": "so Autopilot can plan, for example, low-sugar meals for someone with diabetes.",
+      "use1": "Only the tags you pick below",
+      "use2": "Never shared with cooks, riders or captains",
+      "use3": "Turn off any time in Profile › Privacy",
+      "version": "Consent v1",
+      "switchLabel": "Use health tags for planning",
+      "optional": "Optional",
+      "whyLead": "Why we ask: ",
+      "skip": "Skip this step",
+      "person": {
+        "adults": "Adult {n}",
+        "seniors": "Senior {n}",
+        "children": "Child {n}",
+        "little": "Little one {n}"
+      },
+      "tags": {
+        "diabetes": "Diabetes",
+        "high_bp": "High BP",
+        "high_protein": "High protein",
+        "weight_loss": "Weight loss",
+        "low_oil": "Low oil"
+      }
     }
   }
 }

@@ -69,6 +69,7 @@ export const ONBOARDING_STEPS = [
   "/onboarding/flat",
   "/onboarding/family",
   "/onboarding/food",
+  "/onboarding/health",
 ];
 
 /** The household steps that show "Step N of 5" (designs Hf07–Hf11). */
