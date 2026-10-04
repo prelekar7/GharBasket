@@ -915,6 +915,15 @@ It generates:
 
 It writes **through the module services**, so ledger and state-machine rules hold, with `data_source='synthetic'`. Ground truth is saved to `data/sim_truth/*.parquet` for evaluation.
 
+**Status (v0, Oct 2026):**
+- **Done:** items 2–4, through `just sim`.
+  - Households from `data/simulator/cohorts.json` are onboarded through M1 in the seed societies.
+  - The truth files hold latent daily-use rates and tastes, weekly CP-SAT plans with accept/edit/skip, and consumption.
+- **Next:**
+  - item 1 (real society polygons) and items 5–6;
+  - writing the weeks through M3/M4 once they exist.
+- See M10 §3.2 and `data/simulator/README.md`.
+
 *Figure 5.14 — Simulator data flow*
 
 ```mermaid

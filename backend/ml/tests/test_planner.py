@@ -35,6 +35,17 @@ def test_a_family_week_is_optimal_and_valid() -> None:
     assert response.seconds < 2
 
 
+def test_deterministic_mode_gives_the_same_optimal_plan_every_time() -> None:
+    req = request(
+        size=2, diet="egg", cuisines=["maharashtrian"], no_cook_days=[], weekly_budget_paise=None
+    )
+
+    plans = [plan_week(req, deterministic=True) for _ in range(3)]
+
+    assert {r.status for r in plans} == {"optimal"}
+    assert verify(req, plans[0]) == as_plan(plans[1]) == as_plan(plans[2])
+
+
 def test_an_egg_household_may_get_egg_curry_and_a_veg_one_never() -> None:
     egg = plan_week(request(diet="egg", no_cook_days=[], weekly_budget_paise=None))
     veg = plan_week(request())

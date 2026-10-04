@@ -145,7 +145,13 @@ class Solved:
     plan: Plan | None
 
 
-def solve(week: Week, time_limit_s: float, relax: frozenset[Rule] = frozenset()) -> Solved:
+def solve(
+    week: Week,
+    time_limit_s: float,
+    relax: frozenset[Rule] = frozenset(),
+    *,
+    deterministic: bool = False,
+) -> Solved:
     m = cp_model.CpModel()
     x: dict[tuple[int, Slot, str], cp_model.IntVar] = {}
     for day in DAYS:
@@ -199,9 +205,16 @@ def solve(week: Week, time_limit_s: float, relax: frozenset[Rule] = frozenset())
     )
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = time_limit_s
     solver.parameters.num_workers = 8
     solver.parameters.random_seed = 7
+    if deterministic:
+        # The same plan on every run and machine (the simulator needs this): workers take turns
+        # in fixed batches, and the limit counts work done rather than wall-clock seconds.
+        solver.parameters.interleave_search = True
+        solver.parameters.max_deterministic_time = time_limit_s
+    else:
+        # Several plans can tie for the best score; parallel workers may return any of them.
+        solver.parameters.max_time_in_seconds = time_limit_s
     status = solver.solve(m)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return Solved("infeasible", None)
@@ -236,11 +249,13 @@ def relaxations() -> list[frozenset[Rule]]:
     return [frozenset(), *(frozenset({rule}) for rule in FALLBACK), *pairs]
 
 
-def plan_week(request: PlanRequest) -> PlanResponse:
+def plan_week(request: PlanRequest, *, deterministic: bool = False) -> PlanResponse:
+    """`deterministic` (in-process callers only, e.g. the simulator) returns the same plan every
+    run, at some cost in speed; the HTTP endpoint keeps the faster default."""
     week = Week.of(request)
     started = time.perf_counter()
     for relax in relaxations():
-        solved = solve(week, request.time_limit_s, relax)
+        solved = solve(week, request.time_limit_s, relax, deterministic=deterministic)
         if solved.plan is not None:
             return PlanResponse(
                 status=solved.status,  # pyright: ignore[reportArgumentType]
