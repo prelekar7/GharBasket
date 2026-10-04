@@ -9,6 +9,7 @@ consent is active, hidden from reads without it, and erased when it is revoked.
 """
 
 import uuid
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -165,17 +166,16 @@ async def owned(
     return household
 
 
-def _check_diet(diet: str, members: list[MemberIn] | list[HouseholdMember]) -> None:
-    for member in members:
-        jain = (
-            member.fasting_rules.jain
-            if isinstance(member, MemberIn)
-            else bool(member.fasting_rules.get("jain"))
+def check_diet(diet: str, jain_members: Iterable[bool]) -> None:
+    """A Jain member needs a vegetarian household."""
+    if diet != "veg" and any(jain_members):
+        raise ProblemError(
+            422, "identity.diet_conflict", "A Jain member needs a vegetarian household."
         )
-        if jain and diet != "veg":
-            raise ProblemError(
-                422, "identity.diet_conflict", "A Jain member needs a vegetarian household."
-            )
+
+
+def is_jain(member: HouseholdMember) -> bool:
+    return bool(member.fasting_rules.get("jain"))
 
 
 async def create_household(
@@ -188,10 +188,10 @@ async def create_household(
     society = await community_api.get_society(session, body.society_id)
     if society is None:
         raise ProblemError(422, "identity.society_unknown", "No such society.")
-    await _check_address(
+    await check_address(
         session, body.society_id, society.tower_ids, body.address.tower_id, body.address.location
     )
-    _check_diet(body.diet, body.members)
+    check_diet(body.diet, (member.fasting_rules.jain for member in body.members))
 
     for consent in body.consents:
         check_consent_version(consent.version)
@@ -204,7 +204,7 @@ async def create_household(
             "Onboarding needs consent for service delivery and personalisation.",
         )
     if HEALTH not in effective and any(member.health_tags for member in body.members):
-        raise _health_consent_required()
+        raise health_consent_required()
 
     household = Household(
         owner_user_id=owner_id,
@@ -225,7 +225,7 @@ async def create_household(
             raise
         raise _household_exists(other.id) from None
 
-    session.add_all(_member(household.id, member) for member in body.members)
+    session.add_all(new_member(household.id, member) for member in body.members)
     location = body.address.location
     session.add(
         Address(
@@ -280,7 +280,7 @@ def _household_exists(household_id: uuid.UUID) -> ProblemError:
     )
 
 
-def _health_consent_required() -> ProblemError:
+def health_consent_required() -> ProblemError:
     return ProblemError(
         403,
         "identity.health_consent_required",
@@ -288,7 +288,7 @@ def _health_consent_required() -> ProblemError:
     )
 
 
-async def _check_address(
+async def check_address(
     session: AsyncSession,
     society_id: uuid.UUID,
     tower_ids: frozenset[str],
@@ -305,7 +305,7 @@ async def _check_address(
         )
 
 
-def _member(household_id: uuid.UUID, member: MemberIn) -> HouseholdMember:
+def new_member(household_id: uuid.UUID, member: MemberIn) -> HouseholdMember:
     return HouseholdMember(
         household_id=household_id,
         age_band=member.age_band,
@@ -331,46 +331,76 @@ async def update_household(
         if getattr(household, field) != value
     }
     if "diet" in changes:
-        members = await session.execute(
-            select(HouseholdMember).where(HouseholdMember.household_id == household.id)
-        )
-        _check_diet(changes["diet"], list(members.scalars()))
+        members = await members_of(session, household.id)
+        check_diet(changes["diet"], (is_jain(member) for member in members))
     if not changes:
         return household
     for field, value in changes.items():
         setattr(household, field, value)
+    await bump_version(session, household, sorted(changes))
+    return household
+
+
+async def bump_version(session: AsyncSession, household: Household, changed: list[str]) -> None:
+    """Every change to a household, its members or its address: new version, one event."""
     household.version += 1
     await session.flush()
     await session.refresh(household)
     await publish(
         session,
         events.HOUSEHOLD_UPDATED,
-        {
-            "household_id": str(household.id),
-            "version": household.version,
-            "changed": sorted(changes),
-        },
+        {"household_id": str(household.id), "version": household.version, "changed": changed},
     )
-    return household
 
 
-async def view(session: AsyncSession, household: Household) -> HouseholdOut:
-    """The household as the API returns it; health tags only while the consent is active."""
-    show_health = HEALTH in await active_consents(session, household.owner_user_id)
+async def shows_health(session: AsyncSession, household: Household) -> bool:
+    return HEALTH in await active_consents(session, household.owner_user_id)
+
+
+def member_out(member: HouseholdMember, *, show_health: bool) -> MemberOut:
+    return MemberOut.model_validate(
+        {
+            "id": member.id,
+            "age_band": member.age_band,
+            "sex": member.sex,
+            "fasting_rules": member.fasting_rules,
+            "health_tags": member.health_tags if show_health else [],
+        }
+    )
+
+
+async def members_of(session: AsyncSession, household_id: uuid.UUID) -> list[HouseholdMember]:
     members = await session.execute(
         select(HouseholdMember)
-        .where(HouseholdMember.household_id == household.id)
+        .where(HouseholdMember.household_id == household_id)
         .order_by(HouseholdMember.created_at, HouseholdMember.id)
     )
+    return list(members.scalars())
+
+
+async def address_out(session: AsyncSession, household_id: uuid.UUID) -> AddressOut:
     address, lat, lng = (
         await session.execute(
             select(
                 Address,
                 func.ST_Y(func.geometry(Address.location)),
                 func.ST_X(func.geometry(Address.location)),
-            ).where(Address.household_id == household.id)
+            ).where(Address.household_id == household_id)
         )
     ).one()
+    return AddressOut(
+        id=address.id,
+        household_id=address.household_id,
+        society_id=address.society_id,
+        tower_id=address.tower_id,
+        flat=address.flat,
+        location=None if lat is None else LatLng(lat=lat, lng=lng),
+    )
+
+
+async def view(session: AsyncSession, household: Household) -> HouseholdOut:
+    """The household as the API returns it; health tags only while the consent is active."""
+    show_health = await shows_health(session, household)
     return HouseholdOut(
         id=household.id,
         version=household.version,
@@ -386,24 +416,9 @@ async def view(session: AsyncSession, household: Household) -> HouseholdOut:
         autopilot_enabled=household.autopilot_enabled,
         auto_approve=household.auto_approve,
         members=[
-            MemberOut.model_validate(
-                {
-                    "id": member.id,
-                    "age_band": member.age_band,
-                    "sex": member.sex,
-                    "fasting_rules": member.fasting_rules,
-                    "health_tags": member.health_tags if show_health else [],
-                }
-            )
-            for member in members.scalars()
+            member_out(member, show_health=show_health)
+            for member in await members_of(session, household.id)
         ],
-        address=AddressOut(
-            id=address.id,
-            household_id=address.household_id,
-            society_id=address.society_id,
-            tower_id=address.tower_id,
-            flat=address.flat,
-            location=None if lat is None else LatLng(lat=lat, lng=lng),
-        ),
+        address=await address_out(session, household.id),
         created_at=household.created_at,
     )
