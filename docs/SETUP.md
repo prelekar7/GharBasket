@@ -28,7 +28,7 @@ just                  # lists every command
 ```
 ### Local infrastructure
 ```bash
-cp .env.example .env     # optional: every value has a working default
+cp .env.example .env     # required: just migrate and just dev read DATABASE_URL from it
 just up                  # Postgres 18 (PostGIS, pgvector) + Valkey          ~400 MB RAM
 just up-storage          # + SeaweedFS S3 with buckets gb-media, gb-lake, gb-mlflow
 just up-all              # + MLflow tracking server and model registry       ~1.2 GB RAM in total
@@ -48,7 +48,16 @@ Everything binds to `127.0.0.1` only. The Postgres image is built locally from t
 
 Docker Desktop settings that work well on an 8 GB laptop: Resources, Memory 3-4 GB, CPUs 4, Swap 1 GB; General, use the Virtualization framework and VirtioFS.
 
-After `feat/M0-api-platform` merges: `just migrate` then `just dev`.
+### Run the API
+```bash
+just migrate             # create or upgrade the tables
+just seed                # synthetic people, one per role (safe to run again)
+just dev                 # API on http://localhost:8000, with reload
+```
+Open **http://localhost:8000/v1/docs** (the docs live under `/v1`). Sign in with `POST /v1/auth/exchange` and
+`{"dev_phone": "+919800001001", "device": {"platform": "web", "push_token": null}}`, copy `access_token`
+into **Authorize**, then try `GET /v1/me`. The seeded phones and their roles are listed in `backend/api/README.md`.
+`just test` runs the backend tests against the `gharbasket_test` database.
 
 ## 3. Editor
 - VS Code or Cursor with: Biome, Python, Ruff, Pylance, Tailwind CSS IntelliSense, EditorConfig.

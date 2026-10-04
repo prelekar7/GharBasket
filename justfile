@@ -84,6 +84,10 @@ test:
 grant-role *args:
     uv run python -m gharbasket.tools.grant_role {{args}}
 
+# Fill the local database with synthetic people, one per role (safe to run again; local only)
+seed:
+    uv run python -m gharbasket.tools.seed
+
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
     uv run python -m gharbasket.tools.export_openapi
