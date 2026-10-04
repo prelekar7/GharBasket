@@ -1,7 +1,7 @@
 # M1 — Identity & Household
 
 **Status:** Draft v1.1. §3.1 (auth) and §3.2 (household, consents, address) are frozen; the rest is refined at phase start (spec-first).
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`
 
@@ -136,13 +136,18 @@ GET /v1/households/{id}       owner only (hub_manager read arrives with RLS); 40
 PATCH /v1/households/{id}     If-Match: "<version>" required. Any of: diet, cuisine_tags,
                               weekday_cook_minutes, weekend_cook_minutes, no_cook_days, budget_paise,
                               autopilot_enabled, auto_approve. 200 HouseholdOut with the new version.
-POST   /v1/households/{id}/members          MemberIn → 201 MemberOut
+POST   /v1/households/{id}/members          MemberIn → 201 MemberOut; at most 12 members
 PATCH  /v1/households/{id}/members/{mid}    any MemberIn field → 200 MemberOut
+                              (fasting_rules is replaced whole; sex: null clears it)
 DELETE /v1/households/{id}/members/{mid}    204; the last member cannot be removed
-                              Member changes bump the household version and update size.
+                              Member changes bump the household version and update size; the
+                              response carries the household's new ETag. Same rules as onboarding
+                              (Jain needs veg, health tags need the consent). No If-Match needed.
 GET   /v1/addresses           [AddressOut]   (bare list, at most one address in v1)
-PATCH /v1/addresses/{id}      any of society_id, tower_id, flat, location. Moving to another society
-                              also moves the household (society_id, hub_id) in the same transaction.
+PATCH /v1/addresses/{id}      any of society_id, tower_id, flat, location (null removes the pin).
+                              Moving to another society also moves the household (society_id, hub_id)
+                              in the same transaction; the tower and the pin (the stored one if not
+                              resent) must fit the new society. Bumps the household version (ETag).
 
 GET  /v1/consents             [ConsentOut]: one entry per purpose, including never-given ones
 POST /v1/consents             { "purpose", "version", "granted": true | false } → 200 ConsentOut
@@ -177,6 +182,9 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 | 409 | `identity.consent_version_stale` | `version` isn't the current one; the problem carries `"current_version"` |
 | 403 | `identity.health_consent_required` | `health_tags` sent while `health_personalisation` isn't granted (in this request or already) |
 | 422 | `identity.household_needs_member` | Deleting the last member |
+| 422 | `identity.household_full` | Adding a 13th member |
+| 404 | `identity.member_not_found` | A member id that isn't in the caller's household |
+| 404 | `identity.address_not_found` | An address id that isn't the caller's |
 | 428 | `request.precondition_required` | `PATCH` without `If-Match` |
 | 412 | `identity.version_conflict` | `If-Match` isn't the current version; the app reloads and retries |
 | 400 | `request.idempotency_key_required` | `POST /v1/households` without `Idempotency-Key` (M0) |
