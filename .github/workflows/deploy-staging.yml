@@ -1,0 +1,100 @@
+# Deploy main to staging (ADR-0020): after CI passes on main, run the migrations on Neon, then tell
+# Render to deploy that exact commit, then wait until staging runs it and passes the smoke test.
+# Render's free plan has no pre-deploy step, so migrations run here. They are written
+# expand-then-contract, so the running API keeps working while they apply.
+#
+# Needs the repository secrets DATABASE_URL_DIRECT (Neon, direct), RENDER_DEPLOY_HOOK_URL,
+# JOBS_TOKEN and STAGING_API_URL. Until they are set the workflow skips with a notice.
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, in order; a newer commit waits instead of cancelling a half-done migration.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate Neon, deploy to Render, smoke test
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+      JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+    steps:
+      - name: Check that staging is configured
+        id: configured
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          missing=""
+          for name in DATABASE_URL_DIRECT RENDER_DEPLOY_HOOK_URL JOBS_TOKEN STAGING_API_URL; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::Staging is not configured yet (missing secrets:$missing). Skipping the deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          enable-cache: true
+
+      - name: Run migrations on Neon
+        if: steps.configured.outputs.ready == 'true'
+        working-directory: backend/api
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          # migrations/env.py refuses any non-local database without this flag.
+          GB_ALLOW_REMOTE_MIGRATIONS: "1"
+        run: |
+          uv sync --frozen --no-dev --package gharbasket-api
+          uv run --no-sync alembic upgrade head
+
+      - name: Ask Render to deploy this commit
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: curl --fail --silent --show-error --output /dev/null -X POST "${RENDER_DEPLOY_HOOK_URL}&ref=${SHA}"
+
+      - name: Wait until staging runs this commit
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          # The free build plus a cold start takes a few minutes; give it up to 20.
+          for attempt in $(seq 1 60); do
+            commit=$(curl --silent --max-time 60 "$STAGING_API_URL/v1/health" | jq -r '.commit // empty' || true)
+            if [ "$commit" = "$SHA" ]; then
+              echo "Staging runs $SHA"
+              exit 0
+            fi
+            echo "Waiting (staging reports '${commit:-unknown}')"
+            sleep 20
+          done
+          echo "::error::Staging did not report commit $SHA within 20 minutes; check the Render deploy log."
+          exit 1
+
+      - name: Smoke test
+        if: steps.configured.outputs.ready == 'true'
+        run: scripts/smoke-staging.sh "$STAGING_API_URL"

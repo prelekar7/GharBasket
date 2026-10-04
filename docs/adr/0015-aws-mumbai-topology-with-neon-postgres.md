@@ -1,6 +1,6 @@
 # ADR-0015 — AWS Mumbai topology with Neon Postgres and S3
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md)
 - **Date:** 2026-10-02
 - **Decision ID:** D15
 

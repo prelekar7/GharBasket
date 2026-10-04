@@ -1,7 +1,7 @@
 # M1 — Identity & Household
 
-**Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje
+**Status:** Draft v1.1. §3.1 (auth) and §3.2 (household, consents, address) are frozen; the rest is refined at phase start (spec-first).
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`
 
@@ -29,11 +29,12 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | GET / PATCH | `/v1/me` | Authenticated | — | Name, locale, senior mode |
 | GET | `/v1/me/roles` | Authenticated | — | Roles with scope and status |
 | GET / DELETE | `/v1/me/devices`, `/v1/me/devices/{id}` | Authenticated | — | |
-| POST | `/v1/households` | customer | Required | One per owner (v1) |
-| GET / PATCH | `/v1/households/{id}` | owner, hub_manager (read) | — | `If-Match` version |
-| GET / POST / PATCH / DELETE | `/v1/households/{id}/members[/{mid}]` | owner | — | Age band, health tags (consent-gated) |
-| GET / POST / PATCH | `/v1/addresses[/{id}]` | owner | — | Society, tower, flat, location |
-| GET / POST | `/v1/consents` | Authenticated | — | Grant/revoke per purpose |
+| POST | `/v1/households` | customer | Required | Onboarding in one call: household, members, address and consents in one transaction (§3.2). One per owner (v1) |
+| GET | `/v1/households/me` | customer | — | The caller's household, or 404 `identity.household_not_found` |
+| GET / PATCH | `/v1/households/{id}` | owner, hub_manager (read) | — | `ETag` / `If-Match` on `version` |
+| POST / PATCH / DELETE | `/v1/households/{id}/members[/{mid}]` | owner | — | Age band, fasting rules, health tags (consent-gated) |
+| GET / PATCH | `/v1/addresses[/{id}]` | owner | — | Society, tower, flat, location. The first address is created by `POST /v1/households` |
+| GET / POST | `/v1/consents` | Authenticated | — | Grant or revoke one purpose |
 | GET | `/v1/me/data-export` | Authenticated | — | Async; link via notification |
 | DELETE | `/v1/me` | Authenticated | — | Account deletion flow |
 | POST | `/v1/admin/user-roles` | admin | Required | Grant staff roles |
@@ -73,7 +74,122 @@ More codes: "auth.refresh_reused" (401, a used refresh token was replayed: the s
             "auth.account_disabled" (403), "auth.provider_unavailable" (503, Firebase keys unreachable),
             "request.invalid" (422, e.g. both or neither of firebase_id_token / dev_phone).
 dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
+
+Browser (cookie) mode, implemented in `feat/M1-auth-web-cookies`:
+  Browsers send the header  X-GB-Client: web  on exchange, refresh and every request that changes
+  something. The API then sets httpOnly cookies instead of returning tokens: the JSON fields
+  access_token and refresh_token are null.
+    __Host-gb_at  access token   Secure; HttpOnly; SameSite=Lax; Path=/;          Max-Age=900
+    gb_rt         refresh token  Secure; HttpOnly; SameSite=Lax; Path=/v1/auth;   Max-Age=rest of the session
+  Refresh: POST /v1/auth/refresh with {} (the cookie carries the token). Logout clears both cookies.
+  CSRF: a cookie-authenticated POST/PATCH/PUT/DELETE without X-GB-Client: web, or from an Origin not
+  in WEB_ORIGINS, is 403 "auth.csrf_rejected". A Bearer header always wins over the cookie.
+Instant sign-out: logout, logout-all, device sign-out and refresh reuse take effect at once.
+Rate limits: exchange 30 per 10 min per address and 10 per 10 min per phone; refresh 300 per minute
+  per address; over the limit: 429 "auth.rate_limited" with Retry-After.
 ```
+
+### 3.2 Household contract (frozen for S1)
+Onboarding (screens Hf04 to Hf15) and the backend both build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint below needs `Authorization` (Bearer or the web cookie from §3.1).
+
+**Onboarding is a single call.** The app collects everything on the device and sends it once, with one `Idempotency-Key` per onboarding attempt. The server writes the household, its members, the address and the consents in one transaction, so a retry can never leave half a household or duplicate members. If the user edits the draft after a failed attempt, the app must use a new key; reusing the old key with a different body returns 422 `request.idempotency_mismatch`.
+
+```
+POST /v1/households           (customer; Idempotency-Key required)
+  request : {
+    "society_id": "<uuid>",                     must exist in community.societies (any status)
+    "address": { "tower_id": "a", "flat": "A-1203",
+                 "location": { "lat": 19.04, "lng": 73.07 } | null },   null when no pin was placed
+    "diet": "veg" | "egg" | "nonveg",
+    "cuisine_tags": ["maharashtrian"],          up to 5 of: maharashtrian, gujarati, north_indian,
+                                                south_indian, bengali
+    "weekday_cook_minutes": 30,                 10 to 240
+    "weekend_cook_minutes": 60,                 10 to 240
+    "no_cook_days": [6],                        0 = Monday … 6 = Sunday (Python date.weekday()), unique
+    "budget_paise": 300000 | null,              the monthly Budget Lock the user chose; null = off;
+                                                at least 50000 (₹500) when set
+    "members": [ MemberIn, … ],                 1 to 12; size is the number of members
+    "consents": [ { "purpose": "service_delivery", "version": "v1", "granted": true }, … ]
+  }
+  201     : HouseholdOut   (+ header ETag: "<version>")
+
+MemberIn  : { "age_band": "under_5" | "5_17" | "18_59" | "60_plus",
+              "sex": "f" | "m" | "other" | null,                       optional, default null
+              "fasting_rules": { "jain": false,
+                                 "fasts": ["shravan_mondays", "ekadashi"],   codes from
+                                       catalog.festival_calendar; v1 accepts shravan_mondays,
+                                       ekadashi, navratri, tuesdays
+                                 "no_onion_garlic_on_fast_days": false },
+              "health_tags": ["diabetes"] }        only with health_personalisation granted (below);
+                                       v1 codes: diabetes, high_bp, pcos, low_oil, high_protein,
+                                       weight_loss
+
+HouseholdOut : { "id", "version": 1, "society_id", "hub_id": "<uuid> | null",
+                 "size", "diet", "cuisine_tags", "weekday_cook_minutes", "weekend_cook_minutes",
+                 "no_cook_days", "budget_paise", "autopilot_enabled": true, "auto_approve": false,
+                 "members": [ MemberOut ], "address": AddressOut, "created_at" }
+MemberOut    : MemberIn & { "id" }     health_tags is [] while health_personalisation is not granted
+AddressOut   : { "id", "household_id", "society_id", "tower_id", "flat", "location": {lat,lng} | null }
+
+GET /v1/households/me         200 HouseholdOut (+ ETag) | 404 "identity.household_not_found"
+GET /v1/households/{id}       owner only (hub_manager read arrives with RLS); 404 for anyone else
+PATCH /v1/households/{id}     If-Match: "<version>" required. Any of: diet, cuisine_tags,
+                              weekday_cook_minutes, weekend_cook_minutes, no_cook_days, budget_paise,
+                              autopilot_enabled, auto_approve. 200 HouseholdOut with the new version.
+POST   /v1/households/{id}/members          MemberIn → 201 MemberOut; at most 12 members
+PATCH  /v1/households/{id}/members/{mid}    any MemberIn field → 200 MemberOut
+                              (fasting_rules is replaced whole; sex: null clears it)
+DELETE /v1/households/{id}/members/{mid}    204; the last member cannot be removed
+                              Member changes bump the household version and update size; the
+                              response carries the household's new ETag. Same rules as onboarding
+                              (Jain needs veg, health tags need the consent). No If-Match needed.
+GET   /v1/addresses           [AddressOut]   (bare list, at most one address in v1)
+PATCH /v1/addresses/{id}      any of society_id, tower_id, flat, location (null removes the pin).
+                              Moving to another society also moves the household (society_id, hub_id)
+                              in the same transaction; the tower and the pin (the stored one if not
+                              resent) must fit the new society. Bumps the household version (ETag).
+
+GET  /v1/consents             [ConsentOut]: one entry per purpose, including never-given ones
+POST /v1/consents             { "purpose", "version", "granted": true | false } → 200 ConsentOut
+ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null",
+               "revoked_at": "<ts> | null" }
+```
+
+**Rules**
+- **Server-derived values.** `hub_id` is copied from the society and stays null until M6 creates hubs. `size` is always the number of members. `flat` is trimmed and upper-cased, 1 to 20 characters of letters, digits, space, `/` and `-`.
+- **Address location.** `location` must fall inside the society's boundary when the society has one. `h3_r9` is computed server-side and never returned.
+- **Jain.** A Jain member (`fasting_rules.jain`) requires `diet = "veg"`.
+- **Consent purposes.** These follow handbook 13 §DPDP:
+  - `service_delivery` and `personalisation` are required for Autopilot; onboarding must grant both.
+  - `health_personalisation`, `marketing` and `research_anonymised` are optional opt-ins.
+  - The current notice version is `v1` for every purpose. A version other than the current one is refused, so the app has to show the new notice.
+- **Granting and revoking.**
+  - Granting inserts a row. Revoking sets `revoked_at` on the active row.
+  - Revoking `health_personalisation` **erases** the `health_tags` of every member of the caller's household in the same transaction. This is stricter than hiding them, and it is audit-logged.
+- **Concurrency.** `GET` responses carry `ETag: "<version>"`, and a `PATCH` on a household needs `If-Match` with that value. This is the same optimistic-locking convention as boxes (handbook 10).
+
+**Error codes** (application/problem+json, §3.1 format)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `identity.household_not_found` | `GET /v1/households/me` before onboarding, or a household that isn't the caller's |
+| 409 | `identity.household_exists` | The owner already has a household (a different key). The problem carries `"household_id"` so the app can carry on |
+| 422 | `identity.society_unknown` | `society_id` doesn't exist |
+| 422 | `identity.tower_unknown` | `tower_id` isn't one of the society's towers |
+| 422 | `identity.address_outside_society` | `location` is outside the society boundary |
+| 422 | `identity.diet_conflict` | A Jain member with a diet other than `veg` |
+| 422 | `identity.consent_required` | `service_delivery` or `personalisation` not granted at onboarding |
+| 409 | `identity.consent_version_stale` | `version` isn't the current one; the problem carries `"current_version"` |
+| 403 | `identity.health_consent_required` | `health_tags` sent while `health_personalisation` isn't granted (in this request or already) |
+| 422 | `identity.household_needs_member` | Deleting the last member |
+| 422 | `identity.household_full` | Adding a 13th member |
+| 404 | `identity.member_not_found` | A member id that isn't in the caller's household |
+| 404 | `identity.address_not_found` | An address id that isn't the caller's |
+| 428 | `request.precondition_required` | `PATCH` without `If-Match` |
+| 412 | `identity.version_conflict` | `If-Match` isn't the current version; the app reloads and retries |
+| 400 | `request.idempotency_key_required` | `POST /v1/households` without `Idempotency-Key` (M0) |
+| 422 | `request.idempotency_mismatch` | Same key, different body (M0) |
+| 422 | `request.invalid` | Shape or range validation (M0) |
 
 ## 4. Tables owned
 | Table | Key columns |
@@ -82,13 +198,16 @@ dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
 | `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at; unique (user, role, scope) with NULLS NOT DISTINCT |
 | `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
 | `identity.refresh_tokens` | id, session_id, token_hash (HMAC-SHA256 with a pepper; the token is never stored), parent_id (rotation chain), created_at, used_at, revoked_at |
-| `identity.households` | id, owner_user_id, hub_id, society_id, size, diet, cuisine_tags[], weekday_cook_minutes, no_cook_days[], budget_paise, autopilot_enabled, auto_approve, data_source, version |
-| `identity.household_members` | id, household_id, age_band, sex, health_tags[], fasting_rules jsonb |
-| `identity.addresses` | id, household_id, society_id, tower, flat, location geography(Point), h3_r9 |
-| `identity.consents` | id, user_id, purpose, version, granted_at, revoked_at |
+| `identity.households` | id (uuidv7), owner_user_id (unique in v1), hub_id (nullable, no FK until M6), society_id → community.societies, size, diet, cuisine_tags[], weekday_cook_minutes, weekend_cook_minutes, no_cook_days smallint[], budget_paise BIGINT null, autopilot_enabled, auto_approve, data_source, version, created_at, updated_at |
+| `identity.household_members` | id, household_id, age_band, sex null, health_tags[] (empty unless `health_personalisation` is granted), fasting_rules jsonb `{jain, fasts[], no_onion_garlic_on_fast_days}`, created_at |
+| `identity.addresses` | id, household_id, society_id → community.societies, tower_id, flat, location geography(Point, 4326) null, h3_r9 null, created_at, updated_at |
+| `identity.consents` | id, user_id, purpose, version, granted_at, revoked_at; at most one active row per (user, purpose) (partial unique index where revoked_at is null) |
 
 ## 5. Events
 **Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`.
+- `identity.household_created` `{household_id, owner_user_id, society_id, hub_id, size, budget_paise, data_source}`. M3 uses `budget_paise` to open the first Budget Lock; M9 recounts the society's unlock bar.
+- `identity.household_updated` `{household_id, version, changed: [field names]}`.
+- No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
 **Consumed:** `partners.verified` (activate partner role), `partners.suspended`.
 
 ## 6. Jobs
@@ -111,6 +230,14 @@ dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
 - Unit: token issue/rotation/reuse detection; permission checks; consent gating of health tags.
 - Refresh rotation rules (implemented in `identity/service.py`): each refresh uses its token and issues a child; re-presenting a used token within 2 minutes while its child is unused (lost response, two tabs) revokes the child and issues a fresh one; any other reuse revokes the whole session (`auth.refresh_reused`).
 - Integration: exchange with a mocked Firebase verifier; household create publishes outbox event; RLS on hub-scoped reads.
+- Household contract (§3.2):
+  - A failure part-way through `POST /v1/households` leaves no rows.
+  - The same key replays; a different key gets 409 `identity.household_exists`.
+  - Health tags without consent get 403.
+  - Revoking `health_personalisation` erases tags on every member.
+  - A stale `If-Match` gets 412; a missing one gets 428.
+  - A Jain member with a non-veg diet gets 422.
+  - An address outside the polygon gets 422.
 - E2E: onboarding under 2 minutes on a mid-range device profile; role switch.
 - Security: OTP exchange rate limits; refresh token theft simulation.
 
@@ -118,5 +245,6 @@ dev_phone accepts Indian numbers with or without +91 and is normalised to E.164.
 M0 (platform). Reads society existence via `community.api` (M9). Partner verification arrives via `partners.verified` events.
 
 ## 11. Open questions
-- One household per user in v1, or allow multiple addresses/households (e.g. parents' home)?
-- Minimum household fields required before the first plan vs progressive profiling.
+- ~~One household per user in v1?~~ Decided: one household and one address per owner in v1 (§3.2). Multiple households (e.g. parents' home) stay open for later.
+- ~~Minimum household fields before the first plan?~~ Decided: everything in `POST /v1/households` except `budget_paise`, `sex`, `health_tags` and the optional consents.
+- Localised tower labels and fasting names: served by M2/M9 later, or kept as client copy?

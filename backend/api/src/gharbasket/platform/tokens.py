@@ -1,4 +1,4 @@
-"""Access tokens: short-lived JWTs the apps send as `Authorization: Bearer <token>` (ADR D25).
+"""Access tokens: short-lived JWTs the apps send as `Authorization: Bearer <token>` (ADR-0024).
 
 - HS256, signed with JWT_SIGNING_KEY; the `kid` header names the key, so keys can be rotated.
 - 15 minutes; checked with 30 seconds of leeway for clock differences between phones and servers.

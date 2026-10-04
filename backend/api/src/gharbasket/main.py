@@ -25,7 +25,7 @@ from gharbasket.modules.notifications.router import router as notifications_rout
 from gharbasket.modules.orders.router import router as orders_router
 from gharbasket.modules.partners.router import router as partners_router
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
-from gharbasket.platform import health
+from gharbasket.platform import health, openapi
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
@@ -117,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_error_handlers(app)
     register_idempotency(app)
+    openapi.install(app)
 
     if settings.cors_allow_origins:
         app.add_middleware(

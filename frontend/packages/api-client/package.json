@@ -1,0 +1,29 @@
+{
+  "name": "@gharbasket/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GharBasket API client: types generated from backend/api/openapi.json, openapi-fetch and React Query hooks",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./schema": "./src/generated/schema.d.ts"
+  },
+  "scripts": {
+    "generate": "openapi-typescript ../../../backend/api/openapi.json -o src/generated/schema.d.ts",
+    "test": "node --test \"src/**/*.test.js\""
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.80.0"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0",
+    "openapi-react-query": "0.5.4"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "5.104.0",
+    "@types/node": "^24.19.0",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

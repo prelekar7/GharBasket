@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Version** | 1.0 (approved baseline, 2 Oct 2026) |
-| **Owners** | Design execution in Claude Design; UX research, copy and usability testing: Rhythm Thakur, Manish Raje; buildability review and implementation in `frontend/packages/ui`: Yash Salunkhe |
+| **Owners** | Design execution in Claude Design; UX research, copy and usability testing: Rhythm Thakur, Manish Raje; buildability review and implementation of all frontend code (`frontend/`, including `frontend/packages/ui`): Yash Salunkhe (ADR-0023) |
 | **Related** | `docs/TDD.md` (Sections 3.2–3.4, 9) · `docs/handbook/09-frontend-and-design.md` (screen-flow diagrams) · ADR D16/D17 |
 
 ---
@@ -194,7 +194,7 @@ UI design is done entirely in **Claude Design** (decision D16).
 |---|---|---|
 | Framework | React 19; Vite (mobile); Next.js 16 (console) | Both |
 | Routing | TanStack Router (mobile); App Router (console) | |
-| Server state | TanStack Query + Hey API generated hooks | Both |
+| Server state | TanStack Query + generated openapi-react-query hooks (openapi-fetch client, ADR-0022) | Both |
 | Client state | Zustand | Mobile |
 | Forms / validation | react-hook-form + zod | Both |
 | Styling | Tailwind CSS v4, tailwind-variants, tailwind-merge, clsx | Both |
@@ -218,7 +218,7 @@ UI design is done entirely in **Claude Design** (decision D16).
 | PWA | vite-plugin-pwa | Mobile |
 | Component workshop | Storybook 10 + addon-a11y | `frontend/packages/ui` |
 | Testing | Vitest, Testing Library, Playwright | Both |
-| Monitoring | Sentry, PostHog | Both |
+| Monitoring | PostHog | Both |
 
 **On shadcn/ui:** components are not installed as-is, because that produces the generic look we want to avoid. We follow the same ownership idea — our component code lives in `frontend/packages/ui`, built on React Aria and styled with our tokens.
 

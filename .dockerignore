@@ -1,0 +1,9 @@
+# Only what backend/api/Dockerfile copies is needed; keep the build context small and secret-free.
+**
+!pyproject.toml
+!uv.lock
+!backend/api/pyproject.toml
+!backend/api/README.md
+!backend/api/src/**
+**/__pycache__
+**/*.pyc

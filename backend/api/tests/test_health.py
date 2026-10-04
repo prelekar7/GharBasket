@@ -1,5 +1,6 @@
 import re
 
+import pytest
 from fastapi.testclient import TestClient
 
 from gharbasket import __version__
@@ -17,7 +18,21 @@ def test_health_reports_ok(client: TestClient) -> None:
         "service": "gharbasket-api",
         "version": __version__,
         "environment": "test",
+        "commit": None,
     }
+
+
+@pytest.mark.parametrize("variable", ["RENDER_GIT_COMMIT", "GIT_COMMIT"])
+def test_health_reports_the_deployed_commit(variable: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(variable, "0cc5177abc")
+    with TestClient(create_app(make_settings())) as client:
+        assert client.get("/v1/health").json()["commit"] == "0cc5177abc"
+
+
+def test_an_empty_commit_is_reported_as_unknown(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GIT_COMMIT", "")
+    with TestClient(create_app(make_settings())) as client:
+        assert client.get("/v1/health").json()["commit"] is None
 
 
 def test_every_response_gets_a_request_id(client: TestClient) -> None:

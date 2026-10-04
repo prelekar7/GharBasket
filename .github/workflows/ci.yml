@@ -153,6 +153,14 @@ jobs:
         with:
           cache: true
 
+      - name: API client matches openapi.json (run `just gen-api` if this fails)
+        run: |
+          pnpm --filter @gharbasket/api-client run generate
+          git diff --exit-code -- frontend/packages/api-client
+
+      - name: API client tests
+        run: pnpm --filter @gharbasket/api-client test
+
       - name: Build every frontend package
         run: pnpm --filter "./frontend/**" --workspace-concurrency=1 run build
 

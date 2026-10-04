@@ -42,27 +42,27 @@
 
 | ID | Module | Owner | MVP | Stretch |
 |---|---|---|---|---|
-| M0 | Platform (repo, CI, auth middleware, config, outbox, design tokens) | Yash + Prathamesh | Yes | — |
-| M1 | Identity & Household (OTP, roles, household, members, addresses, consents) | Yash | Yes | — |
-| M2 | Catalog & Pricing (products, kits, recipes, menus, prices, substitution graph, festival calendar) | Yash | Yes | — |
-| M3 | Plans & Subscriptions (plans, society delivery days, skip/pause, Budget Lock, weekly cycles) | Yash | Yes | — |
-| M4 | Orders & Checkout (cart, order state machine, slots, cut-off lock) | Yash | Yes | — |
-| M5 | Billing & Ledger (Razorpay test, wallet, double-entry ledger, Kindness points, refunds) | Yash | Yes | UPI Autopay |
-| M6 | Hub Operations (inventory, procurement, vendors, packing, QC, waste) | Prathamesh | Yes | Produce photo grading |
-| M7 | Logistics (vehicles, OR-Tools routes, proofs, captain handover, reverse pickups) | Prathamesh | Yes | Live GPS on map |
-| M8 | Partner Network (onboarding, KYC, FSSAI, training, kitchen assignment, earnings, payouts) | Prathamesh | Yes | Micro-loans |
+| M0 | Platform (repo, CI, auth middleware, config, outbox, design tokens) | Prathamesh (backend, CI), Yash (frontend shell, design tokens) | Yes | — |
+| M1 | Identity & Household (OTP, roles, household, members, addresses, consents) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M2 | Catalog & Pricing (products, kits, recipes, menus, prices, substitution graph, festival calendar) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M3 | Plans & Subscriptions (plans, society delivery days, skip/pause, Budget Lock, weekly cycles) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M4 | Orders & Checkout (cart, order state machine, slots, cut-off lock) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M5 | Billing & Ledger (Razorpay test, wallet, double-entry ledger, Kindness points, refunds) | Prathamesh (backend), Yash (screens) | Yes | UPI Autopay |
+| M6 | Hub Operations (inventory, procurement, vendors, packing, QC, waste) | Prathamesh (backend), Yash (screens) | Yes | Produce photo grading |
+| M7 | Logistics (vehicles, OR-Tools routes, proofs, captain handover, reverse pickups) | Prathamesh (backend), Yash (screens) | Yes | Live GPS on map |
+| M8 | Partner Network (onboarding, KYC, FSSAI, training, kitchen assignment, earnings, payouts) | Prathamesh (backend), Yash (screens) | Yes | Micro-loans |
 | M9 | Community & Kindness (societies, unlock, referrals, drives, donations, NGO handoff) | Prathamesh (backend), Yash (screens) | Basic | Leaderboards |
 | M10 | Intelligence (ML service: consumption model, ranker, meal planner, forecast, procurement, routing, assignment, slot pricing, churn) | Prathamesh | v1 | Fridge-photo input |
-| M11 | Notifications (push, WhatsApp, templates, preferences) | Yash | Yes | — |
-| M12 | Console & Analytics (KPIs, unit economics, impact, AI health) | Prathamesh | Yes | — |
-| M13 | Assistant (text chat with tool calls; voice later) | Prathamesh | Text | Voice |
+| M11 | Notifications (push, WhatsApp, templates, preferences) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M12 | Console & Analytics (KPIs, unit economics, impact, AI health) | Prathamesh (backend), Yash (screens) | Yes | — |
+| M13 | Assistant (text chat with tool calls; voice later) | Prathamesh (backend), Yash (screens) | Text | Voice |
 
 *Figure 3.1 — Module map and dependencies*
 
 ```mermaid
 flowchart LR
   M0["M0 Platform"]
-  subgraph Commerce["Commerce core (Yash)"]
+  subgraph Commerce["Commerce core"]
     M1["M1 Identity"]
     M2["M2 Catalog"]
     M3["M3 Subscriptions"]
@@ -70,7 +70,7 @@ flowchart LR
     M5["M5 Billing"]
     M11["M11 Notify"]
   end
-  subgraph Ops["Operations and intelligence (Prathamesh)"]
+  subgraph Ops["Operations and intelligence"]
     M6["M6 Hub ops"]
     M7["M7 Logistics"]
     M8["M8 Partners"]
@@ -263,9 +263,9 @@ flowchart LR
 
 ## Decisions & open questions
 
-- D2 One TypeScript/React codebase; single mobile app for field roles; Next.js console — [ADR-0002](../adr/0002-react-capacitor-mobile-nextjs-console.md).
+- D2 One React codebase (JavaScript, [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)); single mobile app for field roles; Next.js console — [ADR-0002](../adr/0002-react-capacitor-mobile-nextjs-console.md).
 - D5 Assistant: text MVP, voice stretch — [ADR-0005](../adr/0005-text-assistant-mvp-voice-stretch.md).
-- D9 Team ownership — [ADR-0009](../adr/0009-team-ownership-and-tracks.md).
+- D9/D23 Team ownership: Prathamesh owns all backend modules, Yash owns all screens — [ADR-0023](../adr/0023-ownership-backend-and-frontend.md) (supersedes the code ownership in [ADR-0009](../adr/0009-team-ownership-and-tracks.md)).
 - D12 Android + PWA only — [ADR-0012](../adr/0012-android-and-pwa-platforms.md).
 - Open: final plan tiers and which features are paid; leaderboard and micro-loan features stay stretch.
 

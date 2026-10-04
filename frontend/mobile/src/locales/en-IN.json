@@ -391,6 +391,7 @@
     "useThis": "Use this",
     "swapped": "{from} swapped for {to}",
     "closed": "Edits are closed for this week"
+eat/mobile-wallet
   },
   "wallet": {
     "title": "Wallet",
@@ -422,5 +423,7 @@
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
     "added": "{amount} added to your wallet"
+
+main
   }
 }

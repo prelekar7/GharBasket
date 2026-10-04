@@ -1,6 +1,6 @@
 # Chapter 14 — Project Plan
 
-> **In short:** GharBasket is built in eight phases (P0–P7) over about 28 weeks, from 2 October 2026 to mid-April 2027. Phase 0 is design (handbook, ADRs, module specs, Claude Design system and customer screens) — no code. Sprint 0 starts on 19 October 2026; after that, two-week sprints S0–S12 deliver four demo milestones (MS-A to MS-D), a real pilot and the final report and paper. One floating buffer sprint absorbs exams and slips. Yash Salunkhe and Prathamesh Relekar own the code tracks; Rhythm Thakur and Manish Raje own documentation, testing/QA, pilot operations and the presentation.
+> **In short:** GharBasket is built in eight phases (P0–P7) over about 28 weeks, from 2 October 2026 to mid-April 2027. Phase 0 is design (handbook, ADRs, module specs, Claude Design system and customer screens) — no code. Sprint 0 starts on 19 October 2026; after that, two-week sprints S0–S12 deliver four demo milestones (MS-A to MS-D), a real pilot and the final report and paper. One floating buffer sprint absorbs exams and slips. Prathamesh Relekar owns all backend, infrastructure and ML; Yash Salunkhe owns all frontend (D23); Rhythm Thakur and Manish Raje own documentation, testing/QA, pilot operations and the presentation.
 
 ---
 
@@ -107,16 +107,16 @@ timeline
 | S12 | 5 Apr → 18 Apr | Defence | Final report, IEEE paper, demo video, viva deck |
 | Buffer | floating (default 19 Apr → 2 May) | — | Absorbs exams or a slipped milestone |
 
-**Cut order if a milestone slips:** voice assistant → OTA live updates → UPI Autopay (wallet stays) → green-slot pricing → churn/uplift model. MVP flows are never cut.
+**Cut order if a milestone slips:** (UPI Autopay is already planned for the pilot phase; MS-A uses the wallet only.) Voice assistant → OTA live updates → UPI Autopay (wallet stays) → green-slot pricing → churn/uplift model. MVP flows are never cut.
 
 ## 14.4 Responsibilities
 
 ### Who owns what
 
-| Person | Tracks | Owns |
+| Person | Area | Owns |
 |---|---|---|
-| **Yash Salunkhe** | A — Customer experience; B — Commerce core | `frontend/mobile`, `frontend/packages/ui`, modules M1–M5, M11, customer and field-role screens, M9 screens, buildability review of designs |
-| **Prathamesh Relekar** | C — Operations; D — Intelligence | `frontend/console`, modules M6–M10, M12, M13, `backend/ml`, `data/simulator`, infrastructure, research results |
+| **Yash Salunkhe** | Frontend and design | All of `frontend/`: the mobile app for every role (customer and field roles), the console UI, `frontend/packages/ui` and `frontend/packages/domain`; design in Claude Design; buildability review of designs |
+| **Prathamesh Relekar** | Backend, infrastructure, ML | All of `backend/` (every module M0–M13, including M1–M5 and M11), `backend/ml`, `infra/`, `data/simulator`, CI/CD, ML and the research results |
 | **Rhythm Thakur** | Docs, QA, pilot | Handbook upkeep, report chapters, UML, UX interviews and design review comments, Hinglish/Marathi copy, Playwright E2E, test plans, pilot operations |
 | **Manish Raje** | Docs, QA, pilot | IEEE paper writing, assistant eval labelling (200 utterances), translations review, k6 load tests, accessibility audit, device testing, presentation |
 | **Prof. Kranti Bade** | Guide | Reviews at each milestone; approves scope changes |
@@ -129,9 +129,10 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 |---|---|---|---|---|---|
 | Handbook, TDD, ADRs (P0) | C | A | R | R | I |
 | Claude Design System + screens | A | C | R (review, copy) | R (review, research) | I |
-| Mobile app (all roles) | A/R | C | C (QA) | C (QA) | I |
-| Commerce backend M1–M5 | A/R | C (review) | I | I | I |
-| Operations backend M6–M8, console | C (review) | A/R | C (QA) | I | I |
+| Mobile app (all roles) | A/R | C (contract review) | C (QA) | C (QA) | I |
+| Console UI | A/R | C (contract review) | C (QA) | I | I |
+| Commerce backend M1–M5 | C (contract review) | A/R | I | I | I |
+| Operations backend M6–M8 | C (contract review) | A/R | C (QA) | I | I |
 | ML models, simulator, evaluation | I | A/R | C | C | C |
 | E2E, load and accessibility testing | C | C | A/R | R | I |
 | Pilot operations | C | C | A/R | R | C |
@@ -143,16 +144,16 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 
 | Phase | Yash | Prathamesh | Rhythm & Manish |
 |---|---|---|---|
-| P0 | Wireframe and screen review in Claude Design, M1–M5 specs | M6–M10 specs, simulator spec | UX interviews (8–10 households), SRS update, UML refresh, guide meeting |
-| P1 | Mobile and console shells, UI tokens, auth | API platform, ML skeleton, simulator, infrastructure | AGENTS.md rules, test plan, Playwright setup |
-| P2 | M1–M5 + customer screens | Console catalog/prices/societies, outbox, OSRM preparation | E2E for onboarding/approve/cut-off; ledger test cases |
-| P3 | Packer, rider, captain, kitchen screens; M11 | M6, M7 (OR-Tools), M8, console ops | Operations E2E, device testing, pilot operations plan |
+| P0 | Wireframe and screen review in Claude Design, screen sections of the M1–M5 specs | Backend sections of the M1–M10 specs, simulator spec | UX interviews (8–10 households), SRS update, UML refresh, guide meeting |
+| P1 | Mobile and console shells, UI tokens, sign-in screens | API platform and auth, ML skeleton, simulator, infrastructure | AGENTS.md rules, test plan, Playwright setup |
+| P2 | Customer screens for M1–M5; console catalog/prices/societies screens | M1–M5 backend, outbox and jobs, OSRM preparation | E2E for onboarding/approve/cut-off; ledger test cases |
+| P3 | Packer, rider, captain, kitchen screens; console ops screens | M6, M7 (OR-Tools), M8, M11 backend | Operations E2E, device testing, pilot operations plan |
 | P4 | Autopilot UX (thali, parchi, reasons), assistant UI | M10 models + evaluation harness, M13 | Label 200 assistant utterances, review catalog translations, paper sections |
 | P5 | M9 screens, wallet/Kindness UI | M9 backend, slot pricing, analytics | NGO tie-up, drive content |
 | P6 | Fixes and polish | Evaluation, retraining on pilot data | Pilot operations, surveys, k6, accessibility, bug bash |
 | P7 | Demo build | Paper results | Report, paper writing, slides |
 
-**Workload note:** Yash and Prathamesh each carry two tracks. To protect the timeline, Rhythm and Manish take all E2E tests, content and translations, assistant labelling and pilot operations, and stretch items are cut first.
+**Workload note:** Prathamesh carries all backend, ML, simulator and research work, and Yash every screen for every role plus the console (risk R1). To protect the timeline, Rhythm and Manish take all E2E tests, content and translations, assistant labelling and pilot operations, research spikes are scheduled in S0, and stretch items are cut first.
 
 ## 14.5 Ways of working
 
@@ -165,19 +166,19 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 
 | Item | Cost (approx.) | Notes |
 |---|---|---|
-| AWS Mumbai EC2/Lightsail (≈4 vCPU / 8 GB) | ₹0 with student credits; otherwise ₹1,500–3,000/month | Runs api, workers, ml, MLflow, OSRM, Valkey, console |
-| Neon, Sentry, Grafana Cloud, PostHog, Firebase (low volume), Vercel previews | ₹0 | Free tiers |
-| S3 storage and transfer | ₹0–300/month | Within credits at prototype scale |
-| Domain name | ≈ ₹800/year | |
+| Render (API, Key Value), Neon, Vercel, Cloudflare R2, Infisical, PostHog, UptimeRobot, Firebase (test numbers) | ₹0 | Free tiers that cannot bill us; free tiers only until the pilot (D20) |
+| Hosting for the ML service, OSRM and MLflow | To be decided before P3/P4 | Local Docker until then |
+| Paid plans for the pilot (Render Starter for the API, a worker, Firebase Blaze for real OTPs; the pilot database, Q3) | To be decided before P6 | |
+| Domain name (optional) | ≈ ₹800/year | Not bought yet; Render and Vercel default URLs for now |
 | Claude API (assistant) | ≈ ₹350–1,300/week at demo scale | Model chosen after the S8 eval; per-user caps |
 | Razorpay, WhatsApp | ₹0 | Test mode / test number |
 | Google Play Console | ≈ ₹2,100 one-time | Internal testing track |
 | Pilot packaging and materials | ₹2,000–4,000 | As in the accepted proposal |
-| **Total (prototype + pilot)** | **≈ ₹3,800–18,000** | Within the proposal's envelope with sensible model and pilot size |
+| **Total (prototype + pilot)** | **≈ ₹3,800–18,000, plus the pilot's paid plans** | Within the proposal's envelope with sensible model and pilot size; paid plans are sized before P6 |
 
 ## Decisions & open questions
 
-- Decided: P0 is design-only; UI design happens in Claude Design during P0 ([ADR-0016](../adr/0016-ui-design-in-claude-design.md), [ADR-0017](../adr/0017-design-before-code-in-phase-0.md)); plan targets April 2027 with one floating buffer sprint ([ADR-0010](../adr/0010-timeline-april-2027-floating-buffer.md)).
-- Open: semester exam dates and the final submission deadline (moves the buffer and possibly S3/S4); United Brothers Global's involvement in the pilot.
+- Decided: P0 is design-only; UI design happens in Claude Design during P0 ([ADR-0016](../adr/0016-ui-design-in-claude-design.md), [ADR-0017](../adr/0017-design-before-code-in-phase-0.md)); plan targets April 2027 with one floating buffer sprint ([ADR-0010](../adr/0010-timeline-april-2027-floating-buffer.md)); one backend owner and one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md)); free tiers until the pilot ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)).
+- Open: semester exam dates and the final submission deadline (moves the buffer and possibly S3/S4); United Brothers Global's involvement in the pilot; paid plans and the pilot database location (before P6).
 
 Related: [Chapter 15 — Risks and Decisions](15-risks-and-decisions.md) · [Chapter 11 — Engineering Process](11-engineering-process.md) · [Chapter 01 — Vision and Scope](01-vision-and-scope.md) · [ADR index](../adr/README.md)
