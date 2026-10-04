@@ -341,6 +341,86 @@
       "slug": "eggs",
       "price_paise": 4500,
       "mrp_paise": null
+    },
+    {
+      "slug": "urad-dal",
+      "price_paise": 8000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "whole-moong",
+      "price_paise": 7000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "kabuli-chana",
+      "price_paise": 8000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "rajma",
+      "price_paise": 8500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "rava",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "rajgira-atta",
+      "price_paise": 6500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "varai",
+      "price_paise": 6000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "oats",
+      "price_paise": 8500,
+      "mrp_paise": 9000
+    },
+    {
+      "slug": "coconut",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "tamarind",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "mustard-seeds",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "cumin-seeds",
+      "price_paise": 3500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "coriander-powder",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "garam-masala",
+      "price_paise": 4500,
+      "mrp_paise": 5000
+    },
+    {
+      "slug": "sambar-masala",
+      "price_paise": 4500,
+      "mrp_paise": 5000
+    },
+    {
+      "slug": "rock-salt",
+      "price_paise": 3000,
+      "mrp_paise": null
     }
   ]
 }

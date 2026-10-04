@@ -69,7 +69,7 @@ def test_a_tuesday_fast_gets_a_fasting_dish_and_no_onion_or_garlic() -> None:
     assert all(r.no_onion_garlic for r in tuesday)
 
 
-def test_a_diabetic_household_with_quick_meals_relaxes_only_repeats() -> None:
+def test_a_diabetic_household_with_quick_meals_needs_no_relaxation() -> None:
     # Ramesh (seed): with 20-minute weekday meals the seed menu is too small for 3-day windows.
     req = request(
         size=2,
@@ -82,7 +82,7 @@ def test_a_diabetic_household_with_quick_meals_relaxes_only_repeats() -> None:
 
     response = plan_week(req)
 
-    assert response.relaxed == ["repeat"]
+    assert response.relaxed == []  # recipe batch 1 (F7) made this feasible without relaxing
     plan = verify(req, response)
     by_slug = {r.slug: r for r in req.recipes}
     assert all(by_slug[s].diabetic_ok for (_, slot), s in plan.items() if s and slot != "breakfast")
@@ -103,7 +103,7 @@ def test_a_jain_household_in_navratri_keeps_every_religious_rule() -> None:
 
     response = plan_week(req)
 
-    assert response.relaxed == ["repeat"]
+    assert response.relaxed == []  # recipe batch 1 (F7) made this feasible without relaxing
     plan = verify(req, response)
     by_slug = {r.slug: r for r in req.recipes}
     assert all(by_slug[s].jain_ok for s in plan.values() if s)

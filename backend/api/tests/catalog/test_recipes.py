@@ -64,18 +64,35 @@ async def test_recipes_alphabetical_with_pages_and_filters(
     mains = await _recipes(api, headers, limit=100, is_side="false")
     sides = await _recipes(api, headers, is_side="true")
 
-    assert len(everything) == 22 and paged == everything
-    assert [r["slug"] for r in sides] == ["chapati"] and sides[0]["sides"] == []
-    assert len(mains) == 21 and all(not r["is_side"] for r in mains)
+    assert len(everything) == 53 and paged == everything
+    assert [r["slug"] for r in sides] == [
+        "chapati",
+        "coconut-chutney",
+        "curd-raita",
+        "jeera-rice",
+        "jowar-bhakri",
+        "plain-rice",
+    ]
+    assert all(r["sides"] == [] for r in sides)
+    assert len(mains) == 47 and all(not r["is_side"] for r in mains)
     assert next(r for r in mains if r["slug"] == "bhindi-masala")["sides"] == ["chapati"]
     assert next(r for r in mains if r["slug"] == "varan-bhaat")["sides"] == []
     english = [r["names"]["en"] for r in everything]
     assert english == sorted(english)
     assert jain and all(r["rules"]["jain_ok"] for r in jain)
-    assert {r["slug"] for r in fasting} == {"sabudana-khichdi", "kakdi-koshimbir", "fruit-bowl"}
+    assert {r["slug"] for r in fasting} == {
+        "sabudana-khichdi",
+        "kakdi-koshimbir",
+        "fruit-bowl",
+        "coconut-chutney",
+        "varai-bhaat",
+        "danyachi-amti",
+        "rajgira-thalipeeth",
+        "rajgira-sheera",
+    }
     assert all("breakfast" in r["slots"] for r in breakfast)
     assert [r["slug"] for r in gujarati] == ["methi-thepla"]
-    assert [r["slug"] for r in egg] == ["egg-curry"]
+    assert [r["slug"] for r in egg] == ["egg-bhurji", "egg-curry"]
 
 
 async def test_a_recipe_with_ingredients_labels_and_cost(
