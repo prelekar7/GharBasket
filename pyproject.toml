@@ -19,6 +19,7 @@ members = ["backend/api", "backend/ml", "data/simulator"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.168.3",
     "import-linter>=2.15",
     "pyright>=1.1.414",
     "pytest>=9.1.1",

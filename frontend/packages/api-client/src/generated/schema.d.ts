@@ -555,6 +555,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's wallet: balance, room to top up, latest entries */
+        get: operations["get_wallet_v1_wallet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Older wallet entries, newest first */
+        get: operations["list_entries_v1_wallet_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -713,6 +747,33 @@ export interface components {
              * Format: date-time
              */
             signed_in_at: string;
+        };
+        /** Entry */
+        Entry: {
+            /**
+             * Amount Paise
+             * @description Into the wallet +, out of it -
+             * @example -69000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            /** Ref */
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
         };
         /**
          * ExchangeIn
@@ -1066,6 +1127,28 @@ export interface components {
             hi: string;
             /** Mr */
             mr: string;
+        };
+        /** OrderRef */
+        OrderRef: {
+            /** Delivery Date */
+            delivery_date: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "order";
+        };
+        /** Page[Entry] */
+        Page_Entry_: {
+            /** Items */
+            items: components["schemas"]["Entry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** Page[ProductOut] */
         Page_ProductOut_: {
@@ -1639,6 +1722,19 @@ export interface components {
             /** Refresh Token */
             refresh_token: string | null;
         };
+        /** TopUpRef */
+        TopUpRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "topup";
+        };
         /** Tower */
         Tower: {
             /**
@@ -1696,6 +1792,30 @@ export interface components {
             phone_e164: string;
             /** Senior Mode */
             senior_mode: boolean;
+        };
+        /** WalletOut */
+        WalletOut: {
+            /**
+             * Balance Paise
+             * @example 131000
+             */
+            balance_paise: number;
+            /**
+             * Cap Paise
+             * @example 1000000
+             */
+            cap_paise: number;
+            /**
+             * Entries
+             * @description The latest 20, newest first
+             */
+            entries: components["schemas"]["Entry"][];
+            /**
+             * Topup Room Paise
+             * @description What can still be added now: the cap minus the balance and unpaid top-ups, limited by this month's allowance
+             * @example 869000
+             */
+            topup_room_paise: number;
         };
     };
     responses: never;
@@ -3632,6 +3752,109 @@ export interface operations {
             };
             /** @description community.request_rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_wallet_v1_wallet_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_entries_v1_wallet_entries_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_Entry_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
