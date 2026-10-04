@@ -4,16 +4,17 @@
 name = "gharbasket-workspace"
 version = "0.0.0"
 requires-python = ">=3.13"
-dependencies = ["gharbasket-api"]
+dependencies = ["gharbasket-api", "gharbasket-ml"]
 
 [tool.uv]
 package = false
 
 [tool.uv.sources]
 gharbasket-api = { workspace = true }
+gharbasket-ml = { workspace = true }
 
 [tool.uv.workspace]
-members = ["backend/api"]
+members = ["backend/api", "backend/ml"]
 
 [dependency-groups]
 dev = [

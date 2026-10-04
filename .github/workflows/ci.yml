@@ -130,6 +130,9 @@ jobs:
       - name: Tests (coverage gate in backend/api/pyproject.toml)
         run: uv run --directory backend/api pytest --cov
 
+      - name: ML service tests (coverage gate in backend/ml/pyproject.toml)
+        run: uv run --directory backend/ml pytest --cov
+
       - name: Migrations match the models (run `just migration "..."` if this fails)
         working-directory: backend/api
         env:

@@ -80,6 +80,10 @@ class Settings(DatabaseSettings):
     jwt_audience: str = "gharbasket-apps"
     # Refresh tokens are stored only as HMAC-SHA256(pepper, token).
     refresh_token_pepper: SecretStr | None = None
+    # The ML service (backend/ml, M10). Unset: the rule-based fallbacks answer (intel_gateway).
+    ml_service_url: str | None = None
+    ml_service_token: SecretStr | None = None
+    ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

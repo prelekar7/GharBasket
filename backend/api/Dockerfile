@@ -12,6 +12,8 @@ WORKDIR /app
 # Dependencies first (cached until the lockfile changes), from the workspace's frozen lock.
 COPY pyproject.toml uv.lock ./
 COPY backend/api/pyproject.toml backend/api/README.md backend/api/
+# uv reads every workspace member's metadata; the ML service's code is not installed here.
+COPY backend/ml/pyproject.toml backend/ml/README.md backend/ml/
 RUN uv sync --locked --no-dev --package gharbasket-api --no-install-workspace
 
 # Then the API itself, installed into the virtualenv (not editable), so the source isn't needed.
