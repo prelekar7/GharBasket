@@ -1,0 +1,103 @@
+{
+  "categories": [
+    {
+      "slug": "leafy-greens",
+      "names": {
+        "en": "Leafy greens",
+        "hi": "पत्तेदार सब्ज़ियाँ",
+        "mr": "पालेभाज्या"
+      },
+      "sort_order": 0
+    },
+    {
+      "slug": "vegetables",
+      "names": {
+        "en": "Vegetables",
+        "hi": "सब्ज़ियाँ",
+        "mr": "फळभाज्या"
+      },
+      "sort_order": 1
+    },
+    {
+      "slug": "roots-tubers",
+      "names": {
+        "en": "Roots and tubers",
+        "hi": "कंद-मूल",
+        "mr": "कंदमुळे"
+      },
+      "sort_order": 2
+    },
+    {
+      "slug": "fruits",
+      "names": {
+        "en": "Fruits",
+        "hi": "फल",
+        "mr": "फळे"
+      },
+      "sort_order": 3
+    },
+    {
+      "slug": "dals-pulses",
+      "names": {
+        "en": "Dals and pulses",
+        "hi": "दालें",
+        "mr": "डाळी"
+      },
+      "sort_order": 4
+    },
+    {
+      "slug": "rice-grains",
+      "names": {
+        "en": "Rice and grains",
+        "hi": "चावल और अनाज",
+        "mr": "तांदूळ आणि धान्य"
+      },
+      "sort_order": 5
+    },
+    {
+      "slug": "flours",
+      "names": {
+        "en": "Flours",
+        "hi": "आटा",
+        "mr": "पीठ"
+      },
+      "sort_order": 6
+    },
+    {
+      "slug": "poha-sabudana-nuts",
+      "names": {
+        "en": "Poha, sabudana and groundnuts",
+        "hi": "पोहा, साबूदाना और मूंगफली",
+        "mr": "पोहे, साबुदाणा आणि शेंगदाणे"
+      },
+      "sort_order": 7
+    },
+    {
+      "slug": "oils-ghee",
+      "names": {
+        "en": "Oils and ghee",
+        "hi": "तेल और घी",
+        "mr": "तेल आणि तूप"
+      },
+      "sort_order": 8
+    },
+    {
+      "slug": "spices-salt-sugar",
+      "names": {
+        "en": "Spices, salt and sugar",
+        "hi": "मसाले, नमक और चीनी",
+        "mr": "मसाले, मीठ आणि साखर"
+      },
+      "sort_order": 9
+    },
+    {
+      "slug": "dairy-eggs",
+      "names": {
+        "en": "Dairy and eggs",
+        "hi": "डेयरी और अंडे",
+        "mr": "दूध, दही आणि अंडी"
+      },
+      "sort_order": 10
+    }
+  ]
+}

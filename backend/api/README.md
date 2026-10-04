@@ -7,7 +7,7 @@ The GharBasket backend: a FastAPI modular monolith (see `docs/handbook/04-system
 | `just up` | Start local Postgres 18 (PostGIS, pgvector) and Valkey in Docker |
 | `just migrate` | Apply all migrations (`just migrate-down` undoes the last one) |
 | `just migration "orders add slots"` | Generate a migration from model changes; review it before committing |
-| `just seed` | Fill the local database with synthetic people (one per role), societies and households (see "Seed data" below) |
+| `just seed` | Fill the local database with synthetic people (one per role), societies, households and the catalog (see "Seed data" below) |
 | `just dev` | Run the API with auto-reload on http://localhost:8000 (docs at `/v1/docs`) |
 | `just test` | Run the tests with the coverage gate (85%); database tests skip when `just up` is not running |
 | `just openapi` | Regenerate `backend/api/openapi.json` (the contract the frontend client is built from) |
@@ -30,6 +30,8 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 - Editable resources use optimistic locking: reads `set_etag(response, version)`, edits take
   `expected: IfMatch` (428 without it) and answer 412 with a module code when it is stale (`platform/etag.py`).
 - Map points: `platform/geo.py` (`point()` to store, `geography()` in SQL).
+- Answers in the user's language: take `lang: Lang` (`platform/locale.py`) and use
+  `localised(names, lang)` for `{en, hi, mr}` names; it also sets `Content-Language` and `Vary`.
 
 ## Sign-in
 - `POST /v1/auth/exchange` with a Firebase ID token (phone OTP) creates the account on first use and
@@ -92,6 +94,10 @@ Households (onboarded through the same service as `POST /v1/households`; `GET /v
 | +919800001004 | Meena (captain): Jain, 3 members, Sunrise Towers B-402 |
 
 Every other seed person can try onboarding from scratch.
+
+Catalog: 11 categories and 68 everyday products from `data/seeds/catalog/*.json`, with English,
+Hindi and Marathi names and the spellings people type. Try `GET /v1/search?q=bhendi` or
+`?q=भिंडी` with `Accept-Language: mr`. Prices arrive with the price-list PR.
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).

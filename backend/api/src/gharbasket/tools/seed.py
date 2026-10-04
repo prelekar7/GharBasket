@@ -9,14 +9,17 @@ rules hold as for a real sign-in: a new phone becomes a customer, staff roles ar
 The phones +91 98000 01001 to 01011 are reserved for this seed. Sign in as any of them locally
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
 Kharghar, Kamothe and Panvel sectors, with approximate boundaries; four of the people have a
-household there, created through the same onboarding service as `POST /v1/households`. Later module
-PRs add their rows here (catalog) and use the hub, society and NGO ids below.
+household there, created through the same onboarding service as `POST /v1/households`. The
+catalog (categories and products with English, Hindi and Marathi names) comes from
+data/seeds/catalog/*.json. Later module PRs add their rows here and use the hub, society and NGO
+ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
 """
 
 import argparse
 import asyncio
+import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -24,6 +27,12 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog.service import (
+    CategoryData,
+    ProductData,
+    save_category,
+    save_product,
+)
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
@@ -33,6 +42,7 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import DatabaseSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
+CATALOG_SEED = REPO_ROOT / "data" / "seeds" / "catalog"
 
 # Fixed ids, so every machine gets the same world and later seeds can point at these rows.
 SEED_HUB_ID = uuid.UUID("0199a000-0000-7000-8000-00000000a001")  # Kharghar hub
@@ -301,11 +311,33 @@ async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
     return done
 
 
+async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Create or refresh the categories and products of data/seeds/catalog: (slug, created)."""
+    categories = json.loads((CATALOG_SEED / "categories.json").read_text())["categories"]
+    for category in categories:
+        await save_category(session, CategoryData(**category))
+    saved: list[tuple[str, bool]] = []
+    for item in json.loads((CATALOG_SEED / "products.json").read_text())["products"]:
+        step = item.pop("step")
+        data = ProductData(
+            **{key: value for key, value in item.items() if key not in {"tags", "synonyms"}},
+            step_qty=step["qty"],
+            step_unit=step["unit"],
+            tags=tuple(item["tags"]),
+            synonyms=tuple(item["synonyms"]),
+            data_source="synthetic",
+        )
+        product, created = await save_product(session, data)
+        saved.append((product.slug, created))
+    return saved
+
+
 @dataclass(frozen=True)
 class Report:
     people: list[Seeded]
     societies: list[tuple[str, bool]]
     households: list[tuple[str, bool]]
+    products: list[tuple[str, bool]]
 
 
 async def run(database_url: str) -> Report:
@@ -316,6 +348,7 @@ async def run(database_url: str) -> Report:
                 people=await seed(session),
                 societies=await seed_societies(session),
                 households=await seed_households(session),
+                products=await seed_catalog(session),
             )
             await session.commit()
             return report
@@ -345,6 +378,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     for phone, created in report.households:
         print(f"{phone}  household {'new' if created else 'kept'}")
     print(f"{len(report.households)} synthetic households")
+    new = sum(created for _, created in report.products)
+    print(f"{len(report.products)} synthetic products ({new} new)")
     return 0
 
 
