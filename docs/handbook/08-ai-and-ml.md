@@ -1,7 +1,7 @@
 # Chapter 08 — AI and Machine Learning
 
 > **In short:**
-> - GharBasket's intelligence is mostly **statistics, tabular ML and optimisation solvers**. **No GPU is needed** for v1. Everything trains on CPU in seconds to minutes on our AWS Mumbai server.
+> - GharBasket's intelligence is mostly **statistics, tabular ML and optimisation solvers**. **No GPU is needed** for v1. Everything trains on CPU in seconds to minutes. Where the ML service is hosted is to be decided before P3; until then it runs in Docker Compose and on laptops.
 > - Rule: **solvers decide, statistics predict, LLMs talk.** The LLM never computes money or quantities.
 > - Heavy AI runs in **batch** and writes into `intel.*` tables. Online calls have timeouts and **rule-based fallbacks**, so ML never blocks a customer.
 > - Four algorithms form the research contribution (D7): **CP-SAT meal planner** and **pantry digital twin** (deepest), **fair kitchen assignment**, and **forecast + newsvendor procurement**.
@@ -13,17 +13,19 @@
 
 | Model / engine | Type | Where it trains | How often | Typical time |
 |---|---|---|---|---|
-| M-A Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | `ml-worker` on the AWS EC2 server (CPU); development on laptops | Weekly full fit; online update after every delivery / feedback | 1–5 min |
-| M-B Next-basket ranker | LightGBM LambdaRank | `ml-worker` (CPU) | Weekly | < 2 min |
-| M-E Demand forecast | StatsForecast + MLForecast (LightGBM) + MinT reconciliation | `ml-worker` (CPU) | Nightly | < 5 min |
-| Chronos-2 | Pretrained foundation model, **zero-shot** (no training) | Inference on CPU in `ml-worker` | Nightly, only for hubs with < 8 weeks of data | seconds–minutes |
+| M-A Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | ML service batch job (CPU; host to be decided before P3); development on laptops | Weekly full fit; online update after every delivery / feedback | 1–5 min |
+| M-B Next-basket ranker | LightGBM LambdaRank | ML service batch job (CPU) | Weekly | < 2 min |
+| M-E Demand forecast | StatsForecast + MLForecast (LightGBM) + MinT reconciliation | ML service batch job (CPU) | Nightly | < 5 min |
+| Chronos-2 | Pretrained foundation model, **zero-shot** (no training) | Inference on CPU in an ML service batch job | Nightly, only for hubs with < 8 weeks of data | seconds–minutes |
 | M-C Meal planner, M-D Budget Lock, M-F Routing, M-G Kitchen assignment, kit selection | OR-Tools CP-SAT / Routing — **solvers, no training** | `ml` service at request/batch time | Per cycle / per slot | 1–30 s |
-| M-I Churn + uplift | LightGBM + T-learner | `ml-worker` | Monthly | < 1 min |
+| M-I Churn + uplift | LightGBM + T-learner | ML service batch job | Monthly | < 1 min |
 | Embeddings (bge-m3) | Pretrained, no training | One-off batch on a laptop, or Google Colab / Kaggle free GPU; re-run on catalog change | On change | minutes |
 | Assistant | Claude API — prompting + tool use, **no fine-tuning** | Anthropic API | — | — |
 | (Optional, research) Chronos fine-tune | Fine-tune | Kaggle / Colab free GPU (T4/P100) | Once, for the paper | ~1 h |
 
-Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean). Every run is logged to the shared **MLflow** server on the EC2 host, with artifacts in S3 (`gb-mlflow` bucket), so the whole team can see every experiment.
+Until there is a paid worker (the pilot), long ML jobs run in the ML service or offline, never inside an API request (D21, [ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+
+Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean). Every run is logged to the shared **MLflow** server (Docker Compose locally; hosting to be decided before P3), with artifacts in S3-compatible object storage (`gb-mlflow` bucket), so the whole team can see every experiment.
 
 ---
 
@@ -31,10 +33,10 @@ Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are cl
 
 ```mermaid
 flowchart LR
-    PG[("PostgreSQL 18<br/>OLTP (Neon)")] -->|"02:00 IST export_snapshots<br/>(DuckDB postgres extension)"| PQ[("S3 gb-lake<br/>snapshots/date=.../*.parquet")]
+    PG[("PostgreSQL 18<br/>OLTP (Neon)")] -->|"02:00 IST export_snapshots<br/>(DuckDB postgres extension)"| PQ[("Lake bucket, S3 API<br/>snapshots/date=.../*.parquet")]
     PQ --> VAL["pandera<br/>data validation"]
     VAL --> FEAT["Feature build<br/>Polars / DuckDB<br/>point-in-time as-of cut-off"]
-    FEAT --> TRAIN["Train challenger<br/>(Taskiq ml queue)"]
+    FEAT --> TRAIN["Train challenger<br/>(ML service batch job)"]
     TRAIN --> EVAL["Evaluate on time-based holdout<br/>last 2-4 weeks, never random split"]
     EVAL --> GATE{"Beats @champion on<br/>primary metric AND guardrails?"}
     GATE -->|no| KEEP["Keep champion<br/>log run in MLflow"]
@@ -72,9 +74,9 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Taskiq scheduler
-    participant MW as ml-worker
-    participant S3 as S3 gb-lake
+    participant SCH as Scheduler
+    participant MW as ml service - batch job
+    participant S3 as Lake bucket (S3 API)
     participant MLF as MLflow (tracking + registry)
     participant ML as ml service
     SCH->>MW: retrain_models(model="basket_ranker")
@@ -272,6 +274,8 @@ Anthropic list prices, per 1M tokens (input / output):
 - **D7** — Research covers all four algorithms; meal planner and pantry twin are deepest ([ADR-0007](../adr/0007-research-scope-four-algorithms.md)).
 - **D8** — Simulator first; `data_source` tagging ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
 - **D13** — Assistant model chosen after the S8 eval ([ADR-0013](../adr/0013-assistant-model-chosen-by-eval.md)).
+- **D21** — Jobs without a broker until the pilot; long ML jobs run in the ML service or offline ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+- **Open:** hosting for the ML service and MLflow (needed from P3/P4), to be decided before P3 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)).
 - **Open:** confirm bge-m3 CPU embedding speed in the S7 spike; decide whether to attempt the optional Chronos fine-tune for the paper.
 
 Related: [Chapter 05 — Data architecture](05-data-architecture.md) · [Chapter 07 — Workflows](07-workflows.md) · [Chapter 10 — API and integration](10-api-and-integration.md) · Module specs M10 and M13 in [`docs/modules/`](../modules/)

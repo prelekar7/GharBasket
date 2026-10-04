@@ -107,7 +107,7 @@ Cross-review rule: Yash reviews Prathamesh's backend pull requests and vice vers
 | 09 | [Frontend and design](09-frontend-and-design.md) | Design system, screens, navigation, libraries |
 | 10 | [API and integration](10-api-and-integration.md) | API conventions, auth, events, jobs, external services |
 | 11 | [Engineering process](11-engineering-process.md) | Repository, Git rules, CI/CD, testing |
-| 12 | [Deployment and operations](12-deployment-and-operations.md) | AWS Mumbai + Neon topology, monitoring, runbooks |
+| 12 | [Deployment and operations](12-deployment-and-operations.md) | Free-tier topology (Render, Vercel, Neon, R2), monitoring, runbooks |
 | 13 | [Security and compliance](13-security-and-compliance.md) | Auth, DPDP, RBI wallet rules, FSSAI, KYC |
 | 14 | [Project plan](14-project-plan.md) | Phases, milestones, sprints, responsibilities, budget |
 | 15 | [Risks and decisions](15-risks-and-decisions.md) | Risk register, decision log, open questions |
@@ -144,7 +144,7 @@ Companion documents: `docs/TDD.md` (technical design document), `docs/FRONTEND_D
 
 ## Decisions & open questions
 
-- All decisions D1–D17 are summarised in [Chapter 15](15-risks-and-decisions.md) and recorded in `docs/adr/0001`–`0017`.
-- Open (non-blocking): exam dates and final submission deadline; United Brothers Global's role and IP terms; whether the pilot database stays on Neon or moves to Mumbai (decide before Phase 6).
+- All decisions D1–D24 are summarised in [Chapter 15](15-risks-and-decisions.md) and recorded in `docs/adr/0001`–`0024`.
+- Open (non-blocking): exam dates and final submission deadline; United Brothers Global's role and IP terms; whether the pilot database stays on Neon (Singapore) or moves to a paid Postgres in Mumbai, and which paid plans the pilot needs (decide before Phase 6); hosting for the ML service, OSRM and MLflow (decide before P3/P4).
 
 Related: [01 Vision and scope](01-vision-and-scope.md) · [14 Project plan](14-project-plan.md) · [Appendix: diagram index](appendix-diagram-index.md)

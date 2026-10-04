@@ -1,4 +1,4 @@
-"""Accounts, sessions and refresh-token rotation (identity/service.py, ADR D25)."""
+"""Accounts, sessions and refresh-token rotation (identity/service.py, ADR-0024)."""
 
 import asyncio
 import uuid

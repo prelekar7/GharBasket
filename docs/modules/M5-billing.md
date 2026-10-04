@@ -1,8 +1,8 @@
 # M5 — Billing & Ledger
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje
-**Phase / Sprint:** P2 / S2 (Autopay in S3, stretch-safe)
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
+**Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
 
 ## 1. Purpose
@@ -33,6 +33,8 @@ All money and points: the closed-loop prepaid wallet, Razorpay top-ups, UPI Auto
 | GET | `/v1/statements?period=` | customer, partner | — | PDF/JSON |
 | GET | `/v1/admin/reconciliation` | admin | — | Mismatch report |
 
+UPI Autopay mandates (US-3, `/v1/mandates`) are built in the pilot phase; for MS-A the box is paid from the prepaid wallet, topped up through Razorpay Checkout in test mode and debited at the 21:00 cut-off.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -52,11 +54,13 @@ All money and points: the closed-loop prepaid wallet, Razorpay top-ups, UPI Auto
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `process_webhooks` | Continuous | Idempotent by event_id |
+| `process_webhooks` | Outbox consumer after the webhook is stored | Idempotent by event_id |
 | `send_pre_debit_notices` | T-3 18:30 | Autopay only |
 | `reconcile_payments` | Hourly | Razorpay API vs ledger |
 | `expire_kindness_points` | Daily 00:30 | FIFO by lot |
 | `weekly_payouts` | Monday 10:00 | Verified partners only (test mode) |
+
+Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) called by a GitHub Actions schedule (ADR-0021). Razorpay calls go through our own thin async client on httpx2, not the official SDK.
 
 ## 7. Permissions
 | Permission | Roles (scope) |

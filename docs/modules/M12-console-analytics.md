@@ -1,7 +1,7 @@
 # M12 — Console & Analytics
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** Shell in P1 / S0; screens grow with each phase (P2–P5)
 **Deployables:** `frontend/console` (Next.js 16) + analytics endpoints in the API (`gharbasket.modules.analytics`, read-only)
 **Postgres schema:** `analytics` (materialised views only)
@@ -49,7 +49,7 @@ Console route groups: `(auth)`, `(public)`, `(admin)`, `(hub)`, `(franchise)`, `
 
 ## 9. Tests required
 - Integration: KPI numbers match fixture expectations on simulator seed.
-- E2E (Playwright): login, role-based redirect via `proxy.ts`, today board, unit-economics calculator.
+- E2E (Playwright): login, role-based redirect via `proxy.js`, today board, unit-economics calculator.
 - Accessibility: axe on all console pages.
 
 ## 10. Dependencies

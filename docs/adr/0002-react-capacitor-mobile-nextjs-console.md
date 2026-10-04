@@ -1,6 +1,6 @@
 # ADR-0002 — One TypeScript/React frontend: Vite + Capacitor mobile app, Next.js console
 
-- **Status:** Accepted
+- **Status:** Accepted; language amended by [ADR-0018](0018-javascript-not-typescript-frontend.md) (JavaScript, not TypeScript)
 - **Date:** 2026-10-02
 - **Decision ID:** D2
 

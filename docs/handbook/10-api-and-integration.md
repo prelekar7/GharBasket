@@ -1,11 +1,11 @@
 # Chapter 10 — API and Integration
 
 > **In short:**
-> - A REST API under `/v1`, described by **OpenAPI**. TypeScript clients are **generated** (Hey API) and never hand-written. This contract is the boundary between teammates.
+> - A REST API under `/v1`, described by **OpenAPI**. The frontend client is **generated** (openapi-typescript + openapi-fetch + openapi-react-query, D22) and never hand-written. This contract is the boundary between teammates.
 > - Every POST that creates money or orders requires an **`Idempotency-Key`**. Money is always **integer paise**. Errors follow **RFC 9457** problem+json.
-> - Auth: Firebase phone OTP → our own short-lived JWT + rotating refresh token. **Roles carry scopes** (society, hub), and the server checks permissions on every request.
-> - Modules talk through a **transactional outbox**: a domain change and its event are written in one database transaction, then a relay dispatches the event to Taskiq handlers.
-> - External integrations: Razorpay, Firebase, WhatsApp Cloud API, OSRM, map tiles, Claude API, AWS S3.
+> - Auth: Firebase phone OTP → our own short-lived JWT + rotating refresh token (D24). Apps send a Bearer token; browsers get httpOnly cookies. **Roles carry scopes** (society, hub), and the server checks permissions on every request.
+> - Modules talk through a **transactional outbox**: a domain change and its event are written in one database transaction, then the API relays it after the commit to idempotent handlers (no broker until the pilot, D21).
+> - External integrations: Razorpay, Firebase, WhatsApp Cloud API, OSRM, map tiles, Claude API, Cloudflare R2 (S3 API).
 
 ---
 
@@ -23,41 +23,50 @@
 | Time | ISO-8601 with offset. Business dates as `YYYY-MM-DD` in Asia/Kolkata. |
 | Webhooks in | Signature verified → raw payload stored (`billing.payment_webhooks`) → processed idempotently by a job. |
 | Realtime | Server-Sent Events: `GET /v1/orders/{id}/events`, `GET /v1/routes/{id}/live`. |
-| Files | `POST /v1/files/presign` → direct upload to S3. The API stores only the key and metadata. |
+| Files | `POST /v1/files/presign` → direct upload to object storage over the S3 API (Cloudflare R2; SeaweedFS locally). The API stores only the key and metadata. |
 
-**Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `frontend/packages/api-client` (Hey API: fetch client + TanStack Query hooks + zod schemas). CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
+**Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `frontend/packages/api-client` (openapi-typescript `schema.d.ts` types + openapi-fetch client + openapi-react-query TanStack Query hooks, D22); it is never edited by hand. CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
 
 ## 10.2 Authentication, roles and permissions
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as User (mobile / console)
+    actor U as User (app / browser)
     participant FB as Firebase Auth
     participant API as api (identity module)
+    participant VK as Valkey
     participant DB as PostgreSQL
     U->>FB: phone number
     FB-->>U: OTP via SMS
     U->>FB: enter OTP
     FB-->>U: Firebase ID token
     U->>API: POST /v1/auth/exchange (ID token)
-    API->>FB: verify ID token (firebase-admin)
-    FB-->>API: valid, phone_e164
-    API->>DB: upsert identity.users, load user_roles
-    API->>DB: store hashed refresh token (device)
-    API-->>U: access JWT (15 min) + refresh token (30 days) + roles[]
+    API->>VK: rate-limit check (fixed window)
+    API->>API: verify ID token with PyJWT (Google public keys, cached)
+    API->>DB: find or create identity.users (first exchange = signup, customer role), load user_roles
+    API->>DB: create session, store refresh token as HMAC-SHA256
+    API-->>U: access JWT (15 min) + refresh token + roles[] (JSON for apps, httpOnly cookies for browsers)
     U->>U: role chooser if more than one active role
-    U->>API: GET /v1/cycles/current (Bearer, X-Active-Role)
+    U->>API: GET /v1/cycles/current (Bearer or cookie, X-Active-Role)
+    API->>VK: session on the sign-out deny-list?
     API->>API: require("subscriptions:read", scope) permission check
     API-->>U: 200 current week
     Note over U,API: access token expired
     U->>API: POST /v1/auth/refresh (refresh token)
-    API->>DB: rotate token, detect reuse of an old token
+    API->>DB: check session, rotate token (2-minute grace), other reuse revokes the session
     API-->>U: new access + new refresh token
 ```
 *Figure 10.1 — Login, token exchange, role selection and refresh*
 
-- **Storage:** mobile keeps the refresh token in secure storage; the console keeps it in an httpOnly, SameSite=Lax cookie that Next.js `proxy.ts` refreshes.
+- **Firebase ID token check:** the API verifies it itself with PyJWT against Google's published keys (audience, issuer, expiry). It does not use `firebase-admin`.
+- **Our tokens:** an access JWT (HS256 with a `kid`), valid 15 minutes; an opaque refresh token stored only as HMAC-SHA256 with a server pepper, in a session of at most 30 days. Refresh tokens rotate on every use. A used token that comes back within 2 minutes while its child is unused (lost response, two tabs) gets a replacement; any other reuse revokes the session (`auth.refresh_reused`).
+- **Apps (Capacitor)** send `Authorization: Bearer` and keep the refresh token in secure storage.
+- **Browsers (PWA, console)** send `X-GB-Client: web` and never see a token. The API sets httpOnly cookies `__Host-gb_at` (Path=/, 15 minutes) and `gb_rt` (Path=/v1/auth). Vercel rewrites `/v1/*` to the API, so the cookies are same-origin.
+- **CSRF:** a cookie-authenticated POST, PATCH, PUT or DELETE without `X-GB-Client: web`, or from an Origin outside `WEB_ORIGINS`, gets 403 `auth.csrf_rejected`.
+- **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres.
+- **Rate limits:** fixed windows in Valkey. Exchange: 30 per 10 minutes per address and 10 per 10 minutes per phone (keyed by a hash, never the number). Refresh: 300 per minute per address. If Valkey is down, requests are allowed.
+- **Dev login:** `dev_phone` signs in without OTP, only when `APP_ENV=dev`.
 - **Roles with scopes:** `identity.user_roles(user_id, role, scope_type, scope_id, status)`.
 
 | Role | Scope | Status flow |
@@ -80,8 +89,8 @@ flowchart LR
         SVC["Module service<br/>e.g. orders.lock_order()"] --> W1["Write domain rows<br/>orders, order_events"]
         SVC --> W2["Insert platform.outbox row<br/>event_type, payload"]
     end
-    W2 --> RL["Outbox relay (worker)<br/>SELECT ... FOR UPDATE SKIP LOCKED"]
-    RL --> TQ["Taskiq queue (Valkey)"]
+    W2 --> RL["Outbox relay (API, after each commit,<br/>plus a scheduled sweep)<br/>SELECT ... FOR UPDATE SKIP LOCKED"]
+    RL --> TQ["Handlers in the API<br/>(Taskiq from the pilot)"]
     TQ --> H1["billing handler<br/>debit wallet"]
     TQ --> H2["notify handler<br/>push / WhatsApp"]
     TQ --> H3["ops handler<br/>procurement input"]
@@ -108,6 +117,8 @@ flowchart LR
 
 ## 10.4 Scheduled jobs (IST, per hub; T = delivery day)
 
+Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by the `JOBS_TOKEN` secret and called by a GitHub Actions scheduled workflow (D21). Jobs are idempotent, take a Postgres advisory lock and use the scheduled time, not the run time. Long ML jobs (`retrain_models`, forecasts) run in the ML service or offline.
+
 | When | Job | Module |
 |---|---|---|
 | T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
@@ -119,7 +130,7 @@ flowchart LR
 | T 05:00 | `build_packing_tasks` | ops |
 | T 07:00 | `solve_routes` (per slot) | intel → logistics |
 | T 12:30 | `surplus_cascade` | ops |
-| Daily 02:00 | `export_snapshots` (Postgres → Parquet in S3) + data-quality checks | intel |
+| Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | ml |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
 
@@ -145,44 +156,46 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph GB["GharBasket platform (AWS Mumbai)"]
-        API["api"]
-        WK["worker"]
-        ML["ml / ml-worker"]
+    subgraph GB["GharBasket platform (Render, Vercel, Neon)"]
+        API["api<br/>outbox handlers + jobs"]
+        ML["ml service<br/>(host to be decided)"]
     end
     MOB["Mobile app<br/>(Capacitor)"] --> FBA["Firebase Auth<br/>phone OTP"]
     MOB --> API
     API --> FBA
-    WK --> FCM["Firebase Cloud Messaging<br/>push"]
-    WK --> WA["WhatsApp Cloud API<br/>templates (test number)"]
+    API --> FCM["Firebase Cloud Messaging<br/>push"]
+    API --> WA["WhatsApp Cloud API<br/>templates (test number)"]
     API --> RZ["Razorpay<br/>Checkout, UPI Autopay, Route"]
     RZ -->|"signed webhooks"| API
     ML --> OSRM["OSRM (self-hosted)<br/>distance / time matrix"]
     MOB --> TILES["Map tiles<br/>OpenFreeMap / MapTiler"]
-    API --> S3["AWS S3<br/>media, KYC (private), lake"]
+    API --> S3["Cloudflare R2 (S3 API)<br/>media, KYC (private), lake"]
     MOB -->|"presigned upload"| S3
     ML --> CL["Claude API<br/>assistant, triage"]
-    API --> SEN["Sentry / OpenTelemetry"]
+    API --> OTEL["OpenTelemetry<br/>Grafana Cloud"]
     MOB --> PH["PostHog<br/>events, flags, A/B"]
 ```
 *Figure 10.3 — Integration map*
 
 | Integration | Purpose | Prototype mode | Notes |
 |---|---|---|---|
-| Firebase Auth | Phone OTP | Free tier | Avoids TRAI DLT SMS registration in the prototype |
+| Firebase Auth | Phone OTP | Free tier (test numbers) | Avoids TRAI DLT SMS registration in the prototype; ID tokens verified with PyJWT; real OTPs need the Blaze plan at the pilot |
 | FCM | Push notifications | Free | Device tokens in `notify` |
 | WhatsApp Cloud API | Order/box notifications | Test number | Template messages only |
-| Razorpay | Top-ups, UPI Autopay, partner payouts (Route) | Test mode | Webhook signatures verified; hourly reconciliation |
+| Razorpay | Top-ups, UPI Autopay, partner payouts (Route) | Test mode | Our own thin async client on httpx2 (not the official SDK); webhook signatures verified; hourly reconciliation; UPI Autopay from the pilot phase |
 | OSRM | Road distance/time matrix | Self-hosted (MMR extract) | No Google Maps bills |
 | Map tiles | Map display | OpenFreeMap / MapTiler free | MapLibre GL |
 | Claude API | Assistant, complaint triage | Pay-as-you-go, capped | Model chosen after S8 eval |
-| AWS S3 | Media, KYC docs, data lake, MLflow artifacts | Student credits | Private bucket + signed reads for KYC |
+| Cloudflare R2 (S3 API) | Media, KYC docs, data lake, MLflow artifacts | Free tier (`gb-staging-*` buckets); SeaweedFS locally | Private bucket + signed reads for KYC; code uses the S3 API only |
 
 ## Decisions & open questions
 
 - **D3** — FastAPI modular monolith; OpenAPI as the contract ([ADR-0003](../adr/0003-python-fastapi-backend-and-ml-service.md) in [`docs/adr/`](../adr/)).
 - **D4** — Closed-loop wallet + UPI Autopay; KYC only for people we pay ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)).
-- **D15** — AWS Mumbai + Neon; S3 replaces R2 ([ADR-0015](../adr/0015-aws-mumbai-topology-with-neon-postgres.md)).
+- **D20** — Free-tier hosting: Render, Vercel, Neon, Cloudflare R2, Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md), supersedes ADR-0011 and ADR-0015).
+- **D21** — Jobs without a broker: Postgres outbox and internal job endpoints ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+- **D22** — Generated API client: openapi-typescript + openapi-fetch + openapi-react-query ([ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
+- **D24** — Sign-in: Firebase phone OTP, then our own tokens; cookies and CSRF checks for browsers ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 - **Open:** confirm Razorpay Checkout behaviour inside the Capacitor WebView and Firebase phone auth on Capacitor (Sprint 0 spikes).
 
 Related: [Chapter 06 — Domain lifecycles](06-domain-lifecycles.md) · [Chapter 07 — Workflows](07-workflows.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

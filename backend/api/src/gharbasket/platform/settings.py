@@ -65,7 +65,7 @@ class Settings(DatabaseSettings):
     # staging and prod; open locally so `curl localhost:8000/v1/ready` just works.
     jobs_token: SecretStr | None = None
 
-    # Sessions (ADR D25): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
+    # Sessions (ADR-0024): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
     # set a new JWT_SIGNING_KEY + JWT_KEY_ID and move the old pair to JWT_RETIRED_KEYS
     # ("k1:<key>,k0:<key>") until the last old token has expired (15 minutes).
     jwt_signing_key: SecretStr | None = None

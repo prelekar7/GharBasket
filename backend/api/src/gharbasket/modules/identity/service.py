@@ -1,4 +1,4 @@
-"""Business logic of M1 Identity & Household: accounts, sessions and refresh-token rotation (D25).
+"""Business logic of M1 Identity & Household: accounts, sessions, refresh rotation (ADR-0024).
 
 Sign-up is implicit: the first successful phone verification creates the account and grants the
 `customer` role. Each device or browser gets a session; its refresh token is single-use and

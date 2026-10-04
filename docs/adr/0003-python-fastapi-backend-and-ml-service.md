@@ -1,6 +1,6 @@
 # ADR-0003 — Python-only backend: FastAPI modular monolith, ML service and Taskiq workers
 
-- **Status:** Accepted
+- **Status:** Accepted; Taskiq workers deferred to the pilot by [ADR-0021](0021-jobs-without-a-broker.md)
 - **Date:** 2026-10-02
 - **Decision ID:** D3
 
