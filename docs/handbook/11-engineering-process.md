@@ -123,7 +123,7 @@ flowchart TD
     PY --> OK
     FE --> OK
     OK -->|yes| MG["Squash merge to main"]
-    MG --> STG["deploy-staging (planned)<br/>alembic upgrade head on Neon,<br/>then Render deploy hook"]
+    MG --> STG["deploy-staging<br/>alembic upgrade head on Neon,<br/>Render deploy hook, smoke test"]
     MG --> VD["Vercel deploys PWA + console"]
     SCH["Jobs schedule workflow (planned)"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
 ```
@@ -133,7 +133,7 @@ flowchart TD
 |---|---|---|
 | `ci.yml` | PR, push to main | Lint, secrets, Python, frontend build and JS editor hints jobs (above) |
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR |
-| `deploy-staging.yml` (planned, PR `chore/M0-deploy`) | Push to main, after CI | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook (Render's pre-deploy step is paid-only) |
+| `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
 | Jobs schedule workflow (planned) | GitHub Actions schedule | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN`: outbox sweep, cut-off, reminders, clean-up (D21) |
 
 Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.

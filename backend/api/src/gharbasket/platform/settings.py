@@ -10,7 +10,7 @@ and connection strings and tokens are SecretStr so they never show up in a repr 
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BeforeValidator, Field, SecretStr, model_validator
+from pydantic import AliasChoices, BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -55,6 +55,11 @@ class Settings(DatabaseSettings):
     log_level: LogLevel = "INFO"
     # JSON lines for Render and other log collectors; set LOG_JSON=false for readable local output.
     log_json: bool = True
+    # The commit this build came from (Render sets RENDER_GIT_COMMIT); /v1/health reports it, so
+    # the deploy workflow can tell when staging runs the new commit.
+    git_commit: Annotated[str | None, BeforeValidator(lambda value: value or None)] = Field(
+        default=None, validation_alias=AliasChoices("GIT_COMMIT", "RENDER_GIT_COMMIT")
+    )
     # Browsers reach the API through same-origin proxies, so CORS is only needed for the
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []

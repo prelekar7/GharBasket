@@ -66,5 +66,7 @@ into **Authorize**, then try `GET /v1/me`. The seeded phones and their roles are
 ## 4. Accounts (shared project owner; credentials in the team password manager, never in git)
 Render (API and Key Value), Vercel (PWA and console), Neon (Postgres), Cloudflare R2 (files), Infisical (secrets), Firebase (Phone Auth + FCM), Razorpay (test mode), PostHog, UptimeRobot, Anthropic (from Sprint 8). All on free tiers until the pilot (ADR-0020). Shared secrets live in Infisical; local secrets go in `.env` (git-ignored), copied from `.env.example`. Tests and `just seed` only ever use the local database.
 
+Staging (Render, Neon, R2) is set up once by the backend owner: see handbook 12, "How a change reaches staging". To check it from your machine: `infisical run --env=staging -- just cloud <staging URL>`.
+
 ## 5. AI assistants
 `AGENTS.md` is the single source of instructions for every AI tool. Edit only that file, then run `just sync-agent-docs`. The pre-commit hook and CI reject out-of-sync copies.
