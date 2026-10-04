@@ -282,6 +282,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/price-index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store today's wholesale price index per product (the mandi collector; operator token) */
+        post: operations["put_price_index_v1_internal_intel_price_index_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/jobs": {
         parameters: {
             query?: never;
@@ -1325,6 +1342,37 @@ export interface components {
              * Format: date
              */
             valid_from: string;
+        };
+        /** PriceIndexIn */
+        PriceIndexIn: {
+            /** Items */
+            items: components["schemas"]["PriceIndexItem"][];
+        };
+        /** PriceIndexItem */
+        PriceIndexItem: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Index 4W
+             * @description Today's price over the 4-week median; 1.0 = usual
+             */
+            index_4w: number;
+            /** Market */
+            market: string;
+            /** Modal Paise Per Kg */
+            modal_paise_per_kg: number;
+            /** Slug */
+            slug: string;
+        };
+        /** PriceIndexOut */
+        PriceIndexOut: {
+            /** Accepted */
+            accepted: number;
+            /** Unknown Slugs */
+            unknown_slugs: string[];
         };
         /** PriceItem */
         PriceItem: {
@@ -3140,6 +3188,57 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_price_index_v1_internal_intel_price_index_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceIndexIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceIndexOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

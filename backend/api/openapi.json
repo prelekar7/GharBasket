@@ -1749,6 +1749,84 @@
         "title": "Price",
         "type": "object"
       },
+      "PriceIndexIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PriceIndexItem"
+            },
+            "maxItems": 5000,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PriceIndexIn",
+        "type": "object"
+      },
+      "PriceIndexItem": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "index_4w": {
+            "description": "Today's price over the 4-week median; 1.0 = usual",
+            "exclusiveMinimum": 0.0,
+            "title": "Index 4W",
+            "type": "number"
+          },
+          "market": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Market",
+            "type": "string"
+          },
+          "modal_paise_per_kg": {
+            "exclusiveMinimum": 0.0,
+            "title": "Modal Paise Per Kg",
+            "type": "integer"
+          },
+          "slug": {
+            "maxLength": 60,
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "day",
+          "market",
+          "modal_paise_per_kg",
+          "index_4w"
+        ],
+        "title": "PriceIndexItem",
+        "type": "object"
+      },
+      "PriceIndexOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "unknown_slugs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Slugs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "unknown_slugs"
+        ],
+        "title": "PriceIndexOut",
+        "type": "object"
+      },
       "PriceItem": {
         "additionalProperties": false,
         "properties": {
@@ -5081,6 +5159,72 @@
         "summary": "Publish a hub's prices from a date (hub manager of that hub; audit-logged)",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/internal/intel/price-index": {
+      "post": {
+        "operationId": "put_price_index_v1_internal_intel_price_index_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceIndexIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceIndexOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Store today's wholesale price index per product (the mandi collector; operator token)",
+        "tags": [
+          "intel_gateway"
         ]
       }
     },

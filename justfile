@@ -93,6 +93,7 @@ test:
     uv run --directory backend/api pytest --cov
     uv run --directory backend/ml pytest --cov
     uv run --directory data/simulator pytest --cov
+    uv run --directory backend/training pytest --cov
 
 # Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
 job name *args:

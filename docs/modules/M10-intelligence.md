@@ -143,6 +143,7 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
 | `intel.predictions` | id, kind (weekly_plan, pantry, basket_rank, forecast, route, assignment, slot_price, churn), subject_type, subject_id, for_date, source (ml, fallback), payload jsonb, model_name, model_version, request_id, created_at |
 | `intel.experiments` | id, key, variant, subject_id, assigned_at |
 | `intel.model_metrics` | model_name, version, metric, value, split, data_source, computed_at |
+| `intel.price_index` | product_id, day, market, modal_paise_per_kg, index_4w (today over the 4-week median; 1.62 = 62 % above usual), source, updated_at |
 
 Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decided with the ML hosting): Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3://gb-mlflow/`, simulator ground truth in `data/sim_truth/`.
 
@@ -153,6 +154,7 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
+| `collect_mandi` | Daily 18:33 IST (`training-jobs.yml`, `backend/training`) | data.gov.in (Agmarknet) prices for Maharashtra markets → `s3://gb-lake/external/mandi/date=…/`; pushes the 4-week price index per product to `POST /v1/internal/intel/price-index` (operator token) → `intel.price_index`, read by `intel_gateway.api.price_spikes` |
 | `export_snapshots` | Daily 02:00 | DuckDB reads Postgres → Parquet in object storage (S3 API); pandera validation |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast_uncommitted` | T-1 21:10 | StatsForecast/MLForecast/Chronos-2 + reconciliation |
