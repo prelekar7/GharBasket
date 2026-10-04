@@ -6,7 +6,10 @@ Behaviour (ground truth, so models can be scored against it):
 - otherwise it is swapped for the household's favourite allowed dish (taste plus Gumbel noise),
   keeping every rule the planner kept: diet, Jain, diabetic, fasting, cook time;
 - a skipped week means no box was ordered; the family still cooks and eats the same way;
-- consumption = the cooked dishes' ingredients x adult equivalents, plus daily-use items.
+- consumption = the cooked dishes' ingredients x adult equivalents, plus daily-use items;
+- v1a: the week's box is drafted like M3's, edited by the household (pantry, taste, prices),
+  delivered into a pantry that the week's cooking draws down, with ran-out / wasted taps
+  (`pantry.py`); prices follow the shock episodes in shocks.json.
 """
 
 import json
@@ -14,7 +17,7 @@ import math
 import random
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
@@ -23,7 +26,9 @@ from gharbasket_ml.schemas import PlanRequest
 
 from gharbasket.modules.intel_gateway import fallback
 from gharbasket.modules.intel_gateway.schemas import PlanRequest as GatewayRequest
+from gharbasket_sim import pantry as pantry_sim
 from gharbasket_sim.catalog import Catalog, Festival
+from gharbasket_sim.config import Shocks
 from gharbasket_sim.households import SimHousehold
 
 SLOTS = ("breakfast", "lunch", "dinner")
@@ -90,6 +95,10 @@ class Rows:
     weeks: list[dict[str, Any]]
     meals: list[dict[str, Any]]
     consumption: list[dict[str, Any]]
+    boxes: list[dict[str, Any]] = field(default_factory=list)
+    box_lines: list[dict[str, Any]] = field(default_factory=list)
+    edits: list[dict[str, Any]] = field(default_factory=list)
+    pantry: list[dict[str, Any]] = field(default_factory=list)
 
 
 def simulate(
@@ -99,11 +108,17 @@ def simulate(
     first_monday: date,
     weeks: int,
     planner: Planner,
+    shocks: Shocks | None = None,
+    *,
+    price_sensitivity: float = 0.5,
+    feedback_rate: float = 0.4,
 ) -> Rows:
     rows = Rows([], [], [])
+    pantry = pantry_sim.initial_stock(random.Random(f"gharbasket-sim:{seed}:{h.key}"), h, catalog)
     for w in range(weeks):
         rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}")
         monday = first_monday + timedelta(weeks=w)
+        factor = pantry_sim.weekly_prices(catalog, shocks, w)
         request = {
             "household": h.rules,
             "fasting_days": fasting_days(h, monday, catalog.festivals),
@@ -142,7 +157,96 @@ def simulate(
                     "qty": round(used[slug], 1),
                 }
             )
+        _week_of_box(
+            rng,
+            h,
+            catalog,
+            planned,
+            cooked,
+            w,
+            ordered,
+            factor,
+            pantry,
+            rows,
+            price_sensitivity=price_sensitivity,
+            feedback_rate=feedback_rate,
+        )
     return rows
+
+
+def _week_of_box(
+    rng: random.Random,
+    h: SimHousehold,
+    catalog: Catalog,
+    planned: Planned,
+    cooked: list[str],
+    w: int,
+    ordered: bool,
+    factor: dict[str, float],
+    pantry: pantry_sim.Pantry,
+    rows: Rows,
+    *,
+    price_sensitivity: float,
+    feedback_rate: float,
+) -> None:
+    """The box as drafted and as approved, its delivery into the pantry, the week's draw-down."""
+    planned_dishes = [d for d in planned.meals.values() if d]
+    drafted = pantry_sim.draft_box(h, catalog, planned_dishes, factor)
+    final, edits = pantry_sim.edit_box(
+        rng,
+        h,
+        catalog,
+        drafted,
+        planned=planned_dishes,
+        cooked=cooked,
+        pantry=pantry,
+        factor=factor,
+        price_sensitivity=price_sensitivity,
+    )
+    delivered: dict[str, float] = defaultdict(float)
+    if ordered:
+        pantry_sim.deliver(pantry, final)
+        for line in final:
+            delivered[line.product] += line.base_units
+    rows.boxes.append(
+        {
+            "household": h.key,
+            "week": w,
+            "ordered": ordered,
+            "drafted_lines": len(drafted),
+            "drafted_paise": pantry_sim.total_paise(drafted),
+            "lines": len(final),
+            "total_paise": pantry_sim.total_paise(final),
+            "edits": len(edits),
+            "spiked": sorted(
+                line.product for line in drafted if factor[line.product] >= pantry_sim.SPIKE
+            ),
+        }
+    )
+    for line in final:
+        rows.box_lines.append(
+            {
+                "household": h.key,
+                "week": w,
+                "product": line.product,
+                "qty": line.qty,
+                "step": line.step,
+                "unit_price_paise": line.unit_price_paise,
+                "reason": line.reason,
+                "source": line.source,
+                "replaces": line.replaces,
+            }
+        )
+    for edit in edits:
+        rows.edits.append({"household": h.key, "week": w, **edit})
+    used: dict[str, float] = defaultdict(float)
+    for c in rows.consumption:
+        if c["household"] == h.key and c["week"] == w:
+            used[c["product"]] = c["qty"]
+    for row in pantry_sim.consume(
+        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate
+    ):
+        rows.pantry.append({"household": h.key, "week": w, **row})
 
 
 def _week_of_meals(

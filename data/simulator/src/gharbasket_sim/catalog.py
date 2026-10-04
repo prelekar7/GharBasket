@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import recipes as catalog_recipes
 from gharbasket.modules.catalog import service as catalog_service
+from gharbasket.modules.catalog.pricing import prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT
 
 # Bought for at most this many hours of shelf life: the planner keeps these few (less waste).
@@ -25,6 +26,14 @@ class Product:
     unit: str  # base unit: g, ml, piece or bunch
     kind: str  # veg, fruit, staple
     tags: frozenset[str]
+    step: float = 1.0  # base units in one step (what a box line counts)
+    price_paise: int | None = None  # per step at the hub, today
+    shelf_life_h: int | None = None
+    category: str = ""  # category slug (a substitute comes from the same category)
+
+    @property
+    def perishable(self) -> bool:
+        return self.shelf_life_h is not None and self.shelf_life_h <= PERISHABLE_H
 
 
 @dataclass(frozen=True, order=True)
@@ -58,17 +67,29 @@ def is_side(recipe: Any) -> bool:
 
 
 async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: date) -> Catalog:
-    products: dict[str, Product] = {}
+    found_products = []
     cursor = None
     while True:
         rows, cursor = await catalog_service.list_products(
             session, kind=None, category=None, tag=None, cursor=cursor, limit=PAGE
         )
-        for row in rows:
-            p = row.product
-            products[p.slug] = Product(p.slug, BASE_UNIT[p.step_unit][0], p.kind, frozenset(p.tags))
+        found_products += [(row.product, row.category.slug) for row in rows]
         if cursor is None:
             break
+    prices = await prices_for(session, hub_id, [p.id for p, _ in found_products])
+    products: dict[str, Product] = {
+        p.slug: Product(
+            p.slug,
+            BASE_UNIT[p.step_unit][0],
+            p.kind,
+            frozenset(p.tags),
+            p.step_qty * BASE_UNIT[p.step_unit][1],
+            prices[p.id].price_paise if p.id in prices else None,
+            p.shelf_life_h,
+            category,
+        )
+        for p, category in found_products
+    }
 
     found = []
     cursor = None

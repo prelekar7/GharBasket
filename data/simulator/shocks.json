@@ -1,0 +1,40 @@
+{
+  "about": "Price episodes the simulator replays (handbook 05 §5.11 item 5). Hypotheses shaped like recent Vashi APMC spikes until the mandi history (M10 F19) replaces them; week 0 is the run's first week; multiplier applies to the hub price. Rhythm Thakur and Manish Raje: check against the 2023-2025 episodes.",
+  "episodes": [
+    {
+      "product": "tomato",
+      "start_week": 1,
+      "weeks": 3,
+      "multiplier": 1.8,
+      "note": "like July 2023 (tomato at Rs 100+/kg)"
+    },
+    {
+      "product": "onion",
+      "start_week": 4,
+      "weeks": 4,
+      "multiplier": 1.5,
+      "note": "like Oct-Nov 2023"
+    },
+    {
+      "product": "coriander",
+      "start_week": 2,
+      "weeks": 2,
+      "multiplier": 2.0,
+      "note": "monsoon leafy shortage"
+    },
+    {
+      "product": "toor-dal",
+      "start_week": 0,
+      "weeks": 8,
+      "multiplier": 1.2,
+      "note": "like the 2023-24 pulses rally"
+    },
+    {
+      "product": "green-peas",
+      "start_week": 5,
+      "weeks": 3,
+      "multiplier": 1.4,
+      "note": "off-season"
+    }
+  ]
+}

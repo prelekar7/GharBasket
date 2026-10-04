@@ -15,7 +15,7 @@ import argparse
 import asyncio
 import uuid
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -32,7 +32,9 @@ from gharbasket.tools.seed import SEED_HUB_ID
 from gharbasket_sim import config as cohorts
 from gharbasket_sim import truth
 from gharbasket_sim.catalog import Catalog, load_catalog
+from gharbasket_sim.config import Shocks
 from gharbasket_sim.households import SimHousehold, sample
+from gharbasket_sim.pantry import price_of, weekly_prices
 from gharbasket_sim.weeks import PLANNERS, Rows, cached, simulate
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -50,6 +52,7 @@ class Run:
     created: dict[str, tuple[uuid.UUID, bool]]  # key → (household id, created now)
     catalog: Catalog
     rows: Rows
+    prices: list[dict[str, Any]]
 
 
 async def populate(
@@ -81,6 +84,7 @@ async def simulate_world(
     start: date,
     planner: str,
     adoption: float | None = None,
+    shocks: Shocks | None = None,
 ) -> Run:
     first_monday = start - timedelta(days=start.weekday())
     last_day = first_monday + timedelta(weeks=weeks, days=-1)
@@ -90,13 +94,31 @@ async def simulate_world(
     households = sample(seed, cohorts.load(), catalog, adoption)
     created = await populate(session, households)
     plan = cached(PLANNERS[planner])
+    by_name = {c.name: c for c in cohorts.load().cohorts}
     rows = Rows([], [], [])
     for h in households:
-        one = simulate(seed, h, catalog, first_monday, weeks, plan)
-        rows.weeks += one.weeks
-        rows.meals += one.meals
-        rows.consumption += one.consumption
-    return Run(seed, weeks, first_monday, planner, households, created, catalog, rows)
+        c = by_name[h.cohort]
+        one = simulate(
+            seed,
+            h,
+            catalog,
+            first_monday,
+            weeks,
+            plan,
+            shocks,
+            price_sensitivity=c.price_sensitivity,
+            feedback_rate=c.feedback_rate,
+        )
+        for name in ("weeks", "meals", "consumption", "boxes", "box_lines", "edits", "pantry"):
+            getattr(rows, name).extend(getattr(one, name))
+    prices = [
+        {"week": w, "product": slug, "price_paise": price, "multiplier": factor[slug]}
+        for w in range(weeks)
+        for factor in [weekly_prices(catalog, shocks, w)]
+        for slug, p in sorted(catalog.products.items())
+        if (price := price_of(p, factor)) is not None
+    ]
+    return Run(seed, weeks, first_monday, planner, households, created, catalog, rows, prices)
 
 
 def tables(run: Run) -> dict[str, list[dict[str, Any]]]:
@@ -135,7 +157,16 @@ def tables(run: Run) -> dict[str, list[dict[str, Any]]]:
         "weeks": run.rows.weeks,
         "meals": run.rows.meals,
         "consumption": run.rows.consumption,
+        "boxes": run.rows.boxes,
+        "box_lines": run.rows.box_lines,
+        "edits": run.rows.edits,
+        "pantry": run.rows.pantry,
+        "prices": run.prices,
     }
+
+
+def _counts(values: Iterable[str]) -> str:
+    return ", ".join(f"{n} {v}" for v, n in sorted(Counter(values).items()))
 
 
 def summary(run: Run) -> list[str]:
@@ -154,6 +185,10 @@ def summary(run: Run) -> list[str]:
         f"meals: {actions['accept'] / max(planned, 1):.0%} of planned dishes accepted, "
         f"{actions['edit']} edited, {actions['tiffin']} tiffins; "
         f"{skipped} of {len(run.rows.weeks)} weekly boxes skipped",
+        f"boxes: {len(run.rows.edits) / max(len(run.rows.boxes), 1):.1f} edits a box "
+        f"({_counts(e['reason'] for e in run.rows.edits)}); "
+        f"pantry taps: {_counts(p['signal'] for p in run.rows.pantry if p['signal'])}; "
+        f"{sum(1 for p in run.prices if p['multiplier'] > 1)} product-weeks with a price shock",
     ]
 
 
@@ -168,6 +203,7 @@ async def run(database_url: str, args: argparse.Namespace) -> Run:
                 start=args.start,
                 planner=args.planner,
                 adoption=args.adoption,
+                shocks=None if args.no_shocks else cohorts.load_shocks(),
             )
             await session.commit()
             return result
@@ -183,6 +219,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--planner", choices=sorted(PLANNERS), default="cpsat")
     parser.add_argument("--adoption", type=float, help="share of flats (default: cohorts.json)")
     parser.add_argument("--out", type=Path, help="default: data/sim_truth/seed-<seed>")
+    parser.add_argument(
+        "--no-shocks", action="store_true", help="flat prices (no episodes from shocks.json)"
+    )
     args = parser.parse_args(argv)
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
@@ -198,6 +237,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "weeks": args.weeks,
         "first_monday": result.first_monday,
         "planner": args.planner,
+        "shocks": not args.no_shocks,
         "adoption": args.adoption,
         "data_source": "synthetic",
     }
