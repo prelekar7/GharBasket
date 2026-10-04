@@ -180,6 +180,7 @@ sequenceDiagram
 - **Data:** distance/time matrix from self-hosted **OSRM** (Mumbai Metropolitan Region extract).
 - **Solver:** 30 s limit with guided local search.
 - **Metrics:** ₹ per order, km per order, on-time %. Baselines: one trip per order, nearest-neighbour.
+- **Spike S-3 (4 Oct 2026, passed):** 50 societies are routed in under 5 s, all on time, at ₹6.87 an order against ₹7.93 for nearest neighbour and ₹76.57 for one trip per order. Vans do **two trips** by solving one window wave at a time (07–09, then 08–10, with vans carried over). That cuts the fleet by 40–45 % at 50 to 200 societies, while a single chained model stops scaling after about 50. See [S-3 note](../spikes/S-3-routing.md).
 
 ### M-G Fair kitchen assignment (research)
 - **Problem:** CP-SAT assignment of tiffin portions to home kitchens.
