@@ -110,7 +110,8 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       },
       { code: "health_tag", params: { tag: "low_sugar", member: "adults-2" } },
     ],
-    budget_lock: { budget_paise: 300000, spent_paise: 69000 },
+    // A skipped week spends nothing from the Budget Lock.
+    budget_lock: { budget_paise: 300000, spent_paise: status === "skipped" ? 0 : 69000 },
     captain: { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
   };
 }

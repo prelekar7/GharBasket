@@ -57,3 +57,20 @@ export function timeRange({ from, to }, locale) {
     timeZone: "UTC",
   }).formatRange(at(from), at(to));
 }
+
+/** "5–11 Oct" for the week starting on `weekStart`. @param {string} weekStart @param {string} locale */
+export function weekRange(weekStart, locale) {
+  const start = new Date(`${weekStart}T12:00:00Z`);
+  const end = new Date(start.getTime() + 6 * 86_400_000);
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).formatRange(start, end);
+}
+
+/** "October" for the month of `iso`. @param {string} iso @param {string} locale */
+export const monthName = (iso, locale) =>
+  new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(
+    new Date(`${iso}T12:00:00Z`),
+  );
