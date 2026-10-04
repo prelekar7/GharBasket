@@ -5838,6 +5838,2132 @@
           "optional": false
         }
       ]
+    },
+    {
+      "slug": "kachumber",
+      "names": {
+        "en": "Kachumber salad",
+        "hi": "कचूमर सलाद",
+        "mr": "कचुंबर"
+      },
+      "cuisine": "common",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 10,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["salad", "no_cook"],
+      "ingredients": [
+        {
+          "product": "cucumber",
+          "qty": 40,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 40,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "lemon",
+          "qty": 0.25,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "is_side": true
+    },
+    {
+      "slug": "begun-bhaja",
+      "names": {
+        "en": "Begun bhaja (fried brinjal)",
+        "hi": "बैंगन भाजा",
+        "mr": "वांग्याचे काप"
+      },
+      "cuisine": "bengali",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 15,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["fried", "quick"],
+      "ingredients": [
+        {
+          "product": "brinjal",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "red-chilli-powder",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 8,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "is_side": true
+    },
+    {
+      "slug": "methi-bhaji",
+      "names": {
+        "en": "Methi bhaji with garlic",
+        "hi": "लहसुनी मेथी",
+        "mr": "लसणीची मेथी भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "leafy", "quick"],
+      "ingredients": [
+        {
+          "product": "methi",
+          "qty": 0.4,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnuts",
+          "qty": 5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["jowar-bhakri"]
+    },
+    {
+      "slug": "palak-bhaji",
+      "names": {
+        "en": "Palak bhaji",
+        "hi": "पालक की सब्ज़ी",
+        "mr": "पालकाची भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "leafy", "quick"],
+      "ingredients": [
+        {
+          "product": "palak",
+          "qty": 0.4,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "besan",
+          "qty": 5,
+          "unit": "g",
+          "optional": true
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "shepu-bhaji",
+      "names": {
+        "en": "Shepu (dill) bhaji",
+        "hi": "सोआ की सब्ज़ी",
+        "mr": "शेपूची भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "leafy", "quick"],
+      "ingredients": [
+        {
+          "product": "dill",
+          "qty": 0.4,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "moong-dal",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["jowar-bhakri"]
+    },
+    {
+      "slug": "lal-math-bhaji",
+      "names": {
+        "en": "Lal math bhaji",
+        "hi": "लाल चौलाई की सब्ज़ी",
+        "mr": "लाल माठाची भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "leafy", "quick"],
+      "ingredients": [
+        {
+          "product": "red-amaranth",
+          "qty": 0.4,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["jowar-bhakri"]
+    },
+    {
+      "slug": "flower-rassa",
+      "names": {
+        "en": "Flower rassa (cauliflower curry)",
+        "hi": "फूलगोभी रस्सा",
+        "mr": "फ्लॉवर रस्सा"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 30,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "gravy"],
+      "ingredients": [
+        {
+          "product": "cauliflower",
+          "qty": 0.15,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "potato",
+          "qty": 30,
+          "unit": "g",
+          "optional": true
+        },
+        {
+          "product": "onion",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "goda-masala",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coconut",
+          "qty": 0.04,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "gavar-bhaji",
+      "names": {
+        "en": "Gavar bhaji",
+        "hi": "ग्वार फली की सब्ज़ी",
+        "mr": "गवारीची भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "dry", "high_fibre"],
+      "ingredients": [
+        {
+          "product": "cluster-beans",
+          "qty": 100,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnuts",
+          "qty": 8,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "goda-masala",
+          "qty": 1.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "jaggery",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "dodka-bhaji",
+      "names": {
+        "en": "Dodka (ridge gourd) bhaji",
+        "hi": "तुरई की सब्ज़ी",
+        "mr": "दोडक्याची भाजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "gourd"],
+      "ingredients": [
+        {
+          "product": "ridge-gourd",
+          "qty": 120,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnuts",
+          "qty": 8,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "red-chilli-powder",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "phodnicha-bhaat",
+      "names": {
+        "en": "Phodnicha bhaat",
+        "hi": "तड़का चावल",
+        "mr": "फोडणीचा भात"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["breakfast", "lunch"],
+      "cook_minutes": 15,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["rice", "quick", "leftover"],
+      "ingredients": [
+        {
+          "product": "kolam-rice",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "curry-leaves",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "groundnuts",
+          "qty": 5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "masale-bhaat",
+      "names": {
+        "en": "Masale bhaat",
+        "hi": "मसाले भात",
+        "mr": "मसाले भात"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch"],
+      "cook_minutes": 40,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["rice", "festive", "one_pot"],
+      "ingredients": [
+        {
+          "product": "kolam-rice",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-peas",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "brinjal",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "goda-masala",
+          "qty": 2.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coconut",
+          "qty": 0.05,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "groundnuts",
+          "qty": 6,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["curd-raita"]
+    },
+    {
+      "slug": "thalipeeth",
+      "names": {
+        "en": "Thalipeeth",
+        "hi": "थालीपीठ",
+        "mr": "थालीपीठ"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["breakfast", "dinner"],
+      "cook_minutes": 30,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["roti", "multigrain", "high_fibre"],
+      "ingredients": [
+        {
+          "product": "jowar-atta",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "besan",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "wheat-atta",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "sesame-seeds",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["curd-raita", "shengdana-chutney"]
+    },
+    {
+      "slug": "kanda-bhaji",
+      "names": {
+        "en": "Kanda bhaji (onion fritters)",
+        "hi": "प्याज़ के पकौड़े",
+        "mr": "कांदा भजी"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["fried", "snack"],
+      "ingredients": [
+        {
+          "product": "onion",
+          "qty": 80,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "besan",
+          "qty": 35,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 15,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "bhindi-do-pyaza",
+      "names": {
+        "en": "Bhindi do pyaza",
+        "hi": "भिंडी दो प्याज़ा",
+        "mr": "भेंडी दो प्याजा"
+      },
+      "cuisine": "north_indian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "dry"],
+      "ingredients": [
+        {
+          "product": "bhindi",
+          "qty": 100,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander-powder",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "sabudana-kheer",
+      "names": {
+        "en": "Sabudana kheer",
+        "hi": "साबूदाना खीर",
+        "mr": "साबुदाण्याची खीर"
+      },
+      "cuisine": "common",
+      "slots": ["breakfast"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": true,
+      "diabetic_ok": false,
+      "tags": ["upvas", "sweet"],
+      "ingredients": [
+        {
+          "product": "sabudana",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 150,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 12,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 2,
+          "unit": "ml",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "shengdana-ladoo",
+      "names": {
+        "en": "Peanut jaggery ladoo",
+        "hi": "मूंगफली के लड्डू",
+        "mr": "शेंगदाण्याचे लाडू"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["breakfast"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": true,
+      "diabetic_ok": false,
+      "tags": ["upvas", "sweet", "no_cook"],
+      "ingredients": [
+        {
+          "product": "groundnuts",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "jaggery",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 2,
+          "unit": "ml",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "cholar-dal",
+      "names": {
+        "en": "Cholar dal",
+        "hi": "छोलार दाल",
+        "mr": "चोलार डाळ"
+      },
+      "cuisine": "bengali",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 35,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["dal", "coconut"],
+      "ingredients": [
+        {
+          "product": "chana-dal",
+          "qty": 40,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coconut",
+          "qty": 0.06,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["plain-rice", "begun-bhaja"]
+    },
+    {
+      "slug": "shukto",
+      "names": {
+        "en": "Shukto",
+        "hi": "शुक्तो",
+        "mr": "शुक्तो"
+      },
+      "cuisine": "bengali",
+      "slots": ["lunch"],
+      "cook_minutes": 35,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "mixed_veg", "bitter"],
+      "ingredients": [
+        {
+          "product": "bitter-gourd",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "drumstick",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "sweet-potato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "brinjal",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "radish",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 40,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 5,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["plain-rice"]
+    },
+    {
+      "slug": "pesarattu",
+      "names": {
+        "en": "Pesarattu (moong dosa)",
+        "hi": "पेसरट्टू",
+        "mr": "पेसरट्टू"
+      },
+      "cuisine": "south_indian",
+      "slots": ["breakfast"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["high_protein", "quick"],
+      "ingredients": [
+        {
+          "product": "whole-moong",
+          "qty": 50,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["coconut-chutney"]
+    },
+    {
+      "slug": "rava-dosa",
+      "names": {
+        "en": "Rava dosa",
+        "hi": "रवा डोसा",
+        "mr": "रवा डोसा"
+      },
+      "cuisine": "south_indian",
+      "slots": ["breakfast", "dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["quick"],
+      "ingredients": [
+        {
+          "product": "rava",
+          "qty": 35,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "kolam-rice",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "wheat-atta",
+          "qty": 10,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "curd",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 8,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["coconut-chutney"]
+    },
+    {
+      "slug": "kootu",
+      "names": {
+        "en": "Dudhi kootu",
+        "hi": "लौकी कूटू",
+        "mr": "दुधी कूटू"
+      },
+      "cuisine": "south_indian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 30,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["dal", "coconut", "light"],
+      "ingredients": [
+        {
+          "product": "bottle-gourd",
+          "qty": 0.2,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "moong-dal",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coconut",
+          "qty": 0.06,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "mustard-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "urad-dal",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "curry-leaves",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 4,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["plain-rice"]
+    },
+    {
+      "slug": "vegetable-kurma",
+      "names": {
+        "en": "Vegetable kurma",
+        "hi": "वेज कुरमा",
+        "mr": "व्हेज कुर्मा"
+      },
+      "cuisine": "south_indian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 35,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "gravy", "coconut"],
+      "ingredients": [
+        {
+          "product": "carrot",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "french-beans",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-peas",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "potato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coconut",
+          "qty": 0.08,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "aloo-methi",
+      "names": {
+        "en": "Aloo methi",
+        "hi": "आलू मेथी",
+        "mr": "आलू मेथी"
+      },
+      "cuisine": "north_indian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["sabzi", "leafy", "dry"],
+      "ingredients": [
+        {
+          "product": "potato",
+          "qty": 80,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "methi",
+          "qty": 0.3,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "red-chilli-powder",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "gobi-matar",
+      "names": {
+        "en": "Gobi matar",
+        "hi": "गोभी मटर",
+        "mr": "गोबी मटार"
+      },
+      "cuisine": "north_indian",
+      "slots": ["lunch", "dinner"],
+      "cook_minutes": 30,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["sabzi", "dry"],
+      "ingredients": [
+        {
+          "product": "cauliflower",
+          "qty": 0.15,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "green-peas",
+          "qty": 40,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cumin-seeds",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "turmeric",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander-powder",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "groundnut-oil",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "tawa-pulao",
+      "names": {
+        "en": "Tawa pulao",
+        "hi": "तवा पुलाव",
+        "mr": "तवा पुलाव"
+      },
+      "cuisine": "common",
+      "slots": ["dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["rice", "quick", "street"],
+      "ingredients": [
+        {
+          "product": "basmati-rice",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "tomato",
+          "qty": 40,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "capsicum",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-peas",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "red-chilli-powder",
+          "qty": 1,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "lemon",
+          "qty": 0.25,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["curd-raita"]
+    },
+    {
+      "slug": "aloo-paratha",
+      "names": {
+        "en": "Aloo paratha",
+        "hi": "आलू पराठा",
+        "mr": "आलू पराठा"
+      },
+      "cuisine": "north_indian",
+      "slots": ["breakfast"],
+      "cook_minutes": 35,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["roti", "stuffed"],
+      "ingredients": [
+        {
+          "product": "wheat-atta",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "potato",
+          "qty": 70,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 8,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["curd-raita"]
+    },
+    {
+      "slug": "gobi-paratha",
+      "names": {
+        "en": "Gobi paratha",
+        "hi": "गोभी पराठा",
+        "mr": "गोबी पराठा"
+      },
+      "cuisine": "north_indian",
+      "slots": ["breakfast"],
+      "cook_minutes": 35,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["roti", "stuffed"],
+      "ingredients": [
+        {
+          "product": "wheat-atta",
+          "qty": 60,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cauliflower",
+          "qty": 0.12,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "green-chilli",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "coriander",
+          "qty": 0.1,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "garam-masala",
+          "qty": 0.5,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 8,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["curd-raita"]
+    },
+    {
+      "slug": "tomato-soup",
+      "names": {
+        "en": "Tomato soup",
+        "hi": "टमाटर सूप",
+        "mr": "टोमॅटो सूप"
+      },
+      "cuisine": "common",
+      "slots": ["dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["soup", "light"],
+      "ingredients": [
+        {
+          "product": "tomato",
+          "qty": 150,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "carrot",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "black-pepper",
+          "qty": 0.3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 3,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 1,
+          "unit": "g",
+          "optional": true
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "mixed-veg-soup",
+      "names": {
+        "en": "Mixed vegetable soup",
+        "hi": "मिक्स वेज सूप",
+        "mr": "मिक्स व्हेज सूप"
+      },
+      "cuisine": "common",
+      "slots": ["dinner"],
+      "cook_minutes": 25,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["soup", "light", "high_fibre"],
+      "ingredients": [
+        {
+          "product": "carrot",
+          "qty": 30,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "french-beans",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "cabbage",
+          "qty": 0.05,
+          "unit": "piece",
+          "optional": false
+        },
+        {
+          "product": "green-peas",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ginger",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "black-pepper",
+          "qty": 0.3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 3,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "palak-soup",
+      "names": {
+        "en": "Palak soup",
+        "hi": "पालक सूप",
+        "mr": "पालक सूप"
+      },
+      "cuisine": "common",
+      "slots": ["dinner"],
+      "cook_minutes": 20,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": true,
+      "tags": ["soup", "light", "leafy"],
+      "ingredients": [
+        {
+          "product": "palak",
+          "qty": 0.4,
+          "unit": "bunch",
+          "optional": false
+        },
+        {
+          "product": "onion",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "garlic",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 50,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "black-pepper",
+          "qty": 0.3,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 3,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "salt",
+          "qty": 2,
+          "unit": "g",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "shrikhand",
+      "names": {
+        "en": "Shrikhand",
+        "hi": "श्रीखंड",
+        "mr": "श्रीखंड"
+      },
+      "cuisine": "maharashtrian",
+      "slots": ["lunch"],
+      "cook_minutes": 15,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["sweet", "curd", "festive", "no_cook"],
+      "ingredients": [
+        {
+          "product": "curd",
+          "qty": 150,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        }
+      ],
+      "sides": ["chapati"]
+    },
+    {
+      "slug": "gajar-halwa",
+      "names": {
+        "en": "Gajar halwa",
+        "hi": "गाजर का हलवा",
+        "mr": "गाजर हलवा"
+      },
+      "cuisine": "north_indian",
+      "slots": ["dinner"],
+      "cook_minutes": 45,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["sweet", "festive"],
+      "ingredients": [
+        {
+          "product": "carrot",
+          "qty": 100,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 120,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 6,
+          "unit": "ml",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "rice-kheer",
+      "names": {
+        "en": "Rice kheer",
+        "hi": "चावल की खीर",
+        "mr": "तांदळाची खीर"
+      },
+      "cuisine": "common",
+      "slots": ["dinner"],
+      "cook_minutes": 40,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["sweet", "festive"],
+      "ingredients": [
+        {
+          "product": "kolam-rice",
+          "qty": 15,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 200,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 20,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 2,
+          "unit": "ml",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "slug": "moong-dal-halwa",
+      "names": {
+        "en": "Moong dal halwa",
+        "hi": "मूंग दाल हलवा",
+        "mr": "मूग डाळ हलवा"
+      },
+      "cuisine": "north_indian",
+      "slots": ["dinner"],
+      "cook_minutes": 50,
+      "servings": 4,
+      "fasting_ok": false,
+      "diabetic_ok": false,
+      "tags": ["sweet", "festive", "rich"],
+      "ingredients": [
+        {
+          "product": "moong-dal",
+          "qty": 35,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "ghee",
+          "qty": 15,
+          "unit": "ml",
+          "optional": false
+        },
+        {
+          "product": "sugar",
+          "qty": 25,
+          "unit": "g",
+          "optional": false
+        },
+        {
+          "product": "milk",
+          "qty": 60,
+          "unit": "ml",
+          "optional": false
+        }
+      ]
     }
   ]
 }
