@@ -8,7 +8,9 @@ pre-commit:
       stage_fixed: true
 
     - name: ruff
-      run: uv run ruff check --fix {staged_files} && uv run ruff format {staged_files}
+      # --force-exclude: paths excluded in ruff.toml (spikes/, .claude/) stay excluded even when
+      # the hook passes them by name, as in CI's `ruff check .`.
+      run: uv run ruff check --fix --force-exclude {staged_files} && uv run ruff format --force-exclude {staged_files}
       glob: "*.py"
       stage_fixed: true
 
