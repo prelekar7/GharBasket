@@ -1,6 +1,6 @@
 # ADR-0014 — Final technology stack and service-based architecture (not microservices)
 
-- **Status:** Accepted
+- **Status:** Accepted; amended by [ADR-0018](0018-javascript-not-typescript-frontend.md) (JavaScript), [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md) (hosting), [ADR-0021](0021-jobs-without-a-broker.md) (jobs) and [ADR-0022](0022-api-client-openapi-fetch.md) (API client)
 - **Date:** 2026-10-02
 - **Decision ID:** D14
 

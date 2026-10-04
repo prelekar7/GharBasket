@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
@@ -37,7 +38,8 @@ def _phrase(status: int) -> str:
 class ProblemError(Exception):
     """Raise to return a problem response: `ProblemError(409, "orders.cutoff_passed", "...")`.
 
-    `detail` is shown to people; clients branch on `code`.
+    `detail` is shown to people; clients branch on `code`. `extra` adds RFC 9457 extension
+    members the client may need, e.g. `{"household_id": ...}` on `identity.household_exists`.
     """
 
     def __init__(
@@ -49,6 +51,7 @@ class ProblemError(Exception):
         title: str | None = None,
         errors: list[dict[str, Any]] | None = None,
         headers: Mapping[str, str] | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(detail or code)
         self.status = status
@@ -57,6 +60,7 @@ class ProblemError(Exception):
         self.title = title or _phrase(status)
         self.errors = errors
         self.headers = headers
+        self.extra = extra
 
 
 def problem_response(
@@ -68,8 +72,11 @@ def problem_response(
     detail: str | None = None,
     errors: list[dict[str, Any]] | None = None,
     headers: Mapping[str, str] | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> JSONResponse:
     body: dict[str, Any] = {
+        # Extension members first, so they can never overwrite the standard ones below.
+        **(extra or {}),
         "type": f"urn:gharbasket:problem:{code}",
         "title": title or _phrase(status),
         "status": status,
@@ -105,6 +112,7 @@ async def _handle_problem(request: Request, exc: Exception) -> JSONResponse:
         detail=exc.detail,
         errors=exc.errors,
         headers=exc.headers,
+        extra=exc.extra,
     )
 
 
@@ -151,8 +159,26 @@ async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+# Text Postgres cannot store: NUL characters (22021) or bytes outside UTF-8 (22P05). That is bad
+# input, found only when the value reaches the database, so it is answered like any invalid field.
+_UNSTORABLE_TEXT = {"22021", "22P05"}
+
+
+async def _handle_database(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DBAPIError)
+    if getattr(exc.orig, "sqlstate", None) in _UNSTORABLE_TEXT:
+        return problem_response(
+            request,
+            status=422,
+            code="request.invalid",
+            detail="Text cannot contain NUL or other characters that cannot be stored.",
+        )
+    return await _handle_unexpected(request, exc)
+
+
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ProblemError, _handle_problem)
     app.add_exception_handler(StarletteHTTPException, _handle_http)
     app.add_exception_handler(RequestValidationError, _handle_validation)
+    app.add_exception_handler(DBAPIError, _handle_database)
     app.add_exception_handler(Exception, _handle_unexpected)

@@ -10,7 +10,7 @@ and connection strings and tokens are SecretStr so they never show up in a repr 
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BeforeValidator, Field, SecretStr, model_validator
+from pydantic import AliasChoices, BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -55,6 +55,11 @@ class Settings(DatabaseSettings):
     log_level: LogLevel = "INFO"
     # JSON lines for Render and other log collectors; set LOG_JSON=false for readable local output.
     log_json: bool = True
+    # The commit this build came from (Render sets RENDER_GIT_COMMIT); /v1/health reports it, so
+    # the deploy workflow can tell when staging runs the new commit.
+    git_commit: Annotated[str | None, BeforeValidator(lambda value: value or None)] = Field(
+        default=None, validation_alias=AliasChoices("GIT_COMMIT", "RENDER_GIT_COMMIT")
+    )
     # Browsers reach the API through same-origin proxies, so CORS is only needed for the
     # Capacitor app (https://localhost). Comma-separated, e.g. "https://localhost".
     cors_allow_origins: CommaSeparated = []
@@ -65,7 +70,7 @@ class Settings(DatabaseSettings):
     # staging and prod; open locally so `curl localhost:8000/v1/ready` just works.
     jobs_token: SecretStr | None = None
 
-    # Sessions (ADR D25): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
+    # Sessions (ADR-0024): access JWTs are HS256 with a key id ("kid"), so the key can be rotated:
     # set a new JWT_SIGNING_KEY + JWT_KEY_ID and move the old pair to JWT_RETIRED_KEYS
     # ("k1:<key>,k0:<key>") until the last old token has expired (15 minutes).
     jwt_signing_key: SecretStr | None = None
@@ -75,6 +80,10 @@ class Settings(DatabaseSettings):
     jwt_audience: str = "gharbasket-apps"
     # Refresh tokens are stored only as HMAC-SHA256(pepper, token).
     refresh_token_pepper: SecretStr | None = None
+    # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
+    # cookie-authenticated request that changes something must come from one of these origins.
+    # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
+    web_origins: CommaSeparated = []
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
@@ -132,6 +141,12 @@ class Settings(DatabaseSettings):
     def is_local(self) -> bool:
         """A developer machine or the test suite, never a deployed environment."""
         return self.app_env in ("dev", "test")
+
+    @property
+    def allowed_web_origins(self) -> frozenset[str]:
+        """WEB_ORIGINS, plus the local dev servers (Vite 5173, Next.js 3000) on a dev machine."""
+        local = {"http://localhost:5173", "http://localhost:3000"} if self.is_local else set()
+        return frozenset(self.web_origins) | local
 
     @property
     def dev_login_enabled(self) -> bool:

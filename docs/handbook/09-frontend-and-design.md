@@ -1,7 +1,7 @@
 # Chapter 09 — Frontend and Design
 
 > **In short:**
-> - **One TypeScript/React codebase:** a Vite + React mobile app (PWA + Capacitor 8, Android) for field roles, and a Next.js 16 console for admin/hub/franchise users (D2, D12).
+> - **One React codebase in JavaScript (D18):** a Vite + React mobile app (PWA + Capacitor 8, Android) for field roles, and a Next.js 16 console for admin/hub/franchise users (D2, D12).
 > - The look is **"Indian kitchen, editorial"**: kraft paper, turmeric, curry-leaf, handwritten parchi, thali calendar. It deliberately avoids the generic "AI-generated" look.
 > - All UI design happens in **Claude Design** (D16): one GharBasket Design System artifact plus canvases for Customer, Field roles and Console. Done in **Phase 0, before code** (D17).
 > - The component library lives in `frontend/packages/ui`, built on **React Aria Components**, styled with our tokens, and documented in **Storybook 10**.
@@ -84,7 +84,7 @@ flowchart LR
 - **No emoji as icons** in product UI.
 - **Photography:** real produce shot by the team (natural light, kraft-paper backdrop, top-down) for a consistent catalog. Real partner portraits **with written consent**.
 - **Spot illustrations** (onboarding, empty states): hand-drawn ink line + turmeric fill. **Not allowed:** unDraw, Storyset, 3D blobs, AI-generated stock art.
-- **Image delivery:** AVIF/WebP from S3 via resize-on-upload thumbnails; **thumbhash** placeholders for smooth loading.
+- **Image delivery:** AVIF/WebP from object storage (Cloudflare R2, S3 API) via resize-on-upload thumbnails; **thumbhash** placeholders for smooth loading.
 
 ## 9.6 Motion
 
@@ -276,8 +276,9 @@ flowchart LR
 | Purpose | Library | Where |
 |---|---|---|
 | Framework | React 19; Vite (mobile); Next.js 16 (console) | both |
+| Language | JavaScript (`.js` / `.jsx`) with JSDoc and `jsconfig.json` (`checkJs`) as editor hints; no TypeScript (D18) | both |
 | Routing | TanStack Router (mobile); App Router (console) | |
-| Server state | TanStack Query + Hey API generated hooks | both |
+| Server state | TanStack Query via openapi-react-query hooks on openapi-fetch; `schema.d.ts` types from openapi-typescript; all generated in `frontend/packages/api-client` by `just gen-api` (D22) | both |
 | Client state | Zustand | mobile |
 | Forms / validation | react-hook-form + zod | both |
 | Styling | Tailwind CSS v4, tailwind-variants, tailwind-merge, clsx | both |
@@ -297,7 +298,7 @@ flowchart LR
 | Native | Capacitor 8 + plugins (push, camera, geolocation, network, preferences, haptics; Capawesome barcode scanner and background geolocation) | mobile |
 | Offline / PWA | Dexie; vite-plugin-pwa | mobile |
 | Component workshop | Storybook 10 + addon-a11y | frontend/packages/ui |
-| Testing / monitoring | Vitest, Testing Library, Playwright; Sentry, PostHog | both |
+| Testing / monitoring | Vitest, Testing Library, Playwright; PostHog (no Sentry) | both |
 
 **Note on shadcn/ui:** we do not install shadcn components as-is, because that is the "AI-made" look. We take the idea instead: we own our component code in `frontend/packages/ui`, built on React Aria and styled with our tokens.
 
@@ -305,8 +306,8 @@ flowchart LR
 
 | Area | Owner |
 |---|---|
-| Mobile app, `frontend/packages/ui`, Storybook, buildability review | Yash Salunkhe |
-| Console (Next.js) | Prathamesh Relekar |
+| All of `frontend/`: mobile app (every role), console UI (Next.js), `frontend/packages/ui`, `frontend/packages/domain`, Storybook, buildability review | Yash Salunkhe |
+| Backend and API contract (`openapi.json`); each owner reviews the other's contract changes | Prathamesh Relekar |
 | UX research, copy, translations, usability tests, design review comments | Rhythm Thakur, Manish Raje |
 
 ## Decisions & open questions
@@ -315,6 +316,9 @@ flowchart LR
 - **D12** — Android + PWA only; no iOS build in v1 ([ADR-0012](../adr/0012-android-and-pwa-platforms.md)).
 - **D16** — UI designed only in Claude Design ([ADR-0016](../adr/0016-ui-design-in-claude-design.md)).
 - **D17** — Design in Phase 0, before code ([ADR-0017](../adr/0017-design-before-code-in-phase-0.md)).
+- **D18** — Frontend in JavaScript, not TypeScript ([ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)).
+- **D22** — Generated API client: openapi-typescript + openapi-fetch + openapi-react-query ([ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
+- **D23** — Yash owns all frontend code; Prathamesh owns the backend ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md)).
 - **Open:** confirm OpenFreeMap vs MapTiler tiles; check that the logo and icon drafts from the canvas are distinctive enough (art-direction iterations in P0).
 
 Related: [Chapter 03 — Product and features](03-product-and-features.md) · [Chapter 04 — System architecture](04-system-architecture.md) · [`docs/FRONTEND_DESIGN.md`](../FRONTEND_DESIGN.md)

@@ -44,7 +44,7 @@
 flowchart TB
   subgraph TOP[" "]
     direction LR
-    KP["Key partners<br/>APMC Vashi vendors, FPOs<br/>Women partners and captains<br/>NGOs, housing societies<br/>Razorpay, Firebase, AWS"]
+    KP["Key partners<br/>APMC Vashi vendors, FPOs<br/>Women partners and captains<br/>NGOs, housing societies<br/>Razorpay, Firebase,<br/>Render, Vercel, Neon"]
     KA["Key activities<br/>Meal planning AI<br/>Cut-off procurement<br/>Packing and routing<br/>Partner training and QA"]
     VP["Value propositions<br/>Week planned for you<br/>Predictable monthly bill<br/>Home-style food from neighbours<br/>Less waste, community impact"]
     CR["Customer relationships<br/>Autopilot with one-tap approval<br/>Captain as trusted face<br/>Society groups, Kindness drives"]

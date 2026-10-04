@@ -1,7 +1,7 @@
 # M6 — Hub Operations
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S4
 **Postgres schema:** `hub_ops` · **Python package:** `gharbasket.modules.hub_ops`
 

@@ -1,7 +1,7 @@
 # M0 — Platform
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe (frontend shells, auth plumbing, UI tokens) and Prathamesh Relekar (API platform, infra, ML skeleton, simulator) · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend: API platform, auth plumbing, infra, ML skeleton, simulator), Yash Salunkhe (screens: frontend shells, UI tokens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P1 / S0
 **Postgres schema:** `platform` · **Python package:** `gharbasket.platform`
 
@@ -24,8 +24,8 @@ Shared foundations every module depends on: application factory, configuration, 
 | Method | Path | Permission / role | Idempotency | Notes |
 |---|---|---|---|---|
 | GET | `/v1/health` | Public | — | Liveness |
-| GET | `/v1/ready` | Public | — | DB and Valkey checks |
-| POST | `/v1/files/presign` | Authenticated | Not required | Returns presigned S3 PUT URL + object key; bucket chosen by purpose (media, kyc) |
+| GET | `/v1/ready` | Public locally; `JOBS_TOKEN` on staging and prod | — | DB and Valkey checks |
+| POST | `/v1/files/presign` | Authenticated | Not required | Returns a presigned PUT URL (S3 API; Cloudflare R2 on staging, SeaweedFS locally) + object key; bucket chosen by purpose (media, kyc) |
 
 ## 4. Tables owned
 | Table | Key columns | Notes |
@@ -41,9 +41,12 @@ Shared foundations every module depends on: application factory, configuration, 
 ## 6. Jobs
 | Job | Schedule / trigger | Notes |
 |---|---|---|
-| `outbox_relay` | Continuous (poll every 1 s) | Dispatches to Taskiq handlers |
-| `cleanup_idempotency_keys` | Daily 03:30 | Deletes keys older than 24 h |
-| `db_backup` | Daily 01:30 | `pg_dump` → S3, 30-day retention |
+| `outbox_relay` | After each commit (background task in the API) | Relays fresh outbox rows (`FOR UPDATE SKIP LOCKED`) to their consumers |
+| `outbox-sweep` | Scheduled job endpoint `POST /v1/internal/jobs/outbox-sweep` | Picks up rows the after-commit relay missed (restart, error) |
+| `cleanup_idempotency_keys` | Daily 03:30, internal job endpoint | Deletes keys older than 24 h |
+| Backups | — | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
+
+Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected by `JOBS_TOKEN` and called by a GitHub Actions scheduled workflow; each is idempotent and takes a Postgres advisory lock. Taskiq workers replace the trigger at the pilot (ADR-0021).
 
 ## 7. Permissions
 Provides the `require(permission, scope)` dependency and the permission registry that modules contribute to. `audit:read` → admin.
@@ -53,12 +56,12 @@ Provides the `require(permission, scope)` dependency and the permission registry
 
 ## 9. Tests required
 - Unit: error handler, idempotency middleware (same key/same body, same key/different body).
-- Integration: outbox write + relay dispatch with testcontainers; RLS session variable is set per transaction.
+- Integration: outbox write + after-commit relay + `outbox-sweep` job against local Docker Postgres; RLS session variable is set per transaction.
 - CI checks: import-linter, single Alembic head, upgrade/downgrade round trip, generated client up to date, agent-docs sync, gitleaks.
 
 ## 10. Dependencies
 None (foundation). All modules depend on M0.
 
 ## 11. Open questions
-- Relay via polling vs Postgres `LISTEN/NOTIFY` wake-up (start with polling).
+- How often the `outbox-sweep` schedule runs (GitHub Actions schedules run at most every 5 minutes and may start late).
 - Whether server-side feature flags are needed beyond PostHog.

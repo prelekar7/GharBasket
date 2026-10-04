@@ -22,7 +22,7 @@
 | Franchise isolation | `hub_id` + Row-Level Security |
 | Team collaboration | Schema + Alembic migrations act as a contract between four developers |
 
-MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6, [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)). Supporting stores: **Valkey** (cache, OTP, rate limits, Taskiq queue, live rider positions), **S3** (media, data lake, MLflow artifacts; SeaweedFS locally) and **DuckDB + Parquet** (ML training and heavy analytics).
+MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6, [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)). Supporting stores: **Valkey** (short-lived data only: rate-limit counters, the sign-out deny-list, cache, live rider positions; the free Render Key Value is not durable, so it never holds the only copy of anything), **S3-compatible object storage** (media, data lake, MLflow artifacts; Cloudflare R2 when deployed, SeaweedFS locally; code uses the S3 API only) and **DuckDB + Parquet** (ML training and heavy analytics).
 
 ## 5.2 Global data rules
 
@@ -114,10 +114,14 @@ erDiagram
         int size
         text diet
         jsonb cuisine_tags
+        int weekday_cook_minutes
+        int weekend_cook_minutes
+        smallint_array no_cook_days
         bigint budget_paise
         boolean autopilot_enabled
         boolean auto_approve
         text data_source
+        int version
     }
     HOUSEHOLD_MEMBERS {
         uuid id PK
@@ -131,7 +135,7 @@ erDiagram
         uuid id PK
         uuid household_id FK
         uuid society_id FK
-        text tower
+        text tower_id
         text flat
         geography location
         text h3_r9
@@ -612,7 +616,9 @@ erDiagram
     SOCIETIES {
         uuid id PK
         uuid hub_id FK
+        text slug UK
         text name
+        text area
         geography boundary
         jsonb towers
         int flats
@@ -882,7 +888,7 @@ Cut-off locks about 2,000 orders using batched `UPDATE … RETURNING` inside one
 ## 5.9 Multi-tenancy and security in data
 
 - Every hub-scoped table has `hub_id`. Row-Level Security policies compare it with `current_setting('app.hub_ids')`, which the API sets with `SET LOCAL` per transaction for hub managers and franchise owners.
-- KYC numbers are encrypted with pgcrypto using a key from AWS SSM Parameter Store; only masked forms are returned.
+- KYC numbers are encrypted with pgcrypto using a key kept in Infisical and passed to the API as a secret; only masked forms are returned.
 - No Aadhaar storage; health tags only with consent; `DELETE /me` hard-deletes personal data and keeps anonymised aggregates.
 
 ## 5.10 The `data_source` tag
@@ -925,10 +931,9 @@ flowchart LR
 ## Decisions & open questions
 
 - **D6** Postgres-centric database ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md)).
-- **D7** Neon for dev/PR branches ([ADR-0007](../adr/0007-research-scope-four-algorithms.md)).
+- **D20** Neon Postgres (Singapore) as one shared `dev`/`staging` database, with no per-PR branches; day-to-day work uses local Docker Postgres; files on Cloudflare R2 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md), supersedes ADR-0011 and ADR-0015).
 - **D4** Closed-loop wallet and KYC scope ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)).
 - **D8** `data_source` tagging and simulator-first data ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
-- **D15** AWS Mumbai hosting ([ADR-0015](../adr/0015-aws-mumbai-topology-with-neon-postgres.md)).
-- Open: Neon has no India region (nearest likely Singapore). Before the pilot (Phase P6), decide whether to keep Neon for production or move the production database to Mumbai (EC2/RDS) while keeping Neon for development and PR branches.
+- Open (Q3): Neon has no India region. Before the pilot (Phase P6), decide whether the pilot database stays on Neon Singapore or moves to a paid Postgres in Mumbai.
 
 Related: [04 — System architecture](04-system-architecture.md) · [06 — Domain lifecycles](06-domain-lifecycles.md) · [08 — AI and ML](08-ai-and-ml.md) · [13 — Security and compliance](13-security-and-compliance.md)

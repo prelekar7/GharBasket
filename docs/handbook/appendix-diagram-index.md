@@ -86,7 +86,7 @@
 | 11.2 | CI/CD pipeline | Flowchart | [Chapter 11 — Engineering Process](11-engineering-process.md) |
 | 11.3 | Environments and promotion path | Flowchart | [Chapter 11 — Engineering Process](11-engineering-process.md) |
 | 12.1 | Deployment diagram (UML-style: nodes as subgraphs, containers inside) | UML deployment | [Chapter 12 — Deployment and Operations](12-deployment-and-operations.md) |
-| 13.1 | Trust boundaries and main data flows. Everything left of Caddy is untrusted; the ML service and data stores are never exposed publicly. | Flowchart | [Chapter 13 — Security and Compliance](13-security-and-compliance.md) |
+| 13.1 | Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the ML service and data stores are never exposed publicly. | Flowchart | [Chapter 13 — Security and Compliance](13-security-and-compliance.md) |
 | 14.1 | Gantt chart of phases, sprints and milestones. The buffer sprint moves to wherever exams fall once dates are known. | Gantt / timeline | [Chapter 14 — Project Plan](14-project-plan.md) |
 | 14.2 | Milestone timeline. | Timeline | [Chapter 14 — Project Plan](14-project-plan.md) |
 | 15.1 | Risk matrix. Top-right items (R1, R6) are reviewed every sprint. | Quadrant chart | [Chapter 15 — Risks and Decisions](15-risks-and-decisions.md) |

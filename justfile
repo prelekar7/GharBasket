@@ -80,6 +80,14 @@ dev:
 test:
     uv run --directory backend/api pytest --cov
 
+# Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
+grant-role *args:
+    uv run python -m gharbasket.tools.grant_role {{args}}
+
+# Fill the local database with synthetic people, one per role (safe to run again; local only)
+seed:
+    uv run python -m gharbasket.tools.seed
+
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
     uv run python -m gharbasket.tools.export_openapi
@@ -96,9 +104,13 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
-# Regenerate the JS API client from openapi.json (arrives in feat/M1-auth-contract)
-gen-api:
-    @echo "Not available yet: arrives in feat/M1-auth-contract"
+# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com`
+cloud url:
+    scripts/smoke-staging.sh {{url}}
+
+# Regenerate backend/api/openapi.json, then the JS client types from it (ADR-0022)
+gen-api: openapi
+    pnpm --filter @gharbasket/api-client run generate
 
 # Seed synthetic households with the simulator (arrives in feat/M10-simulator-v0)
 sim:

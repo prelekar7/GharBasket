@@ -1,9 +1,9 @@
 # M10 — Intelligence (ML & Optimisation Service)
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Prathamesh Relekar · **Reviewer:** Yash Salunkhe · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
-**Deployables:** `backend/ml` (FastAPI) + `ml-worker` (Taskiq queue `ml`); gateway module in the API: `gharbasket.modules.intel_gateway`
+**Deployables:** `backend/ml` (FastAPI; hosting to be decided before P3/P4) — long jobs run in the service or offline until a paid `ml-worker` (Taskiq queue `ml`) exists at the pilot (ADR-0021); gateway module in the API: `gharbasket.modules.intel_gateway`
 **Postgres schema:** `intel` (written by the ML service through the gateway's contract)
 
 ## 1. Purpose
@@ -42,7 +42,7 @@ All prediction and optimisation: the household simulator, pantry digital twin, n
 | `intel.experiments` | id, key, variant, subject_id, assigned_at |
 | `intel.model_metrics` | model_name, version, metric, value, split, data_source, computed_at |
 
-Outside Postgres: Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3://gb-mlflow/`, simulator ground truth in `data/sim_truth/`.
+Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decided with the ML hosting): Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3://gb-mlflow/`, simulator ground truth in `data/sim_truth/`.
 
 ## 5. Events
 **Published:** `intel.plans_ready`, `intel.forecast_ready`, `intel.routes_ready`, `intel.assignment_ready`, `intel.substitutions_learned`.
@@ -51,11 +51,13 @@ Outside Postgres: Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3:
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
-| `export_snapshots` | Daily 02:00 | DuckDB reads Postgres → Parquet on S3; pandera validation |
+| `export_snapshots` | Daily 02:00 | DuckDB reads Postgres → Parquet in object storage (S3 API); pandera validation |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast_uncommitted` | T-1 21:10 | StatsForecast/MLForecast/Chronos-2 + reconciliation |
 | `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |
 | `monitor_drift` | Daily | WAPE, acceptance, waste vs thresholds |
+
+Until a paid worker exists, these batch jobs run in the ML service or offline, triggered by the API's internal job endpoints on a GitHub Actions schedule (ADR-0021).
 
 ## 7. Permissions
 Service-to-service token for API ↔ ML calls; `models:read` for admin in the console.

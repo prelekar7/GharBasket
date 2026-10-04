@@ -28,7 +28,7 @@ just                  # lists every command
 ```
 ### Local infrastructure
 ```bash
-cp .env.example .env     # optional: every value has a working default
+cp .env.example .env     # required: just migrate and just dev read DATABASE_URL from it
 just up                  # Postgres 18 (PostGIS, pgvector) + Valkey          ~400 MB RAM
 just up-storage          # + SeaweedFS S3 with buckets gb-media, gb-lake, gb-mlflow
 just up-all              # + MLflow tracking server and model registry       ~1.2 GB RAM in total
@@ -48,14 +48,25 @@ Everything binds to `127.0.0.1` only. The Postgres image is built locally from t
 
 Docker Desktop settings that work well on an 8 GB laptop: Resources, Memory 3-4 GB, CPUs 4, Swap 1 GB; General, use the Virtualization framework and VirtioFS.
 
-After `feat/M0-api-platform` merges: `just migrate` then `just dev`.
+### Run the API
+```bash
+just migrate             # create or upgrade the tables
+just seed                # synthetic people, one per role (safe to run again)
+just dev                 # API on http://localhost:8000, with reload
+```
+Open **http://localhost:8000/v1/docs** (the docs live under `/v1`). Sign in with `POST /v1/auth/exchange` and
+`{"dev_phone": "+919800001001", "device": {"platform": "web", "push_token": null}}`, copy `access_token`
+into **Authorize**, then try `GET /v1/me`. The seeded phones and their roles are listed in `backend/api/README.md`.
+`just test` runs the backend tests against the `gharbasket_test` database.
 
 ## 3. Editor
 - VS Code or Cursor with: Biome, Python, Ruff, Pylance, Tailwind CSS IntelliSense, EditorConfig.
-- Format on save is handled by Biome (TypeScript/JSON/CSS) and Ruff (Python).
+- Format on save is handled by Biome (JavaScript/JSON/CSS) and Ruff (Python).
 
 ## 4. Accounts (shared project owner; credentials in the team password manager, never in git)
-AWS (ap-south-1 Mumbai), Neon, Firebase (Phone Auth + FCM), Razorpay (test mode), Sentry, PostHog, Grafana Cloud, Anthropic (from Sprint 8). Local secrets go in `.env` (git-ignored), copied from `.env.example`.
+Render (API and Key Value), Vercel (PWA and console), Neon (Postgres), Cloudflare R2 (files), Infisical (secrets), Firebase (Phone Auth + FCM), Razorpay (test mode), PostHog, UptimeRobot, Anthropic (from Sprint 8). All on free tiers until the pilot (ADR-0020). Shared secrets live in Infisical; local secrets go in `.env` (git-ignored), copied from `.env.example`. Tests and `just seed` only ever use the local database.
+
+Staging (Render, Neon, R2) is set up once by the backend owner: see handbook 12, "How a change reaches staging". To check it from your machine: `infisical run --env=staging -- just cloud <staging URL>`.
 
 ## 5. AI assistants
 `AGENTS.md` is the single source of instructions for every AI tool. Edit only that file, then run `just sync-agent-docs`. The pre-commit hook and CI reject out-of-sync copies.

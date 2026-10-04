@@ -37,6 +37,7 @@ class Health(BaseModel):
     service: str
     version: str
     environment: str
+    commit: str | None
 
 
 @router.get("/health", summary="Liveness check (does not touch the database)")
@@ -46,6 +47,7 @@ async def health(settings: Annotated[Settings, Depends(get_settings)]) -> Health
         service="gharbasket-api",
         version=__version__,
         environment=settings.app_env,
+        commit=settings.git_commit,
     )
 
 

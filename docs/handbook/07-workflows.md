@@ -29,6 +29,8 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 | T 11:30–13:30 | Tiffin ready, picked up, delivered | partners, logistics | W6 |
 | T 12:30 | `surplus_cascade` | ops | W9 |
 
+Scheduled jobs run without a broker (D21): each one is an internal endpoint, `POST /v1/internal/jobs/<name>`, called by a GitHub Actions schedule. Jobs are idempotent, take a PostgreSQL advisory lock and use the *scheduled* time, so a schedule that starts a few minutes late changes nothing. Events between modules go through the Postgres outbox, which the API relays after each commit.
+
 *Figure 7.1 — Weekly rhythm from T-3 to T*
 
 ```mermaid
@@ -115,9 +117,10 @@ sequenceDiagram
     APP->>FB: Verify OTP
     FB-->>APP: Firebase ID token
     APP->>API: POST /v1/auth/exchange (ID token)
-    API->>FB: Verify ID token (firebase-admin)
-    API->>DB: Upsert user, load roles with scopes
-    API-->>APP: Access JWT (15 min), refresh token (30 days), roles
+    API->>FB: Fetch Google public keys (cached)
+    API->>API: Verify ID token with PyJWT (signature, audience, issuer, expiry)
+    API->>DB: Find or create user (first exchange = signup, customer role), load roles with scopes
+    API-->>APP: Access JWT (15 min), refresh token (session up to 30 days), roles
     alt Only customer role
         APP->>APP: Open customer home
     else Several verified roles
@@ -134,7 +137,7 @@ sequenceDiagram
 
 ## W2 — Weekly Autopilot cycle
 
-1. **T-3 18:00:** the worker triggers `generate_weekly_plans` for each hub. The ML service loads the household profile, pantry twin estimates, festival calendar, prices and Budget Lock, then runs the CP-SAT meal planner and the basket ranker.
+1. **T-3 18:00:** job `generate_weekly_plans` (internal job endpoint, scheduled by GitHub Actions) runs for each hub. The ML service loads the household profile, pantry twin estimates, festival calendar, prices and Budget Lock, then runs the CP-SAT meal planner and the basket ranker.
 2. Plans are written to `intel.predictions`. The subscriptions module turns each plan into a `weekly_cycle` with `box_lines` and a `reason_code` per line.
 3. If the ML service fails or times out, the fallback is **last week's box adjusted by family-size rules** (reason code `FALLBACK_RULES`).
 4. **T-3 18:30:** box-ready notification (push + WhatsApp) and, for Autopay users, the pre-debit notice.
@@ -147,16 +150,16 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Taskiq scheduler
-    participant W as worker
+    participant SCH as GitHub Actions schedule
+    participant W as api - job generate_weekly_plans
     participant ML as ml service
     participant DB as PostgreSQL
     participant SUB as api - subscriptions
     participant N as notify
-    SCH->>W: generate_weekly_plans(hub, T) at T-3 18:00
+    SCH->>W: POST /v1/internal/jobs/generate_weekly_plans (hub, T), scheduled T-3 18:00
     W->>ML: POST /plan/week batch (households of hub)
     ML->>DB: Read profiles, pantry estimates, prices, festivals, Budget Lock
-    loop Each household (parallel workers)
+    loop Each household (in parallel)
         ML->>ML: Rank candidates (LightGBM)
         ML->>ML: CP-SAT meal plan, 5 s limit
         ML->>ML: Ingredients times pantry quantities to box lines with reasons
@@ -213,24 +216,24 @@ sequenceDiagram
 
 ## W3 — Payments
 
-1. **Wallet top-up:** the app creates a Razorpay order → Razorpay Checkout runs inside the WebView → Razorpay sends a webhook → the webhook is stored, then processed idempotently → ledger entry → push notification.
-2. **Autopay:** the mandate is created once. Each cycle sends a pre-debit notice at T-3 18:30 and captures at cut-off.
-3. **At cut-off:** the wallet is debited (`wallet → unearned_revenue`) or Autopay is captured. Failure → `PAYMENT_FAILED` → 2-hour grace notification → cancel.
+1. **Wallet top-up:** the app asks the API to create a Razorpay order (our own thin async Razorpay client on httpx2) → Razorpay Checkout runs inside the WebView → Razorpay sends a webhook → the webhook is stored, then processed idempotently → ledger entry → push notification.
+2. **Autopay (from the pilot phase; MS-A uses prepaid wallet top-ups only):** the mandate is created once. Each cycle sends a pre-debit notice at T-3 18:30 and captures at cut-off.
+3. **At cut-off:** after 21:00 IST the API itself refuses box edits; the `cutoff_lock` job (internal job endpoint, scheduled by GitHub Actions) then locks the orders. The wallet is debited (`wallet → unearned_revenue`) or Autopay is captured. Failure → `PAYMENT_FAILED` → 2-hour grace notification → cancel.
 4. **Refunds:** shortages and undelivered orders are refunded to the wallet instantly; refunds to the original source happen on request.
-5. **Reconciliation:** an hourly job compares local payments with the Razorpay API.
+5. **Reconciliation:** an hourly job (internal job endpoint, scheduled by GitHub Actions) compares local payments with the Razorpay API.
 
 *Figure 7.6 — Sequence: cut-off lock and payment*
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Scheduler
-    participant W as worker - cutoff_lock
+    participant SCH as GitHub Actions schedule
+    participant W as api - job cutoff_lock
     participant DB as PostgreSQL
     participant BIL as api - billing
     participant RZP as Razorpay
     participant N as notify
-    SCH->>W: cutoff_lock(hub, T) at T-1 21:00
+    SCH->>W: POST /v1/internal/jobs/cutoff_lock (hub, T), scheduled T-1 21:00
     W->>DB: pg_try_advisory_lock(hub, T)
     alt Lock already held
         W-->>SCH: Skip, another run is active
@@ -267,7 +270,7 @@ sequenceDiagram
     participant API as api - billing
     participant RZP as Razorpay
     participant DB as PostgreSQL
-    participant W as worker
+    participant W as api - background task
     C->>APP: Top up 1000 rupees
     APP->>API: POST /v1/wallet/topups (Idempotency-Key k1)
     API->>DB: Check balance cap 10000 rupees
@@ -306,7 +309,7 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant DB as PostgreSQL
-    participant W as worker
+    participant W as outbox consumer
     participant ML as ml service
     participant OPS as api - ops
     actor HM as Hub manager
@@ -402,7 +405,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Scheduler
+    participant SCH as GitHub Actions schedule
     participant ML as ml service - routing
     participant OSRM as OSRM
     participant LOG as api - logistics
@@ -454,7 +457,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Scheduler
+    participant SCH as GitHub Actions schedule
     participant ML as ml service - assignment
     participant PTN as api - partners
     actor K as Kitchen partner
@@ -626,7 +629,7 @@ flowchart TD
 
 ## W11 — ML lifecycle
 
-1. **02:00 daily:** `export_snapshots` reads PostgreSQL with DuckDB and writes Parquet to S3; pandera validates the schema.
+1. **02:00 daily:** `export_snapshots` reads PostgreSQL with DuckDB and writes Parquet to object storage (S3 API: Cloudflare R2 when deployed, SeaweedFS locally); pandera validates the schema. Training runs in the ML service or offline, not inside an API request (D21).
 2. Point-in-time features are built as of each cut-off (no leakage).
 3. **Sunday 03:00:** a challenger model is trained and evaluated on a time-based holdout (last 2–4 weeks).
 4. If it beats `@champion` on the primary metric and passes guardrails, MLflow moves the `@champion` alias to the new version.
@@ -639,9 +642,9 @@ flowchart TD
 sequenceDiagram
     autonumber
     participant SCH as Scheduler
-    participant MW as ml-worker
+    participant MW as ml service - batch job
     participant DB as PostgreSQL
-    participant S3 as S3 data lake
+    participant S3 as R2 data lake (S3 API)
     participant MLF as MLflow
     participant ML as ml service
     SCH->>MW: export_snapshots at 02:00
@@ -713,9 +716,9 @@ sequenceDiagram
 
 | Workflow | Modules | Primary owner |
 |---|---|---|
-| W1 Onboarding | M1, M5, M9 | Yash Salunkhe |
-| W2 Weekly Autopilot | M3, M4, M10, M11 | Yash Salunkhe (flow), Prathamesh Relekar (models) |
-| W3 Payments | M5 | Yash Salunkhe |
+| W1 Onboarding | M1, M5, M9 | Prathamesh Relekar (backend), Yash Salunkhe (screens) |
+| W2 Weekly Autopilot | M3, M4, M10, M11 | Prathamesh Relekar (backend, models), Yash Salunkhe (screens) |
+| W3 Payments | M5 | Prathamesh Relekar (backend), Yash Salunkhe (screens) |
 | W4 Hub morning ops | M6, M10 | Prathamesh Relekar |
 | W5 Routing and delivery | M7, M10 | Prathamesh Relekar |
 | W6 Tiffin day | M8, M7, M10 | Prathamesh Relekar |
@@ -732,7 +735,8 @@ End-to-end tests (Playwright) for W1, W2, W3, W5 and W8 are owned by Rhythm Thak
 
 - **D1** Kitchen Autopilot and Society Captain are the headline flows ([ADR-0001](../adr/0001-headline-usps-autopilot-and-society-captain.md)).
 - **D3** batch ML with rule-based fallbacks ([ADR-0003](../adr/0003-python-fastapi-backend-and-ml-service.md)).
-- **D4** wallet default, UPI Autopay with 24-hour pre-debit notice ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)).
+- **D4** wallet default, UPI Autopay with 24-hour pre-debit notice ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)); for MS-A the wallet is topped up through Razorpay Checkout in test mode and Autopay mandates move to the pilot phase.
+- **D21** jobs without a broker: Postgres outbox relayed after each commit, scheduled jobs as internal endpoints called by GitHub Actions; Taskiq returns at the pilot ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
 - **D5 / D13** assistant: text MVP, model chosen after the Sprint 8 evaluation ([ADR-0005](../adr/0005-text-assistant-mvp-voice-stretch.md), [ADR-0013](../adr/0013-assistant-model-chosen-by-eval.md)).
 - Open: validate the timings (T-1 21:00 cut-off, 04:00 buying, 08:00–10:00 delivery) with hub operators and the UX interviews in Phase P0.
 - Open: how long the captain holds undelivered bags (evening window length) — decide in the M7 spec.
