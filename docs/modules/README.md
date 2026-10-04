@@ -8,22 +8,22 @@ Each backend/product module has one specification file. Specs are written **befo
 
 | ID | Module | File | Owner | Phase / Sprints |
 |---|---|---|---|---|
-| M0 | Platform | [M0-platform.md](M0-platform.md) | Yash Salunkhe / Prathamesh Relekar | P1 / S0 |
-| M1 | Identity & Household | [M1-identity.md](M1-identity.md) | Yash Salunkhe | P2 / S1 |
-| M2 | Catalog & Pricing | [M2-catalog.md](M2-catalog.md) | Yash Salunkhe | P2 / S1 |
-| M3 | Plans & Subscriptions | [M3-subscriptions.md](M3-subscriptions.md) | Yash Salunkhe | P2 / S3 |
-| M4 | Orders & Checkout | [M4-orders.md](M4-orders.md) | Yash Salunkhe | P2 / S2 |
-| M5 | Billing & Ledger | [M5-billing.md](M5-billing.md) | Yash Salunkhe | P2 / S2 |
-| M6 | Hub Operations | [M6-hub-ops.md](M6-hub-ops.md) | Prathamesh Relekar | P3 / S4 |
-| M7 | Logistics | [M7-logistics.md](M7-logistics.md) | Prathamesh Relekar | P3 / S5 |
-| M8 | Partner Network | [M8-partners.md](M8-partners.md) | Prathamesh Relekar | P3 / S6 |
+| M0 | Platform | [M0-platform.md](M0-platform.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P1 / S0 |
+| M1 | Identity & Household | [M1-identity.md](M1-identity.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S1 |
+| M2 | Catalog & Pricing | [M2-catalog.md](M2-catalog.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S1 |
+| M3 | Plans & Subscriptions | [M3-subscriptions.md](M3-subscriptions.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S3 |
+| M4 | Orders & Checkout | [M4-orders.md](M4-orders.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S2 |
+| M5 | Billing & Ledger | [M5-billing.md](M5-billing.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S2 |
+| M6 | Hub Operations | [M6-hub-ops.md](M6-hub-ops.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P3 / S4 |
+| M7 | Logistics | [M7-logistics.md](M7-logistics.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P3 / S5 |
+| M8 | Partner Network | [M8-partners.md](M8-partners.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P3 / S6 |
 | M9 | Community & Kindness | [M9-community.md](M9-community.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P5 / S9 |
-| M10 | Intelligence (ML service) | [M10-intelligence.md](M10-intelligence.md) | Prathamesh Relekar | P4 / S7–S8 (simulator from S0) |
-| M11 | Notifications | [M11-notifications.md](M11-notifications.md) | Yash Salunkhe | P2 / S3 |
-| M12 | Console & Analytics | [M12-console-analytics.md](M12-console-analytics.md) | Prathamesh Relekar | P2–P5 |
-| M13 | Assistant (LLM) | [M13-assistant.md](M13-assistant.md) | Prathamesh Relekar | P4 / S8 |
+| M10 | Intelligence (ML service) | [M10-intelligence.md](M10-intelligence.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P4 / S7–S8 (simulator from S0) |
+| M11 | Notifications | [M11-notifications.md](M11-notifications.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2 / S3 |
+| M12 | Console & Analytics | [M12-console-analytics.md](M12-console-analytics.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P2–P5 |
+| M13 | Assistant (LLM) | [M13-assistant.md](M13-assistant.md) | Prathamesh Relekar (backend), Yash Salunkhe (screens) | P4 / S8 |
 
-Testing and QA for every module: Rhythm Thakur and Manish Raje (E2E, test cases, QA checklist).
+Ownership (ADR-0023): Prathamesh Relekar owns the backend of every module and Yash Salunkhe its screens; each reviews the other's contract changes (§3). Testing and QA for every module: Rhythm Thakur and Manish Raje (E2E, test cases, QA checklist).
 
 ## Rules every module follows
 
@@ -43,7 +43,7 @@ Copy this into a new file `Mx-<name>.md`.
 # Mx — <Module name>
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** <name> · **Reviewer:** <name> · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** <P# / S#>
 **Postgres schema:** `<schema>` · **Python package:** `gharbasket.modules.<name>`
 

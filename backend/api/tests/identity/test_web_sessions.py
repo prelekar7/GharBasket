@@ -1,4 +1,4 @@
-"""Browser sign-in with httpOnly cookies + CSRF, instant sign-out and sign-in rate limits (D25)."""
+"""Browser sign-in: httpOnly cookies + CSRF, instant sign-out, sign-in rate limits (ADR-0024)."""
 
 from typing import Any
 

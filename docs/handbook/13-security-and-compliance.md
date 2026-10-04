@@ -13,9 +13,9 @@
 | Household profile | family size, age bands, diet, fasting rules | Personal data | `identity.households`, `household_members` |
 | Health tags | diabetic, low-salt, PCOS-friendly | **Sensitive** (opt-in consent only) | `household_members.health_tags` |
 | Money | wallet balance, payments, refunds, mandates | Financial | `billing.*` (ledger) |
-| Partner KYC | ID document (masked), PAN, bank reference, FSSAI number | **Sensitive** | `partners.kyc_documents` (private S3 bucket), encrypted columns |
+| Partner KYC | ID document (masked), PAN, bank reference, FSSAI number | **Sensitive** | `partners.kyc_documents` (private R2 bucket, S3 API), encrypted columns |
 | Location trail | rider GPS pings | Personal data | `logistics.gps_pings` (partitioned, 90-day retention) |
-| Operational secrets | API keys (Razorpay, Firebase, Claude, WhatsApp) | Secret | AWS SSM Parameter Store / GitHub secrets only |
+| Operational secrets | API keys (Razorpay, Firebase, Claude, WhatsApp), JWT keys, refresh-token pepper, `JOBS_TOKEN` | Secret | Infisical (`dev`, `staging`, `prod`), synced to GitHub Actions secrets only |
 
 ## 13.2 Trust boundaries and data flow
 
@@ -26,20 +26,20 @@ flowchart LR
         WEB["Console browser"]
     end
 
-    subgraph Edge["Edge"]
-        CADDY["Caddy: TLS 1.3, edge rate limits"]
+    subgraph Edge["Edge (platform TLS)"]
+        VER["Vercel: /v1/* same-origin rewrite"]
+        RTLS["Render: TLS"]
     end
 
-    subgraph Trusted["Trusted zone: AWS Mumbai VPC"]
-        API["api: FastAPI\nJWT check, role + scope check,\nidempotency, validation"]
-        WRK["worker: Taskiq jobs"]
-        ML["ml service\n(internal only)"]
-        VK[("Valkey\nOTP throttles, sessions, queue")]
+    subgraph Trusted["Trusted zone: Render service (Singapore)"]
+        API["api: FastAPI\nJWT check, CSRF check, role + scope check,\nrate limits, idempotency, validation,\noutbox relay, internal job endpoints"]
+        ML["ml service\n(internal only; hosting decided before P3)"]
+        VK[("Valkey (Render Key Value)\nrate-limit counters, sign-out deny-list")]
     end
 
     subgraph Data["Data stores"]
         PG[("PostgreSQL 18 on Neon\nRLS on hub-scoped tables\nencrypted KYC columns")]
-        S3[("S3 private buckets\nKYC docs, proofs, media")]
+        S3[("Cloudflare R2 private buckets (S3 API)\nKYC docs, proofs, media")]
     end
 
     subgraph External["Third parties"]
@@ -49,39 +49,44 @@ flowchart LR
         LLM["Claude API"]
     end
 
-    MOB -- "HTTPS + Bearer JWT" --> CADDY
-    WEB -- "HTTPS + httpOnly cookie" --> CADDY
-    CADDY --> API
+    MOB -- "HTTPS + Bearer JWT" --> RTLS
+    WEB -- "HTTPS + httpOnly cookies" --> VER
+    VER --> RTLS
+    RTLS --> API
     API --> PG
     API --> VK
     API -- "presigned URLs only" --> S3
     API -- "internal network, no public port" --> ML
-    WRK --> PG
     MOB -- "OTP" --> FB
     API -- "verify ID token" --> FB
-    RZP -- "signed webhooks" --> CADDY
+    RZP -- "signed webhooks" --> RTLS
     API -- "orders, refunds, payouts" --> RZP
-    WRK -- "templated messages" --> WA
+    API -- "templated messages" --> WA
     API -- "scrubbed prompts, user-scoped tools" --> LLM
 ```
-*Figure 13.1 — Trust boundaries and main data flows. Everything left of Caddy is untrusted; the ML service and data stores are never exposed publicly.*
+*Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the ML service and data stores are never exposed publicly.*
 
 ## 13.3 Authentication
 
-1. The app performs **Firebase Phone Auth** (OTP). Firebase handles SMS delivery, which avoids TRAI DLT registration during the prototype.
-2. The app sends the Firebase ID token to `POST /v1/auth/exchange`. The API verifies it with `firebase-admin`, upserts the user and issues **our own** tokens:
-   - access JWT: 15 minutes, signed (HS256 in prototype, key in SSM), carries `sub`, `roles[]`, `jti`;
-   - refresh token: 30 days, opaque, **stored hashed**, bound to a device, **rotated on every use**. Reuse of an already-rotated token revokes the whole device session (theft detection).
-3. Storage: mobile keeps the refresh token in Capacitor secure storage (Android Keystore). The console keeps it in an `httpOnly; Secure; SameSite=Lax` cookie, refreshed by `proxy.ts`.
-4. `GET /v1/me/devices` lists sessions; any device can be revoked.
-5. OTP exchange and login are rate-limited per phone and per IP (Valkey token bucket + Caddy).
+Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
+
+1. The app performs **Firebase Phone Auth** (OTP only). Firebase handles SMS delivery, which avoids TRAI DLT registration during the prototype.
+2. The app sends the Firebase ID token to `POST /v1/auth/exchange`. The API verifies it itself with PyJWT against Google's published keys (audience, issuer, expiry; no `firebase-admin`). The first exchange for a number creates the account with the `customer` role (that is signup). The API then issues **our own** tokens:
+   - access JWT: 15 minutes, HS256 with a `kid` for key rotation (key in Infisical), carries `sub`, `sid` (session), `roles[]`, `jti`;
+   - refresh token: opaque, **stored only as an HMAC-SHA256 with a server pepper**, in a session that lasts at most 30 days, **rotated on every use**. If a used token comes back within 2 minutes while its child is unused (a lost response), the child is replaced; any other reuse revokes the whole session (`auth.refresh_reused`, theft detection).
+3. Storage: the Capacitor app sends `Authorization: Bearer` and keeps the refresh token in secure storage (Android Keystore). Browsers (PWA and console) send `X-GB-Client: web` and never see a token: the API sets httpOnly cookies `__Host-gb_at` (Path=/, 15 minutes) and `gb_rt` (Path=/v1/auth). Vercel rewrites `/v1/*` to the API, so the cookies are same-origin.
+4. **CSRF:** a cookie-authenticated POST, PATCH, PUT or DELETE without `X-GB-Client: web`, or from an Origin outside `WEB_ORIGINS`, gets 403 `auth.csrf_rejected`.
+5. **Instant sign-out:** logout, logout-all, device sign-out and refresh reuse put the session on a Valkey deny-list for the access token's remaining life. A refresh always checks the session in Postgres.
+6. `GET /v1/me/devices` lists sessions; any device can be revoked.
+7. **Rate limits:** fixed windows in Valkey (our own code). Exchange: 30 per 10 minutes per address and 10 per 10 minutes per phone (the key is a hash, never the number). Refresh: 300 per minute per address. If Valkey is down, requests are allowed (Firebase also limits OTPs).
+8. Locally only (`APP_ENV=dev`), `dev_phone` signs in without an OTP.
 
 ## 13.4 Authorisation (roles with scopes)
 
 - `identity.user_roles(user_id, role, scope_type, scope_id, status)`.
 - Roles: `customer`, `captain` (society), `kitchen_partner` (hub), `rider` (hub), `packer` (hub), `hub_manager` (hub), `franchise_owner` (hub), `ngo_coordinator` (ngo), `admin` (global).
 - A permission matrix in code maps `permission → roles`. Every endpoint declares its permission: `Depends(require("orders:read", scope=hub_id))`.
-- The mobile app's role switch (`X-Active-Role`) only changes the UI. The server re-checks the role and scope on every request.
+- The mobile app's role switch sends `X-Active-Role`, which narrows a request to one of the caller's roles; it never adds a role. The server re-checks the role and scope on every request.
 - Partner roles stay inactive until status is `verified` (KYC gate, §13.7).
 - **Defence in depth — Postgres Row-Level Security** on hub-scoped tables (`orders`, `inventory_lots`, `partners`, `routes`). The API runs `SET LOCAL app.hub_ids = '…'` per transaction, so a missed check in application code still cannot leak another franchise's data.
 
@@ -89,14 +94,14 @@ flowchart LR
 
 | Control | Implementation |
 |---|---|
-| Encryption in transit | TLS 1.3 everywhere (Caddy, Neon, S3, third parties) |
-| Encryption at rest | Neon and S3 default encryption |
-| Field-level encryption | KYC numbers (PAN, ID number) encrypted in the application with a key from SSM; only a masked value (`XXXX-1234`) is shown |
+| Encryption in transit | TLS everywhere, terminated by the platforms (Render, Vercel, Neon, R2, third parties) |
+| Encryption at rest | Neon and R2 default encryption |
+| Field-level encryption | KYC numbers (PAN, ID number) encrypted in the application with a key from Infisical; only a masked value (`XXXX-1234`) is shown |
 | No Aadhaar storage | We never store Aadhaar numbers or images. Identity is verified, then only a "verified" flag + masked reference is kept |
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |
 | Logs | structlog with a PII scrubber (phone, address, names masked); LLM conversation logs scrubbed before storage |
-| Backups | Neon point-in-time restore + our own nightly `pg_dump` to S3 (30-day retention, encrypted) |
+| Backups | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
 | Retention | GPS pings 90 days; webhook payloads 180 days; audit log 3 years; deleted accounts purged within 30 days |
 
 ## 13.6 Privacy — DPDP Act 2023 and DPDP Rules 2025
@@ -149,8 +154,8 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 | Input validation | Pydantic v2 on every request; zod on the client |
 | SQL injection | SQLAlchemy parameterised queries only |
 | Web | CSP and security headers on the console; Capacitor navigation locked to our origins |
-| Secrets | Never in the client bundle or the repo; gitleaks in CI and pre-commit |
-| Dependencies | Renovate updates, `pip-audit`, `pnpm audit`, Trivy image scan in CI |
+| Secrets | In Infisical, synced to GitHub Actions secrets; never in the client bundle or the repo; gitleaks in CI and pre-commit |
+| Dependencies | Renovate updates, `pip-audit`, `pnpm audit`, Trivy image scan (planned) |
 | LLM | The assistant calls our API **as the user** (same permissions); every write is a proposal the user confirms; per-user daily token cap; no prices computed by the LLM |
 | Standard | OWASP ASVS Level 1 checklist reviewed before the pilot (Rhythm Thakur and Manish Raje) |
 
@@ -160,7 +165,7 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 
 ## Decisions & open questions
 
-- Decided: closed-loop wallet with no customer KYC ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)); no Aadhaar storage; Firebase OTP in the prototype; RLS as defence in depth.
-- Open: confirm with Prof. Kranti Bade (or a CA) the exact legal wording before any real-money pilot; decide whether the pilot database stays on Neon (Singapore) or moves to Mumbai (data-residency preference), before Phase P6.
+- Decided: closed-loop wallet with no customer KYC ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)); no Aadhaar storage; Firebase OTP then our own rotating tokens, cookies + CSRF checks for browsers ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)); secrets in Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)); RLS as defence in depth.
+- Open: confirm with Prof. Kranti Bade (or a CA) the exact legal wording before any real-money pilot; decide whether the pilot database stays on Neon (Singapore) or moves to a paid Postgres in Mumbai (data-residency preference), before Phase P6.
 
 Related: [Chapter 10 — API and Integration](10-api-and-integration.md) · [Chapter 12 — Deployment and Operations](12-deployment-and-operations.md) · [ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md) · [ADR-0006](../adr/0006-postgresql-centric-data-platform.md)

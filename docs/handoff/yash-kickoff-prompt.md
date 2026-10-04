@@ -1,7 +1,7 @@
 # Kickoff for Yash Salunkhe — UI design now, frontend next
 
-Owner: Yash Salunkhe (Track A: mobile app + design system; Track B: commerce backend M1–M5)
-Prepared: 2 October 2026 · Works in parallel with Prathamesh Relekar (infra + backend platform)
+Owner: Yash Salunkhe (all of frontend/: mobile app for every role, console UI, design system — ADR-0023)
+Prepared: 2 October 2026 · Works in parallel with Prathamesh Relekar (all of backend/, infra)
 
 ## 1. Get the repo and start Claude Code
 ```bash
@@ -51,8 +51,8 @@ Fallback without a clone: on claude.ai, attach the Phase A files from section 3 
 
 ## 5. Prompt to paste into Claude Code
 ```
-You are helping Yash Salunkhe, owner of Track A (mobile app + design system) and Track B (commerce backend M1–M5)
-of GharBasket, a 4-person B.Tech project. Prathamesh Relekar is building infra + backend platform in parallel,
+You are helping Yash Salunkhe, owner of all frontend code (mobile app for every role, console UI, design system)
+of GharBasket, a 4-person B.Tech project. Prathamesh Relekar is building all of the backend and infra in parallel,
 in another Claude session on the SAME Claude account. You have no memory of earlier planning: the repo docs are the
 source of truth. Read them before doing anything.
 Shared-account rules: only create/edit artifacts named "GharBasket · Design System", "GharBasket · Customer screens",
@@ -63,7 +63,7 @@ Then wait for Yash to confirm before creating any artifact.
 
 READ FIRST: docs/handoff/yash-kickoff-prompt.md, docs/handbook/00-README.md, 01-vision-and-scope.md,
 03-product-and-features.md, 07-workflows.md, 09-frontend-and-design.md, docs/FRONTEND_DESIGN.md,
-docs/adr/0002, 0012, 0016, 0017, docs/modules/M1-identity.md … M5-billing.md, M9-community.md, AGENTS.md.
+docs/adr/0002, 0012, 0016, 0017, 0018, 0022, 0023, docs/modules/M1-identity.md … M5-billing.md, M9-community.md, AGENTS.md.
 Decisions in docs/adr are final; propose changes only via a new ADR.
 
 PHASE A — DESIGN NOW (no repo commits yet), using Claude Design:
@@ -86,10 +86,10 @@ PHASE B — CODE (only after Prathamesh's "chore/M0-scaffold" PR is merged to ma
 Conventional Commits with module scope:
   feat/M0-ui-tokens     → frontend/packages/ui: tokens.css from the design system, Fontsource fonts, Tailwind v4 preset,
                           base components on React Aria Components, Storybook 10.
-  feat/M0-mobile-shell  → frontend/mobile: Vite + React 19 + TS strict, TanStack Router (file routes, role shells
+  feat/M0-mobile-shell  → frontend/mobile: Vite + React 19 + JavaScript (JSDoc + jsconfig checkJs), TanStack Router (file routes, role shells
                           lazy-loaded), TanStack Query, Zustand, react-hook-form + zod, i18next (en-IN/hi-IN/mr-IN),
                           vite-plugin-pwa (injectManifest), Capacitor 8 Android project.
-  feat/M0-console-shell → frontend/console: Next.js 16 App Router, proxy.ts auth gate stub, sidebar layout.
+  feat/M0-console-shell → frontend/console: Next.js 16 App Router, proxy.js auth gate stub, sidebar layout.
   spike/S1-razorpay-capacitor, spike/S2-firebase-otp-capacitor → throwaway code in spikes/,
                           1-page findings in docs/spikes/.
 Rules: touch only frontend/mobile, frontend/console, frontend/packages/ui, frontend/packages/domain and spikes/. Never hand-edit

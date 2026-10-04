@@ -14,7 +14,8 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 
 ## Architecture rules (non-negotiable)
 - Service-based, not microservices: `backend/api` (FastAPI modular monolith), `backend/ml` (ML + optimisation),
-  Taskiq workers, `frontend/mobile` (Vite + React → PWA + Capacitor 8), `frontend/console` (Next.js 16).
+  jobs (Postgres outbox + scheduled job endpoints; Taskiq at the pilot, ADR-0021),
+  `frontend/mobile` (Vite + React → PWA + Capacitor 8), `frontend/console` (Next.js 16).
 - One module = one owner = one folder = one Postgres schema. A module writes only to its own schema.
   Cross-module calls go only through `<module>/api.py` or outbox events. import-linter enforces this in CI.
 - Money is integer paise (`BIGINT`, `amount_paise`), never floats. Every money movement is a double-entry ledger entry.
@@ -39,7 +40,8 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 ## Git and pull requests
 - Trunk-based: branch from `main`; names like `feat/M4-cutoff-lock`, `fix/M5-webhook-idempotency`, `chore/…`, `spike/…`.
 - Conventional Commits with module scope: `feat(orders): lock orders at cut-off`.
-- Small PRs (about 400 changed lines or fewer), squash merge, CODEOWNER review, CI green.
+- Small PRs (about 400 changed lines of hand-written code, not counting tests and generated files such as `openapi.json`,
+  lockfiles and the api-client), squash merge, CODEOWNER review, CI green.
 - One Alembic migration per PR, named `YYYYMMDD_HHMM_<module>_<desc>`; keep a single migration head.
 - Never commit secrets or `.env` files. Update the relevant handbook chapter when behaviour changes.
 

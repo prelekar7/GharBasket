@@ -1,6 +1,6 @@
 # ADR-0009 — Team ownership and tracks
 
-- **Status:** Accepted
+- **Status:** Code ownership superseded by [ADR-0023](0023-ownership-backend-and-frontend.md); the roles of Rhythm Thakur and Manish Raje still apply
 - **Date:** 2026-10-02
 - **Decision ID:** D9
 

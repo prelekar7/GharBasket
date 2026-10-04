@@ -1,4 +1,4 @@
-"""Browser sessions (ADR D25): tokens in httpOnly cookies instead of JavaScript-readable storage.
+"""Browser sessions (ADR-0024): tokens in httpOnly cookies instead of JavaScript-readable storage.
 
 The console and the browser PWA reach the API through same-origin proxies (Next.js / Vercel
 rewrites, the Vite dev proxy), so the cookies are first-party and need no `Domain`:

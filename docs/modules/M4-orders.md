@@ -1,7 +1,7 @@
 # M4 — Orders & Checkout
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (cut-off in S3)
 **Postgres schema:** `orders` · **Python package:** `gharbasket.modules.orders`
 
@@ -50,6 +50,8 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 |---|---|---|
 | `cutoff_lock` | T-1 21:00 per hub | Postgres advisory lock; batched updates; requests debit/capture from M5 |
 | `payment_grace_expiry` | T-1 23:00 | `PAYMENT_FAILED` → `CANCELLED` |
+
+Both are internal job endpoints (`POST /v1/internal/jobs/<name>`) called by a GitHub Actions schedule (ADR-0021). The API itself refuses box edits after 21:00 IST; `cutoff_lock` does the follow-up work and uses the scheduled time, not the run time.
 
 ## 7. Permissions
 | Permission | Roles (scope) |

@@ -1,11 +1,12 @@
 # Chapter 12 — Deployment and Operations
 
 > **In short:**
-> - Production and staging run on **AWS Mumbai (ap-south-1)**: one EC2 (or Lightsail) host with ~2–4 vCPU / 8 GB, running **Docker Compose** managed by Dokploy, behind **Caddy** (automatic HTTPS).
-> - **PostgreSQL is on Neon** (D15): `main` (pilot), `staging`, and a branch per PR. Files, the data lake and MLflow artifacts are in **AWS S3**. Container images are in GHCR.
-> - **Backups:** Neon point-in-time restore **plus** our own nightly `pg_dump` to S3 (30-day retention).
-> - **Observability:** Sentry, OpenTelemetry → Grafana Cloud, uptime checks, PostHog. Explicit SLOs and runbooks.
-> - **Known risk:** Neon has no India region (nearest is likely Singapore, ~60 ms per round-trip). Decide before the pilot whether to move the production database to Mumbai.
+> - Staging runs on **free tiers only** (D20): the API on a **Render** free web service in Singapore (Docker image built by Render from the repo), **Render Free Key Value** (Valkey), the PWA and console on **Vercel**, files on **Cloudflare R2**. No server of our own to patch; TLS comes from the platforms.
+> - **PostgreSQL 18 is on Neon** (Singapore): one shared database for the Infisical `dev` and `staging` environments, with guardrails. There is no database branch per PR. Daily work uses local Docker Postgres.
+> - **Deploys:** GitHub Actions on `main` after CI runs `alembic upgrade head` on Neon, then calls the Render deploy hook. Scheduled jobs are internal endpoints called by a GitHub Actions schedule (D21). Secrets live in **Infisical**.
+> - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
+> - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs and runbooks.
+> - **Still open:** hosting for the ML service, OSRM and MLflow (needed from P3/P4; local Docker until then), and paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
 
 ---
 
@@ -19,26 +20,26 @@ flowchart TB
         ADM["Laptop browser<br/>Console"]
     end
 
-    subgraph AWS["AWS ap-south-1 (Mumbai)"]
-        subgraph EC2["EC2 host (Docker Compose, Dokploy)"]
-            CAD["Caddy<br/>TLS, gzip, edge rate limits"]
-            CON["console<br/>Next.js standalone"]
-            API["api<br/>FastAPI + uvicorn"]
-            WRK["worker<br/>Taskiq (outbox, cut-off, notify)"]
-            MLS["ml<br/>FastAPI (planners, routing, forecasts)"]
-            MLW["ml-worker<br/>Taskiq (training, batch plans)"]
-            VK[("Valkey<br/>cache, queue, pub/sub")]
-            MLF["MLflow<br/>tracking + registry"]
-            OS["OSRM<br/>MMR road network"]
-        end
-        S3[("S3<br/>gb-media, gb-kyc (private),<br/>gb-lake, gb-mlflow, gb-backups")]
-        SSM["SSM Parameter Store<br/>secrets"]
+    subgraph VERCEL["Vercel"]
+        WPWA["PWA<br/>Vite build"]
+        CON["console<br/>Next.js 16"]
     end
 
-    subgraph NEON["Neon (managed Postgres)"]
-        PGM[("main - pilot")]
-        PGS[("staging")]
-        PGB[("PR branches")]
+    subgraph RENDER["Render, Singapore (free)"]
+        API["api<br/>FastAPI + uvicorn (Docker)<br/>outbox relay, internal job endpoints"]
+        VK[("Key Value (Valkey)<br/>rate limits, sign-out deny-list")]
+    end
+
+    subgraph NEON["Neon, Singapore"]
+        PG[("Postgres 18<br/>shared dev + staging database")]
+    end
+
+    R2[("Cloudflare R2<br/>gb-staging-* buckets")]
+
+    subgraph LATER["Hosting not decided yet (local Docker until P3/P4)"]
+        MLS["ml<br/>FastAPI (planners, routing, forecasts)"]
+        MLF["MLflow<br/>tracking + registry"]
+        OS["OSRM<br/>MMR road network"]
     end
 
     subgraph EXT["External services"]
@@ -46,95 +47,94 @@ flowchart TB
         RZ["Razorpay"]
         WA["WhatsApp Cloud API"]
         CL["Claude API"]
-        GH["GHCR + GitHub Actions"]
-        OBS["Sentry, Grafana Cloud,<br/>uptime monitor, PostHog"]
+        GH["GitHub Actions<br/>CI, migrations, deploy hook,<br/>job schedule"]
+        INF["Infisical<br/>secrets"]
+        OBS["UptimeRobot, PostHog"]
     end
 
-    PH --> CAD
-    PWA --> CAD
-    ADM --> CAD
-    CAD --> CON
-    CAD --> API
-    CON --> API
-    API --> PGM
-    WRK --> PGM
-    MLS --> PGM
-    MLW --> PGM
+    PH -->|"HTTPS + Bearer"| API
+    PWA --> WPWA
+    ADM --> CON
+    WPWA -->|"same-origin /v1/* rewrite"| API
+    CON -->|"same-origin /v1/* rewrite"| API
+    API --> PG
     API --> VK
-    WRK --> VK
-    MLW --> VK
-    API --> MLS
-    MLS --> OS
-    MLS --> MLF
-    MLW --> MLF
-    MLF --> S3
-    API --> S3
-    MLW --> S3
+    API --> R2
+    API -.-> MLS
+    MLS -.-> OS
+    MLS -.-> MLF
     API --> FB
-    WRK --> FB
-    WRK --> WA
+    API --> WA
     API --> RZ
-    MLS --> CL
-    GH -->|"pull images"| EC2
-    EC2 --> SSM
-    EC2 --> OBS
+    MLS -.-> CL
+    INF -->|"synced secrets"| GH
+    GH -->|"alembic upgrade head"| PG
+    GH -->|"Render deploy hook"| API
+    GH -->|"POST /v1/internal/jobs/{name}"| API
+    OBS -->|"/v1/health every 10 min"| API
 ```
 *Figure 12.1 — Deployment diagram (UML-style: nodes as subgraphs, containers inside)*
 
-### Containers on the EC2 host
+### What runs where
 
-| Container | Image | Purpose | Approx. RAM |
+| Piece | Where | Purpose | Notes |
 |---|---|---|---|
-| caddy | caddy | TLS termination, reverse proxy, edge rate limits | 50 MB |
-| console | `ghcr.io/…/console` | Next.js standalone server | 300 MB |
-| api | `ghcr.io/…/api` | FastAPI modular monolith | 400 MB |
-| worker | `ghcr.io/…/api` (worker command) | Taskiq: outbox relay, cut-off, notifications | 300 MB |
-| ml | `ghcr.io/…/ml` | Planners, routing, forecasts, assistant | 1–1.5 GB |
-| ml-worker | `ghcr.io/…/ml` (worker command) | Training, weekly batch plans | 1–2 GB (bursty) |
-| valkey | valkey 8 | Cache, queue, pub/sub, live location | 200 MB |
-| mlflow | mlflow | Tracking server (SQLite/Postgres backend, S3 artifacts) | 300 MB |
-| osrm | osrm-backend | Road distance/time matrix for the MMR extract | < 1 GB |
+| api | Render free web service (Singapore) | FastAPI modular monolith; relays outbox rows after each commit; serves `POST /v1/internal/jobs/<name>` | Sleeps after 15 minutes idle; UptimeRobot calls `/v1/health` every 10 minutes (750 free hours a month cover 24×7). `/v1/health` never touches the database, so Neon can still go idle |
+| valkey | Render Free Key Value (same region) | Rate-limit counters, sign-out deny-list | In-memory, may lose data on restart; the API keeps working without it |
+| postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
+| files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
+| PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
+| ml, MLflow, OSRM | Not decided yet | Planners, routing, forecasts, assistant; model registry; road matrix | Run in Docker Compose locally; hosting is decided before P3/P4 |
+| worker | None until the pilot | — | No broker for now (D21): the outbox relay and the job endpoints do the work. Taskiq returns when a paid worker exists |
 
-The total fits an 8 GB instance with headroom. Staging and production are separate Compose projects (`stg`, `prod`); staging can be paused to save credits.
+Production for the pilot is not set up yet. Before P6 we decide on paid plans (Render Starter for the API, a worker, Firebase Blaze for real OTPs) and on where the pilot database lives.
 
-## 12.2 AWS services used
+## 12.2 Hosted services used
 
-| Need | AWS service | Notes |
+| Need | Service | Notes |
 |---|---|---|
-| Compute | EC2 (or Lightsail) in ap-south-1 | ~2–4 vCPU / 8 GB; Ubuntu LTS; Docker + Dokploy |
-| Object storage | S3 | Buckets: `gb-media`, `gb-kyc` (private, short-lived signed reads), `gb-lake` (Parquet snapshots), `gb-mlflow`, `gb-backups` (30-day lifecycle) |
-| Secrets | SSM Parameter Store | Loaded into Compose env at deploy time |
-| DNS | Cloudflare DNS or Route 53 | `gharbasket.in`, `api.`, `console.`, `stg.` |
-| Images | GHCR (free); ECR optional | Built by GitHub Actions |
-| Credits | AWS Educate / AWS Academy (SIES) or GitHub Student Pack offers | Billing alarms at 50% / 80% of credits |
+| Compute (API) | Render free web service, Singapore | Docker image built by Render from the repo |
+| Cache and short-lived data | Render Free Key Value | Not durable; only rate limits and the deny-list |
+| Database | Neon (Postgres 18) | Shared `dev` + `staging` database; guardrails in §12.3 |
+| Object storage | Cloudflare R2 | `gb-staging-*` buckets; private files are read through short-lived signed URLs |
+| Web hosting | Vercel | PWA and console; PR previews |
+| Secrets | Infisical (`dev`, `staging`, `prod`) | `infisical run --env=…`; synced to GitHub Actions secrets; never in the repo |
+| Builds, migrations, schedules | GitHub Actions | CI, `alembic upgrade head` on Neon, Render deploy hook, scheduled job calls |
+| DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
+| Cost | Free tiers only until the pilot | Nothing here can bill us during development |
 
 ## 12.3 Database hosting and the latency note
 
-- **Neon** gives us a database branch per PR, `staging` and `main`, with PostGIS and pgvector.
-- **Latency:** Neon has no India region (nearest is likely Singapore, about 60 ms per round-trip; verify). This is fine for development, PR branches and staging. For the pilot, mitigate by:
+- **Neon** hosts one shared database for the Infisical `dev` and `staging` environments, with PostGIS and pgvector. There is no branch per PR.
+- **Guardrails** on the shared database:
+  - migrations reach Neon only from the GitHub Actions deploy workflow after merge (`GB_ALLOW_REMOTE_MIGRATIONS=1`);
+  - downgrades on a remote database are refused;
+  - tests and `just seed` refuse any non-local database;
+  - synthetic rows carry `data_source='synthetic'`.
+- **Latency:** Neon has no India region; it runs in Singapore, about 60 ms per round-trip from Mumbai. The API also runs in Singapore, so API-to-database calls are short; the user-to-API leg carries the distance. Mitigate by:
   - batching queries and avoiding N+1 ORM patterns;
   - connection pooling (Neon pooled endpoint);
-  - caching hot reads (catalog, prices, slots) in Valkey.
-- **Decision before Phase 6 (pilot):** keep Neon, or move only the production database to Postgres on the Mumbai EC2 host / RDS, keeping Neon for dev and PR branches.
+  - caching hot reads (catalog, prices, slots) where it helps.
+- **Decision before Phase 6 (pilot):** keep the pilot database on Neon (Singapore) or move it to a paid Postgres in Mumbai (open question Q3).
 
 ## 12.4 Backups and recovery
 
 | What | How | Retention | Restore test |
 |---|---|---|---|
-| Postgres | Neon point-in-time restore + nightly `pg_dump` → `s3://gb-backups/pg/` | PITR window + 30 days | Monthly restore into a Neon branch (Rhythm Thakur / Manish Raje run the checklist) |
-| S3 media / KYC | Versioning on buckets | 30 days of versions | Spot check |
-| MLflow | Artifacts in S3; backend DB dumped nightly | 30 days | With Postgres test |
-| OSRM data | Prebuilt `.osrm` files stored in S3 | Latest + previous | Rebuild script in `infra/osrm` |
-| Config | Compose files and Caddyfile in git; secrets in SSM | git history | Redeploy from scratch drill once before the pilot |
+| Postgres | Neon point-in-time restore (free tier); a scheduled `pg_dump` to R2 can be added via the jobs workflow | Neon's free-tier restore window | One restore drill before the pilot (Rhythm Thakur / Manish Raje run the checklist) |
+| Valkey | Not backed up | — | Nothing to restore: it only holds rate-limit counters and the sign-out deny-list |
+| R2 files | Staging holds test files only | — | Strategy decided with the pilot plans before P6 |
+| MLflow, OSRM | Local Docker until hosting is decided | — | Rebuild script for OSRM in `infra/osrm` (spike S-3) |
+| Config | Dockerfile, Compose files and workflows in git; secrets in Infisical | git history | Redeploy-from-scratch drill once before the pilot |
 
 ## 12.5 Observability
 
 | Signal | Tool | What we watch |
 |---|---|---|
-| Errors | Sentry (mobile, console, api, ml) | New issues, regressions per release |
-| Traces / metrics / logs | OpenTelemetry → Grafana Cloud (free tier); structlog JSON logs | API latency and errors, job durations, queue depth, DB connections, ML job status |
-| Uptime | Better Stack / UptimeRobot | `/health` and `/ready` endpoints for api, ml, console |
-| Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments |
+| Errors and logs | structlog JSON logs (Render log view); OpenTelemetry → Grafana Cloud free tier, set up before the pilot | Errors and slow requests. Sentry is not used |
+| Jobs | GitHub Actions run history | Scheduled job calls that failed or ran late |
+| Uptime | UptimeRobot | `/v1/health` every 10 minutes (also keeps the free API awake); `/v1/ready` (operator token) checks the database and Valkey |
+| Product | PostHog | Funnels (onboarding, approve week), feature flags, A/B experiments. No names or phone numbers in events |
 | AI health | Console "AI health" page | Forecast WAPE vs actual, plan acceptance, waste %, model versions |
 
 **Alerts:**
@@ -142,8 +142,8 @@ The total fits an 8 GB instance with headroom. Staging and production are separa
 - payment webhook backlog;
 - route solve failed;
 - error-rate spike;
-- disk > 80%;
-- AWS credit burn above threshold.
+- API down (UptimeRobot);
+- Neon storage or compute hours near the free-tier limits.
 
 ## 12.6 Service-level objectives (pilot)
 
@@ -160,26 +160,27 @@ The total fits an 8 GB instance with headroom. Staging and production are separa
 
 | Runbook | Covers |
 |---|---|
-| `cutoff-failed.md` | Re-run `cutoff_lock` safely (advisory lock, idempotent), verify ledger totals, notify the hub |
+| `cutoff-failed.md` | Re-run the cut-off job safely through its internal job endpoint (advisory lock, idempotent), verify ledger totals, notify the hub |
 | `razorpay-down.md` | Switch default to wallet, queue top-ups, reconcile later |
 | `ml-service-down.md` | Confirm the rule-based fallback is active; restart; roll back the model alias if a promotion caused it |
 | `route-solve-failed.md` | Fall back to the previous day's route template or nearest-neighbour; manual adjustment in the console |
-| `restore-from-backup.md` | Neon PITR or `pg_dump` restore steps; verification queries |
-| `rotate-secrets.md` | Rotating API keys and JWT signing keys via SSM |
-| `deploy-rollback.md` | Redeploy the previous image tag via Dokploy; downgrade migration rules |
+| `restore-from-backup.md` | Neon point-in-time restore steps; verification queries |
+| `rotate-secrets.md` | Rotating API keys and JWT signing keys in Infisical, then redeploying |
+| `deploy-rollback.md` | Roll back to the previous Render deploy; downgrades are refused on Neon, so schema mistakes are fixed forward with a new migration |
 
 ## 12.8 Ownership
 
 | Area | Owner |
 |---|---|
-| Infra (EC2, Compose, Caddy, OSRM, MLflow), deploy pipelines | Prathamesh Relekar |
-| API and mobile release builds | Yash Salunkhe |
+| Infra (Render, Neon, R2, Vercel projects, Infisical, Compose, OSRM, MLflow), API, deploy and job workflows | Prathamesh Relekar |
+| Mobile release builds (APK, AAB) | Yash Salunkhe |
 | Backup restore tests, runbook drills, uptime checks, load tests | Rhythm Thakur, Manish Raje |
 
 ## Decisions & open questions
 
 - **D6** — Postgres-centric data layer ([ADR-0006](../adr/0006-postgresql-centric-data-platform.md) in [`docs/adr/`](../adr/)).
-- **D11 / D15** — AWS Mumbai hosting + Neon; S3 replaces R2 ([ADR-0011](../adr/0011-hosting-on-aws-student-credits.md), [ADR-0015](../adr/0015-aws-mumbai-topology-with-neon-postgres.md)).
-- **Open:** EC2 vs Lightsail; which credit programme (AWS Educate / AWS Academy) the team uses; Neon vs Mumbai Postgres for the pilot (decide before Phase 6).
+- **D20** — Free-tier hosting: Render, Vercel, Neon, Cloudflare R2, Infisical ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0011 and ADR-0015).
+- **D21** — Jobs without a broker until the pilot ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+- **Open:** hosting for the ML service, OSRM and MLflow (before P3/P4); paid plans for the pilot and Neon Singapore vs a paid Mumbai Postgres (Q3, before Phase 6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 11 — Engineering process](11-engineering-process.md) · [Chapter 13 — Security and compliance](13-security-and-compliance.md)

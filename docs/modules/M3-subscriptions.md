@@ -1,7 +1,7 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
 
@@ -56,6 +56,8 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | `send_box_ready_notices` | T-3 18:30 | Via M11; pre-debit notice via M5 |
 | `remind_unapproved` | T-1 19:00 | |
 | `apply_auto_approve` | T-1 20:55 | Only where notice ≥ 24 h |
+
+Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) called by a GitHub Actions schedule; event-triggered jobs are outbox consumers (ADR-0021). Rules use the scheduled time, so a late start never lets an edit through after cut-off.
 
 ## 7. Permissions
 | Permission | Roles (scope) |

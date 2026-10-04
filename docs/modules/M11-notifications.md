@@ -1,7 +1,7 @@
 # M11 — Notifications
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje (also template copy and translations)
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also template copy and translations)
 **Phase / Sprint:** P2 / S3
 **Postgres schema:** `notifications` · **Python package:** `gharbasket.modules.notifications`
 
@@ -44,8 +44,8 @@ Turns domain events into the right message, in the right language, on the right 
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
-| `send_notification` | Per event (Taskiq) | Deduplicated per (event_id, user, channel) |
-| `retry_failed` | Every 10 min | Exponential backoff, max 3 |
+| `send_notification` | Per event (outbox consumer, ADR-0021) | Deduplicated per (event_id, user, channel) |
+| `retry_failed` | Every 10 min (internal job endpoint, GitHub Actions schedule) | Exponential backoff, max 3 |
 
 ## 7. Permissions
 `notifications:read` own; `templates:write` admin.
@@ -55,7 +55,7 @@ Turns domain events into the right message, in the right language, on the right 
 
 ## 9. Tests required
 - Unit: template rendering per locale with fallback; quiet-hours logic.
-- Integration: duplicate event delivery sends once; FCM and WhatsApp clients mocked with respx.
+- Integration: duplicate event delivery sends once; FCM and WhatsApp clients mocked with httpx2 mock transports.
 - Content review: every template exists in en-IN, hi-IN, mr-IN before release.
 
 ## 10. Dependencies

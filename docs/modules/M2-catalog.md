@@ -1,7 +1,7 @@
 # M2 — Catalog & Pricing
 
 **Status:** Draft v1 — refine at phase start (spec-first)
-**Owner:** Yash Salunkhe · **Reviewer:** Prathamesh Relekar · **QA:** Rhythm Thakur, Manish Raje (also curate translations and search synonyms)
+**Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also curate translations and search synonyms)
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `catalog` · **Python package:** `gharbasket.modules.catalog`
 
@@ -56,6 +56,8 @@ Everything that can be planned or sold: vegetables, fruits, staples, cut-vegetab
 |---|---|---|
 | `embed_catalog` | On product/recipe change (batched) | bge-m3 embeddings via ML service |
 | `build_search_terms` | On product change | indic-transliteration variants |
+
+Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 
 ## 7. Permissions
 | Permission | Roles (scope) |

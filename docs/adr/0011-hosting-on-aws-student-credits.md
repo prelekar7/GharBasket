@@ -1,6 +1,6 @@
 # ADR-0011 — Hosting on AWS student credits
 
-- **Status:** Accepted (refined by ADR-0015)
+- **Status:** Superseded by [ADR-0020](0020-free-tier-hosting-render-vercel-neon-r2.md)
 - **Date:** 2026-10-02
 - **Decision ID:** D11
 
