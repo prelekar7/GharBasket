@@ -38,6 +38,40 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Define a delivery slot for a hub (hub manager of that hub, or admin; audit-logged) */
+        post: operations["create_slot_v1_admin_slots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/slots/{slot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a slot's capacity or close it */
+        patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/user-roles": {
         parameters: {
             query?: never;
@@ -402,6 +436,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Orders of the caller's household, or of a hub for its staff (newest delivery first) */
+        get: operations["list_orders_v1_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One order with its lines and timeline (ETag = version) */
+        get: operations["get_order_v1_orders__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add, change or remove add-on lines before the cut-off (Idempotency-Key, If-Match) */
+        post: operations["set_addons_v1_orders__order_id__addons_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel before the cut-off (Idempotency-Key); nothing was paid yet */
+        post: operations["cancel_order_v1_orders__order_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/payments/webhook/razorpay": {
         parameters: {
             query?: never;
@@ -555,6 +657,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery slots of a hub on a date, with availability */
+        get: operations["list_slots_v1_slots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/societies": {
         parameters: {
             query?: never;
@@ -695,6 +814,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AddonItem */
+        AddonItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps; 0 removes the add-on
+             */
+            qty: number;
+        };
+        /** AddonsIn */
+        AddonsIn: {
+            /** Items */
+            items: components["schemas"]["AddonItem"][];
+        };
         /** AddressIn */
         AddressIn: {
             /**
@@ -1279,6 +1416,117 @@ export interface components {
             /** Mr */
             mr: string;
         };
+        /** OrderLineOut */
+        OrderLineOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "addon";
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps
+             * @example 2
+             */
+            qty: number;
+            /** Reason Code */
+            reason_code: string | null;
+            /** Reason Params */
+            reason_params: {
+                [key: string]: unknown;
+            } | null;
+            /** Shortage Qty */
+            shortage_qty: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["gharbasket__modules__orders__schemas__Step"];
+            substituted_from: components["schemas"]["ProductRef"] | null;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Unit Price Paise
+             * @description Per step, frozen when the line was made
+             */
+            unit_price_paise: number;
+        };
+        /** OrderOut */
+        OrderOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Cutoff At
+             * Format: date-time
+             * @description 21:00 IST the day before delivery
+             */
+            cutoff_at: string;
+            /** Cycle Id */
+            cycle_id: string | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /** Discount Paise */
+            discount_paise: number;
+            /** Fees Paise */
+            fees_paise: number;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin" | "addon";
+            /** Lines */
+            lines: components["schemas"]["OrderLineOut"][];
+            /** Locked At */
+            locked_at: string | null;
+            slot: components["schemas"]["SlotRef"];
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Subtotal Paise */
+            subtotal_paise: number;
+            /** Timeline */
+            timeline: components["schemas"]["TimelineEntry"][];
+            /** Total Paise */
+            total_paise: number;
+            /** Version */
+            version: number;
+        };
         /** OrderRef */
         OrderRef: {
             /** Delivery Date */
@@ -1294,10 +1542,81 @@ export interface components {
              */
             type: "order";
         };
+        /** OrderSummaryOut */
+        OrderSummaryOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Cutoff At
+             * Format: date-time
+             * @description 21:00 IST the day before delivery
+             */
+            cutoff_at: string;
+            /** Cycle Id */
+            cycle_id: string | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /** Discount Paise */
+            discount_paise: number;
+            /** Fees Paise */
+            fees_paise: number;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin" | "addon";
+            /** Locked At */
+            locked_at: string | null;
+            slot: components["schemas"]["SlotRef"];
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Subtotal Paise */
+            subtotal_paise: number;
+            /** Total Paise */
+            total_paise: number;
+            /** Version */
+            version: number;
+        };
         /** Page[Entry] */
         Page_Entry_: {
             /** Items */
             items: components["schemas"]["Entry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[OrderSummaryOut] */
+        Page_OrderSummaryOut_: {
+            /** Items */
+            items: components["schemas"]["OrderSummaryOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -1497,7 +1816,7 @@ export interface components {
              * @example bhindi
              */
             slug: string;
-            step: components["schemas"]["Step"];
+            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
             /**
              * Tags
              * @example [
@@ -1506,6 +1825,18 @@ export interface components {
              *     ]
              */
             tags: string[];
+        };
+        /** ProductRef */
+        ProductRef: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
         };
         /** Ready */
         Ready: {
@@ -1697,12 +2028,126 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
-            step: components["schemas"]["Step"];
+            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
         };
         /** SearchResults */
         SearchResults: {
             /** Items */
             items: components["schemas"]["SearchItem"][];
+        };
+        /** SlotIn */
+        SlotIn: {
+            /**
+             * Capacity
+             * @example 120
+             */
+            capacity: number;
+            /**
+             * End
+             * Format: time
+             * @example 09:00
+             */
+            end: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Kind
+             * @default box
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Label
+             * @example Morning 7-9
+             */
+            label: string;
+            /**
+             * Start
+             * Format: time
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** SlotOut */
+        SlotOut: {
+            /** Available */
+            available: number;
+            /**
+             * Booked
+             * @description For the requested date
+             */
+            booked: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: time
+             * @description IST clock time
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** SlotPatch */
+        SlotPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Capacity */
+            capacity?: number | null;
+        };
+        /** SlotRef */
+        SlotRef: {
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * Format: time
+             */
+            start: string;
+        };
+        /** SlotsOut */
+        SlotsOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Items */
+            items: components["schemas"]["SlotOut"][];
         };
         /** SocietyOut */
         SocietyOut: {
@@ -1822,28 +2267,6 @@ export interface components {
              */
             status: "prospect" | "unlocking" | "live" | "paused";
         };
-        /**
-         * Step
-         * @description The unit a person adds or removes in the app; prices are per step.
-         */
-        Step: {
-            /**
-             * Label
-             * @description In the requested language
-             * @example 250 g
-             */
-            label: string;
-            /**
-             * Qty
-             * @example 250
-             */
-            qty: number;
-            /**
-             * Unit
-             * @enum {string}
-             */
-            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
-        };
         /** SubstituteOut */
         SubstituteOut: {
             /** Name */
@@ -1881,12 +2304,30 @@ export interface components {
             score: number;
             /** Slug */
             slug: string;
-            step: components["schemas"]["Step"];
+            step: components["schemas"]["gharbasket__modules__catalog__schemas__Step"];
         };
         /** Substitutes */
         Substitutes: {
             /** Items */
             items: components["schemas"]["SubstituteOut"][];
+        };
+        /** TimelineEntry */
+        TimelineEntry: {
+            /**
+             * Actor
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
          * TokensOut
@@ -2052,6 +2493,50 @@ export interface components {
              */
             outcome: string;
         };
+        /**
+         * Step
+         * @description The unit a person adds or removes in the app; prices are per step.
+         */
+        gharbasket__modules__catalog__schemas__Step: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /**
+         * Step
+         * @description The unit a person adds or removes (the same shape as M2's `Step`); prices are per step.
+         */
+        gharbasket__modules__orders__schemas__Step: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
     };
     responses: never;
     parameters: never;
@@ -2175,6 +2660,142 @@ export interface operations {
                 };
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_slot_v1_admin_slots_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.slot_exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.slot_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_slot_v1_admin_slots__slot_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                slot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.slot_invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3534,6 +4155,316 @@ export interface operations {
             };
         };
     };
+    list_orders_v1_orders_get: {
+        parameters: {
+            query?: {
+                status?: ("approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded") | null;
+                from?: string | null;
+                to?: string | null;
+                hub_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_OrderSummaryOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found: the caller has no household yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_order_v1_orders__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_addons_v1_orders__order_id__addons_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddonsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.cutoff_passed, orders.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.product_unknown, orders.qty_invalid, orders.no_price */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_order_v1_orders__order_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.cutoff_passed, orders.already_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     razorpay_webhook_v1_payments_webhook_razorpay_post: {
         parameters: {
             query?: never;
@@ -3979,6 +4910,60 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_slots_v1_slots_get: {
+        parameters: {
+            query?: {
+                /** @description Default: the caller's household's hub */
+                hub_id?: string | null;
+                /** @description Default: tomorrow (IST) */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.date_out_of_range, orders.hub_required */
             422: {
                 headers: {
                     [name: string]: unknown;
