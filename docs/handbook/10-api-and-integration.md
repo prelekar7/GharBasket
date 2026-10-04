@@ -17,7 +17,7 @@
 | Errors | RFC 9457 `application/problem+json` with `type`, `title`, `status`, `detail`, `code`, `errors[]`. Codes are namespaced: `orders.cutoff_passed`, `billing.insufficient_balance`. |
 | Pagination | Cursor-based: `?cursor=…&limit=…` → `next_cursor`. |
 | Idempotency | `Idempotency-Key` header **required** on every POST that creates money or orders. Stored in `platform.idempotency_keys` (key, user, request hash, response, 24 h TTL). |
-| Concurrency | `version` column + `If-Match` header for editing boxes, plans and prices (optimistic locking). |
+| Concurrency | `version` column + `If-Match` header for editing boxes, plans, prices and households (optimistic locking). `GET` returns `ETag: "<version>"`; a `PATCH` without `If-Match` is 428 `request.precondition_required`, a stale one is 412 `<module>.version_conflict` and the client reloads before retrying. |
 | Headers | `Authorization: Bearer <access>`, `X-Active-Role: captain:society_123`, `Accept-Language: hi-IN`. |
 | Money | Integer paise (`amount_paise`), never floats. The UI formats Indian style (₹1,23,456). |
 | Time | ISO-8601 with offset. Business dates as `YYYY-MM-DD` in Asia/Kolkata. |
