@@ -1,12 +1,10 @@
 """Households and consents (M1 §3.2): onboarding in one call, reads, edits and consent rules."""
 
-import copy
 import uuid
 from typing import Any
 
-import httpx2
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import households as households_service
@@ -14,68 +12,18 @@ from gharbasket.modules.identity.models import Address, Consent, Household, Hous
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_societies
 
-from .conftest import ClientFactory, bearer, sign_in
+from .conftest import ClientFactory
 from .fake_firebase import FakeGoogle
+from .onboarding import ONBOARDING, count, customer, onboard, onboarding
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
 SAI_DARSHAN = "0199a000-0000-7000-8000-00000000b006"  # seed: no towers, no boundary
 
-ONBOARDING: dict[str, Any] = {
-    "society_id": str(SEED_SOCIETY_ID),
-    "address": {"tower_id": "a", "flat": " a-1203 ", "location": {"lat": 19.0396, "lng": 73.0676}},
-    "diet": "veg",
-    "cuisine_tags": ["maharashtrian"],
-    "weekday_cook_minutes": 30,
-    "weekend_cook_minutes": 60,
-    "no_cook_days": [6],
-    "budget_paise": 300_000,
-    "members": [
-        {
-            "age_band": "18_59",
-            "sex": "f",
-            "fasting_rules": {"jain": False, "fasts": ["ekadashi"]},
-            "health_tags": ["diabetes"],
-        },
-        {"age_band": "60_plus"},
-    ],
-    "consents": [
-        {"purpose": "service_delivery", "version": "v1", "granted": True},
-        {"purpose": "personalisation", "version": "v1", "granted": True},
-        {"purpose": "health_personalisation", "version": "v1", "granted": True},
-        {"purpose": "marketing", "version": "v1", "granted": False},
-    ],
-}
-
-
-def onboarding(**changes: Any) -> dict[str, Any]:
-    body = copy.deepcopy(ONBOARDING)
-    body.update(changes)
-    return body
-
 
 @pytest.fixture(autouse=True)
 async def societies(db_session: AsyncSession) -> None:
     await seed_societies(db_session)
-
-
-async def _customer(api: httpx2.AsyncClient, google: FakeGoogle, n: int = 1) -> dict[str, str]:
-    signed_in = await sign_in(api, google, phone_number=f"+91980000{n:04d}", sub=f"uid-{n}")
-    return bearer(signed_in["access_token"])
-
-
-async def _onboard(
-    api: httpx2.AsyncClient, headers: dict[str, str], body: dict[str, Any] | None = None
-) -> httpx2.Response:
-    return await api.post(
-        "/v1/households",
-        json=body or ONBOARDING,
-        headers={**headers, "Idempotency-Key": str(uuid.uuid4())},
-    )
-
-
-async def _count(db: AsyncSession, model: type[Any]) -> int:
-    return (await db.execute(select(func.count()).select_from(model))).scalar_one()
 
 
 # --- onboarding -------------------------------------------------------------------------------
@@ -85,9 +33,9 @@ async def test_onboarding_creates_everything_in_one_call(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
+    headers = await customer(api, google)
 
-    response = await _onboard(api, headers)
+    response = await onboard(api, headers)
 
     assert response.status_code == 201, response.text
     assert response.headers["etag"] == '"1"'
@@ -117,7 +65,7 @@ async def test_the_created_event_has_no_sensitive_details(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    body = (await _onboard(api, await _customer(api, google))).json()
+    body = (await onboard(api, await customer(api, google))).json()
 
     event = (
         await db_session.execute(
@@ -143,11 +91,11 @@ async def test_the_society_unlock_count_includes_the_new_household(
     clients: ClientFactory, google: FakeGoogle
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
+    headers = await customer(api, google)
     unlock = f"/v1/societies/{SEED_SOCIETY_ID}/unlock"
     before = (await api.get(unlock, headers=headers)).json()["joined"]
 
-    await _onboard(api, headers)
+    await onboard(api, headers)
 
     assert (await api.get(unlock, headers=headers)).json()["joined"] == before + 1
 
@@ -156,7 +104,7 @@ async def test_a_retry_with_the_same_key_replays_and_another_key_is_a_conflict(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = {**await _customer(api, google), "Idempotency-Key": "onboard-1"}
+    headers = {**await customer(api, google), "Idempotency-Key": "onboard-1"}
 
     first = await api.post("/v1/households", json=ONBOARDING, headers=headers)
     retry = await api.post("/v1/households", json=ONBOARDING, headers=headers)
@@ -169,8 +117,8 @@ async def test_a_retry_with_the_same_key_replays_and_another_key_is_a_conflict(
     assert second.status_code == 409
     assert second.json()["code"] == "identity.household_exists"
     assert second.json()["household_id"] == first.json()["id"]
-    assert await _count(db_session, Household) == 1
-    assert await _count(db_session, HouseholdMember) == 2
+    assert await count(db_session, Household) == 1
+    assert await count(db_session, HouseholdMember) == 2
 
 
 async def test_a_failure_part_way_leaves_nothing_behind(
@@ -180,7 +128,7 @@ async def test_a_failure_part_way_leaves_nothing_behind(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
+    headers = await customer(api, google)
 
     async def broken_publish(*_args: Any, **_kwargs: Any) -> None:
         raise RuntimeError("outbox down")
@@ -188,10 +136,10 @@ async def test_a_failure_part_way_leaves_nothing_behind(
     monkeypatch.setattr(households_service, "publish", broken_publish)
     # The test client re-raises app errors (users get a 500); the request's session rolls back.
     with pytest.raises(RuntimeError, match="outbox down"):
-        await _onboard(api, headers)
+        await onboard(api, headers)
 
     for model in (Household, HouseholdMember, Address, Consent):
-        assert await _count(db_session, model) == 0
+        assert await count(db_session, model) == 0
 
 
 async def test_a_concurrent_second_onboarding_is_a_clean_conflict(
@@ -201,8 +149,8 @@ async def test_a_concurrent_second_onboarding_is_a_clean_conflict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    first = (await _onboard(api, headers)).json()
+    headers = await customer(api, google)
+    first = (await onboard(api, headers)).json()
     # The second request's existence check runs before the first commits: it sees nothing.
     real_household_of = households_service.household_of
     calls = 0
@@ -213,18 +161,18 @@ async def test_a_concurrent_second_onboarding_is_a_clean_conflict(
         return None if calls == 1 else await real_household_of(*args, **kwargs)
 
     monkeypatch.setattr(households_service, "household_of", racing_household_of)
-    second = await _onboard(api, headers)
+    second = await onboard(api, headers)
 
     assert second.status_code == 409
     assert second.json()["household_id"] == first["id"]
-    assert await _count(db_session, Household) == 1
+    assert await count(db_session, Household) == 1
 
 
 async def test_an_idempotency_key_is_required(clients: ClientFactory, google: FakeGoogle) -> None:
     api = clients()
 
     response = await api.post(
-        "/v1/households", json=ONBOARDING, headers=await _customer(api, google)
+        "/v1/households", json=ONBOARDING, headers=await customer(api, google)
     )
 
     assert response.status_code == 400
@@ -278,11 +226,11 @@ async def test_onboarding_rules(
 ) -> None:
     api = clients()
 
-    response = await _onboard(api, await _customer(api, google), onboarding(**changes))
+    response = await onboard(api, await customer(api, google), onboarding(**changes))
 
     assert response.status_code == status, response.text
     assert response.json()["code"] == code
-    assert await _count(db_session, Household) == 0
+    assert await count(db_session, Household) == 0
     if code == "identity.consent_version_stale":
         assert response.json()["current_version"] == "v1"
 
@@ -292,11 +240,11 @@ async def test_a_society_without_a_boundary_accepts_any_pin_and_no_pin(
 ) -> None:
     api = clients()
     await seed_societies(db_session)
-    sai = await api.get(f"/v1/societies/{SAI_DARSHAN}", headers=await _customer(api, google, 9))
+    sai = await api.get(f"/v1/societies/{SAI_DARSHAN}", headers=await customer(api, google, 9))
     assert sai.json()["towers"] == []  # no towers yet, so the tower rule is checked elsewhere
 
     no_pin = onboarding(address={"tower_id": "b", "flat": "B-9", "location": None})
-    response = await _onboard(api, await _customer(api, google), no_pin)
+    response = await onboard(api, await customer(api, google), no_pin)
 
     assert response.status_code == 201, response.text
     assert response.json()["address"]["location"] is None
@@ -326,7 +274,7 @@ async def test_invalid_onboarding_is_422(
 ) -> None:
     api = clients()
 
-    response = await _onboard(api, await _customer(api, google), onboarding(**changes))
+    response = await onboard(api, await customer(api, google), onboarding(**changes))
 
     assert response.status_code == 422
     assert response.json()["code"] == "request.invalid"
@@ -340,7 +288,7 @@ async def test_before_onboarding_my_household_is_not_found(
 ) -> None:
     api = clients()
 
-    response = await api.get("/v1/households/me", headers=await _customer(api, google))
+    response = await api.get("/v1/households/me", headers=await customer(api, google))
 
     assert response.status_code == 404
     assert response.json()["code"] == "identity.household_not_found"
@@ -350,12 +298,12 @@ async def test_only_the_owner_can_read_a_household(
     clients: ClientFactory, google: FakeGoogle
 ) -> None:
     api = clients()
-    owner = await _customer(api, google)
-    household = (await _onboard(api, owner)).json()
+    owner = await customer(api, google)
+    household = (await onboard(api, owner)).json()
     path = f"/v1/households/{household['id']}"
 
     mine = await api.get(path, headers=owner)
-    theirs = await api.get(path, headers=await _customer(api, google, 2))
+    theirs = await api.get(path, headers=await customer(api, google, 2))
     anonymous = await api.get(path)
 
     assert mine.status_code == 200 and mine.json() == household
@@ -368,8 +316,8 @@ async def test_health_tags_are_hidden_without_the_consent(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    await _onboard(api, headers)
+    headers = await customer(api, google)
+    await onboard(api, headers)
     # Tags left behind by some other path must still never be shown without the consent.
     active = (
         await db_session.execute(select(Consent).where(Consent.purpose == "health_personalisation"))
@@ -389,8 +337,8 @@ async def test_editing_needs_the_current_version(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    path = f"/v1/households/{(await _onboard(api, headers)).json()['id']}"
+    headers = await customer(api, google)
+    path = f"/v1/households/{(await onboard(api, headers)).json()['id']}"
     change = {"weekday_cook_minutes": 45, "budget_paise": None}
 
     missing = await api.patch(path, json=change, headers=headers)
@@ -423,8 +371,8 @@ async def test_an_edit_that_changes_nothing_keeps_the_version(
     clients: ClientFactory, google: FakeGoogle
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    path = f"/v1/households/{(await _onboard(api, headers)).json()['id']}"
+    headers = await customer(api, google)
+    path = f"/v1/households/{(await onboard(api, headers)).json()['id']}"
 
     same = await api.patch(path, json={"diet": "veg"}, headers={**headers, "If-Match": '"1"'})
 
@@ -435,9 +383,9 @@ async def test_a_jain_household_cannot_switch_to_eggs(
     clients: ClientFactory, google: FakeGoogle
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
+    headers = await customer(api, google)
     jain = onboarding(members=[{"age_band": "18_59", "fasting_rules": {"jain": True}}])
-    path = f"/v1/households/{(await _onboard(api, headers, jain)).json()['id']}"
+    path = f"/v1/households/{(await onboard(api, headers, jain)).json()['id']}"
 
     response = await api.patch(path, json={"diet": "egg"}, headers={**headers, "If-Match": '"1"'})
 
@@ -452,8 +400,8 @@ async def test_invalid_edits_are_422(
     clients: ClientFactory, google: FakeGoogle, change: dict[str, Any]
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    path = f"/v1/households/{(await _onboard(api, headers)).json()['id']}"
+    headers = await customer(api, google)
+    path = f"/v1/households/{(await onboard(api, headers)).json()['id']}"
 
     response = await api.patch(path, json=change, headers={**headers, "If-Match": '"1"'})
 
@@ -462,12 +410,12 @@ async def test_invalid_edits_are_422(
 
 async def test_nobody_else_can_edit_a_household(clients: ClientFactory, google: FakeGoogle) -> None:
     api = clients()
-    path = f"/v1/households/{(await _onboard(api, await _customer(api, google))).json()['id']}"
+    path = f"/v1/households/{(await onboard(api, await customer(api, google))).json()['id']}"
 
     response = await api.patch(
         path,
         json={"diet": "egg"},
-        headers={**await _customer(api, google, 2), "If-Match": '"1"'},
+        headers={**await customer(api, google, 2), "If-Match": '"1"'},
     )
 
     assert response.status_code == 404
@@ -478,8 +426,8 @@ async def test_nobody_else_can_edit_a_household(clients: ClientFactory, google: 
 
 async def test_consents_list_every_purpose(clients: ClientFactory, google: FakeGoogle) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    await _onboard(api, headers)
+    headers = await customer(api, google)
+    await onboard(api, headers)
 
     consents = (await api.get("/v1/consents", headers=headers)).json()
 
@@ -505,8 +453,8 @@ async def test_withdrawing_health_consent_erases_every_health_tag(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
-    household = (await _onboard(api, headers)).json()
+    headers = await customer(api, google)
+    household = (await onboard(api, headers)).json()
 
     withdrawn = await api.post(
         "/v1/consents",
@@ -531,7 +479,7 @@ async def test_granting_twice_keeps_one_active_consent_and_regranting_after_a_wi
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    headers = await _customer(api, google)
+    headers = await customer(api, google)
     marketing = {"purpose": "marketing", "version": "v1"}
 
     for granted in (True, True, False, False, True):
@@ -556,7 +504,7 @@ async def test_an_old_notice_version_is_refused(clients: ClientFactory, google: 
     response = await api.post(
         "/v1/consents",
         json={"purpose": "marketing", "version": "v0", "granted": True},
-        headers=await _customer(api, google),
+        headers=await customer(api, google),
     )
 
     assert response.status_code == 409

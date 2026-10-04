@@ -1,17 +1,26 @@
-"""HTTP endpoints for households and consents (M1 spec §3.2), included by `identity.router`."""
+"""HTTP endpoints for households, members, addresses and consents (M1 spec §3.2).
+
+Included by `identity.router`. Member and address edits change the household too: their responses
+carry the household's new `ETag`.
+"""
 
 import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Response, status
 
-from gharbasket.modules.identity import households
+from gharbasket.modules.identity import household_edits, households
 from gharbasket.modules.identity.schemas import (
+    AddressOut,
+    AddressUpdate,
     ConsentIn,
     ConsentOut,
     HouseholdIn,
     HouseholdOut,
     HouseholdUpdate,
+    MemberIn,
+    MemberOut,
+    MemberUpdate,
 )
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
@@ -131,6 +140,127 @@ async def update_household(
     updated = await households.view(session, household)
     await session.commit()
     set_etag(response, updated.version)
+    return updated
+
+
+@router.post(
+    "/households/{household_id}/members",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a member (the household's size and version go up)",
+    responses={
+        201: {"headers": _ETAG},
+        401: _problem("auth.invalid_token"),
+        403: _problem("identity.health_consent_required"),
+        404: _problem("identity.household_not_found"),
+        422: _problem("identity.household_full, identity.diet_conflict, request.invalid"),
+    },
+)
+async def add_member(
+    household_id: uuid.UUID,
+    body: MemberIn,
+    permit: CanWrite,
+    session: DbSession,
+    response: Response,
+) -> MemberOut:
+    household, member = await household_edits.add_member(
+        session, permit.principal.user_id, household_id, body
+    )
+    added = households.member_out(member, show_health=bool(body.health_tags))
+    await session.commit()
+    set_etag(response, household.version)
+    return added
+
+
+@router.patch(
+    "/households/{household_id}/members/{member_id}",
+    summary="Change a member (only the fields sent)",
+    responses={
+        200: {"headers": _ETAG},
+        401: _problem("auth.invalid_token"),
+        403: _problem("identity.health_consent_required"),
+        404: _problem("identity.household_not_found, identity.member_not_found"),
+        422: _problem("identity.diet_conflict, request.invalid"),
+    },
+)
+async def update_member(
+    household_id: uuid.UUID,
+    member_id: uuid.UUID,
+    body: MemberUpdate,
+    permit: CanWrite,
+    session: DbSession,
+    response: Response,
+) -> MemberOut:
+    household, member = await household_edits.update_member(
+        session, permit.principal.user_id, household_id, member_id, body
+    )
+    updated = households.member_out(
+        member, show_health=await households.shows_health(session, household)
+    )
+    await session.commit()
+    set_etag(response, household.version)
+    return updated
+
+
+@router.delete(
+    "/households/{household_id}/members/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a member (not the last one)",
+    responses={
+        204: {"headers": _ETAG},
+        401: _problem("auth.invalid_token"),
+        404: _problem("identity.household_not_found, identity.member_not_found"),
+        422: _problem("identity.household_needs_member"),
+    },
+)
+async def remove_member(
+    household_id: uuid.UUID,
+    member_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    response: Response,
+) -> None:
+    household = await household_edits.remove_member(
+        session, permit.principal.user_id, household_id, member_id
+    )
+    await session.commit()
+    set_etag(response, household.version)
+
+
+@router.get(
+    "/addresses",
+    summary="The signed-in user's addresses (at most one in v1)",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def my_addresses(permit: CanRead, session: DbSession) -> list[AddressOut]:
+    return await household_edits.my_addresses(session, permit.principal.user_id)
+
+
+@router.patch(
+    "/addresses/{address_id}",
+    summary="Change the address; another society moves the household with it",
+    responses={
+        200: {"headers": _ETAG},
+        401: _problem("auth.invalid_token"),
+        404: _problem("identity.address_not_found"),
+        422: _problem(
+            "identity.society_unknown, identity.tower_unknown, identity.address_outside_society, "
+            "request.invalid"
+        ),
+    },
+)
+async def update_address(
+    address_id: uuid.UUID,
+    body: AddressUpdate,
+    permit: CanWrite,
+    session: DbSession,
+    response: Response,
+) -> AddressOut:
+    household = await household_edits.update_address(
+        session, permit.principal.user_id, address_id, body
+    )
+    updated = await households.address_out(session, household.id)
+    await session.commit()
+    set_etag(response, household.version)
     return updated
 
 

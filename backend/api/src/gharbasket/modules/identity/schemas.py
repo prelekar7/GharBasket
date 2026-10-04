@@ -226,7 +226,7 @@ class AddressIn(BaseModel):
 
     @field_validator("flat")
     @classmethod
-    def _tidy_flat(cls, value: str) -> str:
+    def tidy_flat(cls, value: str) -> str:
         flat = " ".join(value.split()).upper()
         if not FLAT.fullmatch(flat):
             raise ValueError("1 to 20 letters, digits, spaces, '/' or '-'")
@@ -337,3 +337,53 @@ class HouseholdOut(BaseModel):
     members: list[MemberOut]
     address: AddressOut
     created_at: datetime
+
+
+class MemberUpdate(BaseModel):
+    """Only the fields sent change; `fasting_rules` is replaced whole. `sex: null` clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    age_band: AgeBand | None = None
+    sex: Literal["f", "m", "other"] | None = None
+    fasting_rules: FastingRules | None = None
+    health_tags: list[HealthTag] | None = Field(default=None, max_length=6)
+
+    @field_validator("health_tags")
+    @classmethod
+    def _unique_tags(cls, value: list[HealthTag] | None) -> list[HealthTag] | None:
+        return None if value is None else _unique(value)
+
+    @model_validator(mode="after")
+    def _only_sex_may_be_null(self) -> Self:
+        for field in self.model_fields_set - {"sex"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class AddressUpdate(BaseModel):
+    """Only the fields sent change; `location: null` removes the pin.
+
+    Moving to another society moves the household with it, and the tower (and pin, if any) must
+    then fit the new society.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    society_id: uuid.UUID | None = None
+    tower_id: str | None = Field(default=None, min_length=1, max_length=20)
+    flat: str | None = Field(default=None, examples=["A-1203"])
+    location: LatLng | None = None
+
+    @field_validator("flat")
+    @classmethod
+    def _tidy_flat(cls, value: str | None) -> str | None:
+        return None if value is None else AddressIn.tidy_flat(value)
+
+    @model_validator(mode="after")
+    def _only_location_may_be_null(self) -> Self:
+        for field in self.model_fields_set - {"location"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
