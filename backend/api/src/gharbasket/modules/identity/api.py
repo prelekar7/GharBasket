@@ -14,3 +14,9 @@ async def households_in_society(session: AsyncSession, society_id: uuid.UUID) ->
         select(func.count()).select_from(Household).where(Household.society_id == society_id)
     )
     return count.scalar_one()
+
+
+async def household_hub(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
+    """The hub that serves this user's household (for prices, M2); None without one."""
+    hub = await session.execute(select(Household.hub_id).where(Household.owner_user_id == user_id))
+    return hub.scalar_one_or_none()

@@ -23,10 +23,13 @@ import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog.pricing import save_price_list
+from gharbasket.modules.catalog.schemas import PriceItem
 from gharbasket.modules.catalog.service import (
     CategoryData,
     ProductData,
@@ -312,11 +315,15 @@ async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
 
 
 async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh the categories and products of data/seeds/catalog: (slug, created)."""
+    """Create or refresh data/seeds/catalog: categories, products and the seed hub's price list.
+
+    Returns (slug, created) for each product.
+    """
     categories = json.loads((CATALOG_SEED / "categories.json").read_text())["categories"]
     for category in categories:
         await save_category(session, CategoryData(**category))
     saved: list[tuple[str, bool]] = []
+    ids: dict[str, uuid.UUID] = {}
     for item in json.loads((CATALOG_SEED / "products.json").read_text())["products"]:
         step = item.pop("step")
         data = ProductData(
@@ -329,6 +336,24 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
         )
         product, created = await save_product(session, data)
         saved.append((product.slug, created))
+        ids[product.slug] = product.id
+
+    prices = json.loads((CATALOG_SEED / "prices.json").read_text())
+    await save_price_list(
+        session,
+        SEED_HUB_ID,
+        date.fromisoformat(prices["valid_from"]),
+        [
+            PriceItem(
+                product_id=ids[item["slug"]],
+                price_paise=item["price_paise"],
+                mrp_paise=item["mrp_paise"],
+            )
+            for item in prices["items"]
+        ],
+        published_by=None,
+        data_source="synthetic",
+    )
     return saved
 
 

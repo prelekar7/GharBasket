@@ -1,0 +1,346 @@
+{
+  "hub": "seed Kharghar hub (SEED_HUB_ID)",
+  "valid_from": "2026-10-01",
+  "items": [
+    {
+      "slug": "palak",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "methi",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "coriander",
+      "price_paise": 1500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "mint",
+      "price_paise": 1000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "dill",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "curry-leaves",
+      "price_paise": 1000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "red-amaranth",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "spring-onion",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "tomato",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "bhindi",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "brinjal",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "cauliflower",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "cabbage",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "green-peas",
+      "price_paise": 6000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "cucumber",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "bottle-gourd",
+      "price_paise": 3500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "ridge-gourd",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "bitter-gourd",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "red-pumpkin",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "capsicum",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "french-beans",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "cluster-beans",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "drumstick",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "green-chilli",
+      "price_paise": 1000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "lemon",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "onion",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "potato",
+      "price_paise": 3500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "garlic",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "ginger",
+      "price_paise": 1500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "carrot",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "radish",
+      "price_paise": 2000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "beetroot",
+      "price_paise": 2500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "sweet-potato",
+      "price_paise": 3000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "banana",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "apple",
+      "price_paise": 9000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "papaya",
+      "price_paise": 5000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "orange",
+      "price_paise": 8000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "pomegranate",
+      "price_paise": 9000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "guava",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "watermelon",
+      "price_paise": 6000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "grapes",
+      "price_paise": 5000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "chikoo",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "mosambi",
+      "price_paise": 7000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "custard-apple",
+      "price_paise": 6000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "pineapple",
+      "price_paise": 6000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "toor-dal",
+      "price_paise": 9000,
+      "mrp_paise": 10500
+    },
+    {
+      "slug": "moong-dal",
+      "price_paise": 7000,
+      "mrp_paise": 8000
+    },
+    {
+      "slug": "masoor-dal",
+      "price_paise": 5500,
+      "mrp_paise": 6200
+    },
+    {
+      "slug": "chana-dal",
+      "price_paise": 5000,
+      "mrp_paise": 5800
+    },
+    {
+      "slug": "basmati-rice",
+      "price_paise": 12000,
+      "mrp_paise": 14000
+    },
+    {
+      "slug": "kolam-rice",
+      "price_paise": 7000,
+      "mrp_paise": 7800
+    },
+    {
+      "slug": "wheat-atta",
+      "price_paise": 5000,
+      "mrp_paise": 5800
+    },
+    {
+      "slug": "jowar-atta",
+      "price_paise": 6000,
+      "mrp_paise": 6800
+    },
+    {
+      "slug": "besan",
+      "price_paise": 5500,
+      "mrp_paise": 6200
+    },
+    {
+      "slug": "poha",
+      "price_paise": 3500,
+      "mrp_paise": 4000
+    },
+    {
+      "slug": "sabudana",
+      "price_paise": 4500,
+      "mrp_paise": 5200
+    },
+    {
+      "slug": "groundnuts",
+      "price_paise": 7500,
+      "mrp_paise": 8500
+    },
+    {
+      "slug": "groundnut-oil",
+      "price_paise": 19000,
+      "mrp_paise": 21500
+    },
+    {
+      "slug": "ghee",
+      "price_paise": 35000,
+      "mrp_paise": 39000
+    },
+    {
+      "slug": "salt",
+      "price_paise": 2500,
+      "mrp_paise": 2800
+    },
+    {
+      "slug": "turmeric",
+      "price_paise": 3000,
+      "mrp_paise": 3500
+    },
+    {
+      "slug": "red-chilli-powder",
+      "price_paise": 4000,
+      "mrp_paise": 4600
+    },
+    {
+      "slug": "sugar",
+      "price_paise": 4500,
+      "mrp_paise": 5000
+    },
+    {
+      "slug": "jaggery",
+      "price_paise": 4000,
+      "mrp_paise": 4600
+    },
+    {
+      "slug": "milk",
+      "price_paise": 3400,
+      "mrp_paise": 3400
+    },
+    {
+      "slug": "curd",
+      "price_paise": 4000,
+      "mrp_paise": 4500
+    },
+    {
+      "slug": "paneer",
+      "price_paise": 9000,
+      "mrp_paise": 10000
+    },
+    {
+      "slug": "eggs",
+      "price_paise": 4500,
+      "mrp_paise": null
+    }
+  ]
+}
