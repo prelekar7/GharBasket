@@ -1,4 +1,4 @@
-"""`just seed`: synthetic people for every role and societies, safe to run again (ADR-0008)."""
+"""`just seed`: synthetic people, societies and households, safe to run again (ADR-0008)."""
 
 import asyncio
 from collections.abc import Iterator
@@ -8,17 +8,19 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.models import Society
-from gharbasket.modules.identity.models import ROLES, User, UserRole
+from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.platform.db import create_engine
-from gharbasket.platform.models import AuditEntry
+from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.permissions import ROLE_SCOPE
 from gharbasket.tools.seed import (
+    HOUSEHOLDS,
     PEOPLE,
     SEED_HUB_ID,
     SEED_SOCIETY_ID,
     SOCIETIES,
     seed,
+    seed_households,
     seed_societies,
 )
 from gharbasket.tools.seed import main as seed_command
@@ -107,6 +109,23 @@ async def test_seed_societies_are_synthetic_and_seeding_again_adds_none(
     assert SEED_SOCIETY_ID in {society.id for society in societies}
 
 
+async def test_seed_households_onboard_four_customers_once(db_session: AsyncSession) -> None:
+    await seed(db_session)
+    await seed_societies(db_session)
+
+    first = await seed_households(db_session)
+    again = await seed_households(db_session)
+
+    assert [created for _, created in first] == [True] * len(HOUSEHOLDS)
+    assert not any(created for _, created in again)
+    households = list((await db_session.execute(select(Household))).scalars())
+    assert len(households) == len(HOUSEHOLDS)
+    assert {household.data_source for household in households} == {"synthetic"}
+    # Ramesh gave health consent, so his household keeps its health tags.
+    tags = (await db_session.execute(select(HouseholdMember.health_tags))).scalars().all()
+    assert ["diabetes", "low_oil"] in tags
+
+
 @pytest.fixture
 def local_database(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     # Both, so a developer's local .env cannot point the command somewhere else.
@@ -121,6 +140,13 @@ async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
         async with AsyncSession(engine) as cleanup:
             users = [str(user.id) for user in await _seed_users(cleanup)]
             await cleanup.execute(delete(AuditEntry).where(AuditEntry.entity_id.in_(users)))
+            await cleanup.execute(
+                delete(OutboxEvent).where(
+                    OutboxEvent.event_type == "identity.household_created",
+                    OutboxEvent.payload["data_source"].astext == "synthetic",
+                )
+            )
+            # Households, members, addresses and consents go with their owners.
             await cleanup.execute(delete(User).where(User.phone_e164.in_(PHONES)))
             societies = await cleanup.execute(delete(Society).where(Society.slug.in_(SLUGS)))
             await cleanup.commit()
@@ -137,6 +163,7 @@ def test_the_seed_command_fills_the_local_database(
         out = capsys.readouterr().out
         assert f"{len(PEOPLE)} synthetic people" in out
         assert f"{len(SOCIETIES)} synthetic societies" in out
+        assert f"{len(HOUSEHOLDS)} synthetic households" in out
     finally:
         # The command commits for real, so its rows are removed here (and counted).
         removed = asyncio.run(_remove_seed_rows(local_database))

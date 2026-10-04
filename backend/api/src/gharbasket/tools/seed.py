@@ -8,8 +8,9 @@ rules hold as for a real sign-in: a new phone becomes a customer, staff roles ar
 
 The phones +91 98000 01001 to 01011 are reserved for this seed. Sign in as any of them locally
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
-Kharghar, Kamothe and Panvel sectors, with approximate boundaries. Later module PRs add their rows
-here (households, catalog) and use the hub, society and NGO ids below.
+Kharghar, Kamothe and Panvel sectors, with approximate boundaries; four of the people have a
+household there, created through the same onboarding service as `POST /v1/households`. Later module
+PRs add their rows here (catalog) and use the hub, society and NGO ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
 """
@@ -24,6 +25,8 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.service import SocietyData, save_society
+from gharbasket.modules.identity.households import create_household, household_of
+from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.errors import ProblemError
@@ -160,6 +163,84 @@ SOCIETIES = (
 )
 
 
+def _consents(*extra: str) -> list[dict[str, object]]:
+    purposes = ("service_delivery", "personalisation", *extra)
+    return [{"purpose": purpose, "version": "v1", "granted": True} for purpose in purposes]
+
+
+def _adult(sex: str, **rules: object) -> dict[str, object]:
+    return {"age_band": "18_59", "sex": sex, "fasting_rules": rules}
+
+
+# Onboarding requests (POST /v1/households bodies) of the seeded customers, by phone.
+HOUSEHOLDS: dict[str, dict[str, object]] = {
+    "+919800001001": {  # Priya: family of four, Sunrise Towers
+        "society_id": str(SEED_SOCIETY_ID),
+        "address": {
+            "tower_id": "a",
+            "flat": "A-1203",
+            "location": {"lat": 19.0396, "lng": 73.0676},
+        },
+        "diet": "veg",
+        "cuisine_tags": ["maharashtrian", "north_indian"],
+        "weekday_cook_minutes": 30,
+        "weekend_cook_minutes": 60,
+        "no_cook_days": [6],
+        "budget_paise": 600_000,
+        "members": [
+            _adult("f", fasts=["shravan_mondays"]),
+            _adult("m"),
+            {"age_band": "5_17", "sex": "f"},
+            {"age_band": "under_5", "sex": "m"},
+        ],
+        "consents": _consents("marketing"),
+    },
+    "+919800001002": {  # Sunita: couple, eggs on, Green Valley Heights, no pin placed
+        "society_id": str(_society_id(2)),
+        "address": {"tower_id": "b", "flat": "B-504", "location": None},
+        "diet": "egg",
+        "cuisine_tags": ["maharashtrian"],
+        "weekday_cook_minutes": 45,
+        "weekend_cook_minutes": 90,
+        "no_cook_days": [],
+        "budget_paise": None,
+        "members": [_adult("f", fasts=["ekadashi"]), _adult("m")],
+        "consents": _consents(),
+    },
+    "+919800001003": {  # Ramesh: senior couple with health personalisation, Krishna Kunj
+        "society_id": str(_society_id(5)),
+        "address": {"tower_id": "a", "flat": "A-101", "location": {"lat": 19.0005, "lng": 73.1185}},
+        "diet": "veg",
+        "cuisine_tags": ["maharashtrian", "gujarati"],
+        "weekday_cook_minutes": 20,
+        "weekend_cook_minutes": 30,
+        "no_cook_days": [],
+        "budget_paise": 400_000,
+        "members": [
+            {"age_band": "60_plus", "sex": "m", "health_tags": ["diabetes", "low_oil"]},
+            {"age_band": "60_plus", "sex": "f", "health_tags": ["high_bp"]},
+        ],
+        "consents": _consents("health_personalisation"),
+    },
+    "+919800001004": {  # Meena (the captain): Jain household in her own society, Sunrise Towers
+        "society_id": str(SEED_SOCIETY_ID),
+        "address": {"tower_id": "b", "flat": "B-402", "location": None},
+        "diet": "veg",
+        "cuisine_tags": ["gujarati"],
+        "weekday_cook_minutes": 40,
+        "weekend_cook_minutes": 60,
+        "no_cook_days": [],
+        "budget_paise": 500_000,
+        "members": [
+            _adult("f", jain=True, fasts=["navratri"], no_onion_garlic_on_fast_days=True),
+            _adult("m", jain=True),
+            {"age_band": "5_17", "sex": "m", "fasting_rules": {"jain": True}},
+        ],
+        "consents": _consents(),
+    },
+}
+
+
 @dataclass(frozen=True)
 class Seeded:
     phone: str
@@ -204,14 +285,40 @@ async def seed_societies(session: AsyncSession) -> list[tuple[str, bool]]:
     return saved
 
 
-async def run(database_url: str) -> tuple[list[Seeded], list[tuple[str, bool]]]:
+async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Onboard the seeded customers who have no household yet: (phone, created) each.
+
+    Needs the people and societies first. An existing household is kept as it is.
+    """
+    done: list[tuple[str, bool]] = []
+    for phone, request in HOUSEHOLDS.items():
+        user, _ = await find_or_create_user(session, phone)
+        created = await household_of(session, user.id) is None
+        if created:
+            body = HouseholdIn.model_validate(request)
+            await create_household(session, user.id, body, data_source="synthetic")
+        done.append((phone, created))
+    return done
+
+
+@dataclass(frozen=True)
+class Report:
+    people: list[Seeded]
+    societies: list[tuple[str, bool]]
+    households: list[tuple[str, bool]]
+
+
+async def run(database_url: str) -> Report:
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            seeded = await seed(session)
-            societies = await seed_societies(session)
+            report = Report(
+                people=await seed(session),
+                societies=await seed_societies(session),
+                households=await seed_households(session),
+            )
             await session.commit()
-            return seeded, societies
+            return report
     finally:
         await engine.dispose()
 
@@ -226,7 +333,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not is_local_database(url):
         parser.error("seed data is only for the local Docker database")
 
-    seeded, societies = asyncio.run(run(url))
+    report = asyncio.run(run(url))
+    seeded, societies = report.people, report.societies
     for person in seeded:
         state = "new" if person.created else "kept"
         print(f"{person.phone}  {person.name:<16} {', '.join(person.roles):<26} {state}")
@@ -234,6 +342,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for slug, created in societies:
         print(f"{slug:<32} {'new' if created else 'kept'}")
     print(f"{len(societies)} synthetic societies")
+    for phone, created in report.households:
+        print(f"{phone}  household {'new' if created else 'kept'}")
+    print(f"{len(report.households)} synthetic households")
     return 0
 
 
