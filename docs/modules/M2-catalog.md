@@ -1,6 +1,6 @@
 # M2 — Catalog & Pricing
 
-**Status:** Draft v1.1. §3.1 (products, search, prices, substitutes) is frozen for S1; recipes, festivals, kits and tiffin menus are refined when they are built (spec-first).
+**Status:** Draft v1.2. §3.1 (products, search, prices, substitutes) and §3.2 (recipes, festivals) are frozen for S1; kits and tiffin menus are refined when they are built (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also curate translations and search synonyms)
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `catalog` · **Python package:** `gharbasket.modules.catalog`
@@ -121,18 +121,59 @@ POST /v1/hubs/{hub_id}/price-lists    hub_manager of that hub, or admin; Idempot
 | Substitute without a score | `score` (0 to 1) added; keep sorting by the order returned |
 | Language chosen by a mock parameter | `Accept-Language` from the app's language |
 
+### 3.2 Recipes and festival contract (frozen for S1)
+The meal planner (M10 M-C, spike S-4), the Week screen's dish names and the console read these. Same language, sign-in and price rules as §3.1.
+
+**Rules a recipe follows.**
+- **Calculated from its ingredients when it is saved**, so they cannot drift:
+  - `diet`: `egg` if an ingredient is tagged `egg`, else `veg`;
+  - `no_onion_garlic`: no ingredient tagged `onion_garlic`;
+  - `jain_ok`: also no ingredient tagged `root`, and no egg.
+- **Curated, because customs differ:** `fasting_ok` and `diabetic_ok` (reviewed by Rhythm Thakur and Manish Raje).
+
+```
+RecipeSummary : {
+  "id": "<uuid>", "slug": "sabudana-khichdi",
+  "name": "Sabudana khichdi", "names": { "en", "hi", "mr" },
+  "cuisine": "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common",
+  "slots": ["breakfast", "lunch", "dinner"],         when it is usually eaten (at least one)
+  "cook_minutes": 25, "servings": 4,
+  "diet": "veg" | "egg",
+  "rules": { "jain_ok": false, "no_onion_garlic": true, "fasting_ok": true, "diabetic_ok": false },
+  "tags": ["one_pot", "light"] }
+RecipeOut : RecipeSummary & {
+  "ingredients": [ { "product_id", "slug", "name", "qty": 50, "unit": "g" | "ml" | "piece" | "bunch",
+                     "label": "50 g", "optional": false } ],      qty per serving
+  "cost_per_serving_paise": 1840 | null }   from the caller's hub prices (§3.1 hub rule); null if any
+                                            ingredient has no price there
+
+GET /v1/recipes?cuisine=&slot=&diet=&jain_ok=&fasting_ok=&cursor=&limit=
+  200 : Page[RecipeSummary]    alphabetical by English name; limit ≤ 100, default 50; active only
+GET /v1/recipes/{id}?hub_id=   200 RecipeOut | 404 "catalog.recipe_not_found"
+
+GET /v1/festivals?from=&to=&region=
+  from defaults to today (Asia/Kolkata), to to from + 30 days; at most 92 days ("request.invalid")
+  region: "all" (default: every region) or a state code such as "maharashtra"
+  200 : { "items": [ { "date": "2026-10-11", "code": "navratri", "name": "Navratri",
+                       "region": "all",
+                       "rules": { "fasting": true, "no_onion_garlic": true },
+                       "verified": false } ] }     ordered by date; verified = checked against a
+                                                   panchang (unverified dates are shown, flagged)
+```
+Weekly fasts that need no calendar (`tuesdays` in M1 `fasting_rules`) are applied by the planner from the weekday.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
 | `catalog.products` | id (uuidv7), slug (unique), kind (veg, fruit, staple, kit, tiffin, salad), category_id, names jsonb `{en, hi, mr}`, step_qty, step_unit, shelf_life_h, nutrition jsonb null, tags[], image_key null, embedding vector(1024) null (with the ML service), active, data_source |
 | `catalog.categories` | id, slug (unique), names jsonb, parent_id null |
-| `catalog.recipes` | id, names jsonb, cuisine, cook_minutes, servings, rules jsonb, steps jsonb, embedding |
-| `catalog.recipe_ingredients` | recipe_id, product_id, qty_per_serving, optional |
+| `catalog.recipes` | id (uuidv7), slug (unique), names jsonb `{en, hi, mr}`, cuisine, slots[], cook_minutes, servings, diet, rules jsonb `{jain_ok, no_onion_garlic, fasting_ok, diabetic_ok}`, tags[], steps jsonb null, embedding null (later), active, data_source |
+| `catalog.recipe_ingredients` | recipe_id, product_id, qty_per_serving, unit (g, ml, piece, bunch), optional; primary key (recipe_id, product_id) |
 | `catalog.kits` | product_id, recipe_id, servings |
 | `catalog.tiffin_menus` | id, hub_id, partner_id, date, meal, recipe_ids[], price_paise, status |
 | `catalog.substitutions` | product_id, substitute_id, score, source (nutrition, cooccur, embedding, learned) |
 | `catalog.price_lists` / `catalog.prices` | id, hub_id (no FK until M6), valid_from, unique (hub_id, valid_from), data_source / price_list_id, product_id, price_paise BIGINT (per step), mrp_paise BIGINT null |
-| `catalog.festival_calendar` | date, region, code, rules jsonb |
+| `catalog.festival_calendar` | date, code, region (primary key together), names jsonb, rules jsonb `{fasting, no_onion_garlic}`, verified |
 | `catalog.search_terms` | product_id, term, lang (en, hi, mr, hinglish), source (name, synonym, transliteration); trigram index on the unaccented term |
 
 ## 5. Events

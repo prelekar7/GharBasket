@@ -120,3 +120,66 @@ class PriceListCreated(BaseModel):
     hub_id: uuid.UUID
     valid_from: date
     items_count: int
+
+
+# --- recipes and festivals (spec §3.2) ---------------------------------------------------------
+
+Cuisine = Literal["maharashtrian", "gujarati", "north_indian", "south_indian", "bengali", "common"]
+Slot = Literal["breakfast", "lunch", "dinner"]
+IngredientUnit = Literal["g", "ml", "piece", "bunch"]
+
+
+class RecipeRules(BaseModel):
+    jain_ok: bool = Field(description="Derived: no root, onion or garlic ingredient")
+    no_onion_garlic: bool = Field(description="Derived: no onion or garlic ingredient")
+    fasting_ok: bool = Field(description="Curated: commonly eaten on vrat days")
+    diabetic_ok: bool = Field(description="Curated")
+
+
+class RecipeSummary(BaseModel):
+    id: uuid.UUID
+    slug: str = Field(examples=["sabudana-khichdi"])
+    name: str
+    names: Names
+    cuisine: Cuisine
+    slots: list[Slot]
+    cook_minutes: int
+    servings: int
+    diet: Literal["veg", "egg"]
+    rules: RecipeRules
+    tags: list[str]
+
+
+class IngredientOut(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    qty: float = Field(examples=[50], description="Per serving")
+    unit: IngredientUnit
+    label: str = Field(examples=["50 g"])
+    optional: bool
+
+
+class RecipeOut(RecipeSummary):
+    ingredients: list[IngredientOut]
+    cost_per_serving_paise: int | None = Field(
+        description="From the caller's hub prices; null if an ingredient has no price there"
+    )
+
+
+class FestivalRules(BaseModel):
+    fasting: bool
+    no_onion_garlic: bool
+
+
+class FestivalOut(BaseModel):
+    date: date
+    code: str = Field(examples=["navratri"])
+    name: str
+    region: str = Field(examples=["all"])
+    rules: FestivalRules
+    verified: bool = Field(description="Checked against a panchang; unverified dates are flagged")
+
+
+class Festivals(BaseModel):
+    items: list[FestivalOut]
