@@ -11,16 +11,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gharbasket.platform.geo import LatLng
+
 SocietyStatus = Literal["prospect", "unlocking", "live", "paused"]
-
-# India's bounding box: a pin outside it is a mistake (or the 0,0 of an unset map).
-LAT_RANGE = (6.0, 37.0)
-LNG_RANGE = (68.0, 98.0)
-
-
-class LatLng(BaseModel):
-    lat: float = Field(ge=LAT_RANGE[0], le=LAT_RANGE[1], examples=[18.99])
-    lng: float = Field(ge=LNG_RANGE[0], le=LNG_RANGE[1], examples=[73.11])
 
 
 class SocietySummary(BaseModel):

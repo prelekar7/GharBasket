@@ -17,9 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from gharbasket.modules.community.models import Society, SocietyRequest
-from gharbasket.modules.community.schemas import LAT_RANGE, LNG_RANGE, LatLng, SocietyRequestIn
+from gharbasket.modules.community.schemas import SocietyRequestIn
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.geo import LAT_RANGE, LNG_RANGE, LatLng, geography, point
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
 # Societies without a drawn boundary have no distance; they sort after every real one.
@@ -42,14 +43,6 @@ def parse_near(value: str) -> LatLng:
     return LatLng(lat=lat, lng=lng)
 
 
-def point(at: LatLng) -> WKTElement:
-    return WKTElement(f"POINT({at.lng} {at.lat})", srid=4326, extended=False)
-
-
-def _geography(at: LatLng) -> ColumnElement[Any]:
-    return func.ST_GeogFromText(f"SRID=4326;POINT({at.lng} {at.lat})")
-
-
 @dataclass(frozen=True)
 class Found:
     society: Society
@@ -66,7 +59,7 @@ async def search(
 ) -> tuple[list[Found], str | None]:
     distance: ColumnElement[Any] | None = None
     if near is not None:
-        distance = func.ST_Distance(Society.boundary, _geography(near), type_=Float)
+        distance = func.ST_Distance(Society.boundary, geography(near.lat, near.lng), type_=Float)
 
     stmt = select(Society, distance if distance is not None else cast(null(), Float))
     # The sort keys, each with the type its cursor value must have; the order kind goes into the
@@ -136,7 +129,7 @@ async def create_request(
         user_id=user_id,
         name=body.name,
         area=body.area,
-        location=None if body.location is None else point(body.location),
+        location=None if body.location is None else point(body.location.lat, body.location.lng),
         note=body.note,
     )
     session.add(request)

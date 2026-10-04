@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.models import Society
+from gharbasket.platform.geo import geography
 
 
 @dataclass(frozen=True)
@@ -38,9 +39,8 @@ async def contains(session: AsyncSession, society_id: uuid.UUID, lat: float, lng
 
     False for an unknown society.
     """
-    here = func.ST_GeogFromText(f"SRID=4326;POINT({lng} {lat})")
     inside = await session.execute(
-        select(func.coalesce(func.ST_Covers(Society.boundary, here), True)).where(
+        select(func.coalesce(func.ST_Covers(Society.boundary, geography(lat, lng)), True)).where(
             Society.id == society_id
         )
     )

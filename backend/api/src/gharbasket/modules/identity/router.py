@@ -14,6 +14,7 @@ from sqlalchemy import select
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.identity import service
 from gharbasket.modules.identity.firebase import FirebaseTokenVerifier
+from gharbasket.modules.identity.household_router import router as household_router
 from gharbasket.modules.identity.models import LoginSession, User, UserRole
 from gharbasket.modules.identity.schemas import (
     DeviceOut,
@@ -47,6 +48,7 @@ from gharbasket.platform.web_session import (
 )
 
 router = APIRouter(tags=["identity"])
+router.include_router(household_router)
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 

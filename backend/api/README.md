@@ -7,7 +7,7 @@ The GharBasket backend: a FastAPI modular monolith (see `docs/handbook/04-system
 | `just up` | Start local Postgres 18 (PostGIS, pgvector) and Valkey in Docker |
 | `just migrate` | Apply all migrations (`just migrate-down` undoes the last one) |
 | `just migration "orders add slots"` | Generate a migration from model changes; review it before committing |
-| `just seed` | Fill the local database with synthetic people (one per role) and societies (see "Seed data" below) |
+| `just seed` | Fill the local database with synthetic people (one per role), societies and households (see "Seed data" below) |
 | `just dev` | Run the API with auto-reload on http://localhost:8000 (docs at `/v1/docs`) |
 | `just test` | Run the tests with the coverage gate (85%); database tests skip when `just up` is not running |
 | `just openapi` | Regenerate `backend/api/openapi.json` (the contract the frontend client is built from) |
@@ -27,6 +27,9 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
   committing (`platform/idempotency.py`); retries replay the stored answer.
 - Admin and money actions call `await audit.record(...)` (`platform/audit.py`).
 - Lists use cursor pagination: `Page[T]`, `Limit`, `Cursor`, `encode_cursor()` (`platform/pagination.py`).
+- Editable resources use optimistic locking: reads `set_etag(response, version)`, edits take
+  `expected: IfMatch` (428 without it) and answer 412 with a module code when it is stale (`platform/etag.py`).
+- Map points: `platform/geo.py` (`point()` to store, `geography()` in SQL).
 
 ## Sign-in
 - `POST /v1/auth/exchange` with a Firebase ID token (phone OTP) creates the account on first use and
@@ -45,9 +48,9 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
   `infisical run --env=staging --` for staging). Later admins use `POST /v1/admin/user-roles`.
 
 ## Seed data
-`just seed` (`tools/seed.py`) writes synthetic people and societies through the module services, marked
-`data_source='synthetic'` (ADR-0008). It is local-only and safe to run again. Later module PRs add
-their rows (households, catalog) to the same command. Sign in as anyone below with `dev_phone`:
+`just seed` (`tools/seed.py`) writes synthetic people, societies and households through the module
+services, marked `data_source='synthetic'` (ADR-0008). It is local-only and safe to run again. Later
+module PRs add their rows (catalog) to the same command. Sign in as anyone below with `dev_phone`:
 
 | Phone | Name | Roles (scope) |
 |---|---|---|
@@ -78,6 +81,17 @@ Societies (made-up names in real sectors, approximate square boundaries, all ser
 | sai-darshan-apartments-panvel | Old Panvel | prospect, no boundary or hub yet | — |
 
 Try `GET /v1/societies?q=kharghar&near=19.0430,73.0720` after signing in.
+
+Households (onboarded through the same service as `POST /v1/households`; `GET /v1/households/me` as them):
+
+| Phone | Household |
+|---|---|
+| +919800001001 | Priya: 4 members, veg, Sunrise Towers A-1203 (with pin), ₹6,000 Budget Lock |
+| +919800001002 | Sunita: 2 members, egg, Green Valley Heights B-504 (no pin), no Budget Lock |
+| +919800001003 | Ramesh: senior couple, veg, Krishna Kunj A-101, health consent with diabetes, low_oil, high_bp |
+| +919800001004 | Meena (captain): Jain, 3 members, Sunrise Towers B-402 |
+
+Every other seed person can try onboarding from scratch.
 
 ## Health
 - `GET /v1/health`: liveness, never touches the database (Render's health check; keeps Neon idle).

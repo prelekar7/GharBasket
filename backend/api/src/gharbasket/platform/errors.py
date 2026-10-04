@@ -37,7 +37,8 @@ def _phrase(status: int) -> str:
 class ProblemError(Exception):
     """Raise to return a problem response: `ProblemError(409, "orders.cutoff_passed", "...")`.
 
-    `detail` is shown to people; clients branch on `code`.
+    `detail` is shown to people; clients branch on `code`. `extra` adds RFC 9457 extension
+    members the client may need, e.g. `{"household_id": ...}` on `identity.household_exists`.
     """
 
     def __init__(
@@ -49,6 +50,7 @@ class ProblemError(Exception):
         title: str | None = None,
         errors: list[dict[str, Any]] | None = None,
         headers: Mapping[str, str] | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> None:
         super().__init__(detail or code)
         self.status = status
@@ -57,6 +59,7 @@ class ProblemError(Exception):
         self.title = title or _phrase(status)
         self.errors = errors
         self.headers = headers
+        self.extra = extra
 
 
 def problem_response(
@@ -68,8 +71,11 @@ def problem_response(
     detail: str | None = None,
     errors: list[dict[str, Any]] | None = None,
     headers: Mapping[str, str] | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> JSONResponse:
     body: dict[str, Any] = {
+        # Extension members first, so they can never overwrite the standard ones below.
+        **(extra or {}),
         "type": f"urn:gharbasket:problem:{code}",
         "title": title or _phrase(status),
         "status": status,
@@ -105,6 +111,7 @@ async def _handle_problem(request: Request, exc: Exception) -> JSONResponse:
         detail=exc.detail,
         errors=exc.errors,
         headers=exc.headers,
+        extra=exc.extra,
     )
 
 

@@ -1,15 +1,19 @@
 """Request and response models of M1 Identity & Household.
 
 The exchange request/response and UserOut are the frozen walking-skeleton contract
-(docs/modules/M1-identity.md §3.1): changing them needs a PR reviewed by both app owners.
+(docs/modules/M1-identity.md §3.1), and the household shapes the S1 contract (§3.2): changing
+them needs a PR reviewed by both app owners.
 """
 
+import re
 import uuid
 from datetime import datetime
-from typing import Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 import phonenumbers
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from gharbasket.platform.geo import LatLng
 
 Locale = Literal["en-IN", "hi-IN", "mr-IN"]
 
@@ -155,3 +159,181 @@ class RoleGrantIn(BaseModel):
 
 class RoleGrantOut(RoleOut):
     user_id: uuid.UUID
+
+
+# --- household (spec §3.2, frozen for S1) ------------------------------------------------------
+
+Diet = Literal["veg", "egg", "nonveg"]
+Cuisine = Literal["maharashtrian", "gujarati", "north_indian", "south_indian", "bengali"]
+AgeBand = Literal["under_5", "5_17", "18_59", "60_plus"]
+Fast = Literal["shravan_mondays", "ekadashi", "navratri", "tuesdays"]
+HealthTag = Literal["diabetes", "high_bp", "pcos", "low_oil", "high_protein", "weight_loss"]
+ConsentPurpose = Literal[
+    "service_delivery",
+    "personalisation",
+    "health_personalisation",
+    "marketing",
+    "research_anonymised",
+]
+CookMinutes = Annotated[int, Field(ge=10, le=240)]
+Weekday = Annotated[int, Field(ge=0, le=6)]
+FLAT = re.compile(r"^[A-Z0-9 /-]{1,20}$")
+
+
+def _unique[T](values: list[T]) -> list[T]:
+    if len(set(values)) != len(values):
+        raise ValueError("values must be unique")
+    return values
+
+
+class FastingRules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    jain: bool = False
+    fasts: list[Fast] = Field(default_factory=list, max_length=4)
+    no_onion_garlic_on_fast_days: bool = False
+
+    _unique_fasts = field_validator("fasts")(_unique)
+
+
+class MemberIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    age_band: AgeBand
+    sex: Literal["f", "m", "other"] | None = None
+    fasting_rules: FastingRules = Field(default_factory=FastingRules)
+    health_tags: list[HealthTag] = Field(
+        default_factory=list,
+        max_length=6,
+        description="Only while health_personalisation is granted (403 otherwise)",
+    )
+
+    _unique_tags = field_validator("health_tags")(_unique)
+
+
+class MemberOut(MemberIn):
+    model_config = ConfigDict(extra="ignore")
+
+    id: uuid.UUID
+
+
+class AddressIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tower_id: str = Field(min_length=1, max_length=20, examples=["a"])
+    flat: str = Field(examples=["A-1203"], description="Trimmed and upper-cased")
+    location: LatLng | None = Field(description="null when no pin was placed")
+
+    @field_validator("flat")
+    @classmethod
+    def _tidy_flat(cls, value: str) -> str:
+        flat = " ".join(value.split()).upper()
+        if not FLAT.fullmatch(flat):
+            raise ValueError("1 to 20 letters, digits, spaces, '/' or '-'")
+        return flat
+
+
+class AddressOut(BaseModel):
+    id: uuid.UUID
+    household_id: uuid.UUID
+    society_id: uuid.UUID
+    tower_id: str
+    flat: str
+    location: LatLng | None
+
+
+class ConsentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    purpose: ConsentPurpose
+    version: str = Field(max_length=10, examples=["v1"])
+    granted: bool
+
+
+class ConsentOut(BaseModel):
+    purpose: ConsentPurpose
+    version: str
+    granted: bool
+    granted_at: datetime | None
+    revoked_at: datetime | None
+
+
+class HouseholdSettings(BaseModel):
+    """The editable part of a household (also what PATCH accepts)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    diet: Diet
+    cuisine_tags: list[Cuisine] = Field(default_factory=list, max_length=5)
+    weekday_cook_minutes: CookMinutes = Field(examples=[30])
+    weekend_cook_minutes: CookMinutes = Field(examples=[60])
+    no_cook_days: list[Weekday] = Field(
+        default_factory=list, max_length=7, description="0 = Monday … 6 = Sunday"
+    )
+    budget_paise: int | None = Field(
+        default=None, ge=50_000, examples=[300_000], description="Monthly Budget Lock; null = off"
+    )
+
+    _unique_cuisines = field_validator("cuisine_tags")(_unique)
+    _unique_days = field_validator("no_cook_days")(_unique)
+
+
+class HouseholdIn(HouseholdSettings):
+    """Onboarding in one call: household, members, address and consents together."""
+
+    society_id: uuid.UUID
+    address: AddressIn
+    members: list[MemberIn] = Field(min_length=1, max_length=12)
+    consents: list[ConsentIn] = Field(max_length=5)
+
+    @field_validator("consents")
+    @classmethod
+    def _one_per_purpose(cls, value: list[ConsentIn]) -> list[ConsentIn]:
+        _unique([consent.purpose for consent in value])
+        return value
+
+
+class HouseholdUpdate(BaseModel):
+    """Only the fields sent change; `budget_paise: null` turns the Budget Lock off."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    diet: Diet | None = None
+    cuisine_tags: list[Cuisine] | None = Field(default=None, max_length=5)
+    weekday_cook_minutes: CookMinutes | None = None
+    weekend_cook_minutes: CookMinutes | None = None
+    no_cook_days: list[Weekday] | None = Field(default=None, max_length=7)
+    budget_paise: int | None = Field(default=None, ge=50_000)
+    autopilot_enabled: bool | None = None
+    auto_approve: bool | None = None
+
+    @field_validator("cuisine_tags", "no_cook_days")
+    @classmethod
+    def _unique_values(cls, value: list[Any] | None) -> list[Any] | None:
+        return None if value is None else _unique(value)
+
+    @model_validator(mode="after")
+    def _only_budget_may_be_null(self) -> Self:
+        for field in self.model_fields_set - {"budget_paise"}:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class HouseholdOut(BaseModel):
+    id: uuid.UUID
+    version: int
+    society_id: uuid.UUID
+    hub_id: uuid.UUID | None
+    size: int
+    diet: Diet
+    cuisine_tags: list[Cuisine]
+    weekday_cook_minutes: int
+    weekend_cook_minutes: int
+    no_cook_days: list[int]
+    budget_paise: int | None
+    autopilot_enabled: bool
+    auto_approve: bool
+    members: list[MemberOut]
+    address: AddressOut
+    created_at: datetime
