@@ -18,7 +18,7 @@
 | Pagination | Cursor-based: `?cursor=…&limit=…` → `next_cursor`. |
 | Idempotency | `Idempotency-Key` header **required** on every POST that creates money or orders. Stored in `platform.idempotency_keys` (key, user, request hash, response, 24 h TTL). |
 | Concurrency | `version` column + `If-Match` header for editing boxes, plans and prices (optimistic locking). |
-| Headers | `Authorization: Bearer <access>` (apps) or cookies + `X-GB-Client: web` (browsers), `X-Active-Role: captain:society_123`, `Accept-Language: hi-IN`. |
+| Headers | `Authorization: Bearer <access>`, `X-Active-Role: captain:society_123`, `Accept-Language: hi-IN`. |
 | Money | Integer paise (`amount_paise`), never floats. The UI formats Indian style (₹1,23,456). |
 | Time | ISO-8601 with offset. Business dates as `YYYY-MM-DD` in Asia/Kolkata. |
 | Webhooks in | Signature verified → raw payload stored (`billing.payment_webhooks`) → processed idempotently by a job. |
