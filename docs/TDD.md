@@ -217,7 +217,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Observability | structlog, OpenTelemetry |
 | Rate limiting | Own fixed-window counters in Valkey (requests allowed if Valkey is down; ADR-0024) |
 | Boundaries | import-linter ✓ independence contracts |
-| Tests | pytest + anyio, pytest-cov (85 % gate), httpx2 mock transports for outbound calls (not respx); hypothesis, time-machine, polyfactory and schemathesis added with their features |
+| Tests | pytest + anyio, pytest-cov (85 % gate), httpx2 mock transports for outbound calls (not respx); schemathesis fuzzing of every endpoint from `openapi.json`; hypothesis, time-machine and polyfactory added with their features |
 
 ### 3.6 ML and optimisation service (`backend/ml`)
 
@@ -633,7 +633,7 @@ Only `ci.yml` and `claude.yml` exist today; the other workflows are planned and 
 
 | Workflow | Trigger | Steps |
 |---|---|---|
-| `ci.yml` | PR, push to main | Python: Ruff, pyright, import-linter, pytest with the 85 % coverage gate against the project's Postgres image in Docker, `alembic check` (migrations match the models), `openapi.json` up to date. JS: Biome, build mobile + console + UI kit; "JS editor hints" (`checkJs`, informational, never blocks). Agent-docs sync check. gitleaks. Added as features land: single Alembic head + upgrade/downgrade round trip, `oasdiff breaking` vs main, regenerated api-client → no diff, schemathesis smoke. |
+| `ci.yml` | PR, push to main | Python: Ruff, pyright, import-linter, pytest with the 85 % coverage gate against the project's Postgres image in Docker, `alembic check` (migrations match the models), `openapi.json` up to date, schemathesis fuzzing of every endpoint. JS: Biome, regenerated api-client → no diff, api-client tests, build mobile + console + UI kit; "JS editor hints" (`checkJs`, informational, never blocks). Agent-docs sync check. gitleaks. Added as features land: `oasdiff breaking` vs main. (Single head and the upgrade/downgrade round trip run as pytest tests.) |
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code help; no automatic review |
 | `deploy-staging.yml` (planned, PR `chore/M0-deploy`) | Push to main, after CI passes | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook (Render's pre-deploy step is paid-only). Vercel deploys the PWA and console from Git. |
 | Jobs schedule workflow (planned) | GitHub Actions `schedule` | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (ADR-0021) |

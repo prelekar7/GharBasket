@@ -30,7 +30,7 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 |---|---|
 | root configs, `infra/`, `backend/`, `data/`, `.github/`, `scripts/` | Prathamesh Relekar |
 | `frontend/mobile`, `frontend/console` (UI), `frontend/packages/ui`, `frontend/packages/domain` | Yash Salunkhe |
-| `frontend/packages/api-client` | generated only (`just gen-api`), never hand-edited |
+| `frontend/packages/api-client` | `src/generated/` is generated only (`just gen-api`), never hand-edited; the small runtime in `src/index.js` is reviewed by both owners |
 | `e2e/`, `docs/` test plans and report material | Rhythm Thakur, Manish Raje |
 
 ## Commands

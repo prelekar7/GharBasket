@@ -498,6 +498,22 @@ async def test_granting_twice_keeps_one_active_consent_and_regranting_after_a_wi
     assert sum(row.revoked_at is None for row in rows) == 1
 
 
+@pytest.mark.parametrize("granted", [0, 1, "true", None])
+async def test_consent_must_be_an_explicit_true_or_false(
+    clients: ClientFactory, google: FakeGoogle, granted: Any
+) -> None:
+    api = clients()
+
+    response = await api.post(
+        "/v1/consents",
+        json={"purpose": "marketing", "version": "v1", "granted": granted},
+        headers=await customer(api, google),
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "request.invalid"
+
+
 async def test_an_old_notice_version_is_refused(clients: ClientFactory, google: FakeGoogle) -> None:
     api = clients()
 

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal, Self
 
 import phonenumbers
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
 
 from gharbasket.platform.geo import LatLng
 
@@ -247,7 +247,8 @@ class ConsentIn(BaseModel):
 
     purpose: ConsentPurpose
     version: str = Field(max_length=10, examples=["v1"])
-    granted: bool
+    # Consent must be explicit (DPDP): only JSON true or false, never 0/1 or "yes".
+    granted: StrictBool
 
 
 class ConsentOut(BaseModel):
