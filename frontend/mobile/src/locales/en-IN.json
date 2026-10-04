@@ -874,5 +874,25 @@
         }
       ]
     }
+  },
+  "notif": {
+    "title": "Notifications",
+    "settings": "What you get",
+    "unread": "unread",
+    "unreadCount": "{n} new",
+    "emptyTitle": "Nothing yet",
+    "emptyBody": "Your box, deliveries and money updates show here.",
+    "quiet": "No pushes from {from} to {to}, except your box arriving.",
+    "push": "On this phone",
+    "whatsapp": "On WhatsApp",
+    "whatsappNote": "Needs your WhatsApp consent (Profile › Privacy)",
+    "saved": "Saved",
+    "cat": {
+      "weekly_box": "Your weekly box",
+      "delivery": "Deliveries",
+      "money": "Wallet and payments",
+      "kindness": "Kindness",
+      "offers": "Offers"
+    }
   }
 }

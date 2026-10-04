@@ -25,6 +25,7 @@ import {
   useRevokeDevice,
   useUpdateMe,
 } from "@/features/identity/profile.js";
+import { useInbox } from "@/features/notifications/queries.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { shortDate, todayIst } from "@/features/subscriptions/format.js";
 import { LOCALES } from "@/i18n.js";
@@ -63,6 +64,7 @@ function Profile() {
   const wallet = useWallet();
   const update = useUpdateMe();
   const pause = usePause(household.data?.subscription.id);
+  const inbox = useInbox(lang);
   const changeAddress = useChangeAddress(household.data?.address_id);
   const [tower, setTower] = useState("");
   const [flatNo, setFlatNo] = useState("");
@@ -153,6 +155,12 @@ function Profile() {
           },
         ]
       : []),
+    {
+      key: "notifications",
+      label: t("notif.title"),
+      value: inbox.data?.unread ? t("notif.unreadCount", { n: inbox.data.unread }) : undefined,
+      onPress: () => navigate({ to: "/notifications" }),
+    },
     {
       key: "devices",
       label: t("profile.devices"),

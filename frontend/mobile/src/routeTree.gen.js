@@ -25,6 +25,7 @@ import { Route as AuthRiderRouteImport } from "./routes/_auth/rider"
 import { Route as LegalDocRouteImport } from "./routes/legal.$doc"
 import { Route as AuthCustomerBoxRouteImport } from "./routes/_auth/_customer/box"
 import { Route as AuthCustomerKindnessRouteImport } from "./routes/_auth/_customer/kindness"
+import { Route as AuthCustomerNotificationsRouteImport } from "./routes/_auth/_customer/notifications"
 import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer/orders"
 import { Route as AuthCustomerPartnerRouteImport } from "./routes/_auth/_customer/partner"
 import { Route as AuthCustomerProfileRouteImport } from "./routes/_auth/_customer/profile"
@@ -123,6 +124,12 @@ const AuthCustomerKindnessRoute = AuthCustomerKindnessRouteImport.update({
   path: "/kindness",
   getParentRoute: () => AuthCustomerRoute,
 })
+const AuthCustomerNotificationsRoute =
+  AuthCustomerNotificationsRouteImport.update({
+    id: "/notifications",
+    path: "/notifications",
+    getParentRoute: () => AuthCustomerRoute,
+  })
 const AuthCustomerOrdersRoute = AuthCustomerOrdersRouteImport.update({
   id: "/orders",
   path: "/orders",
@@ -224,6 +231,7 @@ const AuthCustomerWalletStatementRoute =
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
   AuthCustomerKindnessRoute: AuthCustomerKindnessRoute,
+  AuthCustomerNotificationsRoute: AuthCustomerNotificationsRoute,
   AuthCustomerOrdersRoute: AuthCustomerOrdersRoute,
   AuthCustomerPartnerRoute: AuthCustomerPartnerRoute,
   AuthCustomerProfileRoute: AuthCustomerProfileRoute,
