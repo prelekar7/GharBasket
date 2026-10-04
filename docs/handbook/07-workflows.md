@@ -18,7 +18,9 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 | T-3 18:30 | Box-ready notification + pre-debit notice | notify, billing | W2, W3 |
 | T-3 → T-1 21:00 | Customer views, edits, approves, skips | subscriptions | W2 |
 | T-1 19:00 | Reminder for unapproved boxes | notify | W2 |
-| **T-1 21:00** | **`cutoff_lock`** — lock orders, debit wallet / capture Autopay | orders, billing | W2, W3 |
+| T-1 20:55 | `apply_auto_approve` — approve for households that asked (notice ≥ 24 h before) | subscriptions | W2 |
+| **T-1 21:00** | **`cutoff_lock`** — lock orders, debit wallet / capture Autopay; unpaid → `payment_failed` with a 2 h grace | orders, billing | W2, W3 |
+| T-1 23:00 | `payment_grace_expiry` — still unpaid → cancelled (reason `payment`); the cycle mirrors it | orders → subscriptions | W3 |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops | W4 |
 | T-1 21:30 | `assign_kitchens` for tiffins on T | intel → partners | W6 |
 | T 04:00 | Buying at APMC Vashi / FPO, goods receipt, QC | ops | W4 |
