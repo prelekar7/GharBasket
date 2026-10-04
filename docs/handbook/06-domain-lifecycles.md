@@ -61,7 +61,7 @@ stateDiagram-v2
 | AWAITING_APPROVAL → APPROVED (auto) | Cut-off job | `auto_approve = true` and pre-debit notice sent ≥ 24 h earlier | `subscriptions.box_approved` | — |
 | AWAITING_APPROVAL → SKIPPED | Customer | Before cut-off | `subscriptions.box_skipped` | — |
 | APPROVED → LOCKED | Cut-off job (T-1 21:00) | Wallet balance sufficient or Autopay capture succeeded | `orders.locked` | wallet → unearned_revenue |
-| APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance or capture failed | `billing.payment_failed` | — |
+| APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance (`orders.payment_failed`) or an Autopay capture failed (`billing.payment_failed`, pilot) | `orders.payment_failed` | — |
 | PAYMENT_FAILED → CANCELLED | System timer | 2 h grace expired | `orders.cancelled` | — |
 | LOCKED → PICKING → PACKED | Packer | All lines scanned; shortages substituted or refunded | `orders.shortage_substituted`, `orders.packed` | partial refund if needed |
 | PACKED → DISPATCHED | Rider | Route started | `orders.dispatched` | — |
