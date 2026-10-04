@@ -150,3 +150,82 @@ class PantryQuantities(BaseModel):
     source: Literal["ml", "fallback"]
     model: str
     items: list[PantryQuantity]
+
+
+# --- POST /route/solve (M10 §3.4): one delivery slot's van routes ------------------------------
+
+
+class RoutePoint(BaseModel):
+    lat: float
+    lng: float
+
+
+class RouteFoodBank(RoutePoint):
+    window_start_s: int
+    window_end_s: int
+
+
+class RouteStop(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    orders: int = 0
+    kg_tenths: int = 0
+    crates: int = 0
+    empties: int = 0
+    donation_kg_tenths: int = 0
+    window_start_s: int
+    window_end_s: int
+
+
+class RouteVans(BaseModel):
+    count: int
+    capacity_kg: int = 400
+    capacity_crates: int = 24
+    traffic_factor: float = 1.5
+    reload_s: int = 1200
+
+
+class RouteRequest(BaseModel):
+    hub: RoutePoint
+    depart_s: int
+    return_by_s: int
+    stops: list[RouteStop] = Field(min_length=1)
+    food_bank: RouteFoodBank | None = None
+    vans: RouteVans
+    time_limit_s: float = 10.0
+
+
+class RouteStopOut(BaseModel):
+    id: str
+    kind: Literal["drop", "bank"]
+    eta_s: int
+    late_s: int = 0
+
+
+class RouteVanOut(BaseModel):
+    van: int
+    start_s: int
+    end_s: int
+    stops: list[RouteStopOut]
+
+
+class RouteSummary(BaseModel):
+    vans: int
+    km: float
+    cost_paise: int
+    on_time: float
+    late_min: float
+    problems: list[str] = Field(default_factory=list)
+
+
+class RoutePlan(BaseModel):
+    """The ML service's routes; `source` says whether the road network or straight lines priced
+    them. None from the gateway means the service did not answer: M7 keeps yesterday's order."""
+
+    status: Literal["solved", "fallback"]
+    source: Literal["osrm", "haversine"]
+    routes: list[RouteVanOut]
+    summary: RouteSummary
+    seconds: float
+    model: str

@@ -121,6 +121,29 @@ How much of each item a household goes through in a week, with an 80 % interval.
 - **Use (M3 §3.1 step 2):** for the daily-use items, once a household has one locked box, the twin's `mean` replaces the rule table's quantity (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`); the rule table alone drafts the first boxes. Recorded in `intel.predictions` (kind `pantry`).
 - **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training`; the formulas here stay.
 
+### 3.4 `POST /route/solve` (v0, M-F; from spike S-3)
+One delivery slot's van routes for a hub: a stop is a society (the captain does the last 50 metres). Stateless; the API (M7 through `intel_gateway.api.solve_routes`) sends the day's societies with their loads and windows and gets routes with ETAs back, recorded in `intel.predictions` (kind `route`, subject the hub).
+
+```
+  request:
+    "hub": { "lat", "lng" }, "depart_s": 23400, "return_by_s": 41400,      seconds after midnight IST
+    "stops": [ { "id": "<society id>", "lat", "lng", "orders", "kg_tenths", "crates", "empties",
+                 "donation_kg_tenths", "window_start_s": 25200, "window_end_s": 32400 } ],
+    "food_bank": { "lat", "lng", "window_start_s", "window_end_s" } | null,
+    "vans": { "count", "capacity_kg": 400, "capacity_crates": 24, "traffic_factor": 1.5, "reload_s": 1200 },
+    "service": { "drop_s": 240, "per_crate_s": 30 }, "cost": { "fixed_paise_per_van": 25000, "paise_per_km": 60,
+                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10
+  200:
+    "status": "solved" | "fallback",                 fallback = nearest neighbour, when the solver found no plan
+    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down
+    "routes": [ { "van", "start_s", "end_s", "stops": [ { "id", "kind": "drop" | "bank", "eta_s", "late_s" } ] } ],
+    "summary": { "vans", "km", "cost_paise", "on_time", "late_min", "problems": [] },   the checker's findings
+    "seconds", "model": "cvrptw-waves-v0"
+```
+- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, new vans only where needed. Each wave gets half the time limit.
+- **Checker:** every answer is replayed on the matrix (windows with waiting, loads at every stop, pairing, return time, reload gaps); `summary.problems` lists what fails, so M7 never publishes a route the checker rejects.
+- **Fallbacks:** OSRM down → haversine distances; no plan → nearest neighbour; the service down → the gateway returns `None` and M7 keeps the previous day's sequence (M7 §6).
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**

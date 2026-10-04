@@ -12,9 +12,16 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, pantry, registry
+from gharbasket_ml import __version__, pantry, registry, routing
 from gharbasket_ml.planner import plan_week
-from gharbasket_ml.schemas import PantryRequest, PantryResponse, PlanRequest, PlanResponse
+from gharbasket_ml.schemas import (
+    PantryRequest,
+    PantryResponse,
+    PlanRequest,
+    PlanResponse,
+    RouteRequest,
+    RouteResponse,
+)
 from gharbasket_ml.settings import Settings, get_settings
 
 _bearer = HTTPBearer(auto_error=False)
@@ -86,6 +93,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def pantry_quantities(body: PantryRequest) -> PantryResponse:
         return pantry.quantities(body)
+
+    @app.post(
+        "/route/solve",
+        dependencies=[Depends(require_service_token)],
+        summary="One delivery slot's van routes in two waves (CVRPTW with pickups, M10 §3.4)",
+    )
+    async def route_solve(
+        body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> RouteResponse:
+        nodes = routing.nodes_of(body)
+        points = [(n.lat, n.lng) for n in nodes]
+        matrix = await routing.osrm_matrix(settings.osrm_url, points) if settings.osrm_url else None
+        source = "osrm" if matrix is not None else "haversine"
+        if matrix is None:
+            matrix = routing.haversine_matrix(points)
+        inst = routing.Instance(nodes, matrix[0], matrix[1], body)
+        return await run_in_threadpool(routing.plan, inst, body.time_limit_s, source)
 
     @app.post(
         "/plan/week",
