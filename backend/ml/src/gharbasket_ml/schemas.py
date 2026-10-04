@@ -1,4 +1,4 @@
-"""Request and response of POST /plan/week (M10 §3.1)."""
+"""Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
 
 from typing import Literal
 
@@ -75,3 +75,46 @@ class PlanResponse(BaseModel):
     score: Score | None
     seconds: float
     model: str = "cpsat-v0"
+
+
+# --- POST /pantry/quantities (M10 §3.3) --------------------------------------------------------
+
+Tap = Literal["ran_out", "wasted", "just_right"]
+
+
+class PantryObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    qty: float = Field(ge=0, description="What the week's box carried, in base units")
+    signal: Tap | None = Field(default=None, description="The household's tap for that week")
+
+
+class PantryItemIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: str = Field(min_length=1, max_length=80, description="Product slug")
+    step: float = Field(gt=0, description="Base units in one step (the count unit)")
+    prior_mean: float = Field(ge=0, description="The cohort's weekly use in base units")
+    prior_weeks: float = Field(default=2.0, ge=0, le=52, description="The prior's weight")
+    observations: list[PantryObservation] = Field(default_factory=list, max_length=52)
+
+
+class PantryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[PantryItemIn] = Field(min_length=1, max_length=300)
+
+
+class PantryItemOut(BaseModel):
+    product: str
+    mean: float = Field(description="Weekly use to plan for, in base units")
+    p10: float
+    p90: float
+    weeks_observed: int
+    alpha: float
+    beta: float
+
+
+class PantryResponse(BaseModel):
+    items: list[PantryItemOut]
+    model: str = "pantry-gamma-poisson-v0"

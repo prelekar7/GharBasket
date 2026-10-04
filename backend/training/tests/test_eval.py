@@ -42,7 +42,7 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     random_ = next(r for r in runs if r.planner == "random")
     assert greedy.metrics["cost_paise"] <= random_.metrics["cost_paise"]  # it buys cheap
     assert 0 < pantry.rule_table_mae < 1 and len(pantry.cold_start) == 2  # weeks 2 and 3 predicted
-    assert all(0 < e < 1 for e in pantry.cold_start)
+    assert all(0 < e < 1 for e in pantry.cold_start) and len(pantry.twin) == 2
 
     built = report.build(runs, [pantry], args={"weeks": 1, "smoke": True})
     html_path, json_path = report.write(built, tmp_path)

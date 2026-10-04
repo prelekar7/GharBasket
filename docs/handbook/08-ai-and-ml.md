@@ -132,6 +132,7 @@ sequenceDiagram
 - **Cold start:** a new household starts at its cohort prior. We measure how many weeks until error drops below a threshold.
 - **Metrics:** quantity MAE (kg), calibration of 80% intervals, "ran out / wasted" rate. Baseline: a family-size rule table.
 - **Fallback:** rule table (family size → kg/week per category).
+- **Status (5 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` (SciPy percentiles) with the same closed form in the gateway's fallback; M3 drafts daily-use items from it after a household's first locked box; the eval harness scores it next to the rule table and a running mean (`just eval`). The NumPyro cohort refit is v1 (P4).
 
 ### M-B Next-basket candidate ranker
 - **Candidates:** TIFU-KNN personal and neighbour repeat items ∪ meal-plan ingredients ∪ seasonal/festival items.

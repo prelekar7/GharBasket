@@ -104,6 +104,23 @@ Every new field is optional; a request without them is a v0 request and gets a v
 - **Fallback:** the rule-based planner gains sides pairing and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
+### 3.3 `POST /pantry/quantities` (v0, the pantry twin; M-A)
+How much of each item a household goes through in a week, with an 80 % interval. Stateless: the gateway sends the cohort prior and the household's observations; `intel_gateway.fallback.pantry_quantities` computes the same mean with a normal interval when the service is unreachable.
+
+```
+  request:
+    "items": [ { "product": "milk", "step": 500,            base units in one step (the count unit)
+                 "prior_mean": 1400, "prior_weeks": 2,      the cohort's weekly use (the rule table today) and its weight
+                 "observations": [ { "qty": 1500, "signal": "ran_out" | "wasted" | "just_right" | null } ] } ]
+                                                            the last 12 locked boxes' quantities and taps, oldest first
+  200:
+    "items": [ { "product", "mean", "p10", "p90", "weeks_observed", "alpha", "beta" } ],
+    "model": "pantry-gamma-poisson-v0"
+```
+- **Model:** Gamma prior on the weekly rate (mean `prior_mean`, weight `prior_weeks`); each observed week adds the box's quantity in steps, corrected by the tap (ran out ×1.3, wasted ×0.7); the posterior is Gamma(α₀ + Σ counts, β₀ + weeks); `mean` is what the box carries, `p10`/`p90` the interval (SciPy's Gamma percentiles in the service, a normal approximation in the fallback).
+- **Use (M3 §3.1 step 2):** for the daily-use items, once a household has one locked box, the twin's `mean` replaces the rule table's quantity (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`); the rule table alone drafts the first boxes. Recorded in `intel.predictions` (kind `pantry`).
+- **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training`; the formulas here stay.
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**

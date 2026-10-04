@@ -6,14 +6,23 @@ slow, failing or refuses the token, a rule-based answer is returned instead, mar
 """
 
 import uuid
+from collections.abc import Callable
 from datetime import date
+from typing import Any
 
 import httpx2
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
-from gharbasket.modules.intel_gateway.schemas import PlanRequest, WeekPlan  # re-exported
+from gharbasket.modules.intel_gateway.schemas import (  # re-exported
+    PantryItem,
+    PantryObservation,
+    PantryQuantities,
+    PantryRequest,
+    PlanRequest,
+    WeekPlan,
+)
 from gharbasket.modules.intel_gateway.service import (
     latest_metrics,
     latest_prediction,
@@ -25,10 +34,15 @@ from gharbasket.platform.settings import Settings
 log = structlog.get_logger("gharbasket.intel_gateway")
 
 __all__ = [
+    "PantryItem",
+    "PantryObservation",
+    "PantryQuantities",
+    "PantryRequest",
     "PlanRequest",
     "WeekPlan",
     "latest_metrics",
     "latest_prediction",
+    "pantry_quantities",
     "plan_week",
     "price_spikes",
     "record_metrics",
@@ -62,6 +76,73 @@ async def plan_week(
             model_name=plan.model,
         )
     return plan
+
+
+async def pantry_quantities(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: PantryRequest,
+    *,
+    session: AsyncSession | None = None,
+    household_id: uuid.UUID | None = None,
+    for_date: date | None = None,
+) -> PantryQuantities:
+    """Weekly use per item from the pantry twin (M10 §3.3): the ML service if reachable, else
+    the same closed form in plain arithmetic. With `session`, `household_id` and `for_date` the
+    answer is kept in `intel.predictions` (kind `pantry`); the caller commits."""
+    answer = await _call(
+        http,
+        settings,
+        "/pantry/quantities",
+        request.model_dump(mode="json"),
+        parse=lambda body: PantryQuantities.model_validate({**body, "source": "ml"}),
+        fallback_to=lambda: fallback.pantry_quantities(request),
+        call="pantry_quantities",
+    )
+    if session is not None and household_id is not None and for_date is not None:
+        await service.record_prediction(
+            session,
+            kind="pantry",
+            subject_type="household",
+            subject_id=household_id,
+            for_date=for_date,
+            source=answer.source,
+            payload=answer.model_dump(mode="json", exclude={"source", "model"}),
+            model_name=answer.model,
+        )
+    return answer
+
+
+async def _call[T](
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    path: str,
+    body: dict[str, Any],
+    *,
+    parse: Callable[[dict[str, Any]], T],
+    fallback_to: Callable[[], T],
+    call: str,
+) -> T:
+    if not settings.ml_service_url:
+        return fallback_to()
+    headers = {}
+    if settings.ml_service_token is not None:
+        headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
+    request_id = structlog.contextvars.get_contextvars().get("request_id")
+    if request_id:
+        headers["X-Request-ID"] = str(request_id)
+    try:
+        response = await http.post(
+            f"{settings.ml_service_url.rstrip('/')}{path}",
+            json=body,
+            headers=headers,
+            timeout=settings.ml_timeout_s,
+        )
+        response.raise_for_status()
+        return parse(response.json())
+    except (httpx2.HTTPError, ValueError) as exc:
+        log.warning("ml_fallback", call=call, reason=type(exc).__name__)
+        return fallback_to()
 
 
 async def _plan_week(

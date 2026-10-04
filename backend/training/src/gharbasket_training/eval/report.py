@@ -37,6 +37,7 @@ def build(
     summary = summarise(planner_runs)
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
+    twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
     rule = estimate([r.rule_table_mae for r in pantry_runs])
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -50,10 +51,11 @@ def build(
         "pantry": {
             "rule_table_mae": rule.as_dict(),
             "cold_start_mae": [e.as_dict() for e in curve],
+            "twin_mae": [e.as_dict() for e in twin],
             # The twin's target: after four observed weeks (predicting the fifth).
             "target_mae_le_15pct_after_4_weeks": {
-                "value": curve[3].mean if len(curve) >= 4 else None,
-                "holds": len(curve) >= 4 and curve[3].mean <= 0.15,
+                "value": twin[3].mean if len(twin) >= 4 else None,
+                "holds": len(twin) >= 4 and twin[3].mean <= 0.15,
             },
         },
         "runs": {
@@ -90,6 +92,18 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             "details": details,
         }
     )
+    for k, e in enumerate(report["pantry"]["twin_mae"], start=1):
+        rows.append(
+            {
+                "model_name": "pantry_twin_v0",
+                "version": report["commit"],
+                "metric": f"mae_pct_week_{k}",
+                "value": e["mean"],
+                "split": "holdout",
+                "data_source": "synthetic",
+                "details": details,
+            }
+        )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -146,14 +160,15 @@ def to_html(report: dict[str, Any]) -> str:
         ],
     )
     curve = report["pantry"]["cold_start_mae"]
+    twin = report["pantry"]["twin_mae"]
     pantry = _table(
-        "RQ1 — pantry: the rule table and a running mean against the latent weekly use (MAE)",
-        ["estimator", "MAE"],
+        "RQ1 — pantry: predicting next week's use of the daily-use items (MAE as a share)",
+        ["observed weeks", "rule table", "running mean", "pantry twin v0"],
         [
-            ["family-size rule table", _cell(report["pantry"]["rule_table_mae"])],
+            ["0", _cell(report["pantry"]["rule_table_mae"]), "—", "—"],
             *(
-                [f"running mean of {k} week(s), predicting the next", _cell(e)]
-                for k, e in enumerate(curve, start=1)
+                [str(k), _cell(report["pantry"]["rule_table_mae"]), _cell(e), _cell(t)]
+                for k, (e, t) in enumerate(zip(curve, twin, strict=True), start=1)
             ),
         ],
     )

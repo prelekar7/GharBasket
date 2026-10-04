@@ -153,11 +153,14 @@ def lines_from_plan(
     *,
     fallback: bool,
     carried: dict[uuid.UUID, float] | None = None,
+    quantities: dict[uuid.UUID, tuple[float, dict[str, Any]]] | None = None,
 ) -> list[DraftLine]:
     """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
     rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
     `carried`: base units of staples the household bought in the last weeks (M3 §3.1 step 2):
-    what is still in the cupboard is not ordered again; perishables always are."""
+    what is still in the cupboard is not ordered again; perishables always are.
+    `quantities`: the pantry twin's weekly use per product (base units, with its params): it
+    replaces the rule table's quantity for daily-use items (`reason_code: pantry_low`)."""
     by_slug = {r.slug: r for r in catalog.recipes}
     needed: dict[uuid.UUID, float] = defaultdict(float)  # base units
     recipes_for: dict[uuid.UUID, set[str]] = defaultdict(set)
@@ -178,10 +181,15 @@ def lines_from_plan(
 
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
     daily = rules.daily_use_plan(equivalents)
+    twin: dict[uuid.UUID, dict[str, Any]] = {}
     for slug, base_units in daily.items():
         product = catalog.product_by_slug(slug)
-        if product is not None:
-            needed[product.id] += base_units
+        if product is None:
+            continue
+        if quantities and product.id in quantities:
+            base_units, params = quantities[product.id]
+            twin[product.id] = params
+        needed[product.id] += base_units
     fruits = [p for p in catalog.products.values() if p.kind == "fruit" and p.price_paise]
     fruits.sort(key=lambda p: (p.price_paise or 0, p.slug))
     per_fruit = (
@@ -200,7 +208,9 @@ def lines_from_plan(
             if base_units <= 0:
                 continue  # still in the cupboard
         qty = rules.steps_needed(base_units, product.step_qty, BASE_FACTOR[product.step_unit])
-        if product.slug in daily or product.kind == "fruit":
+        if product_id in twin:
+            reason, params, source = "pantry_low", twin[product_id], "ai"
+        elif product.slug in daily or product.kind == "fruit":
             reason, params, source = "daily_use", None, "rule"
         else:
             reason = "fallback_rules" if fallback else "meal_plan"
