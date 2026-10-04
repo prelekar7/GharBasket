@@ -121,7 +121,9 @@ POST /v1/hubs/{hub_id}/price-lists    hub_manager of that hub, or admin; Idempot
 | Substitute without a score | `score` (0 to 1) added; keep sorting by the order returned |
 | Language chosen by a mock parameter | `Accept-Language` from the app's language |
 
-### 3.2 Recipes and festival contract (frozen for S1)
+### 3.2 Recipes and festival contract (frozen for S1; `sides` and `is_side` added for S3)
+**Addition for S3 (planner v1, M10 §3.2):** a recipe may carry `"sides": ["chapati"]` (slugs of side recipes it is eaten with) and `"is_side": true` for recipes that are never planned alone (chapati, rice). `RecipeOut` and the seed gain both fields; `GET /v1/recipes?is_side=` filters. Nothing else changes.
+
 The meal planner (M10 M-C, spike S-4), the Week screen's dish names and the console read these. Same language, sign-in and price rules as §3.1.
 
 **Rules a recipe follows.**
