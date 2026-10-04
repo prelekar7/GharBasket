@@ -104,6 +104,10 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
+# Smoke test a deployed API, e.g. `infisical run --env=staging -- just cloud https://gharbasket-api.onrender.com`
+cloud url:
+    scripts/smoke-staging.sh {{url}}
+
 # Regenerate backend/api/openapi.json, then the JS client types from it (ADR-0022)
 gen-api: openapi
     pnpm --filter @gharbasket/api-client run generate

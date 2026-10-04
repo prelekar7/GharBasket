@@ -103,6 +103,23 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development |
 
+### How a change reaches staging
+1. A PR merges into `main`, and CI runs on the merge commit.
+2. When CI passes, `.github/workflows/deploy-staging.yml`:
+   - runs `alembic upgrade head` on Neon (the direct URL);
+   - calls the Render deploy hook with `?ref=<commit>`;
+   - waits until `/v1/health` reports that commit;
+   - runs the smoke test (`scripts/smoke-staging.sh`, also `just cloud <url>`).
+3. Render builds `backend/api/Dockerfile` (uv, Python 3.13, non-root) and starts uvicorn on `$PORT` with `--proxy-headers`. Render's own auto-deploy is off (`render.yaml`), so a commit is never deployed before its migrations.
+4. Migrations are expand-then-contract (add first, remove a release later), so the old API keeps working while they apply.
+
+**One-time setup (owner: Prathamesh Relekar):**
+1. Add `APP_ENV`, `JWT_SIGNING_KEY`, `REFRESH_TOKEN_PEPPER` (each `openssl rand -base64 48`) and `JOBS_TOKEN` to Infisical `staging`.
+2. Sign up to Render with GitHub and give it access to this repository only. Then Render → New → **Blueprint** → this repo, which reads `render.yaml`. Enter the `sync: false` values from Infisical.
+3. Copy the API's deploy hook (Settings → Deploy Hook).
+4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT`, `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL`.
+5. Add an UptimeRobot monitor on `/v1/health` every 10 minutes.
+
 ## 12.3 Database hosting and the latency note
 
 - **Neon** hosts one shared database for the Infisical `dev` and `staging` environments, with PostGIS and pgvector. There is no branch per PR.

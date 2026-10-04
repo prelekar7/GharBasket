@@ -470,6 +470,17 @@
       },
       "Health": {
         "properties": {
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
           "environment": {
             "title": "Environment",
             "type": "string"
@@ -492,7 +503,8 @@
           "status",
           "service",
           "version",
-          "environment"
+          "environment",
+          "commit"
         ],
         "title": "Health",
         "type": "object"

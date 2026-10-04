@@ -594,6 +594,8 @@ export interface components {
         };
         /** Health */
         Health: {
+            /** Commit */
+            commit: string | null;
             /** Environment */
             environment: string;
             /** Service */

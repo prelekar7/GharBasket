@@ -1,0 +1,55 @@
+# Render Blueprint for staging (ADR-0020): the API on a free web service and Valkey on the free
+# Key Value, both in Singapore next to Neon. Create it once with Render → New → Blueprint.
+#
+# Deploys are triggered by .github/workflows/deploy-staging.yml (after CI passes on main and the
+# migrations have run on Neon), not by Render on every push: free services have no pre-deploy step.
+# Values marked `sync: false` are entered in the Render dashboard from Infisical `staging`.
+
+services:
+  - type: web
+    name: gharbasket-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./backend/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /v1/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: LOG_JSON
+        value: "true"
+      - key: LOG_LEVEL
+        value: INFO
+      # Neon's pooled URL (the deploy workflow uses the direct one for migrations).
+      - key: DATABASE_URL
+        sync: false
+      - key: VALKEY_URL
+        fromService:
+          type: keyvalue
+          name: gharbasket-valkey
+          property: connectionString
+      - key: JWT_SIGNING_KEY
+        sync: false
+      - key: REFRESH_TOKEN_PEPPER
+        sync: false
+      - key: JOBS_TOKEN
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
+      - key: WEB_ORIGINS
+        sync: false
+      # Only the Capacitor Android app calls the API cross-origin; browsers use the Vercel rewrite.
+      - key: CORS_ALLOW_ORIGINS
+        value: https://localhost
+
+  - type: keyvalue
+    name: gharbasket-valkey
+    plan: free
+    region: singapore
+    # Empty list: reachable only from Render's private network (the API), never from outside.
+    ipAllowList: []
+    # Everything stored (rate-limit counters, the sign-out deny-list) expires on its own.
+    maxmemoryPolicy: volatile-ttl
