@@ -285,6 +285,20 @@
         "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
         "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
       }
+    },
+    "done": {
+      "title": "You’re all set. First box on {day}.",
+      "titleSoon": "You’re all set.",
+      "sub": "We’ll message you on Saturday evening when your box is ready to check.",
+      "delivery": "Delivery",
+      "address": "Address",
+      "wallet": "Wallet",
+      "free": "Free delivery",
+      "invite": "Delivery is free in your society. Invite a neighbour: you get a reward when their first box is delivered.",
+      "inviteCta": "Invite neighbours",
+      "cta": "Go to my week",
+      "shareText": "Join me on GharBasket in {society}: the week’s food, planned and delivered.",
+      "copied": "Invite link copied"
     }
   },
   "days": {

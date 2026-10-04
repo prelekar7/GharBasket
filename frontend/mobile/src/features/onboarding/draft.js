@@ -81,6 +81,7 @@ export const ONBOARDING_STEPS = [
   "/onboarding/consent",
   "/onboarding/preview",
   "/onboarding/payment",
+  "/onboarding/done",
 ];
 
 /** The household steps that show "Step N of 5" (designs Hf07–Hf11). */
