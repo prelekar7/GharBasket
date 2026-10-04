@@ -2,7 +2,14 @@
   "appId": "in.gharbasket.app",
   "appName": "GharBasket",
   "webDir": "dist",
+  "server": { "androidScheme": "https" },
   "android": {
     "allowMixedContent": false
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["phone"]
+    }
   }
 }

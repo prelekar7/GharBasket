@@ -6,7 +6,8 @@
     "invalid": "Enter the 10-digit mobile number",
     "failed": "We couldn’t sign you in. Check your internet and try again.",
     "cta": "Continue",
-    "dev": "Developer sign-in: the SMS code arrives after spike S-2."
+    "mock": "Test mode: no SMS is sent. Use code 123456.",
+    "sendFailed": "We couldn’t send the code. Check your internet and try again."
   },
   "role": {
     "title": "Continue as",
@@ -29,6 +30,317 @@
     "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas.",
     "fieldBody": "The {role} screens are designed at the start of Phase 3."
   },
-  "profile": { "language": "Language", "switchRole": "Switch role", "signOut": "Sign out" },
-  "assistant": "Ghar Saathi assistant"
+  "profile": {
+    "language": "Language",
+    "switchRole": "Switch role",
+    "signOut": "Sign out",
+    "signOutAll": "Sign out of all devices"
+  },
+  "assistant": "Ghar Saathi assistant",
+  "pwa": {
+    "updateTitle": "New version available",
+    "refresh": "Refresh"
+  },
+  "welcome": {
+    "title": "Ghar ka khana, bina tension.",
+    "sub": "Your family’s week of food, planned and delivered by your society.",
+    "langLabel": "Choose your language",
+    "cta": "Continue",
+    "later": "You can change this later in Profile."
+  },
+  "otp": {
+    "back": "Back",
+    "title": "Enter the code",
+    "sent": "Sent to {phone}",
+    "change": "Change number",
+    "legend": "6-digit code",
+    "auto": "Reading the SMS for you. On Android the code fills in by itself.",
+    "cta": "Verify",
+    "resendIn": "Didn’t get it? Resend in {time}",
+    "resend": "Resend code",
+    "resent": "New code sent",
+    "invalid": "That code isn’t right. Check the SMS and try again.",
+    "expired": "This code has expired. Send a new one.",
+    "tooMany": "Too many tries. Wait a few minutes and try again.",
+    "region": "We can’t send SMS to this number yet.",
+    "failed": "We couldn’t sign you in. Check your internet and try again."
+  },
+  "outbox": {
+    "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
+    "retry": "Try now"
+  },
+  "install": {
+    "title": "Install GharBasket",
+    "body": "Open your week from the home screen, even on a weak connection.",
+    "cta": "Install",
+    "later": "Not now",
+    "iosSteps": "Tap Share, then “Add to Home Screen”."
+  },
+  "onboarding": {
+    "back": "Back",
+    "continue": "Continue",
+    "error": "We couldn’t load this. Check your internet.",
+    "retry": "Try again",
+    "society": {
+      "title": "Which society do you live in?",
+      "search": "Search society or sector",
+      "placeholder": "e.g. Sunrise Towers",
+      "locate": "Use my location",
+      "near": "Near you",
+      "missing": "My society isn’t listed",
+      "km": "{km} km",
+      "captain": "Captain: {name}",
+      "joined": "{joined} of {target} homes joined",
+      "delivering": "Delivering",
+      "unlocking": "Unlocking",
+      "soon": "Coming soon"
+    },
+    "flat": {
+      "eyebrow": "Your address",
+      "tower": "Tower or wing",
+      "towerPh": "Choose your tower",
+      "flat": "Flat number",
+      "capTitle": "{name} is your Society Captain",
+      "capBody": "She lives in {flat}. She receives your society’s delivery and brings your box to your door."
+    },
+    "unlock": {
+      "count": "{joined} of {target} homes",
+      "remaining": "{n, plural, one {# more home} other {# more homes}} to unlock delivery. Invite a neighbour.",
+      "invite": "Invite neighbours",
+      "progress": "Homes joined"
+    },
+    "request": {
+      "title": "Request your society",
+      "sub": "Put the pin on your building. We’ll tell you when GharBasket starts there.",
+      "caption": "Drag the pin onto your building",
+      "name": "Society name",
+      "namePh": "e.g. Shree Ganesh CHS",
+      "area": "Sector or area",
+      "areaPh": "e.g. Sector 35, Kharghar",
+      "note": "The more neighbours who join from one society, the sooner delivery starts there.",
+      "cta": "Send request",
+      "sent": "Request sent. We’ll let you know."
+    },
+    "household": "Household",
+    "stepOf": "Step {step} of {total}",
+    "next": "Next",
+    "decrease": "Decrease",
+    "increase": "Increase",
+    "family": {
+      "title": "Who eats at home?",
+      "sub": "Autopilot plans portions for each person.",
+      "total": "{count, plural, one {# person} other {# people}}. You can add names and details later in Profile.",
+      "adults": "Adults",
+      "adultsAges": "18 to 59",
+      "seniors": "Seniors",
+      "seniorsAges": "60 and above",
+      "children": "Children",
+      "childrenAges": "5 to 17",
+      "little": "Little ones",
+      "littleAges": "Under 5"
+    },
+    "food": {
+      "title": "What does your family eat?",
+      "diet": "Diet",
+      "diets": {
+        "veg": "Veg",
+        "egg": "Eggetarian",
+        "nonveg": "Non-veg"
+      },
+      "cuisine": "Food you cook most",
+      "cuisines": {
+        "maharashtrian": "Maharashtrian",
+        "north_indian": "North Indian",
+        "gujarati": "Gujarati",
+        "south_indian": "South Indian",
+        "bengali": "Bengali"
+      },
+      "rules": "Food rules",
+      "jain": "Jain",
+      "jainDesc": "No onion, garlic or root vegetables",
+      "noOnion": "No onion and garlic on some days",
+      "fasting": "Fasting days",
+      "fastList": {
+        "shravan_mondays": "Shravan Mondays",
+        "ekadashi": "Ekadashi",
+        "navratri": "Navratri",
+        "tuesdays": "Tuesdays"
+      },
+      "fastNote": "On fasting days Autopilot plans upvas food like sabudana khichdi."
+    },
+    "health": {
+      "title": "Any health needs?",
+      "cTitle": "Health personalisation",
+      "why": "so Autopilot can plan, for example, low-sugar meals for someone with diabetes.",
+      "use1": "Only the tags you pick below",
+      "use2": "Never shared with cooks, riders or captains",
+      "use3": "Turn off any time in Profile › Privacy",
+      "version": "Consent v1",
+      "switchLabel": "Use health tags for planning",
+      "optional": "Optional",
+      "whyLead": "Why we ask: ",
+      "skip": "Skip this step",
+      "person": {
+        "adults": "Adult {n}",
+        "seniors": "Senior {n}",
+        "children": "Child {n}",
+        "little": "Little one {n}"
+      },
+      "tags": {
+        "diabetes": "Diabetes",
+        "high_bp": "High BP",
+        "high_protein": "High protein",
+        "weight_loss": "Weight loss",
+        "low_oil": "Low oil"
+      }
+    },
+    "cooking": {
+      "title": "How much time do you have to cook?",
+      "sub": "Busy days get quicker recipes or a cut-veg kit.",
+      "weekdays": "On weekdays",
+      "weekends": "On weekends",
+      "times": {
+        "m15": "15 min",
+        "m30": "30 min",
+        "m45": "45 min",
+        "m60": "1 hr+"
+      },
+      "noCook": "No-cook days",
+      "noCookNote": "We’ll suggest a tiffin from a home cook in your society on these days.",
+      "days": {
+        "d0": "Som",
+        "d1": "Mangal",
+        "d2": "Budh",
+        "d3": "Guru",
+        "d4": "Shukra",
+        "d5": "Shani",
+        "d6": "Ravi"
+      }
+    },
+    "budget": {
+      "optional": "Optional",
+      "title": "Fix your monthly sabzi bill?",
+      "sub": "With Budget Lock, Autopilot swaps in a similar vegetable when prices spike, so you stay within budget.",
+      "toggle": "Turn on Budget Lock",
+      "amount": "Monthly budget for vegetables",
+      "exTitle": "How it works",
+      "exBody": "Tomato is up 40% this week. Autopilot uses lauki in two meals instead and shows why on your box.",
+      "exChip": "Tomato +40% → lauki in 2 meals",
+      "later": "Not now",
+      "min": "Set at least {amount}"
+    },
+    "consent": {
+      "title": "Your data, your choice",
+      "sub": "Here’s what we use and why. Change any of it later in Profile › Privacy.",
+      "needed": "Needed to deliver",
+      "accTitle": "Account and delivery",
+      "accBody": "Phone, address and household size, so we can plan and deliver your box.",
+      "always": "Always on",
+      "optional": "Optional",
+      "health": "Health personalisation",
+      "healthDesc": "Health tags you picked, used only for meal planning.",
+      "whatsapp": "WhatsApp updates",
+      "whatsappDesc": "Box ready, payment notices and delivery updates.",
+      "insights": "Improve plans for my society",
+      "insightsDesc": "Your edits, without your name, help plan better boxes for neighbours.",
+      "pre": "Read the full ",
+      "notice": "privacy notice",
+      "post": ". You can download or delete your data any time.",
+      "cta": "Agree and continue",
+      "failed": "We couldn’t save your household. Check your internet and try again."
+    },
+    "preview": {
+      "eyebrow": "Autopilot · sample week",
+      "title": "Here’s your first week",
+      "sub": "Planned for families like yours. It learns from every edit.",
+      "why": "Why these meals",
+      "box": "Sabzi box · {count, plural, one {# item} other {# items}}",
+      "when": "{day}, {range}",
+      "within": "within your {budget} Budget Lock",
+      "cta": "Looks good, continue",
+      "edit": "Change something first"
+    },
+    "payment": {
+      "title": "How do you want to pay?",
+      "sub": "Each week’s box is paid at the cut-off, 9 PM the day before delivery.",
+      "wallet": "GharBasket wallet",
+      "recommended": "Recommended",
+      "walletDesc": "Top up with UPI once. Each box is paid from the wallet, and refunds come back here instantly.",
+      "autopay": "UPI Autopay",
+      "autopayDesc": "Charged per box. We send a notice 24 hours before every charge. Cancel any time.",
+      "first": "First top-up",
+      "other": "Other",
+      "rules": "Usable only on GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request.",
+      "amount": "Top-up amount",
+      "ctaWallet": "Top up {amount} with UPI",
+      "ctaAutopay": "Set up UPI Autopay",
+      "description": "Wallet top-up",
+      "testTitle": "Test payment of {amount}?",
+      "testPay": "Pay {amount} (test)",
+      "testCancel": "Cancel",
+      "testBody": "Test mode: no real money moves. Razorpay Checkout replaces this once spike S-1 is done.",
+      "errors": {
+        "generic": "Payment didn’t go through. No money was taken. Try again.",
+        "billing_topup_too_small": "Top up at least ₹100",
+        "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
+        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
+      }
+    },
+    "done": {
+      "title": "You’re all set. First box on {day}.",
+      "titleSoon": "You’re all set.",
+      "sub": "We’ll message you on Saturday evening when your box is ready to check.",
+      "delivery": "Delivery",
+      "address": "Address",
+      "wallet": "Wallet",
+      "free": "Free delivery",
+      "invite": "Delivery is free in your society. Invite a neighbour: you get a reward when their first box is delivered.",
+      "inviteCta": "Invite neighbours",
+      "cta": "Go to my week",
+      "shareText": "Join me on GharBasket in {society}: the week’s food, planned and delivered.",
+      "copied": "Invite link copied"
+    }
+  },
+  "days": {
+    "short": {
+      "d0": "Som",
+      "d1": "Mangal",
+      "d2": "Budh",
+      "d3": "Guru",
+      "d4": "Shukra",
+      "d5": "Shani",
+      "d6": "Ravi"
+    },
+    "long": {
+      "d0": "Monday",
+      "d1": "Tuesday",
+      "d2": "Wednesday",
+      "d3": "Thursday",
+      "d4": "Friday",
+      "d5": "Saturday",
+      "d6": "Sunday"
+    }
+  },
+  "week": {
+    "label": "This week",
+    "today": "Aaj",
+    "skip": "Skip",
+    "slot": {
+      "lunch": "Lunch",
+      "dinner": "Dinner"
+    }
+  },
+  "reasons": {
+    "in_season": "{item} is in season",
+    "tiffin_day": "{weekday}: tiffin by {cook}",
+    "health_tag": "{tag} for {member}",
+    "price_spike": "{item} +{pct}% this week",
+    "high_protein": "High protein for {member}",
+    "tags": {
+      "low_sugar": "Low sugar",
+      "low_salt": "Low salt",
+      "low_oil": "Low oil",
+      "high_protein": "High protein"
+    }
+  }
 }

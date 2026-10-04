@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from "./routes/__root"
 import { Route as IndexRouteImport } from "./routes/index"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as LoginRouteImport } from "./routes/login"
+import { Route as OtpRouteImport } from "./routes/otp"
 import { Route as RoleRouteImport } from "./routes/role"
+import { Route as WelcomeRouteImport } from "./routes/welcome"
 import { Route as AuthCustomerRouteImport } from "./routes/_auth/_customer"
 import { Route as AuthCaptainRouteImport } from "./routes/_auth/captain"
 import { Route as AuthKitchenRouteImport } from "./routes/_auth/kitchen"
@@ -23,6 +25,18 @@ import { Route as AuthCustomerKindnessRouteImport } from "./routes/_auth/_custom
 import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer/orders"
 import { Route as AuthCustomerProfileRouteImport } from "./routes/_auth/_customer/profile"
 import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/week"
+import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
+import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
+import { Route as AuthOnboardingCookingRouteImport } from "./routes/_auth/onboarding/cooking"
+import { Route as AuthOnboardingDoneRouteImport } from "./routes/_auth/onboarding/done"
+import { Route as AuthOnboardingFamilyRouteImport } from "./routes/_auth/onboarding/family"
+import { Route as AuthOnboardingFlatRouteImport } from "./routes/_auth/onboarding/flat"
+import { Route as AuthOnboardingFoodRouteImport } from "./routes/_auth/onboarding/food"
+import { Route as AuthOnboardingHealthRouteImport } from "./routes/_auth/onboarding/health"
+import { Route as AuthOnboardingPaymentRouteImport } from "./routes/_auth/onboarding/payment"
+import { Route as AuthOnboardingPreviewRouteImport } from "./routes/_auth/onboarding/preview"
+import { Route as AuthOnboardingRequestRouteImport } from "./routes/_auth/onboarding/request"
+import { Route as AuthOnboardingSocietyRouteImport } from "./routes/_auth/onboarding/society"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -38,9 +52,19 @@ const LoginRoute = LoginRouteImport.update({
   path: "/login",
   getParentRoute: () => rootRouteImport,
 })
+const OtpRoute = OtpRouteImport.update({
+  id: "/otp",
+  path: "/otp",
+  getParentRoute: () => rootRouteImport,
+})
 const RoleRoute = RoleRouteImport.update({
   id: "/role",
   path: "/role",
+  getParentRoute: () => rootRouteImport,
+})
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: "/welcome",
+  path: "/welcome",
   getParentRoute: () => rootRouteImport,
 })
 const AuthCustomerRoute = AuthCustomerRouteImport.update({
@@ -92,6 +116,66 @@ const AuthCustomerWeekRoute = AuthCustomerWeekRouteImport.update({
   path: "/week",
   getParentRoute: () => AuthCustomerRoute,
 })
+const AuthOnboardingBudgetRoute = AuthOnboardingBudgetRouteImport.update({
+  id: "/onboarding/budget",
+  path: "/onboarding/budget",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingConsentRoute = AuthOnboardingConsentRouteImport.update({
+  id: "/onboarding/consent",
+  path: "/onboarding/consent",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingCookingRoute = AuthOnboardingCookingRouteImport.update({
+  id: "/onboarding/cooking",
+  path: "/onboarding/cooking",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingDoneRoute = AuthOnboardingDoneRouteImport.update({
+  id: "/onboarding/done",
+  path: "/onboarding/done",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingFamilyRoute = AuthOnboardingFamilyRouteImport.update({
+  id: "/onboarding/family",
+  path: "/onboarding/family",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingFlatRoute = AuthOnboardingFlatRouteImport.update({
+  id: "/onboarding/flat",
+  path: "/onboarding/flat",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingFoodRoute = AuthOnboardingFoodRouteImport.update({
+  id: "/onboarding/food",
+  path: "/onboarding/food",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingHealthRoute = AuthOnboardingHealthRouteImport.update({
+  id: "/onboarding/health",
+  path: "/onboarding/health",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingPaymentRoute = AuthOnboardingPaymentRouteImport.update({
+  id: "/onboarding/payment",
+  path: "/onboarding/payment",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingPreviewRoute = AuthOnboardingPreviewRouteImport.update({
+  id: "/onboarding/preview",
+  path: "/onboarding/preview",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingRequestRoute = AuthOnboardingRequestRouteImport.update({
+  id: "/onboarding/request",
+  path: "/onboarding/request",
+  getParentRoute: () => AuthRoute,
+})
+const AuthOnboardingSocietyRoute = AuthOnboardingSocietyRouteImport.update({
+  id: "/onboarding/society",
+  path: "/onboarding/society",
+  getParentRoute: () => AuthRoute,
+})
 
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
@@ -111,6 +195,18 @@ const AuthRouteChildren = {
   AuthKitchenRoute: AuthKitchenRoute,
   AuthPackerRoute: AuthPackerRoute,
   AuthRiderRoute: AuthRiderRoute,
+  AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,
+  AuthOnboardingConsentRoute: AuthOnboardingConsentRoute,
+  AuthOnboardingCookingRoute: AuthOnboardingCookingRoute,
+  AuthOnboardingDoneRoute: AuthOnboardingDoneRoute,
+  AuthOnboardingFamilyRoute: AuthOnboardingFamilyRoute,
+  AuthOnboardingFlatRoute: AuthOnboardingFlatRoute,
+  AuthOnboardingFoodRoute: AuthOnboardingFoodRoute,
+  AuthOnboardingHealthRoute: AuthOnboardingHealthRoute,
+  AuthOnboardingPaymentRoute: AuthOnboardingPaymentRoute,
+  AuthOnboardingPreviewRoute: AuthOnboardingPreviewRoute,
+  AuthOnboardingRequestRoute: AuthOnboardingRequestRoute,
+  AuthOnboardingSocietyRoute: AuthOnboardingSocietyRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -119,6 +215,8 @@ const rootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
+  OtpRoute: OtpRoute,
   RoleRoute: RoleRoute,
+  WelcomeRoute: WelcomeRoute,
 }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)

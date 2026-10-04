@@ -18,7 +18,7 @@ const tab = tv({
 });
 
 /** @type {Record<string, string>} */
-const ROLE_INK = {
+export const ROLE_INK = {
   customer: "var(--gb-primary)",
   captain: "var(--gb-accent-text)",
   kitchen: "var(--gb-danger)",

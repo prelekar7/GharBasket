@@ -1,4 +1,4 @@
-import { Placeholder } from "../../../../components/Placeholder.jsx";
+import { Placeholder } from "@/components/Placeholder.jsx";
 
 export const metadata = { title: "P&L" };
 

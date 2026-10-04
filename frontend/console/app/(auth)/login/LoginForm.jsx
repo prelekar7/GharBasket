@@ -3,7 +3,7 @@
 import { Button } from "@gharbasket/ui";
 import { useSearchParams } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { ROLES } from "../../../lib/session.js";
+import { ROLES } from "@/lib/session.js";
 import { signIn } from "./actions.js";
 
 /** @param {{ label: string }} props */

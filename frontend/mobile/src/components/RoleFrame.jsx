@@ -1,5 +1,6 @@
 import { EmptyState } from "@gharbasket/ui";
 import { useTranslation } from "react-i18next";
+import { OutboxBanner } from "./OutboxBanner.jsx";
 
 /** @type {Record<import("../lib/api.js").FieldRole, string>} */
 const BAR = {
@@ -18,6 +19,7 @@ export function RoleFrame({ userRole, children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] text-fg">
       <div aria-hidden className={`h-[3px] shrink-0 ${BAR[userRole]}`} />
+      <OutboxBanner />
       {children}
     </div>
   );
