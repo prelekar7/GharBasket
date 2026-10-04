@@ -148,6 +148,8 @@ class RecipeSummary(BaseModel):
     diet: Literal["veg", "egg"]
     rules: RecipeRules
     tags: list[str]
+    is_side: bool = Field(description="Eaten with a main (chapati, rice); never planned alone")
+    sides: list[str] = Field(description="Slugs of side recipes this one is eaten with")
 
 
 class IngredientOut(BaseModel):

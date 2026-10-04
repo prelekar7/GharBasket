@@ -15,7 +15,6 @@ from gharbasket_sim.catalog import (
     Festival,
     Ingredient,
     Product,
-    is_side,
 )
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +48,7 @@ def json_catalog() -> Catalog:
     for r in sorted(
         json.loads((SEED / "recipes.json").read_text())["recipes"], key=lambda r: r["slug"]
     ):
-        if is_side(r["tags"]):
+        if r.get("is_side"):
             continue
         tags = set().union(*(products[i["product"]].tags for i in r["ingredients"]))
         no_onion_garlic = "onion_garlic" not in tags

@@ -52,9 +52,9 @@ class Catalog:
         return sorted(slug for slug, p in self.products.items() if p.kind == "fruit")
 
 
-def is_side(tags: list[str]) -> bool:
-    """Chapati is eaten with a sabzi or dal, not planned as a meal (S-4 note)."""
-    return tags == ["roti"]
+def is_side(recipe: Any) -> bool:
+    """Chapati is eaten with a sabzi or dal, not planned as a meal (M2 §3.2)."""
+    return bool(getattr(recipe, "is_side", False))
 
 
 async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: date) -> Catalog:
@@ -90,7 +90,7 @@ async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: dat
     recipes: list[dict[str, Any]] = []
     ingredients: dict[str, tuple[Ingredient, ...]] = {}
     for recipe in sorted(found, key=lambda r: r.slug):
-        if is_side(recipe.tags):
+        if is_side(recipe):
             continue
         _, items = await catalog_recipes.get_recipe(session, recipe.id)
         cost = await catalog_recipes.cost_per_serving(session, items, hub_id)

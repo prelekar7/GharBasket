@@ -122,7 +122,8 @@
           "unit": "bunch",
           "optional": true
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "bhindi-masala",
@@ -181,7 +182,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "bhindi-sukhi",
@@ -228,7 +230,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "aloo-gobi",
@@ -305,7 +308,8 @@
           "unit": "bunch",
           "optional": true
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "palak-paneer",
@@ -376,7 +380,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "methi-thepla",
@@ -642,7 +647,8 @@
           "unit": "bunch",
           "optional": true
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "pithla-bhakri",
@@ -778,7 +784,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "dudhi-chana-dal",
@@ -837,7 +844,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "moong-dal-khichdi",
@@ -949,7 +957,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "egg-curry",
@@ -1073,7 +1082,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "gajar-matar",
@@ -1126,7 +1136,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     },
     {
       "slug": "chapati",
@@ -1161,7 +1172,8 @@
           "unit": "ml",
           "optional": true
         }
-      ]
+      ],
+      "is_side": true
     },
     {
       "slug": "kakdi-koshimbir",
@@ -1302,7 +1314,8 @@
           "unit": "ml",
           "optional": false
         }
-      ]
+      ],
+      "sides": ["chapati"]
     }
   ]
 }

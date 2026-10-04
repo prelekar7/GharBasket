@@ -56,6 +56,8 @@ class RecipeData:
     diabetic_ok: bool
     ingredients: tuple[IngredientData, ...]
     tags: tuple[str, ...] = ()
+    is_side: bool = False
+    sides: tuple[str, ...] = ()  # slugs of side recipes, saved before this one
     data_source: str = "real"
 
 
@@ -89,6 +91,16 @@ async def save_recipe(session: AsyncSession, data: RecipeData) -> tuple[Recipe, 
                 f"{BASE_UNIT[product.step_unit][0]}, not {ingredient.unit}"
             )
     diet, jain_ok, no_onion_garlic = derived_rules([set(p.tags) for p in products.values()])
+    if data.sides:
+        known = set(
+            (
+                await session.execute(
+                    select(Recipe.slug).where(Recipe.slug.in_(data.sides), Recipe.is_side)
+                )
+            ).scalars()
+        )
+        if unknown := sorted(set(data.sides) - known):
+            raise ValueError(f"recipe {data.slug}: sides must be saved side recipes: {unknown}")
 
     recipe = (
         await session.execute(select(Recipe).where(Recipe.slug == data.slug))
@@ -110,6 +122,8 @@ async def save_recipe(session: AsyncSession, data: RecipeData) -> tuple[Recipe, 
         "diabetic_ok": data.diabetic_ok,
     }
     recipe.tags = list(data.tags)
+    recipe.is_side = data.is_side
+    recipe.sides = list(data.sides)
     recipe.data_source = data.data_source
     await session.flush()
     await session.execute(delete(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe.id))
@@ -160,9 +174,12 @@ async def list_recipes(
     fasting_ok: bool | None,
     cursor: str | None,
     limit: int,
+    is_side: bool | None = None,
 ) -> tuple[list[Recipe], str | None]:
     english = Recipe.names["en"].astext
     stmt = select(Recipe).where(Recipe.active)
+    if is_side is not None:
+        stmt = stmt.where(Recipe.is_side == is_side)
     if cuisine:
         stmt = stmt.where(Recipe.cuisine == cuisine)
     if slot:
