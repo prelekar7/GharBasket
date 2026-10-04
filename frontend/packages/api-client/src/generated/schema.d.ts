@@ -282,6 +282,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The registered jobs (operator token) */
+        get: operations["list_jobs_v1_internal_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/jobs/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a job now (operator token); the trigger for schedules and crons */
+        post: operations["trigger_job_v1_internal_jobs__name__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -1070,6 +1104,55 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** JobOut */
+        JobOut: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** JobRunOut */
+        JobRunOut: {
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Scheduled For
+             * Format: date-time
+             */
+            scheduled_for: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Status
+             * @description ok, failed or skipped (already running)
+             */
+            status: string;
+            /** Summary */
+            summary: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** JobTrigger */
+        JobTrigger: {
+            /**
+             * Scheduled For
+             * @description The time this run is for (business rules use it); default: now
+             * @example 2026-11-02T15:30:00Z
+             */
+            scheduled_for?: string | null;
         };
         /**
          * LatLng
@@ -3058,6 +3141,106 @@ export interface operations {
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_jobs_v1_internal_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOut"][];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    trigger_job_v1_internal_jobs__name__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobTrigger"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobRunOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.operator_token_required (problem+json) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.job_unknown (problem+json) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.job_failed, with the run id (problem+json) */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

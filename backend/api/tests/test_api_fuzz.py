@@ -103,7 +103,9 @@ def api_schema(fuzz_app: FastAPI) -> schemathesis.BaseSchema:
 
 # Left out: sign-in and sign-out (fuzzing them would sign the fuzzer itself out; tests/identity
 # covers them) and the operator endpoint /v1/ready (open in dev, token-protected when deployed).
-schema = schemathesis.pytest.from_fixture("api_schema").exclude(path_regex=r"^/v1/(auth/|ready$)")
+schema = schemathesis.pytest.from_fixture("api_schema").exclude(
+    path_regex=r"^/v1/(auth/|ready$|internal/)"
+)
 
 SKIPPED_CHECKS = [
     # "Valid by the schema" data still breaks business rules (unknown society, Jain needs veg):

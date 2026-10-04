@@ -1,0 +1,73 @@
+# Scheduled jobs on staging (ADR-0021): GitHub Actions calls the API's internal job endpoints with
+# JOBS_TOKEN. Daily and weekly jobs live here; minute-level timing (the 21:00 cut-off, the outbox
+# sweep every few minutes) comes from an external HTTPS cron (cron-job.org) hitting the same
+# endpoints, because a private repository has 2,000 free Actions minutes a month.
+#
+# Cron minutes are off the hour: GitHub starts :00 schedules late under load. Business rules use
+# `scheduled_for`, which this workflow sends, so a late start changes nothing.
+# Needs the repository secrets STAGING_API_URL and JOBS_TOKEN; until they exist it skips.
+name: Scheduled jobs (staging)
+
+on:
+  schedule:
+    - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
+    - cron: "17 * * * *" # hourly safety net: outbox_sweep
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job name (e.g. outbox_sweep)
+        required: true
+        type: string
+      scheduled_for:
+        description: ISO time the run is for (default now)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobs-staging
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: Call the job endpoint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STAGING_API_URL: ${{ secrets.STAGING_API_URL }}
+      JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
+    steps:
+      - name: Pick the job for this trigger
+        id: pick
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_JOB: ${{ inputs.job }}
+          INPUT_FOR: ${{ inputs.scheduled_for }}
+        run: |
+          if [ -z "$STAGING_API_URL" ] || [ -z "$JOBS_TOKEN" ]; then
+            echo "::notice::Staging is not configured yet (STAGING_API_URL, JOBS_TOKEN). Skipping."
+            exit 0
+          fi
+          case "$SCHEDULE" in
+            "33 22 * * *") job=cleanup_idempotency_keys ;;
+            "17 * * * *") job=outbox_sweep ;;
+            "") job="$INPUT_JOB" ;;
+            *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;
+          esac
+          echo "job=$job" >> "$GITHUB_OUTPUT"
+          echo "for=${INPUT_FOR:-$(date -u +%Y-%m-%dT%H:%M:00Z)}" >> "$GITHUB_OUTPUT"
+
+      - name: Run it
+        if: steps.pick.outputs.job != ''
+        env:
+          JOB: ${{ steps.pick.outputs.job }}
+          FOR: ${{ steps.pick.outputs.for }}
+        run: |
+          # --fail-with-body: a failed job answers 500 problem+json with the run id, shown here.
+          curl --silent --show-error --fail-with-body --max-time 300 \
+            -X POST "$STAGING_API_URL/v1/internal/jobs/$JOB" \
+            -H "Authorization: Bearer $JOBS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"scheduled_for\": \"$FOR\"}"
