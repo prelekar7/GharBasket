@@ -47,7 +47,7 @@ function Done() {
   const tower = society?.towers.find((tw) => tw.id === towerId);
 
   const invite = async () => {
-    const url = `${location.origin}/s/${societyId}`;
+    const url = `${location.origin}/s/${society?.slug ?? ""}`;
     const text = t("onboarding.done.shareText", { society: society?.name ?? "" });
     try {
       if (navigator.share) await navigator.share({ title: "GharBasket", text, url });

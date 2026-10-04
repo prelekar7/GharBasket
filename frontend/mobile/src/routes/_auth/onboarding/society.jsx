@@ -34,6 +34,15 @@ function SocietyPicker() {
   const items = data?.items ?? [];
   const selected =
     societyId && items.some((s) => s.id === societyId) ? societyId : (items[0]?.id ?? "");
+  /** A different society has different towers, so its tower and flat start empty. @param {string} id */
+  const choose = (id) => id !== societyId && update({ societyId: id, towerId: null, flat: "" });
+  /** @type {Record<import("@/features/community/queries.js").SocietyStatus, string>} */
+  const BADGE = {
+    live: "onboarding.society.delivering",
+    unlocking: "onboarding.society.unlocking",
+    prospect: "onboarding.society.soon",
+    paused: "onboarding.society.soon",
+  };
 
   const locate = () =>
     navigator.geolocation?.getCurrentPosition(
@@ -55,7 +64,7 @@ function SocietyPicker() {
             block
             isDisabled={!selected}
             onPress={() => {
-              update({ societyId: selected });
+              choose(selected);
               navigate({ to: nextStep("/onboarding/society") });
             }}
           >
@@ -103,30 +112,17 @@ function SocietyPicker() {
         <RadioCards
           label={t("onboarding.society.near")}
           value={selected}
-          onChange={(id) => update({ societyId: id })}
+          onChange={choose}
           options={items.map((s) => ({
             value: s.id,
             title: s.name,
             description: [
               s.area,
-              t("onboarding.society.km", { km: km(s.distance_m) }),
-              s.captain
-                ? t("onboarding.society.captain", { name: s.captain.name })
-                : s.unlock.joined > 0
-                  ? t("onboarding.society.joined", {
-                      joined: s.unlock.joined,
-                      target: s.unlock.threshold,
-                    })
-                  : null,
+              s.distance_m === null ? null : t("onboarding.society.km", { km: km(s.distance_m) }),
             ]
               .filter(Boolean)
               .join(" · "),
-            badge:
-              s.status === "live"
-                ? t("onboarding.society.delivering")
-                : s.unlock.joined > 0
-                  ? t("onboarding.society.unlocking")
-                  : t("onboarding.society.soon"),
+            badge: t(BADGE[s.status]),
           }))}
         />
       )}

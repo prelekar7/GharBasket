@@ -3,10 +3,14 @@ import { MedalIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { useSociety } from "@/features/community/queries.js";
+import { useSociety, useSocietyUnlock } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
-/** Tower and flat in the chosen society, and who its captain is (design Hf06). */
+/**
+ * Tower and flat in the chosen society (design Hf06). The captain card shows only when the API
+ * returns one (residents only, never her flat); otherwise a society that isn't live shows how
+ * close it is to unlocking.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/flat")({
   beforeLoad: () => {
@@ -20,6 +24,9 @@ function FlatStep() {
   const navigate = useNavigate();
   const { societyId, towerId, flat, update } = useOnboardingDraft();
   const { data: society, isPending, isError, refetch } = useSociety(societyId ?? undefined);
+  const { data: unlock } = useSocietyUnlock(
+    society && society.status !== "live" ? society.id : undefined,
+  );
   const valid = !!towerId && /^[A-Za-z0-9-]{1,8}$/.test(flat.trim());
 
   return (
@@ -64,10 +71,10 @@ function FlatStep() {
           />
           <TextField
             label={t("onboarding.flat.flat")}
-            inputMode="numeric"
+            inputMode="text"
             autoComplete="off"
             value={flat}
-            onChange={(v) => update({ flat: v })}
+            onChange={(v) => update({ flat: v.toUpperCase() })}
           />
           {society.captain ? (
             <section className="flex items-start gap-3.5 rounded-md bg-surface p-4">
@@ -75,30 +82,32 @@ function FlatStep() {
                 <MedalIcon aria-hidden size={28} />
               </div>
               <div className="flex flex-col gap-0.5">
-                <strong>{t("onboarding.flat.capTitle", { name: society.captain.name })}</strong>
+                <strong>
+                  {t("onboarding.flat.capTitle", { name: society.captain.display_name })}
+                </strong>
                 <p className="text-sm leading-[22px] text-fg-secondary">
-                  {t("onboarding.flat.capBody", { flat: society.captain.flat })}
+                  {t("onboarding.flat.capBody")}
                 </p>
               </div>
             </section>
-          ) : (
+          ) : unlock ? (
             <SocietyUnlockBar
               society={society.name}
-              joined={society.unlock.joined}
-              target={society.unlock.threshold}
+              joined={unlock.joined}
+              target={unlock.threshold}
               labels={{
                 count: t("onboarding.unlock.count", {
-                  joined: society.unlock.joined,
-                  target: society.unlock.threshold,
+                  joined: unlock.joined,
+                  target: unlock.threshold,
                 }),
                 remaining: t("onboarding.unlock.remaining", {
-                  n: society.unlock.threshold - society.unlock.joined,
+                  n: Math.max(unlock.threshold - unlock.joined, 0),
                 }),
                 invite: t("onboarding.unlock.invite"),
                 progress: t("onboarding.unlock.progress"),
               }}
             />
-          )}
+          ) : null}
         </>
       )}
     </OnboardingFrame>

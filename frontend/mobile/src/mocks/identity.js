@@ -2,6 +2,7 @@
 // auth calls are frozen in §3.1; these request and response shapes are our proposal, built from
 // the M1 tables, for the backend to confirm.
 import { HttpResponse, http } from "msw";
+import { caller } from "./handlers.js";
 
 const problem = (
   /** @type {number} */ status,
@@ -20,7 +21,18 @@ export const identityStore = {
   /** @type {any[]} */ members: [],
   /** @type {any[]} */ consents: [],
   /** @type {Record<string, any>} */ byIdempotencyKey: {},
+  /** @type {Record<string, string>} phone → society id of the household it created */ societyByPhone:
+    {},
 };
+
+const SUNRISE_TOWERS = "0190f0aa-5000-7000-8000-000000000001";
+/**
+ * The society of the caller's household, or null. Demo sign-ins already have a household in
+ * Sunrise Towers; only +91 98000 00005 starts as a brand-new household.
+ * @param {string} phone
+ */
+export const mockHouseholdSocietyOf = (phone) =>
+  identityStore.societyByPhone[phone] ?? (phone === "+919800000005" ? null : SUNRISE_TOWERS);
 
 const PURPOSES = ["account", "health_personalisation", "whatsapp_updates", "society_insights"];
 
@@ -48,6 +60,8 @@ export const identityHandlers = [
     };
     identityStore.households[household.id] = household;
     identityStore.byIdempotencyKey[key] = household;
+    const phone = caller(request);
+    if (phone) identityStore.societyByPhone[phone] = body.society_id;
     return HttpResponse.json(household, { status: 201 });
   }),
 

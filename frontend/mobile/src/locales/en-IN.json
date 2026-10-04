@@ -89,8 +89,6 @@
       "near": "Near you",
       "missing": "My society isn’t listed",
       "km": "{km} km",
-      "captain": "Captain: {name}",
-      "joined": "{joined} of {target} homes joined",
       "delivering": "Delivering",
       "unlocking": "Unlocking",
       "soon": "Coming soon"
@@ -101,7 +99,7 @@
       "towerPh": "Choose your tower",
       "flat": "Flat number",
       "capTitle": "{name} is your Society Captain",
-      "capBody": "She lives in {flat}. She receives your society’s delivery and brings your box to your door."
+      "capBody": "She lives in your society. She receives your society’s delivery and brings your box to your door."
     },
     "unlock": {
       "count": "{joined} of {target} homes",

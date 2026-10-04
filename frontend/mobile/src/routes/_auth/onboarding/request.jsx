@@ -8,6 +8,7 @@ import { request } from "@/lib/api.js";
 
 // MapLibre is large, so it loads only on this screen.
 const PinMap = lazy(() => import("@/components/PinMap.jsx"));
+// Where the map opens. It is only a starting view: no location is sent until the person drops the pin.
 const KHARGHAR = { lat: 19.033, lng: 73.071 };
 
 /** The design's map illustration: shown while the map loads, and on phones without WebGL2. */
@@ -55,12 +56,14 @@ function RequestSociety() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
-  const [point, setPoint] = useState(KHARGHAR);
+  const [point, setPoint] = useState(/** @type {{ lat: number, lng: number } | null} */ (null));
   const send = useMutation({
-    mutationFn: () =>
+    // One Idempotency-Key per tap on Send (M9 §3), so a network retry can't file it twice.
+    mutationFn: (/** @type {string} */ key) =>
       request("/v1/society-requests", {
         method: "POST",
-        body: { name: name.trim(), area: area.trim(), location: point },
+        headers: { "Idempotency-Key": key },
+        body: { name: name.trim(), area: area.trim() || null, location: point },
       }),
     onSuccess: () => {
       toast(t("onboarding.request.sent"));
@@ -84,7 +87,7 @@ function RequestSociety() {
             block
             isDisabled={!name.trim()}
             isPending={send.isPending}
-            onPress={() => send.mutate()}
+            onPress={() => send.mutate(crypto.randomUUID())}
           >
             {t("onboarding.request.cta")}
           </Button>

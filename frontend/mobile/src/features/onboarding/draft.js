@@ -12,7 +12,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * @property {boolean} noOnionSomeDays
  * @property {string[]} fasting e.g. "shravan_mondays", "ekadashi"
  * @property {boolean} healthConsent DPDP: health tags are used only when this is true
- * @property {Record<string, string[]>} health tags per member key ("adult-1")
+ * @property {Record<string, string[]>} health tags per member key ("adults-1"; see memberKeys)
  * @property {number} weekdayCookMinutes
  * @property {number} weekendCookMinutes
  * @property {number[]} noCookDays 0 = Monday … 6 = Sunday
@@ -20,6 +20,23 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * @property {boolean} whatsappConsent optional DPDP consent for WhatsApp updates
  * @property {boolean} insightsConsent optional DPDP consent to improve plans for the society (anonymised)
  */
+
+/** @type {(keyof Members)[]} */
+export const MEMBER_GROUPS = ["adults", "seniors", "children", "little"];
+
+/** People in the household as "adults-1", "seniors-1"… from the Family step's counts. @param {Members} members */
+export const memberKeys = (members) =>
+  MEMBER_GROUPS.flatMap((g) => Array.from({ length: members[g] }, (_, i) => `${g}-${i + 1}`));
+
+/**
+ * Health tags only for people still in the household: removing someone in the Family step must
+ * not leave their health data behind (DPDP).
+ * @param {Record<string, string[]>} health @param {Members} members
+ */
+export const pruneHealth = (health, members) => {
+  const keep = new Set(memberKeys(members));
+  return Object.fromEntries(Object.entries(health).filter(([key]) => keep.has(key)));
+};
 
 /** @type {HouseholdDraft} */
 const EMPTY_HOUSEHOLD = {
@@ -61,7 +78,12 @@ export const useOnboardingDraft = create(
         flat: "",
         household: EMPTY_HOUSEHOLD,
         update: (patch) => set(patch),
-        updateHousehold: (patch) => set((s) => ({ household: { ...s.household, ...patch } })),
+        updateHousehold: (patch) =>
+          set((s) => {
+            const household = { ...s.household, ...patch };
+            if (patch.members) household.health = pruneHealth(household.health, patch.members);
+            return { household };
+          }),
         reset: () => set({ societyId: null, towerId: null, flat: "", household: EMPTY_HOUSEHOLD }),
       }),
       { name: "gb-onboarding", storage: createJSONStorage(() => sessionStorage) },
