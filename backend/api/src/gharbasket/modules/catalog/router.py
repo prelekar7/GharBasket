@@ -1,19 +1,25 @@
-"""HTTP endpoints of M2 Catalog & Pricing: products, search, prices and substitutes (spec §3.1).
+"""HTTP endpoints of M2 Catalog & Pricing: products, search, prices, substitutes (spec §3.1),
+recipes and festivals (§3.2).
 
 Prices are for the caller's hub: `hub_id` if given, else the hub of their household (M1), else none.
 """
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response, status
 
 from gharbasket.modules.catalog import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.catalog import pricing, service
+from gharbasket.modules.catalog import pricing, recipes, service
 from gharbasket.modules.catalog.pricing import HubPrice
 from gharbasket.modules.catalog.schemas import (
     CategoryRef,
+    Cuisine,
+    FestivalOut,
+    FestivalRules,
+    Festivals,
+    IngredientOut,
     Kind,
     Names,
     Price,
@@ -22,8 +28,12 @@ from gharbasket.modules.catalog.schemas import (
     PriceListIn,
     PriceListOut,
     ProductOut,
+    RecipeOut,
+    RecipeRules,
+    RecipeSummary,
     SearchItem,
     SearchResults,
+    Slot,
     Step,
     SubstituteOut,
     Substitutes,
@@ -32,6 +42,7 @@ from gharbasket.modules.catalog.substitutes import substitutes as rank_substitut
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
 from gharbasket.platform.pagination import Cursor, Page
@@ -269,3 +280,130 @@ async def publish_price_list(
     await idem.save(201, out)
     await session.commit()
     return out
+
+
+# --- recipes and festivals (spec §3.2) ---------------------------------------------------------
+
+FESTIVAL_RANGE_DAYS = 92
+
+
+def _recipe_summary(recipe: Any, lang: Language) -> RecipeSummary:
+    return RecipeSummary(
+        id=recipe.id,
+        slug=recipe.slug,
+        name=localised(recipe.names, lang),
+        names=Names.model_validate(recipe.names),
+        cuisine=recipe.cuisine,
+        slots=recipe.slots,
+        cook_minutes=recipe.cook_minutes,
+        servings=recipe.servings,
+        diet=recipe.diet,
+        rules=RecipeRules.model_validate(recipe.rules),
+        tags=recipe.tags,
+    )
+
+
+@router.get(
+    "/recipes",
+    summary="Recipes the planner can choose, alphabetical",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def list_recipes(
+    _principal: CurrentPrincipal,
+    session: DbSession,
+    lang: Lang,
+    response: Response,
+    cuisine: Cuisine | None = None,
+    slot: Slot | None = None,
+    diet: Annotated[str | None, Query(pattern="^(veg|egg)$")] = None,
+    jain_ok: bool | None = None,
+    fasting_ok: bool | None = None,
+    cursor: Cursor = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> Page[RecipeSummary]:
+    found, next_cursor = await recipes.list_recipes(
+        session,
+        cuisine=cuisine,
+        slot=slot,
+        diet=diet,
+        jain_ok=jain_ok,
+        fasting_ok=fasting_ok,
+        cursor=cursor,
+        limit=limit,
+    )
+    response.headers["Cache-Control"] = CATALOG_CACHE
+    return Page(items=[_recipe_summary(recipe, lang) for recipe in found], next_cursor=next_cursor)
+
+
+@router.get(
+    "/recipes/{recipe_id}",
+    summary="One recipe with its ingredients and the cost of a serving at the caller's hub",
+    responses={401: _problem("auth.invalid_token"), 404: _problem("catalog.recipe_not_found")},
+)
+async def get_recipe(
+    recipe_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    session: DbSession,
+    lang: Lang,
+    hub_id: HubParam = None,
+) -> RecipeOut:
+    recipe, ingredients = await recipes.get_recipe(session, recipe_id)
+    cost = await recipes.cost_per_serving(
+        session, ingredients, await _hub(session, principal, hub_id)
+    )
+    return RecipeOut(
+        **_recipe_summary(recipe, lang).model_dump(),
+        ingredients=[
+            IngredientOut(
+                product_id=i.product.id,
+                slug=i.product.slug,
+                name=localised(i.product.names, lang),
+                qty=float(i.qty),
+                unit=i.unit,  # pyright: ignore[reportArgumentType]
+                label=service.step_label(_number(i.qty), i.unit, lang),
+                optional=i.optional,
+            )
+            for i in ingredients
+        ],
+        cost_per_serving_paise=cost,
+    )
+
+
+def _number(qty: Any) -> Any:
+    """50.00 → 50, 0.50 → 0.5 (for labels)."""
+    return int(qty) if qty == int(qty) else float(qty)
+
+
+@router.get(
+    "/festivals",
+    summary="Festival and fasting days in a date range (at most 92 days)",
+    responses={401: _problem("auth.invalid_token"), 422: _problem("request.invalid")},
+)
+async def list_festivals(
+    _principal: CurrentPrincipal,
+    session: DbSession,
+    lang: Lang,
+    start: Annotated[date | None, Query(alias="from", description="Default: today (IST)")] = None,
+    end: Annotated[date | None, Query(alias="to", description="Default: from + 30 days")] = None,
+    region: Annotated[str | None, Query(max_length=40, examples=["maharashtra"])] = None,
+) -> Festivals:
+    first = start or pricing.today()
+    last = end or first + timedelta(days=30)
+    if last < first or (last - first).days > FESTIVAL_RANGE_DAYS:
+        raise ProblemError(
+            422, "request.invalid", f"Use a range of 0 to {FESTIVAL_RANGE_DAYS} days."
+        )
+    found = await recipes.festivals(session, first, last, region)
+    return Festivals(
+        items=[
+            FestivalOut(
+                date=festival.day,
+                code=festival.code,
+                name=localised(festival.names, lang),
+                region=festival.region,
+                rules=FestivalRules.model_validate(festival.rules),
+                verified=festival.verified,
+            )
+            for festival in found
+        ]
+    )

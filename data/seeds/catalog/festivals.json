@@ -1,0 +1,140 @@
+{
+  "note": "Dates are NOT yet verified: Rhythm Thakur / Manish Raje to check against a panchang and add Ekadashi and other fasts for Oct 2026 to Apr 2027.",
+  "festivals": [
+    {
+      "date": "2026-10-11",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-12",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-13",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-14",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-15",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-16",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-17",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-18",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    },
+    {
+      "date": "2026-10-19",
+      "code": "navratri",
+      "region": "all",
+      "names": {
+        "en": "Navratri",
+        "hi": "नवरात्रि",
+        "mr": "नवरात्र"
+      },
+      "rules": {
+        "fasting": true,
+        "no_onion_garlic": true
+      },
+      "verified": false
+    }
+  ]
+}

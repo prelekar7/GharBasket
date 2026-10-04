@@ -1,11 +1,12 @@
 """Tables of M2 Catalog & Pricing. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
-Categories, products, the search terms that make one product findable by every spelling, and
-hub price lists (spec §3.1). Recipes and festivals follow.
+Categories, products, the search terms that make one product findable by every spelling, hub
+price lists (spec §3.1), and recipes with their ingredients and the festival calendar (§3.2).
 """
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -18,6 +19,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -37,6 +39,10 @@ UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
 TERM_LANGS = ("en", "hi", "mr", "hinglish")
 TERM_SOURCES = ("name", "synonym", "transliteration")
 SLUG = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+CUISINES = ("maharashtrian", "gujarati", "north_indian", "south_indian", "bengali", "common")
+SLOTS = ("breakfast", "lunch", "dinner")
+DIETS = ("veg", "egg")
+INGREDIENT_UNITS = ("g", "ml", "piece", "bunch")
 
 # Search compares lower-cased, accent-free text. The migration creates `catalog.f_unaccent`, an
 # IMMUTABLE wrapper (unaccent() itself is only STABLE, so it cannot feed a generated column).
@@ -173,3 +179,81 @@ class Price(Base):
     price_paise: Mapped[int] = mapped_column(BigInteger)
     # Printed MRP for packaged goods; null for fresh produce.
     mrp_paise: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class Recipe(Base):
+    """A dish the planner can choose; jain_ok and no_onion_garlic come from its ingredients."""
+
+    __tablename__ = "recipes"
+    __table_args__ = (
+        CheckConstraint(f"slug ~ '{SLUG}'", name="slug"),
+        CheckConstraint(_has_all_languages("names"), name="names"),
+        CheckConstraint(_one_of("cuisine", CUISINES), name="cuisine"),
+        CheckConstraint(_one_of("diet", DIETS), name="diet"),
+        CheckConstraint(
+            f"cardinality(slots) > 0 AND slots <@ ARRAY{list(SLOTS)}::text[]", name="slots"
+        ),
+        CheckConstraint("cook_minutes BETWEEN 1 AND 600", name="cook_minutes"),
+        CheckConstraint("servings BETWEEN 1 AND 50", name="servings"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    slug: Mapped[str] = mapped_column(String(80), unique=True)
+    names: Mapped[dict[str, str]] = mapped_column(JSONB)
+    cuisine: Mapped[str] = mapped_column(String(20))
+    slots: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    cook_minutes: Mapped[int] = mapped_column(Integer)
+    servings: Mapped[int] = mapped_column(Integer)
+    diet: Mapped[str] = mapped_column(String(8))
+    # {"jain_ok", "no_onion_garlic"} (derived) and {"fasting_ok", "diabetic_ok"} (curated).
+    rules: Mapped[dict[str, bool]] = mapped_column(JSONB)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    steps: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class RecipeIngredient(Base):
+    __tablename__ = "recipe_ingredients"
+    __table_args__ = (
+        CheckConstraint("qty_per_serving > 0", name="qty_per_serving"),
+        CheckConstraint(_one_of("unit", INGREDIENT_UNITS), name="unit"),
+        {"schema": SCHEMA},
+    )
+
+    recipe_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.recipes.id", ondelete="CASCADE"), primary_key=True
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.products.id", ondelete="RESTRICT"), primary_key=True, index=True
+    )
+    # Grams, millilitres, pieces or bunches for one serving.
+    qty_per_serving: Mapped[Decimal] = mapped_column(Numeric(8, 2))
+    unit: Mapped[str] = mapped_column(String(8))
+    optional: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+
+
+class Festival(Base):
+    """A fasting or festival day. `verified` once checked against a panchang."""
+
+    __tablename__ = "festival_calendar"
+    __table_args__ = (
+        CheckConstraint(_has_all_languages("names"), name="names"),
+        {"schema": SCHEMA},
+    )
+
+    # The column is "date"; the attribute is `day` so it does not shadow the `date` type.
+    day: Mapped[date] = mapped_column("date", Date, primary_key=True)
+    code: Mapped[str] = mapped_column(String(40), primary_key=True)
+    # "all" or a state code such as "maharashtra".
+    region: Mapped[str] = mapped_column(String(40), primary_key=True)
+    names: Mapped[dict[str, str]] = mapped_column(JSONB)
+    # {"fasting": bool, "no_onion_garlic": bool}
+    rules: Mapped[dict[str, bool]] = mapped_column(JSONB)
+    verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))

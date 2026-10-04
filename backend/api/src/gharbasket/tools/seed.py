@@ -24,11 +24,18 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog.pricing import save_price_list
+from gharbasket.modules.catalog.recipes import (
+    IngredientData,
+    RecipeData,
+    save_festival,
+    save_recipe,
+)
 from gharbasket.modules.catalog.schemas import PriceItem
 from gharbasket.modules.catalog.service import (
     CategoryData,
@@ -315,7 +322,8 @@ async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
 
 
 async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh data/seeds/catalog: categories, products and the seed hub's price list.
+    """Create or refresh data/seeds/catalog: categories, products, the seed hub's price list,
+    recipes and festival days.
 
     Returns (slug, created) for each product.
     """
@@ -354,6 +362,42 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
         published_by=None,
         data_source="synthetic",
     )
+
+    for recipe in json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]:
+        await save_recipe(
+            session,
+            RecipeData(
+                slug=recipe["slug"],
+                names=recipe["names"],
+                cuisine=recipe["cuisine"],
+                slots=tuple(recipe["slots"]),
+                cook_minutes=recipe["cook_minutes"],
+                servings=recipe["servings"],
+                fasting_ok=recipe["fasting_ok"],
+                diabetic_ok=recipe["diabetic_ok"],
+                tags=tuple(recipe["tags"]),
+                ingredients=tuple(
+                    IngredientData(
+                        product=i["product"],
+                        qty=Decimal(str(i["qty"])),
+                        unit=i["unit"],
+                        optional=i["optional"],
+                    )
+                    for i in recipe["ingredients"]
+                ),
+                data_source="synthetic",
+            ),
+        )
+    for festival in json.loads((CATALOG_SEED / "festivals.json").read_text())["festivals"]:
+        await save_festival(
+            session,
+            day=date.fromisoformat(festival["date"]),
+            code=festival["code"],
+            region=festival["region"],
+            names=festival["names"],
+            rules=festival["rules"],
+            verified=festival["verified"],
+        )
     return saved
 
 

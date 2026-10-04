@@ -35,7 +35,7 @@ UNIT_LABELS: dict[str, dict[Language, str]] = {
 }
 
 
-def step_label(qty: int, unit: str, lang: Language) -> str:
+def step_label(qty: float, unit: str, lang: Language) -> str:
     return f"{qty} {UNIT_LABELS[unit][lang]}"
 
 

@@ -498,6 +498,85 @@
         "title": "FastingRules",
         "type": "object"
       },
+      "FestivalOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "navratri"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "region": {
+            "examples": [
+              "all"
+            ],
+            "title": "Region",
+            "type": "string"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/FestivalRules"
+          },
+          "verified": {
+            "description": "Checked against a panchang; unverified dates are flagged",
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "code",
+          "name",
+          "region",
+          "rules",
+          "verified"
+        ],
+        "title": "FestivalOut",
+        "type": "object"
+      },
+      "FestivalRules": {
+        "properties": {
+          "fasting": {
+            "title": "Fasting",
+            "type": "boolean"
+          },
+          "no_onion_garlic": {
+            "title": "No Onion Garlic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "fasting",
+          "no_onion_garlic"
+        ],
+        "title": "FestivalRules",
+        "type": "object"
+      },
+      "Festivals": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FestivalOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Festivals",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "commit": {
@@ -899,6 +978,63 @@
         "title": "HouseholdUpdate",
         "type": "object"
       },
+      "IngredientOut": {
+        "properties": {
+          "label": {
+            "examples": [
+              "50 g"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Per serving",
+            "examples": [
+              50
+            ],
+            "title": "Qty",
+            "type": "number"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "g",
+              "ml",
+              "piece",
+              "bunch"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "qty",
+          "unit",
+          "label",
+          "optional"
+        ],
+        "title": "IngredientOut",
+        "type": "object"
+      },
       "LatLng": {
         "description": "A pin on the map, as every API shape carries it.",
         "properties": {
@@ -1270,6 +1406,34 @@
           "next_cursor"
         ],
         "title": "Page[ProductOut]",
+        "type": "object"
+      },
+      "Page_RecipeSummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[RecipeSummary]",
         "type": "object"
       },
       "Page_SocietySummary_": {
@@ -1670,6 +1834,235 @@
           "checks"
         ],
         "title": "Ready",
+        "type": "object"
+      },
+      "RecipeOut": {
+        "properties": {
+          "cook_minutes": {
+            "title": "Cook Minutes",
+            "type": "integer"
+          },
+          "cost_per_serving_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the caller's hub prices; null if an ingredient has no price there",
+            "title": "Cost Per Serving Paise"
+          },
+          "cuisine": {
+            "enum": [
+              "maharashtrian",
+              "gujarati",
+              "north_indian",
+              "south_indian",
+              "bengali",
+              "common"
+            ],
+            "title": "Cuisine",
+            "type": "string"
+          },
+          "diet": {
+            "enum": [
+              "veg",
+              "egg"
+            ],
+            "title": "Diet",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ingredients": {
+            "items": {
+              "$ref": "#/components/schemas/IngredientOut"
+            },
+            "title": "Ingredients",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/Names"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RecipeRules"
+          },
+          "servings": {
+            "title": "Servings",
+            "type": "integer"
+          },
+          "slots": {
+            "items": {
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ],
+              "type": "string"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "slug": {
+            "examples": [
+              "sabudana-khichdi"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "names",
+          "cuisine",
+          "slots",
+          "cook_minutes",
+          "servings",
+          "diet",
+          "rules",
+          "tags",
+          "ingredients",
+          "cost_per_serving_paise"
+        ],
+        "title": "RecipeOut",
+        "type": "object"
+      },
+      "RecipeRules": {
+        "properties": {
+          "diabetic_ok": {
+            "description": "Curated",
+            "title": "Diabetic Ok",
+            "type": "boolean"
+          },
+          "fasting_ok": {
+            "description": "Curated: commonly eaten on vrat days",
+            "title": "Fasting Ok",
+            "type": "boolean"
+          },
+          "jain_ok": {
+            "description": "Derived: no root, onion or garlic ingredient",
+            "title": "Jain Ok",
+            "type": "boolean"
+          },
+          "no_onion_garlic": {
+            "description": "Derived: no onion or garlic ingredient",
+            "title": "No Onion Garlic",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "jain_ok",
+          "no_onion_garlic",
+          "fasting_ok",
+          "diabetic_ok"
+        ],
+        "title": "RecipeRules",
+        "type": "object"
+      },
+      "RecipeSummary": {
+        "properties": {
+          "cook_minutes": {
+            "title": "Cook Minutes",
+            "type": "integer"
+          },
+          "cuisine": {
+            "enum": [
+              "maharashtrian",
+              "gujarati",
+              "north_indian",
+              "south_indian",
+              "bengali",
+              "common"
+            ],
+            "title": "Cuisine",
+            "type": "string"
+          },
+          "diet": {
+            "enum": [
+              "veg",
+              "egg"
+            ],
+            "title": "Diet",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/Names"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RecipeRules"
+          },
+          "servings": {
+            "title": "Servings",
+            "type": "integer"
+          },
+          "slots": {
+            "items": {
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ],
+              "type": "string"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "slug": {
+            "examples": [
+              "sabudana-khichdi"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "names",
+          "cuisine",
+          "slots",
+          "cook_minutes",
+          "servings",
+          "diet",
+          "rules",
+          "tags"
+        ],
+        "title": "RecipeSummary",
         "type": "object"
       },
       "RefreshIn": {
@@ -3184,6 +3577,129 @@
         "tags": [
           "identity",
           "households"
+        ]
+      }
+    },
+    "/v1/festivals": {
+      "get": {
+        "operationId": "list_festivals_v1_festivals_get",
+        "parameters": [
+          {
+            "description": "Default: today (IST)",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: today (IST)",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Default: from + 30 days",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: from + 30 days",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "maharashtra"
+              ],
+              "title": "Region"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Festivals"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Festival and fasting days in a date range (at most 92 days)",
+        "tags": [
+          "catalog"
         ]
       }
     },
@@ -4935,6 +5451,300 @@
         "summary": "Readiness check (database and Valkey); operator token required when deployed",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/v1/recipes": {
+      "get": {
+        "operationId": "list_recipes_v1_recipes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cuisine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "maharashtrian",
+                    "gujarati",
+                    "north_indian",
+                    "south_indian",
+                    "bengali",
+                    "common"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cuisine"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slot",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "breakfast",
+                    "lunch",
+                    "dinner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Slot"
+            }
+          },
+          {
+            "in": "query",
+            "name": "diet",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(veg|egg)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Diet"
+            }
+          },
+          {
+            "in": "query",
+            "name": "jain_ok",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Jain Ok"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fasting_ok",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fasting Ok"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RecipeSummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Recipes the planner can choose, alphabetical",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/v1/recipes/{recipe_id}": {
+      "get": {
+        "operationId": "get_recipe_v1_recipes__recipe_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Price at this hub; by default the hub of the caller's household",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Price at this hub; by default the hub of the caller's household",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.recipe_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "One recipe with its ingredients and the cost of a serving at the caller's hub",
+        "tags": [
+          "catalog"
         ]
       }
     },

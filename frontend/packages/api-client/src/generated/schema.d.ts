@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/festivals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Festival and fasting days in a date range (at most 92 days) */
+        get: operations["list_festivals_v1_festivals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -411,6 +428,40 @@ export interface paths {
         };
         /** Readiness check (database and Valkey); operator token required when deployed */
         get: operations["ready_v1_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recipes the planner can choose, alphabetical */
+        get: operations["list_recipes_v1_recipes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/recipes/{recipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recipe with its ingredients and the cost of a serving at the caller's hub */
+        get: operations["get_recipe_v1_recipes__recipe_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -712,6 +763,44 @@ export interface components {
              */
             no_onion_garlic_on_fast_days: boolean;
         };
+        /** FestivalOut */
+        FestivalOut: {
+            /**
+             * Code
+             * @example navratri
+             */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+            /**
+             * Region
+             * @example all
+             */
+            region: string;
+            rules: components["schemas"]["FestivalRules"];
+            /**
+             * Verified
+             * @description Checked against a panchang; unverified dates are flagged
+             */
+            verified: boolean;
+        };
+        /** FestivalRules */
+        FestivalRules: {
+            /** Fasting */
+            fasting: boolean;
+            /** No Onion Garlic */
+            no_onion_garlic: boolean;
+        };
+        /** Festivals */
+        Festivals: {
+            /** Items */
+            items: components["schemas"]["FestivalOut"][];
+        };
         /** Health */
         Health: {
             /** Commit */
@@ -840,6 +929,36 @@ export interface components {
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
         };
+        /** IngredientOut */
+        IngredientOut: {
+            /**
+             * Label
+             * @example 50 g
+             */
+            label: string;
+            /** Name */
+            name: string;
+            /** Optional */
+            optional: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Per serving
+             * @example 50
+             */
+            qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "ml" | "piece" | "bunch";
+        };
         /**
          * LatLng
          * @description A pin on the map, as every API shape carries it.
@@ -952,6 +1071,13 @@ export interface components {
         Page_ProductOut_: {
             /** Items */
             items: components["schemas"]["ProductOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[RecipeSummary] */
+        Page_RecipeSummary_: {
+            /** Items */
+            items: components["schemas"]["RecipeSummary"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -1127,6 +1253,106 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** RecipeOut */
+        RecipeOut: {
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cost Per Serving Paise
+             * @description From the caller's hub prices; null if an ingredient has no price there
+             */
+            cost_per_serving_paise: number | null;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /**
+             * Diet
+             * @enum {string}
+             */
+            diet: "veg" | "egg";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ingredients */
+            ingredients: components["schemas"]["IngredientOut"][];
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            rules: components["schemas"]["RecipeRules"];
+            /** Servings */
+            servings: number;
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /**
+             * Slug
+             * @example sabudana-khichdi
+             */
+            slug: string;
+            /** Tags */
+            tags: string[];
+        };
+        /** RecipeRules */
+        RecipeRules: {
+            /**
+             * Diabetic Ok
+             * @description Curated
+             */
+            diabetic_ok: boolean;
+            /**
+             * Fasting Ok
+             * @description Curated: commonly eaten on vrat days
+             */
+            fasting_ok: boolean;
+            /**
+             * Jain Ok
+             * @description Derived: no root, onion or garlic ingredient
+             */
+            jain_ok: boolean;
+            /**
+             * No Onion Garlic
+             * @description Derived: no onion or garlic ingredient
+             */
+            no_onion_garlic: boolean;
+        };
+        /** RecipeSummary */
+        RecipeSummary: {
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /**
+             * Diet
+             * @enum {string}
+             */
+            diet: "veg" | "egg";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            rules: components["schemas"]["RecipeRules"];
+            /** Servings */
+            servings: number;
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /**
+             * Slug
+             * @example sabudana-khichdi
+             */
+            slug: string;
+            /** Tags */
+            tags: string[];
         };
         /**
          * RefreshIn
@@ -1957,6 +2183,52 @@ export interface operations {
             };
             /** @description identity.consent_version_stale (with current_version) */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_festivals_v1_festivals_get: {
+        parameters: {
+            query?: {
+                /** @description Default: today (IST) */
+                from?: string | null;
+                /** @description Default: from + 30 days */
+                to?: string | null;
+                region?: string | null;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Festivals"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2995,6 +3267,109 @@ export interface operations {
             };
             /** @description A dependency is not reachable (problem+json) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_recipes_v1_recipes_get: {
+        parameters: {
+            query?: {
+                cuisine?: ("maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common") | null;
+                slot?: ("breakfast" | "lunch" | "dinner") | null;
+                diet?: string | null;
+                jain_ok?: boolean | null;
+                fasting_ok?: boolean | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RecipeSummary_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_recipe_v1_recipes__recipe_id__get: {
+        parameters: {
+            query?: {
+                /** @description Price at this hub; by default the hub of the caller's household */
+                hub_id?: string | null;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
