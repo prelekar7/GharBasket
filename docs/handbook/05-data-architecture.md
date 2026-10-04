@@ -37,19 +37,19 @@ MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6,
 
 ## 5.3 Schema map
 
-| Schema | Owner module | Owner | Purpose |
+| Schema | Owner module | Owner (backend, ADR-0023) | Purpose |
 |---|---|---|---|
-| `identity` | M1 | Yash Salunkhe | Users, roles with scopes, households, members, addresses, consents |
-| `catalog` | M2 | Yash Salunkhe | Products, recipes, substitutions, prices, festival calendar |
-| `subscriptions` | M3 | Yash Salunkhe | Plans, subscriptions, delivery days, Budget Lock, weekly cycles, box lines |
-| `orders` | M4 | Yash Salunkhe | Orders, lines, events, slots |
-| `billing` | M5 | Yash Salunkhe | Ledger, payments, mandates, webhooks |
+| `identity` | M1 | Prathamesh Relekar | Users, roles with scopes, households, members, addresses, consents |
+| `catalog` | M2 | Prathamesh Relekar | Products, recipes, substitutions, prices, festival calendar |
+| `subscriptions` | M3 | Prathamesh Relekar | Plans, subscriptions, delivery days, Budget Lock, weekly cycles, box lines |
+| `orders` | M4 | Prathamesh Relekar | Orders, lines, events, slots |
+| `billing` | M5 | Prathamesh Relekar | Ledger, payments, mandates, webhooks |
 | `ops` | M6 | Prathamesh Relekar | Hubs, vendors, procurement, inventory lots, packing, waste |
 | `logistics` | M7 | Prathamesh Relekar | Vehicles, routes, stops, handovers, deliveries, reverse pickups, GPS pings |
 | `partners` | M8 | Prathamesh Relekar | Partners, KYC, capacity, assignments, earnings, trainings |
 | `community` | M9 | Prathamesh Relekar | Societies, captains, referrals, donation drives, donations, NGO handoffs |
 | `intel` | M10 | Prathamesh Relekar | Feature snapshots, predictions, experiments |
-| `notify` | M11 | Yash Salunkhe | Templates, messages, preferences |
+| `notify` | M11 | Prathamesh Relekar | Templates, messages, preferences |
 | `platform` | M0 | shared | Outbox, idempotency keys, audit log |
 
 ## 5.4 Core cross-schema ERD
