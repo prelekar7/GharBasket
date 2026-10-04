@@ -17,10 +17,8 @@ async def cycle_for(
 
 
 async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid.UUID) -> None:
-    """M4 locked the order at the cut-off: mirror it on the cycle (consumer of orders.locked)."""
+    """M4 locked the order at the cut-off: mirror it on the cycle (the outbox consumer in
+    jobs.py does this; the facade stays for tools and tests)."""
     cycle = await session.get(WeeklyCycle, cycle_id)
-    if cycle is not None and cycle.status in ("approved", "awaiting_approval"):
-        cycle.status = "locked"
-        cycle.order_id = order_id
-        cycle.version += 1
-        await session.flush()
+    if cycle is not None:
+        await service.mark_locked(session, cycle, order_id)

@@ -100,19 +100,24 @@ PATCH /v1/cycles/{id}/lines        If-Match; { "ops": [ Op ] }   1 to 20 ops, ap
   "subscriptions.qty_invalid", "subscriptions.budget_exceeded" (with "over_paise", only when the Budget Lock is on)
 
 POST /v1/cycles/{id}/approve       Idempotency-Key + If-Match; 200 CycleOut (approved, order_id set)
-                                   publishes subscriptions.box_approved → M4 creates the order with
-                                   these lines and prices; an edit after approval (before the cut-off)
-                                   keeps the status and re-publishes, and M4 replaces the box lines
+                                   M4 creates the order with these lines and prices in the same
+                                   transaction (orders.api.create_from_cycle, so a full slot answers
+                                   409 "orders.slot_full" here) and subscriptions.box_approved goes out
+                                   for M11 and analytics; an edit after approval (before the cut-off)
+                                   keeps the status, M4 replaces the box lines and the event goes again;
+                                   approving an approved week again changes nothing
 POST /v1/cycles/{id}/skip          Idempotency-Key; 200 CycleOut (skipped); publishes subscriptions.box_skipped
                                    → M4 cancels the order if one exists; the Budget Lock spends nothing
-POST /v1/cycles/{id}/feedback      Idempotency-Key; after delivery, within 14 days
+POST /v1/cycles/{id}/feedback      Idempotency-Key; from delivery day, for 14 days; items of this box
   { "items": [ { "product_id", "signal": "ran_out" | "wasted" | "just_right" } ] }   201 { "recorded": 3 }
-                                   the pantry twin's observations (handbook 08 M-A)
+                                   the pantry twin's observations (handbook 08 M-A); one row per
+                                   product, the latest tap wins
 
 BudgetLock : { "month": "2026-10", "budget_paise": 600000, "spent_paise": 138000, "remaining_paise": 462000 }
 GET /v1/budget-lock?month=         200 BudgetLock | 404 "subscriptions.no_budget_lock"
 PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budget_paise": 600000 | null }
-                                   null switches it off; ≥ ₹500; this month or next; 200 BudgetLock
+                                   ≥ ₹500; this month or next; 200 BudgetLock · null switches it off: 204
+                                   422 "subscriptions.budget_invalid" (other months, under ₹500)
 ```
 
 **How a cycle is generated** (`generate_weekly_plans`, T-3 18:00 IST, per hub, under the job's advisory lock; `scheduled_for` decides the week):
@@ -142,6 +147,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | 422 | `subscriptions.payment_mode_unavailable` | Autopay before the pilot |
 | 422 | `subscriptions.product_unknown`, `subscriptions.substitute_unknown`, `subscriptions.qty_invalid`, `subscriptions.budget_exceeded` | Edits |
 | 422 | `subscriptions.feedback_window_closed` | Feedback more than 14 days after delivery, or before it |
+| 422 | `subscriptions.budget_invalid` | A Budget Lock for another month, or under ₹500 |
 | 400 / 422 / 428 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.precondition_required`, `request.invalid` | As in M0 |
 
 **For the mobile mocks** (`mocks/subscriptions.js` → contract)

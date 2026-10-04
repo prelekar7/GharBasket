@@ -1,16 +1,26 @@
 """Scheduled jobs of M3 (spec §6), registered with the platform's jobs runner (ADR-0021).
 
 `generate_weekly_plans` runs at T-3 18:00 IST for delivery day T: `scheduled_for` decides the
-delivery date (three days later, IST), never the clock.
+delivery date (three days later, IST), never the clock. `apply_auto_approve` runs at T-1 20:55
+IST, five minutes before M4's cut-off, for the next day's deliveries.
+
+The cycle mirrors its order after the cut-off: `orders.locked` → `locked` (with `order_id`),
+`orders.cancelled` with reason `payment` → `cancelled`.
 """
 
-from datetime import timedelta
+import uuid
+from datetime import date, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from gharbasket.modules.community import api as community_api
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import service
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.models import OutboxEvent
+from gharbasket.platform.outbox import subscribe
 
 IST = ZoneInfo("Asia/Kolkata")
 DAYS_AHEAD = 3
@@ -33,3 +43,47 @@ async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
                 totals[key] += value
     totals["delivery_date"] = delivery_date.isoformat()  # type: ignore[assignment]
     return totals
+
+
+@job(
+    "apply_auto_approve",
+    "Approve tomorrow's boxes for households that asked for it (notice sent 24 h before)",
+)
+async def apply_auto_approve(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=1)
+    counts: dict[str, Any] = await service.auto_approve_due(ctx.session, delivery_date)
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts
+
+
+MIRRORED = {"order_id", "household_id", "delivery_date"}
+
+
+async def on_order_locked(session: AsyncSession, event: OutboxEvent) -> None:
+    if not event.payload.keys() >= MIRRORED:
+        return
+    cycle = await service.cycle_for(
+        session,
+        uuid.UUID(event.payload["household_id"]),
+        date.fromisoformat(event.payload["delivery_date"]),
+    )
+    if cycle is not None:
+        await service.mark_locked(session, cycle, uuid.UUID(event.payload["order_id"]))
+
+
+async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
+    if event.payload.get("reason") != "payment" or not event.payload.keys() >= MIRRORED:
+        return  # a skip or a customer cancellation already changed the cycle
+    cycle = await service.cycle_for(
+        session,
+        uuid.UUID(event.payload["household_id"]),
+        date.fromisoformat(event.payload["delivery_date"]),
+    )
+    if cycle is not None and cycle.status in service.EDITABLE:
+        cycle.status = "cancelled"
+        cycle.version += 1
+        await session.flush()
+
+
+subscribe(orders_api.LOCKED, on_order_locked)
+subscribe(orders_api.CANCELLED, on_order_cancelled)
