@@ -55,3 +55,8 @@ infra/osrm/data/
 # Python test coverage data
 .coverage
 .coverage.*
+
+# Raw external datasets fetched by backend/training jobs (the lake holds them); curated mapping files stay committed
+data/external/mandi/
+data/external/**/*.parquet
+data/external/**/raw/
