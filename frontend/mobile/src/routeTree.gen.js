@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from "./routes/__root"
 import { Route as IndexRouteImport } from "./routes/index"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as LoginRouteImport } from "./routes/login"
+import { Route as OtpRouteImport } from "./routes/otp"
 import { Route as RoleRouteImport } from "./routes/role"
+import { Route as WelcomeRouteImport } from "./routes/welcome"
 import { Route as AuthCustomerRouteImport } from "./routes/_auth/_customer"
 import { Route as AuthCaptainRouteImport } from "./routes/_auth/captain"
 import { Route as AuthKitchenRouteImport } from "./routes/_auth/kitchen"
@@ -38,9 +40,19 @@ const LoginRoute = LoginRouteImport.update({
   path: "/login",
   getParentRoute: () => rootRouteImport,
 })
+const OtpRoute = OtpRouteImport.update({
+  id: "/otp",
+  path: "/otp",
+  getParentRoute: () => rootRouteImport,
+})
 const RoleRoute = RoleRouteImport.update({
   id: "/role",
   path: "/role",
+  getParentRoute: () => rootRouteImport,
+})
+const WelcomeRoute = WelcomeRouteImport.update({
+  id: "/welcome",
+  path: "/welcome",
   getParentRoute: () => rootRouteImport,
 })
 const AuthCustomerRoute = AuthCustomerRouteImport.update({
@@ -119,6 +131,8 @@ const rootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
+  OtpRoute: OtpRoute,
   RoleRoute: RoleRoute,
+  WelcomeRoute: WelcomeRoute,
 }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)

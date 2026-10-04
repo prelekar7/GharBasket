@@ -4,11 +4,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
-import { exchange, me } from "@/lib/api.js";
-import { useSession } from "@/lib/session.js";
+import { sendCode } from "@/lib/otp.js";
+import { nextSearch } from "@/lib/search.js";
+
+const MOCK = import.meta.env.VITE_API_MOCK !== "false";
 
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({ validateSearch: nextSearch, component: Login });
 
 // Indian mobile numbers: 10 digits starting 6-9 (spaces allowed while typing).
 const schema = z.object({
@@ -21,7 +23,7 @@ const schema = z.object({
 function Login() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const signIn = useSession((s) => s.signIn);
+  const { next } = Route.useSearch();
   const { control, handleSubmit, formState, setError } = useForm({
     resolver: zodResolver(schema),
     defaultValues: { phone: "" },
@@ -29,11 +31,11 @@ function Login() {
 
   const onSubmit = handleSubmit(async ({ phone }) => {
     try {
-      await exchange({ devPhone: `+91${phone}` });
-      signIn(await me());
-      navigate({ to: "/" });
-    } catch {
-      setError("root", { message: t("login.failed") });
+      await sendCode(`+91${phone}`, "recaptcha");
+      navigate({ to: "/otp", search: { next } });
+    } catch (e) {
+      const region = /** @type {any} */ (e)?.code === "auth/operation-not-allowed";
+      setError("root", { message: t(region ? "otp.region" : "login.sendFailed") });
     }
   });
 
@@ -69,7 +71,7 @@ function Login() {
           </p>
         )}
         <div className="mt-auto flex flex-col gap-3">
-          <p className="text-sm text-fg-secondary">{t("login.dev")}</p>
+          {MOCK && <p className="text-sm text-fg-secondary">{t("login.mock")}</p>}
           <Button
             type="submit"
             variant="primary"
@@ -81,6 +83,7 @@ function Login() {
           </Button>
         </div>
       </form>
+      <div id="recaptcha" />
     </main>
   );
 }

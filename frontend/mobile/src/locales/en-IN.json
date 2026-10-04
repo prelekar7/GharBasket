@@ -6,7 +6,8 @@
     "invalid": "Enter the 10-digit mobile number",
     "failed": "We couldn’t sign you in. Check your internet and try again.",
     "cta": "Continue",
-    "dev": "Developer sign-in: the SMS code arrives after spike S-2."
+    "mock": "Test mode: no SMS is sent. Use code 123456.",
+    "sendFailed": "We couldn’t send the code. Check your internet and try again."
   },
   "role": {
     "title": "Continue as",
@@ -39,5 +40,29 @@
   "pwa": {
     "updateTitle": "New version available",
     "refresh": "Refresh"
+  },
+  "welcome": {
+    "title": "Ghar ka khana, bina tension.",
+    "sub": "Your family’s week of food, planned and delivered by your society.",
+    "langLabel": "Choose your language",
+    "cta": "Continue",
+    "later": "You can change this later in Profile."
+  },
+  "otp": {
+    "back": "Back",
+    "title": "Enter the code",
+    "sent": "Sent to {phone}",
+    "change": "Change number",
+    "legend": "6-digit code",
+    "auto": "Reading the SMS for you. On Android the code fills in by itself.",
+    "cta": "Verify",
+    "resendIn": "Didn’t get it? Resend in {time}",
+    "resend": "Resend code",
+    "resent": "New code sent",
+    "invalid": "That code isn’t right. Check the SMS and try again.",
+    "expired": "This code has expired. Send a new one.",
+    "tooMany": "Too many tries. Wait a few minutes and try again.",
+    "region": "We can’t send SMS to this number yet.",
+    "failed": "We couldn’t sign you in. Check your internet and try again."
   }
 }
