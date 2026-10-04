@@ -421,6 +421,41 @@
       "slug": "rock-salt",
       "price_paise": 3000,
       "mrp_paise": null
+    },
+    {
+      "slug": "goda-masala",
+      "price_paise": 4500,
+      "mrp_paise": 5000
+    },
+    {
+      "slug": "matki",
+      "price_paise": 6500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "sabut-urad",
+      "price_paise": 8000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "dalia",
+      "price_paise": 3500,
+      "mrp_paise": null
+    },
+    {
+      "slug": "black-pepper",
+      "price_paise": 4000,
+      "mrp_paise": null
+    },
+    {
+      "slug": "hing",
+      "price_paise": 3000,
+      "mrp_paise": 3500
+    },
+    {
+      "slug": "sesame-seeds",
+      "price_paise": 3000,
+      "mrp_paise": null
     }
   ]
 }

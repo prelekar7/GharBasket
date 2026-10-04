@@ -53,6 +53,8 @@ MANUAL = {
         "fibre_g": 28.0,
     },
     "rock-salt": {"kcal": 0, "protein_g": 0, "fat_g": 0, "carb_g": 0, "fibre_g": 0},
+    "goda-masala": {"kcal": 380, "protein_g": 11.0, "fat_g": 18.0, "carb_g": 36.0, "fibre_g": 22.0},
+    "hing": {"kcal": 297, "protein_g": 4.0, "fat_g": 1.1, "carb_g": 67.8, "fibre_g": 4.1},
 }
 
 

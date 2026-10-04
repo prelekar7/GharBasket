@@ -1282,6 +1282,111 @@
         "code": null,
         "food": "rock-salt"
       }
+    },
+    {
+      "slug": "goda-masala",
+      "per_100g": {
+        "kcal": 380,
+        "protein_g": 11.0,
+        "fat_g": 18.0,
+        "carb_g": 36.0,
+        "fibre_g": 22.0
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "goda-masala"
+      }
+    },
+    {
+      "slug": "matki",
+      "per_100g": {
+        "kcal": 309,
+        "protein_g": 19.8,
+        "fat_g": 1.8,
+        "carb_g": 52.1,
+        "fibre_g": 15.1
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B016",
+        "food": "Moth bean"
+      }
+    },
+    {
+      "slug": "sabut-urad",
+      "per_100g": {
+        "kcal": 291,
+        "protein_g": 22.0,
+        "fat_g": 1.6,
+        "carb_g": 44.0,
+        "fibre_g": 20.4
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B004",
+        "food": "Black gram, whole"
+      }
+    },
+    {
+      "slug": "dalia",
+      "per_100g": {
+        "kcal": 322,
+        "protein_g": 10.6,
+        "fat_g": 1.5,
+        "carb_g": 64.7,
+        "fibre_g": 11.2
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "A020",
+        "food": "Wheat, whole"
+      }
+    },
+    {
+      "slug": "black-pepper",
+      "per_100g": {
+        "kcal": 217,
+        "protein_g": 10.1,
+        "fat_g": 2.7,
+        "carb_g": 36.2,
+        "fibre_g": 33.2
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "G031",
+        "food": "Pepper, black"
+      }
+    },
+    {
+      "slug": "hing",
+      "per_100g": {
+        "kcal": 297,
+        "protein_g": 4.0,
+        "fat_g": 1.1,
+        "carb_g": 67.8,
+        "fibre_g": 4.1
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "hing"
+      }
+    },
+    {
+      "slug": "sesame-seeds",
+      "per_100g": {
+        "kcal": 520,
+        "protein_g": 21.7,
+        "fat_g": 43.0,
+        "carb_g": 10.8,
+        "fibre_g": 17.0
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "H011",
+        "food": "Gingelly seeds, white"
+      }
     }
   ]
 }
