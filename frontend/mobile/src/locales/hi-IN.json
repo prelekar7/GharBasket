@@ -391,7 +391,6 @@
     "useThis": "यह लें",
     "swapped": "{from} की जगह {to}",
     "closed": "इस हफ़्ते के बदलाव बंद हो गए"
-eat/mobile-wallet
   },
   "wallet": {
     "title": "वॉलेट",
@@ -423,7 +422,5 @@ eat/mobile-wallet
     "cap": "आपका बैलेंस ₹10,000 तक हो सकता है।",
     "continue": "आगे बढ़ें",
     "added": "वॉलेट में {amount} जुड़ गए"
-
-main
   }
 }

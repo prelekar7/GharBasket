@@ -391,7 +391,6 @@
     "useThis": "हे घ्या",
     "swapped": "{from} ऐवजी {to}",
     "closed": "या आठवड्याचे बदल बंद झाले"
-feat/mobile-wallet
   },
   "wallet": {
     "title": "वॉलेट",
@@ -423,7 +422,5 @@ feat/mobile-wallet
     "cap": "तुमची शिल्लक ₹10,000 पर्यंत असू शकते.",
     "continue": "पुढे चला",
     "added": "वॉलेटमध्ये {amount} जोडले"
-
-main
   }
 }

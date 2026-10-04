@@ -151,20 +151,10 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       { code: "health_tag", params: { tag: "low_sugar", member: "adults-2" } },
     ],
     // A skipped week spends nothing from the Budget Lock.
- feat/mobile-wallet
-
-feat/mobile-box
-ain
     budget_lock: {
       budget_paise: 300000,
       spent_paise: status === "skipped" ? 0 : lines.reduce((t, l) => t + l.price_paise, 0),
     },
-feat/mobile-wallet
-
-
-    budget_lock: { budget_paise: 300000, spent_paise: status === "skipped" ? 0 : 69000 },
-main
-main
     captain: { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
   };
 }
