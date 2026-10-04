@@ -29,6 +29,15 @@
     "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas.",
     "fieldBody": "The {role} screens are designed at the start of Phase 3."
   },
-  "profile": { "language": "Language", "switchRole": "Switch role", "signOut": "Sign out" },
-  "assistant": "Ghar Saathi assistant"
+  "profile": {
+    "language": "Language",
+    "switchRole": "Switch role",
+    "signOut": "Sign out",
+    "signOutAll": "Sign out of all devices"
+  },
+  "assistant": "Ghar Saathi assistant",
+  "pwa": {
+    "updateTitle": "New version available",
+    "refresh": "Refresh"
+  }
 }

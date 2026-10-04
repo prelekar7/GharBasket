@@ -1,4 +1,3 @@
-import { Capacitor } from "@capacitor/core";
 import { Button, TextField } from "@gharbasket/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -30,11 +29,8 @@ function Login() {
 
   const onSubmit = handleSubmit(async ({ phone }) => {
     try {
-      const platform = Capacitor.getPlatform() === "android" ? "android" : "web";
-      const tokens = await exchange({ devPhone: `+91${phone}`, platform });
-      const profile = await me(tokens.access_token);
-      const verified = profile.roles.filter((r) => r.status === "verified").map((r) => r.role);
-      signIn(tokens.access_token, /** @type {import("../lib/api.js").FieldRole[]} */ (verified));
+      await exchange({ devPhone: `+91${phone}` });
+      signIn(await me());
       navigate({ to: "/" });
     } catch {
       setError("root", { message: t("login.failed") });
