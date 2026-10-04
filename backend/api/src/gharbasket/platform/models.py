@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text, Uuid, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,3 +70,25 @@ class AuditEntry(Base):
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     request_id: Mapped[str | None] = mapped_column(String(128))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class JobRun(Base):
+    """One run of a scheduled job (M0 §6): what ran, for which scheduled time, and how it ended."""
+
+    __tablename__ = "job_runs"
+    __table_args__ = (
+        CheckConstraint("status IN ('ok', 'failed', 'skipped')", name="status"),
+        Index("ix_job_runs_name_started", "name", "started_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    name: Mapped[str] = mapped_column(String(60))
+    # Business rules use this, not the wall clock: a schedule that fires late changes nothing.
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(12))
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    request_id: Mapped[str | None] = mapped_column(String(64))

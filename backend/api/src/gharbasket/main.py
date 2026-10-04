@@ -26,7 +26,7 @@ from gharbasket.modules.notifications.router import router as notifications_rout
 from gharbasket.modules.orders.router import router as orders_router
 from gharbasket.modules.partners.router import router as partners_router
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
-from gharbasket.platform import health, openapi
+from gharbasket.platform import health, jobs, openapi, outbox
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
@@ -89,6 +89,7 @@ def _lifespan(settings: Settings):
         try:
             yield
         finally:
+            await outbox.drain()  # let an after-commit relay finish before the engine goes
             await http.aclose()
             if valkey is not None:
                 await valkey.aclose()
@@ -121,6 +122,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     v1 = APIRouter(prefix=API_PREFIX)
     v1.include_router(health.router)
+    v1.include_router(jobs.router)
     for module_router in MODULE_ROUTERS:
         v1.include_router(module_router)
     app.include_router(v1)

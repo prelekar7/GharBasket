@@ -94,6 +94,10 @@ test:
     uv run --directory backend/ml pytest --cov
     uv run --directory data/simulator pytest --cov
 
+# Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
+job name *args:
+    uv run python -m gharbasket.tools.run_job {{name}} {{args}}
+
 # Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
 grant-role *args:
     uv run python -m gharbasket.tools.grant_role {{args}}

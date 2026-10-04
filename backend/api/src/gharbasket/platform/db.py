@@ -115,12 +115,19 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """One session per request. Services call `await session.commit()` themselves; anything not
-    committed is rolled back when the request ends."""
+    committed is rolled back when the request ends.
+
+    A request that published outbox events gets them relayed right after it finishes (ADR-0021).
+    """
     sessionmaker: async_sessionmaker[AsyncSession] | None = request.app.state.sessionmaker
     if sessionmaker is None:
         raise ProblemError(503, "platform.database_unavailable", "The database is not configured.")
     async with sessionmaker() as session:
         yield session
+        if session.info.get("outbox_published"):
+            from gharbasket.platform.outbox import relay_soon  # outbox imports models, not db
+
+            relay_soon(sessionmaker)
 
 
 DbSession = Annotated[AsyncSession, Depends(get_session)]

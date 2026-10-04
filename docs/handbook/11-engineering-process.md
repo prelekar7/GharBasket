@@ -125,7 +125,7 @@ flowchart TD
     OK -->|yes| MG["Squash merge to main"]
     MG --> STG["deploy-staging<br/>alembic upgrade head on Neon,<br/>Render deploy hook, smoke test"]
     MG --> VD["Vercel deploys PWA + console"]
-    SCH["Jobs schedule workflow (planned)"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
+    SCH["jobs-staging.yml schedule<br/>+ cron-job.org"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
 ```
 *Figure 11.2 — CI/CD pipeline*
 
@@ -134,7 +134,7 @@ flowchart TD
 | `ci.yml` | PR, push to main | Lint, secrets, Python, frontend build and JS editor hints jobs (above) |
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR |
 | `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
-| Jobs schedule workflow (planned) | GitHub Actions schedule | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN`: outbox sweep, cut-off, reminders, clean-up (D21) |
+| `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
 
 Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
 
