@@ -1,0 +1,81 @@
+21 recipes (chapati left out as a side); week of 2026-10-12
+
+Priya: size 4, diet veg, jain False, diabetic False, fasting days [], no-cook [6], budget/week 138568
+  CP-SAT OPTIMAL in 0.052 s
+  checker: all rules hold
+    Mon         kanda-poha         | moong-dal-khichdi  | bhindi-sukhi      
+    Tue         sabudana-khichdi   | batata-bhaji       | kobi-bhaji        
+    Wed         kanda-poha         | masoor-dal         | pithla-bhakri     
+    Thu         sabudana-khichdi   | gajar-matar        | varan-bhaat       
+    Fri         kanda-poha         | bhindi-masala      | aloo-gobi         
+    Sat         sabudana-khichdi   | dal-tadka          | dudhi-chana-dal   
+    Sun         fruit-bowl         | (tiffin)           | (tiffin)          
+  CP-SAT  {'preference': 17, 'variety': 15, 'perishables': 7, 'cost_paise': 111904}  objective 98
+  random  mean objective 68.5 over 20 valid plans, mean perishables 10.2
+  greedy  {'preference': 18, 'variety': 9, 'perishables': 8, 'cost_paise': 98368}  objective 67
+
+Sunita: size 2, diet egg, jain False, diabetic False, fasting days [], no-cook [], budget/week None
+  CP-SAT OPTIMAL in 0.012 s
+  checker: all rules hold
+    Mon         sabudana-khichdi   | varan-bhaat        | bhindi-masala     
+    Tue         kanda-poha         | egg-curry          | vangi-bhaji       
+    Wed         sabudana-khichdi   | bhindi-sukhi       | kobi-bhaji        
+    Thu         kanda-poha         | dal-tadka          | pithla-bhakri     
+    Fri         sabudana-khichdi   | masoor-dal         | batata-bhaji      
+    Sat         kanda-poha         | dudhi-chana-dal    | kobi-bhaji        
+    Sun         sabudana-khichdi   | moong-dal-khichdi  | gajar-matar       
+  CP-SAT  {'preference': 14, 'variety': 15, 'perishables': 5, 'cost_paise': 58278}  objective 97
+  random  mean objective 57.5 over 20 valid plans, mean perishables 11.3
+  greedy  {'preference': 21, 'variety': 8, 'perishables': 7, 'cost_paise': 50106}  objective 75
+
+Ramesh: size 2, diet veg, jain False, diabetic True, fasting days [], no-cook [], budget/week 92379
+  CP-SAT INFEASIBLE in 0.001 s
+  allowed on a weekday per slot: {'breakfast': 2, 'lunch': 3, 'dinner': 3}
+  plannable if one rule is switched off: ['cook_time', 'repeat']
+  fallback: OPTIMAL in 0.005 s with ('repeat',) relaxed; safety and religious rules still hold: True
+    Mon         kanda-poha         | bhindi-sukhi       | kobi-bhaji        
+    Tue         kanda-poha         | bhindi-sukhi       | kobi-bhaji        
+    Wed         kanda-poha         | bhindi-sukhi       | kobi-bhaji        
+    Thu         kanda-poha         | bhindi-sukhi       | kobi-bhaji        
+    Fri         kanda-poha         | bhindi-sukhi       | kobi-bhaji        
+    Sat         sabudana-khichdi   | bhindi-masala      | pithla-bhakri     
+    Sun         sabudana-khichdi   | gajar-matar        | masoor-dal        
+
+Meena: size 3, diet veg, jain True, diabetic False, fasting days [0, 1, 2, 3, 4, 5, 6], no-cook [], budget/week 115473
+  CP-SAT INFEASIBLE in 0.001 s
+  allowed on a weekday per slot: {'breakfast': 2, 'lunch': 6, 'dinner': 7}
+  plannable if one rule is switched off: ['jain', 'fasting_dish', 'repeat']
+  fallback: OPTIMAL in 0.006 s with ('repeat',) relaxed; safety and religious rules still hold: True
+    Mon fasting methi-thepla       | kakdi-koshimbir    | moong-dal-khichdi 
+    Tue fasting methi-thepla       | kakdi-koshimbir    | dudhi-chana-dal   
+    Wed fasting methi-thepla       | kakdi-koshimbir    | varan-bhaat       
+    Thu fasting methi-thepla       | kakdi-koshimbir    | methi-thepla      
+    Fri fasting methi-thepla       | kakdi-koshimbir    | methi-thepla      
+    Sat fasting methi-thepla       | kakdi-koshimbir    | methi-thepla      
+    Sun fasting methi-thepla       | kakdi-koshimbir    | methi-thepla      
+
+Priya + Tuesday fast: size 4, diet veg, jain False, diabetic False, fasting days [1], no-cook [6], budget/week 138568
+  CP-SAT OPTIMAL in 0.010 s
+  checker: all rules hold
+    Mon         kanda-poha         | gajar-matar        | bhindi-masala     
+    Tue fasting sabudana-khichdi   | kobi-bhaji         | bhindi-sukhi      
+    Wed         kanda-poha         | moong-dal-khichdi  | varan-bhaat       
+    Thu         sabudana-khichdi   | aloo-gobi          | pithla-bhakri     
+    Fri         kanda-poha         | batata-bhaji       | masoor-dal        
+    Sat         sabudana-khichdi   | dal-tadka          | dudhi-chana-dal   
+    Sun         fruit-bowl         | (tiffin)           | (tiffin)          
+  CP-SAT  {'preference': 17, 'variety': 15, 'perishables': 7, 'cost_paise': 111904}  objective 98
+  random  mean objective 70.8 over 20 valid plans, mean perishables 10.3
+  greedy  {'preference': 18, 'variety': 9, 'perishables': 8, 'cost_paise': 98368}  objective 67
+
+Timing: Priya, 5 runs each, 8 workers, 5 s limit
+   21 recipes: median 0.011 s, max 0.011 s, OPTIMAL
+   63 recipes: median 0.028 s, max 0.028 s, OPTIMAL
+  126 recipes: median 0.074 s, max 0.076 s, OPTIMAL
+
+One worker (a small server CPU), Priya, 21 recipes; 8-worker optimum 98
+  limit 0.25 s: FEASIBLE objective 98 (100% of the optimum)
+  limit  0.5 s: FEASIBLE objective 98 (100% of the optimum)
+  limit  1.0 s: FEASIBLE objective 98 (100% of the optimum)
+  limit  2.0 s: FEASIBLE objective 98 (100% of the optimum)
+  limit  5.0 s: FEASIBLE objective 98 (100% of the optimum)
