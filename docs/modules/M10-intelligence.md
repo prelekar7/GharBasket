@@ -24,15 +24,18 @@ All prediction and optimisation: the household simulator, pantry digital twin, n
 ## 3. API endpoints (internal, service-to-service; called only via `intel_gateway.api`)
 | Method | Path | Caller | Idempotency | Notes |
 |---|---|---|---|---|
-| POST | `/plan/week` | subscriptions (batch via job) | Request id | Meal plan + box lines; 5 s per household |
-| POST | `/basket/rank` | subscriptions | — | Ranked candidates |
-| GET | `/substitutes/{product_id}` | catalog | — | Learned + similarity |
-| POST | `/forecast/run` | ops (job) | Request id | Async; writes `intel.predictions` |
-| POST | `/route/solve` | logistics | Request id | Async; 30 s limit |
-| POST | `/assign/kitchens` | partners (job) | Request id | Fair assignment |
-| POST | `/slots/price` | orders / community | — | Marginal insertion cost |
-| POST | `/embed` | catalog (job) | — | bge-m3 embeddings |
-| GET | `/models`, `/health/ai` | console (admin) | — | Champion versions, drift metrics |
+| POST | `/plan/week` | subscriptions (batch via job) | Request id | Meal plan; ≤ 5 s per household (§3.1, v1 in §3.2) |
+| POST | `/pantry/quantities` | subscriptions | Request id | Per-item quantities with intervals from the pantry twin; rule table fallback in the gateway |
+| POST | `/basket/rank` | subscriptions | — | Ranked candidates (P4) |
+| POST | `/route/solve` | logistics | Request id | Two waves of ≤ 10 s; returns routes, the API writes `logistics.*` via its facade |
+| POST | `/assign/kitchens` | partners (job) | Request id | Greedy now, fair (λ) in S8 |
+| POST | `/forecast/run` | hub_ops (job, from `backend/training`) | Request id | Returns forecasts; the API writes `intel.predictions` and `hub_ops.procurement_lines` |
+| POST | `/slots/price` | orders / community | — | Marginal insertion cost (S9) |
+| GET | `/substitutes/{product_id}` | catalog | — | Learned + similarity (stretch) |
+| POST | `/embed` | catalog (job) | — | Embeddings (stretch, training jobs only) |
+| GET | `/models`, `/health/ai` | console (admin) | — | Served model versions from the R2 pointer, drift metrics |
+
+The ML service is **stateless** (ADR-0025): it returns results and never writes the database; `intel_gateway` records predictions in `intel.*` and hands results to the owning module's facade. Long jobs (forecast training, snapshots) run in `backend/training` on GitHub Actions and call the same facades through the API's job endpoints.
 
 ### 3.1 `POST /plan/week` (v0, from spike S-4)
 Stateless: the API sends everything the planner needs, so the ML service needs no database for it. The API calls it only through `intel_gateway.api.plan_week()`, with a timeout (default 3 s). On a timeout, an error or no service configured, the gateway uses its rule-based planner instead, so ML never blocks a customer.
@@ -73,6 +76,34 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
 - **Fallback when infeasible:** relax `repeat` (a dish may come back on a later day, never twice on the same day), then `cook_time`, then `budget`, one rule and then two. **Never** relax diet, Jain, diabetic or fasting rules. `relaxed` says what was used, and `infeasible` is returned if nothing works.
 - **Deterministic mode:** in-process callers (the simulator) can pass `deterministic=True` to `plan_week`. CP-SAT then interleaves its workers in fixed batches with a deterministic time limit, so the same request always gives the same plan. Several plans can tie for the best score, and the faster default can return any of them. The HTTP endpoint keeps the default.
 
+### 3.2 `POST /plan/week` v1 (planned for Nov–Dec 2026; additive, so v0 clients keep working)
+Every new field is optional; a request without them is a v0 request and gets a v0 answer.
+
+```
+  request additions:
+    "household": { …v0…,
+      "members": [ { "age_band": "18_59" | "under_5" | "5_17" | "60_plus", "sex": "f" | "m" | "other" } ],
+                                      for nutrition targets (ICMR-NIN RDA); size stays the count
+      "diet": "veg" | "egg" | "nonveg" }   nonveg households may be offered any dish; no nonveg
+                                           recipes exist in the pilot catalog
+    "recipes": [ { …v0…,
+      "nutrition_per_serving": { "kcal": 320, "protein_g": 12, "fibre_g": 6 } | null,   from IFCT
+      "sides": ["chapati"],              side recipes this main is eaten with (slugs); sides are
+                                         recipes flagged "is_side": true and never planned alone
+      "is_side": false,
+      "price_spike": 0.62 | null } ],    (current price − 4-week index) / index, from intel.price_index
+    "weights": { "preference": 3, "variety": 5, "perishables": 4, "nutrition": 4, "price": 3 } | null
+                                         defaults as given; only evaluation ablations override them
+  200 additions:
+    "plan": [ { …v0…, "sides": ["chapati"], "reasons": ["FESTIVAL", "BUDGET"] } ]
+                                         reason codes per meal (handbook 08 §8.4), params in "reason_params"
+    "score": { …v0…, "nutrition": 0.82, "price_penalty": 3 }   nutrition = share of member-days
+                                         within ±20 % of the RDA targets for kcal and protein
+```
+- **Soft objective v1:** v0 terms + `nutrition` × adherence − `price` × Σ price_spike of chosen dishes (an ingredient 62 % above its 4-week index costs 0.62 × its share). Hard rules are unchanged; the relaxation order is unchanged.
+- **Fallback:** the rule-based planner gains sides pairing and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
+- Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**
@@ -109,7 +140,7 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
 | Table | Key columns |
 |---|---|
 | `intel.feature_snapshots` | household_id, as_of, features jsonb |
-| `intel.predictions` | id, kind (plan, forecast, route, assignment, churn), subject_id, for_date, payload jsonb, model_name, model_version, created_at |
+| `intel.predictions` | id, kind (weekly_plan, pantry, basket_rank, forecast, route, assignment, slot_price, churn), subject_type, subject_id, for_date, source (ml, fallback), payload jsonb, model_name, model_version, request_id, created_at |
 | `intel.experiments` | id, key, variant, subject_id, assigned_at |
 | `intel.model_metrics` | model_name, version, metric, value, split, data_source, computed_at |
 
@@ -138,7 +169,7 @@ Service-to-service token for API ↔ ML calls; `models:read` for admin in the co
 
 ## 9. Tests required
 - Solver golden tests (fixed seeds) for routing, meal planner and assignment (feasibility and objective within tolerance).
-- Model-quality gates on fixture datasets (minimum Recall@10, maximum WAPE).
+- Model-quality gates on fixture datasets, with the pre-registered targets of [`docs/research/eval-protocol.md`](../research/eval-protocol.md) (e.g. Recall@10 ≥ 0.6, WAPE ≤ 25 %); a miss fails the eval report's gate, never the build.
 - Leakage tests: features computed strictly as of cut-off.
 - Timeout and fallback tests from the API side (ML service down → rule-based box).
 - Evaluation reproducibility: same seed and snapshot → same metrics.
@@ -147,6 +178,6 @@ Service-to-service token for API ↔ ML calls; `models:read` for admin in the co
 Reads Postgres snapshots (read-only role). Writes results only to `intel.*`. Other modules call it only through `intel_gateway.api`.
 
 ## 11. Open questions
-- Embedding model confirmation (bge-m3 vs smaller multilingual model) in the S7 spike.
+- Embedding model confirmation (bge-m3 vs smaller multilingual model): a stretch item after MS-C (ADR-0025 roadmap).
 - Nutrition targets per age band (ICMR-NIN RDA tables) for the meal planner.
 - Whether to fine-tune Chronos for the paper (optional, free Kaggle/Colab GPU).

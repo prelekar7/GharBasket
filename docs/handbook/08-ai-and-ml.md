@@ -1,7 +1,7 @@
 # Chapter 08 — AI and Machine Learning
 
 > **In short:**
-> - GharBasket's intelligence is mostly **statistics, tabular ML and optimisation solvers**. **No GPU is needed** for v1. Everything trains on CPU in seconds to minutes. Where the ML service is hosted is to be decided before P3; until then it runs in Docker Compose and on laptops.
+> - GharBasket's intelligence is mostly **statistics, tabular ML and optimisation solvers**. **No GPU is needed** for v1. Everything trains on CPU in seconds to minutes. The ML service runs on a Hugging Face Space, training runs in GitHub Actions and models live on R2 (ADR-0025); locally everything runs in Docker Compose and on laptops.
 > - Rule: **solvers decide, statistics predict, LLMs talk.** The LLM never computes money or quantities.
 > - Heavy AI runs in **batch** and writes into `intel.*` tables. Online calls have timeouts and **rule-based fallbacks**, so ML never blocks a customer.
 > - Four algorithms form the research contribution (D7): **CP-SAT meal planner** and **pantry digital twin** (deepest), **fair kitchen assignment**, and **forecast + newsvendor procurement**.
@@ -13,7 +13,7 @@
 
 | Model / engine | Type | Where it trains | How often | Typical time |
 |---|---|---|---|---|
-| M-A Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | ML service batch job (CPU; host to be decided before P3); development on laptops | Weekly full fit; online update after every delivery / feedback | 1–5 min |
+| M-A Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | `backend/training` job in GitHub Actions (CPU); the online update runs in the API with plain arithmetic; development on laptops | Weekly full fit; online update after every delivery / feedback | 1–5 min |
 | M-B Next-basket ranker | LightGBM LambdaRank | ML service batch job (CPU) | Weekly | < 2 min |
 | M-E Demand forecast | StatsForecast + MLForecast (LightGBM) + MinT reconciliation | ML service batch job (CPU) | Nightly | < 5 min |
 | Chronos-2 | Pretrained foundation model, **zero-shot** (no training) | Inference on CPU in an ML service batch job | Nightly, only for hubs with < 8 weeks of data | seconds–minutes |
@@ -23,9 +23,9 @@
 | Assistant | Claude API — prompting + tool use, **no fine-tuning** | Anthropic API | — | — |
 | (Optional, research) Chronos fine-tune | Fine-tune | Kaggle / Colab free GPU (T4/P100) | Once, for the paper | ~1 h |
 
-Until there is a paid worker (the pilot), long ML jobs run in the ML service or offline, never inside an API request (D21, [ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+Until there is a paid worker (the pilot), long ML jobs run in GitHub Actions (`backend/training`, D25) or offline, never inside an API request (D21, [ADR-0021](../adr/0021-jobs-without-a-broker.md)). The serving service (`backend/ml`, a Hugging Face Space) is stateless and installs only solvers and inference libraries.
 
-Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean). Every run is logged to the shared **MLflow** server (Docker Compose locally; hosting to be decided before P3), with artifacts in S3-compatible object storage (`gb-mlflow` bucket), so the whole team can see every experiment.
+Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean) and are logged to a **local MLflow** (Docker Compose). The registry of record is simpler: models go to `s3://gb-mlflow/models/<name>/<version>/` on R2 with a `latest.json` pointer per model; promotion is a manual `just promote` in v1 and the Space polls the pointer every 10 minutes (ADR-0025). Where the figures below say "MLflow registry", read "the R2 pointer".
 
 ---
 
@@ -223,6 +223,21 @@ sequenceDiagram
 
 `just eval` runs every protocol and produces a marimo HTML report with paper-ready figures and tables. Figures are versioned with the model version that produced them.
 
+**Pre-registered targets (hypotheses, 4 Oct 2026; the full protocol, seeds, ablations and change log are in [`docs/research/eval-protocol.md`](../research/eval-protocol.md)):**
+
+| Algorithm | Target | Guardrails |
+|---|---|---|
+| M-A pantry twin | quantity MAE ≤ 15 % of weekly quantity after 4 weeks (rule table ≈ 30 %); cold start < 4 weeks | 80 % interval coverage in 75–85 % |
+| M-B basket ranker | NDCG@10 ≥ repeat-last-week + 0.05; Recall@10 ≥ 0.6 | edits per box; calibration |
+| M-C meal planner | simulator acceptance ≥ 70 %; score ≥ +30 % vs greedy; ≥ 25 % fewer distinct perishables | 100 % hard constraints; ≤ 5 s |
+| M-E forecast + newsvendor | WAPE ≤ 25 %, ≥ 10 points better than seasonal naive; stock-out ≤ 3 %; waste ≤ 5 % | MASE; pinball loss |
+| M-F routing | on-time ≥ 95 %; ₹/order ≥ 10 % below nearest neighbour | ≤ 10 s per wave |
+| M-G kitchen assignment | Gini ≤ 0.25 at ≤ +5 % cost vs greedy | rating floor kept |
+| M13 assistant | intent accuracy ≥ 90 %; slot F1 ≥ 0.85; ≤ $0.01 per turn | no unauthorised action on injection fixtures |
+| Monitoring | alert when WAPE worsens by > 10 points against the last report | — |
+
+Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI; synthetic and pilot results are always separate tables.
+
 ---
 
 ## 8.6 LLM usage
@@ -259,7 +274,20 @@ Anthropic list prices, per 1M tokens (input / output):
 
 ---
 
-## 8.7 Ownership
+## 8.7 Roadmap and tiers (4 Oct 2026)
+
+One person builds every model next to the backend, so the work is tiered. A product PR on the current milestone path always goes before an ML PR.
+
+| Tier | Meaning | Items |
+|---|---|---|
+| 1 | Needed for a milestone demo (MS-A 13 Dec, MS-B 24 Jan, MS-C 21 Feb) | jobs runner and outbox consumers; `intel.*` tables; Agmarknet collector (history only accrues from the day collection starts); IFCT nutrition; verified festival calendar; ≥ 120 recipes; simulator v1; eval harness v0; pantry twin v0; planner v1; snapshots; the ML Space; forecast v0 (StatsForecast + newsvendor); `/route/solve`; greedy kitchen assignment; the assistant with four tools; thin AI health |
+| 2 | Needed for the paper (S7–S8) | pantry twin v1 (NumPyro); basket ranker + SHAP; fair assignment λ sweep; planner v2; forecast v1 (MLForecast) |
+| 3 | Stretch: only after MS-C or if ahead | Chronos-2 zero-shot; MinT reconciliation; bge-m3 embeddings and learned substitutes; Instacart benchmark; M-I churn and uplift; kits on busy days; slot pricing (S9); Dakshina spellings |
+| cut | — | M-J trust and safety (a rules-only refund flag in M12, later) |
+
+Data sources (all free; fetch dates recorded with every run): IFCT 2017 and ICMR-NIN RDA 2020 (nutrition); data.gov.in daily mandi prices plus the India Data Portal 2019–2025 history (Vashi APMC); Open-Meteo (weather); the `kalagana` panchang (fasts); NSSO HCES 2022–23 (simulator realism); OpenStreetMap (roads).
+
+## 8.8 Ownership
 
 | Item | Owner |
 |---|---|
@@ -277,7 +305,7 @@ Anthropic list prices, per 1M tokens (input / output):
 - **D8** — Simulator first; `data_source` tagging ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
 - **D13** — Assistant model chosen after the S8 eval ([ADR-0013](../adr/0013-assistant-model-chosen-by-eval.md)).
 - **D21** — Jobs without a broker until the pilot; long ML jobs run in the ML service or offline ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
-- **Open:** hosting for the ML service and MLflow (needed from P3/P4), to be decided before P3 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)).
+- **D25** — ML runtime: Hugging Face Space for serving, GitHub Actions for training, R2 for the lake and registry, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)).
 - **Open:** confirm bge-m3 CPU embedding speed in the S7 spike; decide whether to attempt the optional Chronos fine-tune for the paper.
 
 Related: [Chapter 05 — Data architecture](05-data-architecture.md) · [Chapter 07 — Workflows](07-workflows.md) · [Chapter 10 — API and integration](10-api-and-integration.md) · Module specs M10 and M13 in [`docs/modules/`](../modules/)
