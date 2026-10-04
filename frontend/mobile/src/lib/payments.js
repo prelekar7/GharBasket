@@ -2,9 +2,9 @@
 // servers. Inside the Android app UPI apps open through `webview_intent` (spike S-1 notes);
 // until S-1 has run on a phone, mock mode replaces Checkout with a test-payment step.
 import { request } from "@/lib/api.js";
+import { MOCK, NATIVE } from "@/lib/env.js";
 
-const NATIVE = import.meta.env.MODE === "native";
-export const PAYMENTS_MOCKED = import.meta.env.VITE_API_MOCK !== "false";
+export const PAYMENTS_MOCKED = MOCK;
 
 /** @typedef {{ id: string, razorpay_order_id: string, key_id: string, amount_paise: number, currency: string }} TopUpOrder */
 

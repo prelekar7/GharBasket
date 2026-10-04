@@ -4,10 +4,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { MOCK } from "@/lib/env.js";
 import { sendCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
-
-const MOCK = import.meta.env.VITE_API_MOCK !== "false";
 
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/login")({ validateSearch: nextSearch, component: Login });

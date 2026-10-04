@@ -3,7 +3,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { exchange, me } from "@/lib/api.js";
-import { OtpError, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
+import { OtpError, onAutoVerified, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
 import { useSession } from "@/lib/session.js";
 
@@ -60,6 +60,11 @@ function Otp() {
       setBusy(false);
     }
   };
+
+  // Android can verify the number by itself (instant verification or SMS auto-retrieval); then
+  // there is no code to type, so sign in straight away.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe once; verify ignores the typed code then
+  useEffect(() => onAutoVerified(() => verify()), []);
 
   const resend = async () => {
     setError(null);
