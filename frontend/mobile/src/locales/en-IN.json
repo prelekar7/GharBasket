@@ -216,6 +216,18 @@
         "d5": "Shani",
         "d6": "Ravi"
       }
+    },
+    "budget": {
+      "optional": "Optional",
+      "title": "Fix your monthly sabzi bill?",
+      "sub": "With Budget Lock, Autopilot swaps in a similar vegetable when prices spike, so you stay within budget.",
+      "toggle": "Turn on Budget Lock",
+      "amount": "Monthly budget for vegetables",
+      "exTitle": "How it works",
+      "exBody": "Tomato is up 40% this week. Autopilot uses lauki in two meals instead and shows why on your box.",
+      "exChip": "Tomato +40% → lauki in 2 meals",
+      "later": "Not now",
+      "min": "Set at least {amount}"
     }
   }
 }

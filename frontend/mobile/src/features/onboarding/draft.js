@@ -16,6 +16,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
  * @property {number} weekdayCookMinutes
  * @property {number} weekendCookMinutes
  * @property {number[]} noCookDays 0 = Monday … 6 = Sunday
+ * @property {number | null} budgetLockPaise monthly vegetable budget for Budget Lock (M3); null = off
  */
 
 /** @type {HouseholdDraft} */
@@ -31,6 +32,7 @@ const EMPTY_HOUSEHOLD = {
   weekdayCookMinutes: 30,
   weekendCookMinutes: 60,
   noCookDays: [],
+  budgetLockPaise: 300000,
 };
 
 /**
@@ -71,6 +73,7 @@ export const ONBOARDING_STEPS = [
   "/onboarding/food",
   "/onboarding/health",
   "/onboarding/cooking",
+  "/onboarding/budget",
 ];
 
 /** The household steps that show "Step N of 5" (designs Hf07–Hf11). */
