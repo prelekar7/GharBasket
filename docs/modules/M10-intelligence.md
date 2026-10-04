@@ -71,6 +71,39 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
   - the week's cost (`cost_per_serving_paise` × size) within the budget.
 - **Soft:** 3 × cuisine match + 5 × variety − 4 × distinct perishables.
 - **Fallback when infeasible:** relax `repeat` (a dish may come back on a later day, never twice on the same day), then `cook_time`, then `budget`, one rule and then two. **Never** relax diet, Jain, diabetic or fasting rules. `relaxed` says what was used, and `infeasible` is returned if nothing works.
+- **Deterministic mode:** in-process callers (the simulator) can pass `deterministic=True` to `plan_week`. CP-SAT then interleaves its workers in fixed batches with a deterministic time limit, so the same request always gives the same plan. Several plans can tie for the best score, and the faster default can return any of them. The HTTP endpoint keeps the default.
+
+### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
+Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
+- **Input:**
+  - the seed world from `just seed` (hub, societies, catalog, prices, festival calendar), read through the catalog services;
+  - the cohorts in `data/simulator/cohorts.json` (assumptions for Rhythm and Manish to review);
+  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026), `--planner cpsat|rules` and `--adoption` (share of flats, default 0.1).
+- **Households:**
+  - sampled per seed society with a hub, using cohort size, diet, Jain, cuisines, fasts, a diabetic elder (with health consent), cook time, no-cook Sunday and Budget Lock;
+  - onboarded through M1's `create_household` with `data_source='synthetic'`;
+  - phones +91 98001 00001 onwards (reserved);
+  - a rerun keeps existing households.
+- **Weeks:**
+  - **Plan:** the planner plans each week (CP-SAT in deterministic mode, or the rules fallback). Fasts come from the household's observances and the festival calendar. The weekly budget is the monthly Budget Lock × 7 / 30.
+  - **Accept or edit:** each planned dish is accepted with probability sigmoid(accept bias + taste). Otherwise it is swapped for the household's favourite dish allowed under the same hard rules, and a fasting dish is only swapped for another fasting dish.
+  - **Skip:** a skipped week means no box; the family still cooks.
+  - **Consumption:** the cooked dishes' ingredients × adult equivalents, plus latent daily-use items (milk, atta, oil, salt, curd, fruit) with weekly noise.
+- **Output:** Parquet ground truth in `data/sim_truth/seed-<n>/` (git-ignored):
+  - `households`, `daily_use` and `taste` (the latent truth);
+  - `weeks`, `meals` and `consumption` (behaviour), with columns as in `gharbasket_sim/truth.py`;
+  - `manifest.json`.
+  The weeks reach the database through M3/M4 once those exist.
+- **Guarantees (tested):**
+  - the same seed and catalog give identical tables;
+  - every cooked dish keeps the planner's hard rules;
+  - Jain households never consume root vegetables, onion or garlic, and veg households never eggs;
+  - the database catalog equals the seed files.
+- **Seed 7 (4 Oct 2026):**
+  - 87 households in 5 societies, 696 household-weeks in about 35 s;
+  - every plan optimal, with 28 % needing the repeat rule relaxed (the small menu, as in S-4);
+  - 76 % of planned dishes accepted;
+  - 8 % of boxes skipped.
 
 ## 4. Tables owned
 | Table | Key columns |

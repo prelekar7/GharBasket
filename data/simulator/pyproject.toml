@@ -1,0 +1,38 @@
+[project]
+name = "gharbasket-sim"
+version = "0.1.0"
+description = "GharBasket household simulator (M10, ADR-0008): synthetic households and ground truth"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "gharbasket-api",
+    "gharbasket-ml",
+    "pyarrow>=25.0.1",
+]
+
+[tool.uv.sources]
+gharbasket-api = { workspace = true }
+gharbasket-ml = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.12,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "gharbasket_sim"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["services: needs local Postgres (`just up`); skipped when it is not running"]
+
+[tool.coverage.run]
+source = ["gharbasket_sim"]
+branch = true
+# SQLAlchemy's async layer switches greenlets; without this, code after a database await is missed.
+concurrency = ["thread", "greenlet"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true

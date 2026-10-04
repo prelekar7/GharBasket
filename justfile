@@ -92,6 +92,7 @@ dev-ml:
 test:
     uv run --directory backend/api pytest --cov
     uv run --directory backend/ml pytest --cov
+    uv run --directory data/simulator pytest --cov
 
 # Give a signed-up user a staff role, e.g. `just grant-role +919800000001 admin` (see the tool's help)
 grant-role *args:
@@ -125,6 +126,6 @@ cloud url:
 gen-api: openapi
     pnpm --filter @gharbasket/api-client run generate
 
-# Seed synthetic households with the simulator (arrives in feat/M10-simulator-v0)
-sim:
-    @echo "Not available yet: arrives in feat/M10-simulator-v0"
+# Simulate synthetic households and write their ground truth (after `just seed`), e.g. `just sim --seed 11`
+sim *args:
+    uv run python -m gharbasket_sim {{args}}
