@@ -1,6 +1,34 @@
 {
   "components": {
     "schemas": {
+      "CaptainCard": {
+        "properties": {
+          "display_name": {
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          }
+        },
+        "required": [
+          "display_name",
+          "photo_url"
+        ],
+        "title": "CaptainCard",
+        "type": "object"
+      },
       "DeviceIn": {
         "properties": {
           "platform": {
@@ -216,6 +244,34 @@
         "title": "Health",
         "type": "object"
       },
+      "LatLng": {
+        "properties": {
+          "lat": {
+            "examples": [
+              18.99
+            ],
+            "maximum": 37.0,
+            "minimum": 6.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "examples": [
+              73.11
+            ],
+            "maximum": 98.0,
+            "minimum": 68.0,
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "LatLng",
+        "type": "object"
+      },
       "MeOut": {
         "properties": {
           "id": {
@@ -316,6 +372,34 @@
           }
         },
         "title": "MeUpdate",
+        "type": "object"
+      },
+      "Page_SocietySummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SocietySummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[SocietySummary]",
         "type": "object"
       },
       "Ready": {
@@ -525,6 +609,275 @@
         "title": "RoleOut",
         "type": "object"
       },
+      "SocietyOut": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "captain": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaptainCard"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for residents of this society with an active captain (M8); else null"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Metres from `near` to the society's boundary; null without `near`",
+            "examples": [
+              400
+            ],
+            "title": "Distance M"
+          },
+          "flats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              240
+            ],
+            "title": "Flats"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Sunrise Towers"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "examples": [
+              "sunrise-towers-kharghar"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "towers": {
+            "items": {
+              "$ref": "#/components/schemas/Tower"
+            },
+            "title": "Towers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "area",
+          "status",
+          "distance_m",
+          "towers",
+          "flats",
+          "captain"
+        ],
+        "title": "SocietyOut",
+        "type": "object"
+      },
+      "SocietyRequestIn": {
+        "additionalProperties": false,
+        "description": "Ask GharBasket to come to a society that isn't listed (US-8).",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "New Panvel"
+            ],
+            "title": "Area"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when no pin was placed; never a default map centre"
+          },
+          "name": {
+            "examples": [
+              "Panvel Heights"
+            ],
+            "maxLength": 120,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SocietyRequestIn",
+        "type": "object"
+      },
+      "SocietyRequestOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "received",
+              "accepted",
+              "rejected",
+              "duplicate"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "created_at"
+        ],
+        "title": "SocietyRequestOut",
+        "type": "object"
+      },
+      "SocietySummary": {
+        "description": "A search result. Never carries captain data, not even for residents.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Metres from `near` to the society's boundary; null without `near`",
+            "examples": [
+              400
+            ],
+            "title": "Distance M"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Sunrise Towers"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "examples": [
+              "sunrise-towers-kharghar"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "area",
+          "status",
+          "distance_m"
+        ],
+        "title": "SocietySummary",
+        "type": "object"
+      },
       "TokensOut": {
         "description": "Apps get both tokens. Browsers (`X-GB-Client: web`) get null here: the tokens are set as\nhttpOnly cookies that JavaScript cannot read.",
         "properties": {
@@ -564,6 +917,72 @@
           "refresh_token"
         ],
         "title": "TokensOut",
+        "type": "object"
+      },
+      "Tower": {
+        "properties": {
+          "id": {
+            "examples": [
+              "a"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "A wing"
+            ],
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "Tower",
+        "type": "object"
+      },
+      "UnlockOut": {
+        "description": "How close a society is to free delivery (US-2).",
+        "properties": {
+          "joined": {
+            "examples": [
+              14
+            ],
+            "title": "Joined",
+            "type": "integer"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "threshold": {
+            "examples": [
+              20
+            ],
+            "title": "Threshold",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "society_id",
+          "status",
+          "joined",
+          "threshold"
+        ],
+        "title": "UnlockOut",
         "type": "object"
       },
       "UserOut": {
@@ -1199,6 +1618,341 @@
         "summary": "Readiness check (database and Valkey); operator token required when deployed",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/v1/societies": {
+      "get": {
+        "operationId": "search_societies_v1_societies_get",
+        "parameters": [
+          {
+            "description": "Words of the name or area; typos and accents are fine",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words of the name or area; typos and accents are fine",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "`lat,lng`",
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`lat,lng`",
+              "examples": [
+                "19.0390,73.0690"
+              ],
+              "title": "Near"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SocietySummary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "community.near_invalid, request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Find societies by name or area, or the nearest ones",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/societies/{society_id}": {
+      "get": {
+        "operationId": "get_society_v1_societies__society_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "society_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Society Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A society with its towers (and its captain, for residents)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/societies/{society_id}/unlock": {
+      "get": {
+        "operationId": "society_unlock_v1_societies__society_id__unlock_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "society_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Society Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnlockOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "How many households have joined, and how many unlock free delivery",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/society-requests": {
+      "post": {
+        "operationId": "request_society_v1_society_requests_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {}
+            },
+            "description": "community.request_rate_limited (see Retry-After)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Ask GharBasket to come to a society that isn't listed (Idempotency-Key required)",
+        "tags": [
+          "community"
         ]
       }
     }

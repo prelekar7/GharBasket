@@ -341,6 +341,19 @@ wheels = [
 ]
 
 [[package]]
+name = "geoalchemy2"
+version = "0.20.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "sqlalchemy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/63/74/6cb1ef591bf47d28f41aa770f2f3a91c0a570aee0a4083bed7f8c533d8df/geoalchemy2-0.20.0.tar.gz", hash = "sha256:450f427f4bc3cf2d5ddee0af3763aed0f3eea2384e7c9a99798d8f1508279322", size = 280805, upload-time = "2026-05-12T14:50:26.132Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/08/b66ad4239f592e05202e25925c08cdd04cc14c3994000ec70ec61fea202c/geoalchemy2-0.20.0-py3-none-any.whl", hash = "sha256:1489a1d106519542a79c97cd0b4c537d80462c353610ebc2429cf2c43daac717", size = 96467, upload-time = "2026-05-12T14:50:24.998Z" },
+]
+
+[[package]]
 name = "gharbasket-api"
 version = "0.1.0"
 source = { editable = "backend/api" }
@@ -348,6 +361,7 @@ dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
     { name = "fastapi" },
+    { name = "geoalchemy2" },
     { name = "httpx2" },
     { name = "phonenumbers" },
     { name = "pydantic-settings" },
@@ -363,6 +377,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "geoalchemy2", specifier = ">=0.20.0" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "phonenumbers", specifier = ">=9.0.40" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },

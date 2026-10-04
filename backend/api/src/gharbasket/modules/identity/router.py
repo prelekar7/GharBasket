@@ -9,7 +9,6 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
-from redis.asyncio import Redis
 from sqlalchemy import select
 
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
@@ -38,6 +37,7 @@ from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.revocations import mark_revoked
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.tokens import invalid_token
+from gharbasket.platform.valkey import Valkey
 from gharbasket.platform.web_session import (
     REFRESH_COOKIE,
     check_web_request,
@@ -61,12 +61,6 @@ def get_firebase_verifier(request: Request) -> FirebaseTokenVerifier | None:
 
 FirebaseVerifier = Annotated[FirebaseTokenVerifier | None, Depends(get_firebase_verifier)]
 
-
-def _valkey(request: Request) -> Redis | None:
-    return getattr(request.app.state, "valkey", None)
-
-
-Valkey = Annotated[Redis | None, Depends(_valkey)]
 
 # Sign-in attempts per client address and per phone number (keys never hold the number itself).
 EXCHANGE_PER_IP = (30, 600)

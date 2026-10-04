@@ -1,8 +1,8 @@
 """Fixed-window rate limits in Valkey: INCR a per-window counter and give it an expiry.
 
-Simple and enough for sign-in protection. Keys never contain personal data (callers hash phone
-numbers). If Valkey is down the request is allowed: Firebase already limits OTP sending, and a
-broken limiter must not stop people signing in.
+Simple and enough for sign-in protection and per-user daily caps. Keys never contain personal
+data (callers hash phone numbers). If Valkey is down the request is allowed: Firebase already
+limits OTP sending, and a broken limiter must not stop people signing in.
 """
 
 import hashlib
@@ -21,8 +21,16 @@ def private_key(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:24]
 
 
-async def enforce(valkey: Redis | None, name: str, *, limit: int, window_s: int) -> None:
-    """Count one attempt for `name`; 429 `auth.rate_limited` once `limit` is passed."""
+async def enforce(
+    valkey: Redis | None,
+    name: str,
+    *,
+    limit: int,
+    window_s: int,
+    code: str = "auth.rate_limited",
+    detail: str = "Too many attempts. Wait a little and try again.",
+) -> None:
+    """Count one attempt for `name`; 429 with `code` once `limit` is passed."""
     if valkey is None:
         return
     window = int(time.time()) // window_s
@@ -37,9 +45,4 @@ async def enforce(valkey: Redis | None, name: str, *, limit: int, window_s: int)
         return
     if int(count) > limit:
         retry_after = window_s - int(time.time()) % window_s
-        raise ProblemError(
-            429,
-            "auth.rate_limited",
-            "Too many attempts. Wait a little and try again.",
-            headers={"Retry-After": str(retry_after)},
-        )
+        raise ProblemError(429, code, detail, headers={"Retry-After": str(retry_after)})
