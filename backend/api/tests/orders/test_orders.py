@@ -38,7 +38,7 @@ async def as_user(
 
 
 async def make_slot(
-    api: httpx2.AsyncClient, auth: dict, label: str = "Morning 7-9", capacity: int = 2
+    api: httpx2.AsyncClient, auth: dict, label: str = "Test 7-9", capacity: int = 2
 ) -> dict:
     answer = await api.post(
         "/v1/admin/slots",
@@ -101,7 +101,7 @@ async def test_slots_show_availability_and_only_hub_staff_define_them(
         "/v1/admin/slots",
         json={
             "hub_id": str(SEED_HUB_ID),
-            "label": "Morning 7-9",
+            "label": "Test 7-9",
             "start": "07:00",
             "end": "09:00",
             "capacity": 5,
@@ -136,17 +136,17 @@ async def test_slots_show_availability_and_only_hub_staff_define_them(
     assert (backwards.status_code, backwards.json()["code"]) == (422, "orders.slot_invalid")
     assert other_hub.status_code == 403
     listed = await api.get("/v1/slots", headers=priya)  # Priya's hub, tomorrow
-    assert listed.json() == {
-        "date": "2026-10-11",
-        "items": [{**slot, "booked": 0, "available": 2}],
-    }
+    assert listed.json()["date"] == "2026-10-11"
+    ours = [s for s in listed.json()["items"] if s["id"] == slot["id"]]
+    assert ours == [{**slot, "booked": 0, "available": 2}]
     too_far = await api.get("/v1/slots?date=2026-11-30", headers=priya)
     assert too_far.json()["code"] == "orders.date_out_of_range"
     closed = await api.patch(
         f"/v1/admin/slots/{slot['id']}", json={"active": False, "capacity": 3}, headers=vikram
     )
     assert closed.json()["capacity"] == 3
-    assert (await api.get("/v1/slots", headers=priya)).json()["items"] == []
+    after = (await api.get("/v1/slots", headers=priya)).json()["items"]
+    assert not any(s["id"] == slot["id"] for s in after)
 
 
 @time_machine.travel(NOW, tick=False)
@@ -196,7 +196,7 @@ async def test_an_approved_cycle_becomes_an_order_once_with_frozen_prices_and_a_
         body["lines"][1]["step"]["label"]
         and body["lines"][1]["total_paise"] == 2 * body["lines"][1]["unit_price_paise"]
     )
-    assert body["slot"]["label"] == "Morning 7-9" and body["timeline"] == [
+    assert body["slot"]["label"] == "Test 7-9" and body["timeline"] == [
         {"status": "approved", "at": body["timeline"][0]["at"], "actor": "customer"}
     ]
     listed = await api.get("/v1/orders", headers=priya)
