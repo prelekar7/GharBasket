@@ -4,7 +4,7 @@
 > - **One monorepo**: apps, shared packages, Python services, simulator data, infra and docs.
 > - **Module boundaries are enforced by tools, not trust:** import-linter in CI, one Postgres schema per module, CODEOWNERS approvals, and the OpenAPI contract.
 > - **Trunk-based Git:** short-lived branches, squash merge into a protected `main`, Conventional Commits with module scope, PRs of about 400 hand-written lines.
-> - **CI/CD on GitHub Actions:** lint, Python types, tests, migration and OpenAPI drift checks, frontend builds, informational JS editor hints; on merge, migrations on Neon and the Render deploy hook (planned). The pilot production setup is decided before P6.
+> - **CI/CD on GitHub Actions:** lint, Python types, tests, migration, OpenAPI and api-client drift checks, frontend builds, informational JS editor hints; on merge, migrations on Neon and the Render deploy hook (planned). The pilot production setup is decided before P6.
 > - **Clear Definitions of Ready and Done**, with testing ownership shared across all four members.
 
 ---
@@ -115,7 +115,7 @@ flowchart TD
     CI -->|always| LINT["Lint job<br/>Biome, Ruff, agent-docs sync check"]
     CI -->|always| SEC["Secrets job<br/>gitleaks"]
     CI -->|"backend/api exists"| PY["Python job<br/>pyright, import-linter,<br/>pytest + coverage gate on real Postgres + Valkey,<br/>alembic check, OpenAPI drift check"]
-    CI -->|"frontend exists"| FE["Frontend job<br/>build mobile PWA, console, UI kit"]
+    CI -->|"frontend exists"| FE["Frontend job<br/>api-client drift check + tests,<br/>build mobile PWA, console, UI kit"]
     CI -->|"jsconfig.json exists"| HINT["JS editor hints<br/>checkJs (informational, never blocks)"]
     PR --> VP["Vercel preview<br/>PWA + console"]
     LINT --> OK{"All green +<br/>CODEOWNER approval?"}
@@ -136,7 +136,7 @@ flowchart TD
 | `deploy-staging.yml` (planned, PR `chore/M0-deploy`) | Push to main, after CI | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook (Render's pre-deploy step is paid-only) |
 | Jobs schedule workflow (planned) | GitHub Actions schedule | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN`: outbox sweep, cut-off, reminders, clean-up (D21) |
 
-Later, when their features arrive: the api-client drift check (with `feat/M1-api-client`), a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
+Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
 
 ## 11.5 Environments
 
@@ -179,7 +179,7 @@ flowchart LR
 | Unit (Python / JS) | pytest + anyio, Vitest, Testing Library | Feature author |
 | Integration (real PostGIS) | pytest against the local `gharbasket_test` database (the same Postgres image in CI) | Feature author |
 | Property tests (ledger, state machines) | hypothesis (planned) | Prathamesh Relekar |
-| Contract / API fuzz | schemathesis on OpenAPI (planned) | CI |
+| Contract / API fuzz | schemathesis on OpenAPI (`tests/test_api_fuzz.py`, own throwaway database): no 500s, every answer documented and schema-shaped | CI |
 | Solver golden tests (routing, CP-SAT, fixed seeds) | pytest | Prathamesh Relekar |
 | Model quality gates | Metric thresholds on fixture datasets | Prathamesh Relekar |
 | End-to-end | Playwright: onboarding, approve box, cut-off, pack, deliver, donate | **Rhythm Thakur, Manish Raje** |

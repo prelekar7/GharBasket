@@ -104,9 +104,9 @@ migrate-down steps="1":
 migration message:
     cd backend/api && uv run alembic revision --autogenerate -m "{{message}}"
 
-# Regenerate the JS API client from openapi.json (arrives in feat/M1-auth-contract)
-gen-api:
-    @echo "Not available yet: arrives in feat/M1-auth-contract"
+# Regenerate backend/api/openapi.json, then the JS client types from it (ADR-0022)
+gen-api: openapi
+    pnpm --filter @gharbasket/api-client run generate
 
 # Seed synthetic households with the simulator (arrives in feat/M10-simulator-v0)
 sim:
