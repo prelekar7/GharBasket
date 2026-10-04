@@ -363,7 +363,8 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
         data_source="synthetic",
     )
 
-    for recipe in json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]:
+    recipes = json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]
+    for recipe in sorted(recipes, key=lambda r: not r.get("is_side", False)):  # sides first
         await save_recipe(
             session,
             RecipeData(
@@ -376,6 +377,8 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
                 fasting_ok=recipe["fasting_ok"],
                 diabetic_ok=recipe["diabetic_ok"],
                 tags=tuple(recipe["tags"]),
+                is_side=recipe.get("is_side", False),
+                sides=tuple(recipe.get("sides", ())),
                 ingredients=tuple(
                     IngredientData(
                         product=i["product"],

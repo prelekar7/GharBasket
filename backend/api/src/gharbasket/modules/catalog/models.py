@@ -210,6 +210,9 @@ class Recipe(Base):
     # {"jain_ok", "no_onion_garlic"} (derived) and {"fasting_ok", "diabetic_ok"} (curated).
     rules: Mapped[dict[str, bool]] = mapped_column(JSONB)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    # Side recipes (chapati, rice) are eaten with a main and never planned alone (M2 §3.2).
+    is_side: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    sides: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))  # slugs
     steps: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")

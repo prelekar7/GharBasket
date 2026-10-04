@@ -1876,12 +1876,22 @@ export interface components {
             id: string;
             /** Ingredients */
             ingredients: components["schemas"]["IngredientOut"][];
+            /**
+             * Is Side
+             * @description Eaten with a main (chapati, rice); never planned alone
+             */
+            is_side: boolean;
             /** Name */
             name: string;
             names: components["schemas"]["Names"];
             rules: components["schemas"]["RecipeRules"];
             /** Servings */
             servings: number;
+            /**
+             * Sides
+             * @description Slugs of side recipes this one is eaten with
+             */
+            sides: string[];
             /** Slots */
             slots: ("breakfast" | "lunch" | "dinner")[];
             /**
@@ -1934,12 +1944,22 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Side
+             * @description Eaten with a main (chapati, rice); never planned alone
+             */
+            is_side: boolean;
             /** Name */
             name: string;
             names: components["schemas"]["Names"];
             rules: components["schemas"]["RecipeRules"];
             /** Servings */
             servings: number;
+            /**
+             * Sides
+             * @description Slugs of side recipes this one is eaten with
+             */
+            sides: string[];
             /** Slots */
             slots: ("breakfast" | "lunch" | "dinner")[];
             /**
@@ -4780,6 +4800,8 @@ export interface operations {
                 diet?: string | null;
                 jain_ok?: boolean | null;
                 fasting_ok?: boolean | null;
+                /** @description false: only dishes planned on their own */
+                is_side?: boolean | null;
                 /** @description `next_cursor` from the last page */
                 cursor?: string | null;
                 limit?: number;

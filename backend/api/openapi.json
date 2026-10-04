@@ -2687,6 +2687,11 @@
             "title": "Ingredients",
             "type": "array"
           },
+          "is_side": {
+            "description": "Eaten with a main (chapati, rice); never planned alone",
+            "title": "Is Side",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -2700,6 +2705,14 @@
           "servings": {
             "title": "Servings",
             "type": "integer"
+          },
+          "sides": {
+            "description": "Slugs of side recipes this one is eaten with",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sides",
+            "type": "array"
           },
           "slots": {
             "items": {
@@ -2740,6 +2753,8 @@
           "diet",
           "rules",
           "tags",
+          "is_side",
+          "sides",
           "ingredients",
           "cost_per_serving_paise"
         ],
@@ -2809,6 +2824,11 @@
             "title": "Id",
             "type": "string"
           },
+          "is_side": {
+            "description": "Eaten with a main (chapati, rice); never planned alone",
+            "title": "Is Side",
+            "type": "boolean"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -2822,6 +2842,14 @@
           "servings": {
             "title": "Servings",
             "type": "integer"
+          },
+          "sides": {
+            "description": "Slugs of side recipes this one is eaten with",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sides",
+            "type": "array"
           },
           "slots": {
             "items": {
@@ -2861,7 +2889,9 @@
           "servings",
           "diet",
           "rules",
-          "tags"
+          "tags",
+          "is_side",
+          "sides"
         ],
         "title": "RecipeSummary",
         "type": "object"
@@ -7966,6 +7996,24 @@
                 }
               ],
               "title": "Fasting Ok"
+            }
+          },
+          {
+            "description": "false: only dishes planned on their own",
+            "in": "query",
+            "name": "is_side",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "false: only dishes planned on their own",
+              "title": "Is Side"
             }
           },
           {

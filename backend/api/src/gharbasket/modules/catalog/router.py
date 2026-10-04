@@ -300,6 +300,8 @@ def _recipe_summary(recipe: Any, lang: Language) -> RecipeSummary:
         diet=recipe.diet,
         rules=RecipeRules.model_validate(recipe.rules),
         tags=recipe.tags,
+        is_side=recipe.is_side,
+        sides=recipe.sides,
     )
 
 
@@ -318,6 +320,9 @@ async def list_recipes(
     diet: Annotated[str | None, Query(pattern="^(veg|egg)$")] = None,
     jain_ok: bool | None = None,
     fasting_ok: bool | None = None,
+    is_side: Annotated[
+        bool | None, Query(description="false: only dishes planned on their own")
+    ] = None,
     cursor: Cursor = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> Page[RecipeSummary]:
@@ -330,6 +335,7 @@ async def list_recipes(
         fasting_ok=fasting_ok,
         cursor=cursor,
         limit=limit,
+        is_side=is_side,
     )
     response.headers["Cache-Control"] = CATALOG_CACHE
     return Page(items=[_recipe_summary(recipe, lang) for recipe in found], next_cursor=next_cursor)

@@ -37,7 +37,7 @@ def seed_recipes() -> list[dict[str, Any]]:
     }
     out = []
     for r in json.loads((SEED / "recipes.json").read_text())["recipes"]:
-        if r["tags"] == ["roti"]:
+        if r.get("is_side"):
             continue
         tags: set[str] = set()
         cost = 0.0
