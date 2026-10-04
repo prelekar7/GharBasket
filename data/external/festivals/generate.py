@@ -1,0 +1,164 @@
+"""Generate `data/seeds/catalog/festivals.json`: the fasting and festival days the planner uses
+(M1 fast codes `ekadashi`, `navratri`; feast days as highlights), from the `kalagana` offline
+panchang for Mumbai, for the window the pilot and the simulator cover.
+
+    uv run --isolated --no-project --with "kalagana==0.1.3" \
+        python data/external/festivals/generate.py
+
+Dates are marked `verified: false` until checked against a printed panchang (see CHECK.md);
+the generator keeps `verified: true` for a (date, code) pair listed in CHECK.md as checked.
+"""
+
+import json
+import re
+from datetime import date, timedelta
+from pathlib import Path
+
+import kalagana
+
+HERE = Path(__file__).parent
+OUT = HERE.parent.parent / "seeds" / "catalog" / "festivals.json"
+CHECK = HERE / "CHECK.md"
+START, END = date(2026, 9, 1), date(2027, 8, 31)
+LOCATION = kalagana.city_lookup("Mumbai")
+
+# kalagana name → (our code, names, rules, days it lasts)
+RULES: dict[str, tuple[str, dict[str, str], dict[str, bool], int]] = {
+    "Ekadashi": (
+        "ekadashi",
+        {"en": "Ekadashi", "hi": "एकादशी", "mr": "एकादशी"},
+        {"fasting": True, "no_onion_garlic": True},
+        1,
+    ),
+    "Sharad Navratri": (
+        "navratri",
+        {"en": "Navratri", "hi": "नवरात्रि", "mr": "नवरात्र"},
+        {"fasting": True, "no_onion_garlic": True},
+        9,
+    ),
+    "Chaitra Navratri": (
+        "navratri",
+        {"en": "Chaitra Navratri", "hi": "चैत्र नवरात्रि", "mr": "चैत्र नवरात्र"},
+        {"fasting": True, "no_onion_garlic": True},
+        9,
+    ),
+    "Sankashti Chaturthi": (
+        "sankashti",
+        {"en": "Sankashti Chaturthi", "hi": "संकष्टी चतुर्थी", "mr": "संकष्टी चतुर्थी"},
+        {"fasting": True, "no_onion_garlic": False},
+        1,
+    ),
+    "Maha Shivaratri": (
+        "maha_shivratri",
+        {"en": "Maha Shivratri", "hi": "महाशिवरात्रि", "mr": "महाशिवरात्री"},
+        {"fasting": True, "no_onion_garlic": True},
+        1,
+    ),
+    "Krishna Janmashtami": (
+        "janmashtami",
+        {"en": "Janmashtami", "hi": "जन्माष्टमी", "mr": "जन्माष्टमी"},
+        {"fasting": True, "no_onion_garlic": True},
+        1,
+    ),
+    "Ganesh Chaturthi": (
+        "ganesh_chaturthi",
+        {"en": "Ganesh Chaturthi", "hi": "गणेश चतुर्थी", "mr": "गणेश चतुर्थी"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Dussehra": (
+        "dussehra",
+        {"en": "Dussehra", "hi": "दशहरा", "mr": "दसरा"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Diwali": (
+        "diwali",
+        {"en": "Diwali", "hi": "दिवाली", "mr": "दिवाळी"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Makar Sankranti": (
+        "makar_sankranti",
+        {"en": "Makar Sankranti", "hi": "मकर संक्रांति", "mr": "मकर संक्रांत"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Holi": (
+        "holi",
+        {"en": "Holi", "hi": "होली", "mr": "होळी"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Gudi Padwa": (
+        "gudi_padwa",
+        {"en": "Gudi Padwa", "hi": "गुड़ी पड़वा", "mr": "गुढीपाडवा"},
+        {"fasting": False, "no_onion_garlic": False},
+        1,
+    ),
+    "Rama Navami": (
+        "ram_navami",
+        {"en": "Ram Navami", "hi": "राम नवमी", "mr": "राम नवमी"},
+        {"fasting": True, "no_onion_garlic": True},
+        1,
+    ),
+}
+REGION = {"gudi_padwa": "maharashtra", "sankashti": "maharashtra"}
+
+
+def checked() -> set[tuple[str, str]]:
+    """(date, code) pairs CHECK.md lists as checked against a panchang."""
+    if not CHECK.exists():
+        return set()
+    row = re.compile(r"^\| (\d{4}-\d{2}-\d{2}) \| ([a-z_]+) \|.*\| yes \|", re.M)
+    return {(m.group(1), m.group(2)) for m in row.finditer(CHECK.read_text())}
+
+
+def main() -> int:
+    occurrences = []
+    for year in sorted({START.year, END.year}):
+        occurrences += kalagana.festivals_for_year(year, LOCATION, tradition="north")
+    verified = checked()
+    rows: dict[tuple[str, str, str], dict] = {}
+    for occurrence in occurrences:
+        rule = RULES.get(occurrence.name)
+        if rule is None:
+            continue
+        code, names, flags, days = rule
+        for offset in range(days):
+            day = occurrence.date + timedelta(days=offset)
+            if not START <= day <= END:
+                continue
+            key = (day.isoformat(), code, REGION.get(code, "all"))
+            rows[key] = {
+                "date": key[0],
+                "code": code,
+                "region": key[2],
+                "names": names,
+                "rules": flags,
+                "verified": (key[0], code) in verified,
+                "source": f"kalagana 0.1.3 ({occurrence.name})",
+            }
+    items = [rows[k] for k in sorted(rows)]
+    OUT.write_text(
+        json.dumps(
+            {
+                "note": (
+                    "Generated by data/external/festivals/generate.py from the kalagana offline "
+                    "panchang (Mumbai, north tradition). verified = checked against a printed "
+                    "panchang (CHECK.md); fasting days follow M1 fast codes."
+                ),
+                "window": {"start": START.isoformat(), "end": END.isoformat()},
+                "festivals": items,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
+    print(f"wrote {OUT}: {len(items)} days, {sum(i['verified'] for i in items)} verified")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
