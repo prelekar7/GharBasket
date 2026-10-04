@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { devLoginEnabled } from "../../../lib/session.js";
+import { devLoginEnabled } from "@/lib/session.js";
 import { LoginForm } from "./LoginForm.jsx";
 
 export const metadata = { title: "Sign in" };

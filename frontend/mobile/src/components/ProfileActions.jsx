@@ -1,8 +1,8 @@
 import { Button } from "@gharbasket/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LOCALES } from "../i18n.js";
-import { useSession } from "../lib/session.js";
+import { LOCALES } from "@/i18n.js";
+import { useSession } from "@/lib/session.js";
 
 const LANGUAGE_NAMES = { "en-IN": "English", "hi-IN": "हिन्दी", "mr-IN": "मराठी" };
 

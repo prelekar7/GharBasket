@@ -2,8 +2,8 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { sectionOf } from "../../../lib/nav.js";
-import { devLoginEnabled, parseSession, ROLES, SESSION_COOKIE } from "../../../lib/session.js";
+import { sectionOf } from "@/lib/nav.js";
+import { devLoginEnabled, parseSession, ROLES, SESSION_COOKIE } from "@/lib/session.js";
 
 /**
  * Dev sign-in stub: sets the session cookie for the chosen role. Replaced by POST /v1/auth/exchange

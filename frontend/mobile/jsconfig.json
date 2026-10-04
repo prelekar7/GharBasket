@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "maxNodeModuleJsDepth": 0,
     "resolveJsonModule": true,
-    "types": ["vite/client", "vite-plugin-pwa/client"]
+    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "vite.config.js"],
   "exclude": []

@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { HOME_BY_ROLE, useSession } from "../lib/session.js";
+import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** "/" sends people to login, the role chooser, or their role's home. */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
