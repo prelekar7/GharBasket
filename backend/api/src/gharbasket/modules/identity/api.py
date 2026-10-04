@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity.models import Household
+from gharbasket.modules.identity.models import Household, HouseholdMember
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
@@ -48,3 +48,79 @@ async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> 
     return (
         await session.execute(select(Household.owner_user_id).where(Household.id == household_id))
     ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class HouseholdPlanProfile:
+    """What the weekly planner needs to know about a household (M3 §3.1, M10 §3.1)."""
+
+    id: uuid.UUID
+    owner_user_id: uuid.UUID
+    society_id: uuid.UUID
+    hub_id: uuid.UUID | None
+    size: int
+    diet: str
+    jain: bool
+    diabetic: bool
+    cuisines: tuple[str, ...]
+    weekday_cook_minutes: int
+    weekend_cook_minutes: int
+    no_cook_days: tuple[int, ...]
+    budget_paise: int | None
+    fasts: frozenset[str]
+    no_onion_garlic_on_fasts: bool
+    member_age_bands: tuple[str, ...]
+    autopilot_enabled: bool
+    auto_approve: bool
+
+
+async def household_plan_profile(
+    session: AsyncSession, household_id: uuid.UUID
+) -> HouseholdPlanProfile | None:
+    household = await session.get(Household, household_id)
+    if household is None:
+        return None
+    members = list(
+        (
+            await session.execute(
+                select(HouseholdMember).where(HouseholdMember.household_id == household_id)
+            )
+        ).scalars()
+    )
+    fasts: set[str] = set()
+    strict = False
+    jain = False
+    for m in members:
+        fasts |= set(m.fasting_rules.get("fasts", []))
+        strict = strict or bool(m.fasting_rules.get("no_onion_garlic_on_fast_days"))
+        jain = jain or bool(m.fasting_rules.get("jain"))
+    return HouseholdPlanProfile(
+        id=household.id,
+        owner_user_id=household.owner_user_id,
+        society_id=household.society_id,
+        hub_id=household.hub_id,
+        size=household.size,
+        diet=household.diet,
+        jain=jain,
+        diabetic=any("diabetes" in m.health_tags for m in members),
+        cuisines=tuple(household.cuisine_tags),
+        weekday_cook_minutes=household.weekday_cook_minutes,
+        weekend_cook_minutes=household.weekend_cook_minutes,
+        no_cook_days=tuple(household.no_cook_days),
+        budget_paise=household.budget_paise,
+        fasts=frozenset(fasts),
+        no_onion_garlic_on_fasts=strict,
+        member_age_bands=tuple(m.age_band for m in members),
+        autopilot_enabled=household.autopilot_enabled,
+        auto_approve=household.auto_approve,
+    )
+
+
+async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:
+    """Households served by this hub with Autopilot on, oldest first (the generation job)."""
+    rows = await session.execute(
+        select(Household.id)
+        .where(Household.hub_id == hub_id, Household.autopilot_enabled)
+        .order_by(Household.id)
+    )
+    return list(rows.scalars())
