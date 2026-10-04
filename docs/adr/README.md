@@ -34,3 +34,4 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0022](0022-api-client-openapi-fetch.md) | Generated API client: openapi-typescript + openapi-fetch + openapi-react-query | Accepted |
 | [0023](0023-ownership-backend-and-frontend.md) | Ownership: Prathamesh all backend, infra and ML; Yash all frontend | Accepted |
 | [0024](0024-sign-in-firebase-otp-own-tokens.md) | Sign-in: Firebase phone OTP, then our own rotating tokens; cookies + CSRF for browsers | Accepted |
+| [0025](0025-ml-runtime-spaces-actions-r2.md) | ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, R2 lake and registry, cron-job.org for minute-level jobs | Accepted |

@@ -28,7 +28,9 @@ A conversational helper in English, Hindi, Marathi and Hinglish that lets custom
 | POST | `/v1/assistant/confirm/{proposal_id}` | customer (own) | Required | Executes the proposed change via the owning module's API |
 | POST | `/v1/assistant/proposals/{id}/reject` | customer (own) | — | |
 
-**Tools exposed to the model** (strict JSON schemas, `tool_choice: auto`): `get_my_week`, `edit_box_line` (returns proposal), `skip_week` (proposal), `book_tiffin` (proposal), `track_order`, `explain_item`.
+**Tools exposed to the model** (strict JSON schemas, `tool_choice: auto`). **S8 (MS-C) ships four:** `get_my_week`, `edit_box_line` (returns proposal), `skip_week` (proposal), `explain_item` (answers from the stored reason code). `book_tiffin` (proposal) and `track_order` follow once M8 tiffin booking and M7 live tracking exist. The LLM loop runs in `backend/ml` (stateless, ADR-0025) and calls the API as the user; the API module `assistant` owns sessions, proposals and the daily token cap.
+
+**The 200-utterance evaluation set** (Rhythm Thakur, Manish Raje): due by **15 Jan 2027**, in `data/eval/assistant_utterances.jsonl` with fields `text`, `language` (en, hi, mr, hinglish), `intent` (one of the four tools, `greeting`, `out_of_scope`), `slots` (e.g. `{"product": "bhindi", "week": "this"}`) and `injection: true|false` for prompt-injection fixtures; about 40 per language, at least 20 injection fixtures.
 
 ## 4. Tables owned
 | Table | Key columns |

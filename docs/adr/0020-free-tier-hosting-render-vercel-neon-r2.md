@@ -21,7 +21,7 @@ ADR-0011 and ADR-0015 planned one AWS EC2 instance in Mumbai (Docker Compose, Do
 | Scheduled jobs | GitHub Actions schedule | See ADR-0021. |
 
 - **Free tiers only until the pilot (P6).** Before the pilot we decide on paid plans (Render Starter for the API, a worker, the Firebase Blaze plan for real OTPs) and on where the pilot database lives (open question Q3).
-- **Not decided yet:** hosting for the ML service, OSRM and MLflow (needed from P3/P4). Locally they run in Docker Compose.
+- **Hosting for the ML service, OSRM and MLflow:** decided in [ADR-0025](0025-ml-runtime-spaces-actions-r2.md) (Hugging Face Spaces, GitHub Actions, R2; MLflow local only). Locally they run in Docker Compose.
 
 ## Alternatives considered
 - **AWS on student credits** (ADR-0011/0015): rejected because of card and billing risk; it also needs a server to patch and run.

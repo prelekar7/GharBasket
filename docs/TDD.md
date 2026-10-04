@@ -248,7 +248,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Files and data lake | Cloudflare R2 (S3 API, region `auto`, `gb-staging-*` buckets); SeaweedFS locally. Code uses the S3 API only. Data lake and MLflow artifact storage are decided with the ML hosting before P3/P4 |
 | Road network | OSRM with OpenStreetMap clipped to the Mumbai Metropolitan Region (osmium) |
 | API hosting | Render free web service (Singapore); Render builds the Docker image from the repo; UptimeRobot calls `/v1/health` every 10 minutes to keep it awake (750 free hours a month cover 24×7) |
-| ML service, MLflow, OSRM hosting | Not decided yet; to be decided before P3/P4. Locally they run in Docker Compose |
+| ML service, MLflow, OSRM hosting | ML service + OSRM on a Hugging Face Space (free CPU, Docker); training, forecasts and snapshots in GitHub Actions (`backend/training`); R2 as lake and model registry; MLflow local only (ADR-0025). Locally they run in Docker Compose |
 | TLS | By Render and Vercel (no reverse proxy of our own) |
 | Secrets | Infisical (`dev`, `staging`, `prod`), synced to GitHub Actions secrets; `.env.example` committed; gitleaks in CI |
 | Backups | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
