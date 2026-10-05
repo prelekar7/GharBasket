@@ -102,7 +102,7 @@ export function OpsBoardView({ board }) {
         />
       </div>
 
-      <div className="grid items-start gap-4 min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <section className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4">
           <h2 className="m-0 text-[17px] leading-6 font-bold">The day so far</h2>
           <OrderTimeline steps={board.steps} label="Hub day" />

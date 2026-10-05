@@ -18,6 +18,7 @@ import { packingHandlers } from "./packing.js";
 import { partnersHandlers } from "./partners.js";
 import { plansHandlers } from "./plans.js";
 import { pricesHandlers } from "./prices.js";
+import { procurementHandlers } from "./procurement.js";
 import { publicHandlers } from "./public.js";
 import { settingsHandlers } from "./settings.js";
 import { teamHandlers } from "./team.js";
@@ -45,4 +46,5 @@ export const handlers = [
   ...teamHandlers,
   ...opsBoardHandlers,
   ...packingHandlers,
+  ...procurementHandlers,
 ];
