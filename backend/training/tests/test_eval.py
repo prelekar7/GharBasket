@@ -90,3 +90,26 @@ async def test_metrics_are_pushed_through_the_api() -> None:
     with pytest.raises(RuntimeError):
         async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
             await report.push(http, Settings(), rows)
+
+
+def test_the_lambda_sweep_trades_cost_for_fairness() -> None:
+    from gharbasket_training.eval import assignment_sweep
+
+    catalog = from_seed_files()
+    run = assignment_sweep.run_sweep(7, catalog, adoption=0.1)
+
+    assert run is not None and run.orders > 0 and run.portions >= run.orders
+    by_lambda = {p.fairness_lambda: p for p in run.points}
+    assert None in by_lambda and 0.0 in by_lambda and 4.0 in by_lambda
+    assert by_lambda[4.0].gini <= by_lambda[0.0].gini + 1e-9
+    assert all(0 <= p.gini <= 1 and p.cost_paise_per_portion > 0 for p in run.points)
+    summary = assignment_sweep.summarise([run])
+    assert set(summary) >= {"greedy", "0.0", "4.0"} and summary["greedy"]["gini"].n == 1
+    target = assignment_sweep.against_target(summary)["gini_le_0_25_at_le_5pct_cost"]
+    assert "holds" in target and target["greedy_gini"] >= 0
+    built = report.build([], [], args={"smoke": True}, sweep_runs=[run])
+    assert "assignment" in built and {r["model_name"] for r in report.metrics_rows(built)} >= {
+        "assignment_cpsat",
+        "assignment_greedy",
+    }
+    assert "λ sweep" in report.to_html(built)

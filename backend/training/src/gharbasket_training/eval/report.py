@@ -13,6 +13,7 @@ from typing import Any
 
 import httpx2
 
+from gharbasket_training.eval import assignment_sweep
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import METRICS, PlannerRun, against_target, summarise
 from gharbasket_training.eval.stats import Estimate, estimate
@@ -33,8 +34,10 @@ def build(
     pantry_runs: list[PantryRun],
     *,
     args: dict[str, Any],
+    sweep_runs: list[assignment_sweep.SweepRun] | None = None,
 ) -> dict[str, Any]:
     summary = summarise(planner_runs)
+    sweep = assignment_sweep.summarise(sweep_runs or [])
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
     twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
@@ -58,9 +61,14 @@ def build(
                 "holds": len(twin) >= 4 and twin[3].mean <= 0.15,
             },
         },
+        "assignment": {
+            key: {m: e.as_dict() for m, e in metrics.items()} for key, metrics in sweep.items()
+        },
+        "assignment_targets": assignment_sweep.against_target(sweep),
         "runs": {
             "planner": [asdict(r) for r in planner_runs],
             "pantry": [asdict(r) for r in pantry_runs],
+            "assignment": [asdict(r) for r in (sweep_runs or [])],
         },
     }
 
@@ -92,6 +100,19 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             "details": details,
         }
     )
+    for key, metrics in report.get("assignment", {}).items():
+        for metric, e in metrics.items():
+            rows.append(
+                {
+                    "model_name": "assignment_greedy" if key == "greedy" else "assignment_cpsat",
+                    "version": report["commit"],
+                    "metric": metric if key == "greedy" else f"{metric}_lambda_{key}",
+                    "value": e["mean"],
+                    "split": "holdout",
+                    "data_source": "synthetic",
+                    "details": {**details, "ci95": e["ci95"]},
+                }
+            )
     for k, e in enumerate(report["pantry"]["twin_mae"], start=1):
         rows.append(
             {
@@ -187,13 +208,44 @@ def to_html(report: dict[str, Any]) -> str:
         "(ADR-0008); mean ± 95 % CI across seeds (docs/research/eval-protocol.md). Targets are "
         "hypotheses registered before any model was trained."
     )
+    sweep = report.get("assignment", {})
+    sweep_table = (
+        _table(
+            "RQ4 — fair kitchen assignment: the λ sweep (Gini of kitchens' earnings against cost)",
+            ["λ", "Gini", "₹ a portion", "km a portion"],
+            [
+                [
+                    key,
+                    _cell(m["gini"]),
+                    _cell(m["cost_paise_per_portion"]),
+                    _cell(m["km_per_portion"]),
+                ]
+                for key, m in sweep.items()
+            ],
+        )
+        if sweep
+        else ""
+    )
+    sweep_target = report.get("assignment_targets", {}).get("gini_le_0_25_at_le_5pct_cost")
+    sweep_note = ""
+    if sweep_target is not None:
+        verdict_g = (
+            f"holds from λ = {sweep_target['value']}"
+            if sweep_target["holds"]
+            else "does not hold yet"
+        )
+        sweep_note = (
+            '<p class="note">M-G target (Gini ≤ 0.25 at ≤ +5 % cost against greedy, Gini '
+            f"{sweep_target['greedy_gini']}): {verdict_g}</p>"
+        )
     return (
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
         f"<title>GharBasket evaluation {html.escape(report['commit'])}</title>"
         f"<style>{style}</style></head><body><h1>Evaluation report</h1>"
         f'<p class="note">{intro}</p>{ab}{targets}{pantry}'
         f'<p class="note">M-A target (MAE ≤ 15 % after 4 weeks): {value} → {verdict} '
-        "(the twin, M10 F13, is scored here when it exists).</p></body></html>\n"
+        "(the twin, M10 F13, is scored here when it exists).</p>"
+        f"{sweep_table}{sweep_note}</body></html>\n"
     )
 
 

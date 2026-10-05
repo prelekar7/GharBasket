@@ -14,5 +14,9 @@ What a report holds (v0, October 2026):
   rule table (static) and a running mean of the weeks observed so far (the cold-start curve, k observed
   weeks → the error on week k + 1); the twin (M10 F13) is scored the same way when it exists.
 
+- **RQ4 — fair kitchen assignment:** the λ sweep (0, 0.25, 0.5, 1, 2, 4) on one evening of tiffin
+  orders per seed: the Gini of the kitchens' earnings against ₹ and km a portion, with greedy nearest
+  kitchen as the baseline and the M-G target (Gini ≤ 0.25 at ≤ +5 % cost) checked.
+
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT, under a minute); the committed reports come from full runs.

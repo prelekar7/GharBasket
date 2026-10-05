@@ -12,7 +12,7 @@ from gharbasket_sim import config
 from gharbasket_sim.catalog import from_seed_files
 from gharbasket_sim.weeks import PLANNERS
 
-from gharbasket_training.eval import pantry_baseline, planner_ab, report
+from gharbasket_training.eval import assignment_sweep, pantry_baseline, planner_ab, report
 from gharbasket_training.settings import Settings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -31,6 +31,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-shocks", action="store_true")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "docs" / "eval")
     parser.add_argument("--push", action="store_true", help="store the rows through the API")
+    parser.add_argument("--no-assignment", action="store_true", help="skip the λ sweep (RQ4)")
     parser.add_argument(
         "--smoke", action="store_true", help="seed 7, one week, 2 %% adoption, no CP-SAT (CI)"
     )
@@ -60,9 +61,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         for seed in args.seeds
     ]
+    sweep_runs = []
+    if not args.no_assignment:
+        sweep_runs = [
+            run
+            for seed in args.seeds
+            if (run := assignment_sweep.run_sweep(seed, catalog, adoption=args.adoption))
+        ]
     built = report.build(
         planner_runs,
         pantry_runs,
+        sweep_runs=sweep_runs,
         args={
             "weeks": args.weeks,
             "start": args.start.isoformat(),
@@ -86,6 +95,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"w{k + 1} {e['mean']:.3f}" for k, e in enumerate(built["pantry"]["cold_start_mae"])
         )
     )
+    for key, metrics in built.get("assignment", {}).items():
+        print(
+            f"assign  λ={key:6} gini {metrics['gini']['mean']:.3f}  "
+            f"₹/portion {metrics['cost_paise_per_portion']['mean'] / 100:.2f}"
+        )
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()
