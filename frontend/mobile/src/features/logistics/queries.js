@@ -38,7 +38,8 @@ export function useRiderActions() {
   const client = useQueryClient();
   /** @param {Route} route @param {(r: Route) => Route} change @param {{ path: string, body?: unknown }} action */
   const act = (route, change, action) => {
-    client.setQueriesData({ queryKey: ["routes", route.date] }, (/** @type {any} */ list) =>
+    // Any day's list: the server may answer "today" with the route of the next delivery day.
+    client.setQueriesData({ queryKey: ["routes"] }, (/** @type {any} */ list) =>
       list?.items
         ? {
             ...list,

@@ -44,7 +44,13 @@ const w = (en, hi, mr = hi) => ({ en, hi, mr });
 const HUB = { id: "hub-kharghar", name: w("Kharghar hub", "खारघर हब"), lat: 19.0473, lng: 73.0699 };
 const MEENA = { name: w("Meena tai", "मीना ताई"), phone: "+919800001004" };
 
-/** The designs' route (field-role canvas: example numbers), dated the day that is asked for. */
+/**
+ * The one demo day the field roles share (Tue 6 Oct 2026 at the Kharghar hub), as in mocks/packer.js,
+ * captain.js and kitchen.js. The app asks for "today"; the mock answers with this day's route.
+ */
+const DEMO_DAY = "2026-10-06";
+
+/** The designs' route (field-role canvas: example numbers) on the demo day. */
 const demoRoute = (/** @type {string} */ date) => ({
   id: `rte-${date}-kh-1`,
   date,
@@ -174,14 +180,16 @@ const notStarted = () =>
   problem(409, "logistics.route_not_started", "Start the route before handing over");
 
 export const logisticsHandlers = [
-  // The rider's own routes for a day (GET /v1/routes?date=, rider: own). `next` is our addition
-  // for the empty state: the rider's next route day and slot.
+  // The rider's own routes for a day (GET /v1/routes?date=, rider: own). The mock answers with the
+  // demo day's route whatever day is asked, so the rider, packer, captain and kitchen see one day
+  // (the screen shows the route's own date). `next` is our addition for the empty state: the
+  // rider's next route day and slot.
   http.get("*/v1/routes", ({ request }) => {
     if (localStorage.getItem(FAIL_KEY)) return HttpResponse.error();
     const date = new URL(request.url).searchParams.get("date") ?? "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
       return problem(422, "logistics.date_invalid", "date must be YYYY-MM-DD");
-    const next = new Date(Date.parse(`${date}T12:00:00Z`) + 2 * 86_400_000);
+    const next = new Date(Date.parse(`${DEMO_DAY}T12:00:00Z`) + 2 * 86_400_000);
     if (caller(request) === NO_ROUTE_RIDER) {
       return HttpResponse.json({
         items: [],
@@ -189,9 +197,12 @@ export const logisticsHandlers = [
       });
     }
     const s = load();
-    s.routes[date] ??= demoRoute(date);
+    s.routes[DEMO_DAY] ??= demoRoute(DEMO_DAY);
     save(s);
-    return HttpResponse.json({ items: [localise(s.routes[date], langOf(request))], next: null });
+    return HttpResponse.json({
+      items: [localise(s.routes[DEMO_DAY], langOf(request))],
+      next: null,
+    });
   }),
 
   http.post("*/v1/routes/:id/:action", ({ request, params }) =>
