@@ -48,6 +48,8 @@ function KitchenToday() {
             illustration={<TiffinSteam />}
             title={t("kitchen.today.emptyTitle", { day: dayLabel(assignments.data.date, lang) })}
             body={t("kitchen.today.emptyBody")}
+            action={t("kitchen.today.emptyAction")}
+            onAction={() => navigate({ to: "/kitchen/menu" })}
           />
           <Muted>{t("kitchen.today.emptyNote")}</Muted>
         </div>

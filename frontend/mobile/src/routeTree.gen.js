@@ -35,6 +35,7 @@ import { Route as AuthCaptainIndexRouteImport } from "./routes/_auth/captain/ind
 import { Route as AuthCaptainEarningsRouteImport } from "./routes/_auth/captain/earnings"
 import { Route as AuthCaptainScanRouteImport } from "./routes/_auth/captain/scan"
 import { Route as AuthKitchenIndexRouteImport } from "./routes/_auth/kitchen/index"
+import { Route as AuthKitchenMenuRouteImport } from "./routes/_auth/kitchen/menu"
 import { Route as AuthKitchenPrepRouteImport } from "./routes/_auth/kitchen/prep"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
@@ -188,6 +189,11 @@ const AuthCaptainScanRoute = AuthCaptainScanRouteImport.update({
 const AuthKitchenIndexRoute = AuthKitchenIndexRouteImport.update({
   id: "/",
   path: "/",
+  getParentRoute: () => AuthKitchenRoute,
+})
+const AuthKitchenMenuRoute = AuthKitchenMenuRouteImport.update({
+  id: "/menu",
+  path: "/menu",
   getParentRoute: () => AuthKitchenRoute,
 })
 const AuthKitchenPrepRoute = AuthKitchenPrepRouteImport.update({
@@ -350,6 +356,7 @@ const AuthCaptainRouteWithChildren = AuthCaptainRoute._addFileChildren(
 )
 
 const AuthKitchenRouteChildren = {
+  AuthKitchenMenuRoute: AuthKitchenMenuRoute,
   AuthKitchenPrepRoute: AuthKitchenPrepRoute,
   AuthKitchenIndexRoute: AuthKitchenIndexRoute,
 }

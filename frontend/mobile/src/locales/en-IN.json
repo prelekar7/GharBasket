@@ -1287,10 +1287,12 @@
   "kitchen": {
     "tabs": {
       "today": "Today",
+      "menu": "Menu",
       "prep": "Prep"
     },
     "meal": "{meal, select, dinner {Dinner} other {Lunch}}",
     "hello": "Namaste, {name} · {hub}",
+    "whoHub": "{name} · {hub}",
     "tiffins": "{n, plural, one {# tiffin} other {# tiffins}}",
     "today": {
       "title": "Tomorrow’s tiffins",
@@ -1308,7 +1310,29 @@
       "declineCancel": "Go back",
       "emptyTitle": "No tiffins for {day}",
       "emptyBody": "No families booked lunch from your kitchen for tomorrow. Nothing to buy tonight.",
+      "emptyAction": "Check my menu and capacity",
       "emptyNote": "Counts come by 9:30 PM every night. A day with no orders doesn’t change your rating."
+    },
+    "menu": {
+      "title": "Menu and capacity",
+      "meal": "Meal",
+      "capTitle": "Most tiffins I can cook",
+      "capHelp": "You never get more than this. 0 means a day off.",
+      "locked": "{n} assigned · locked",
+      "dayOff": "Day off",
+      "decrease": "Fewer",
+      "increase": "More",
+      "skillsTitle": "What I cook well",
+      "save": "Save for the coming days",
+      "saved": "Saved. New counts follow these numbers."
+    },
+    "skills": {
+      "maharashtrian_thali": "Maharashtrian thali",
+      "chapati_bhaji": "Chapati-bhaji",
+      "jain": "Jain (no onion, garlic)",
+      "puran_poli": "Puran poli",
+      "south_indian": "South Indian",
+      "low_oil": "Low oil"
     },
     "prep": {
       "title": "Prep",
