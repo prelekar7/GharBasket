@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { apiGet } from "./api.js";
 
 /**
  * The hub the console is looking at. It is kept in the `gb_hub` cookie (not the URL): a hub is
@@ -18,8 +19,8 @@ export const HUB_COOKIE = "gb_hub";
  * @returns {Promise<Hub[]>}
  */
 export async function listHubs() {
-  // The backend seed has one hub (docs/handoff). The mock API replaces this in the next commit.
-  return [{ id: "kharghar", name: "Kharghar hub" }];
+  const { items } = await apiGet("/v1/hubs");
+  return items;
 }
 
 /**

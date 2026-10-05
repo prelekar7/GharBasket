@@ -1,12 +1,15 @@
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/login/actions.js";
+import { CommandPalette } from "@/components/CommandPalette.jsx";
 import { HubSwitcher } from "@/components/HubSwitcher.jsx";
 import { Sidebar } from "@/components/Sidebar.jsx";
 import { Wordmark } from "@/components/Wordmark.jsx";
 import { getPerson, getRole } from "@/lib/auth.js";
 import { currentHub, listHubs } from "@/lib/hub.js";
-import { navFor } from "@/lib/nav.js";
+import { isReady, navFor, paletteEntries } from "@/lib/nav.js";
 import { initialsOf } from "@/lib/session.js";
+import Loading from "./loading.jsx";
 
 /** The role's sections (proxy.js has already kept signed-out people out). */
 async function RoleSidebar() {
@@ -15,8 +18,15 @@ async function RoleSidebar() {
 }
 
 async function HeaderControls() {
-  const [hubs, hub] = await Promise.all([listHubs(), currentHub()]);
-  return <HubSwitcher hubs={hubs} value={hub.id} />;
+  const [role, hubs, hub] = await Promise.all([getRole(), listHubs(), currentHub()]);
+  return (
+    <>
+      <HubSwitcher hubs={hubs} value={hub.id} />
+      {role && (
+        <CommandPalette {...paletteEntries(role)} productsReady={isReady("/catalog/x") === true} />
+      )}
+    </>
+  );
 }
 
 async function Account() {
@@ -51,7 +61,7 @@ async function Account() {
 
 /**
  * Console shell shared by every console page: a sidebar (a top menu below 900px), and a top bar
- * with the hub switcher, the signed-in person and Sign out. Everything that reads the session sits
+ * with the hub switcher, the ⌘K palette, the signed-in person and Sign out. Everything that reads the session sits
  * in its own Suspense boundary, as cacheComponents needs.
  * @param {{ children: import("react").ReactNode }} props
  */
@@ -80,7 +90,12 @@ export default function ConsoleLayout({ children }) {
             <Account />
           </Suspense>
         </header>
-        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 min-[900px]:p-6">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 min-[900px]:p-6">
+          <Suspense fallback={<Loading />}>
+            {/* nuqs keeps page filters (search, date, status) in the URL; hub is a cookie, see lib/hub.js */}
+            <NuqsAdapter>{children}</NuqsAdapter>
+          </Suspense>
+        </main>
       </div>
     </div>
   );
