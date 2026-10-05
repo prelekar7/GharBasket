@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DataTable, FilterBar, KanbanBoard, KpiTile } from "./index.js";
+import { ChartCard, DataTable, FilterBar, KanbanBoard, KpiTile, MapPanel } from "./index.js";
 
 /** @type {import("@storybook/react-vite").Meta} */
 const meta = { title: "Console", parameters: { layout: "padded" } };
@@ -224,4 +224,88 @@ export const Kanban = {
       />
     );
   },
+};
+
+const weeks = ["28 Sep", "5 Oct", "12 Oct", "19 Oct"];
+
+export const ChartBars = {
+  render: () => (
+    <div className="grid gap-3 md:grid-cols-2">
+      <ChartCard
+        title="Active households"
+        subtitle="By week · Kharghar hub"
+        labels={weeks}
+        series={[{ name: "Households", values: [38, 46, 52, 61] }]}
+      />
+      <ChartCard
+        title="Fill rate by week"
+        subtitle="Share of ordered quantity delivered · example numbers"
+        format="pct"
+        max={100}
+        labels={weeks}
+        series={[
+          { name: "Sunrise vendor", values: [92, 88, 95, 97] },
+          { name: "Mandi vendor", values: [81, 84, 79, 90] },
+        ]}
+      />
+    </div>
+  ),
+};
+
+export const ChartLines = {
+  render: () => (
+    <div className="grid gap-3 md:grid-cols-2">
+      <ChartCard
+        kind="line"
+        title="Partner earnings"
+        subtitle="Rupees per week, from the ledger (values in paise)"
+        format="money"
+        labels={weeks}
+        series={[{ name: "Partner earnings", values: [620000, 690000, 733000, 845000] }]}
+      />
+      <ChartCard
+        kind="line"
+        title="Forecast vs actual · methi"
+        subtitle="Bunches per delivery day, Kharghar hub · simulator"
+        labels={["Mon", "Tue", "Wed", "Thu"]}
+        series={[
+          { name: "Forecast q50", values: [27, 29, 30, 31] },
+          { name: "Approved by families", values: [26, 30, 29, 30] },
+        ]}
+        note="The gap on Tue is the vendor short-delivery, not a forecast miss."
+      />
+    </div>
+  ),
+};
+
+/** @type {import("./MapPanel.jsx").Pin[]} */
+const pins = [
+  { id: "hub", kind: "hub", label: "Kharghar hub", lng: 73.0668, lat: 19.033 },
+  {
+    id: "sunrise",
+    kind: "stop",
+    n: 1,
+    label: "Sunrise Towers · done 8:07",
+    lng: 73.0755,
+    lat: 19.045,
+  },
+  { id: "krishna", kind: "stop", n: 2, label: "Krishna Kunj · ETA 8:40", lng: 73.056, lat: 19.025 },
+  { id: "van", kind: "van", label: "Arjun · 8:22", lng: 73.062, lat: 19.039 },
+];
+
+export const RouteMap = {
+  render: () => (
+    <MapPanel
+      label="Route 1 on the map"
+      markers={pins}
+      route={["hub", "sunrise", "krishna", "hub"]}
+      legend={[
+        { kind: "hub", label: "Hub" },
+        { kind: "stop", label: "Stop" },
+        { kind: "van", label: "Van now" },
+        { kind: "route", label: "Planned route" },
+      ]}
+      note="The van's position updates every 15 seconds while it is out."
+    />
+  ),
 };
