@@ -1257,6 +1257,19 @@
       "saved": "Saved. The families are told.",
       "none": "Nothing to sort out",
       "noneBody": "Problems you report at a door show up here."
+    },
+    "done": {
+      "when": "{society} · {day} · {time}",
+      "title": "Today",
+      "handled": "Bags handled",
+      "doneTitle": "Done for today, {name}",
+      "body": "Every bag is delivered, in the lobby, or reported. Families have been told.",
+      "door": "Handed over at the door",
+      "lobby": "In the lobby for pickup",
+      "problem": "Reported ({list})",
+      "problemNone": "Reported",
+      "lobbyNote": "Lobby bags not collected by 7 PM go back to the hub on the return leg, and the family chooses another slot or money back.",
+      "earnings": "See today’s earnings"
     }
   }
 }
