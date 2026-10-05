@@ -172,6 +172,21 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
 - **Intervals and quantities:** conformal — q_tau = point + the tau-quantile of the champion's backtest residuals; `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`).
 - v1 (P4): MLForecast LightGBM with festival, weekday, price and weather features; MinT reconciliation.
 
+### 3.7 `POST /basket/rank` and the ranker job (v0, M-B)
+The next-basket ranker: which candidates belong in a household's box this week. The training job (`backend/training`, `train_ranker`, weekly) learns from every household's boxes and edits; the Space serves the model from the registry.
+
+```
+  request:  "candidates": [ { "product", "weeks_since", "frequency", "drafted", "drafted_rule", "removed_last",
+                              "popularity", "price_paise" } ], "top_k": 10
+  200:      "source": "ml" | "fallback", "model", "ranked": [ { "product", "score", "rank" } ]
+```
+- **Baskets and labels:** one basket per household x week; a candidate's label is 1 when it is in the final box (kept or added), 0 when drafted and removed or never taken.
+- **Candidates:** the household's own past items, the frequent items of its 5 nearest households (Jaccard on past baskets; TIFU-KNN simplified), and the week's drafted lines.
+- **Features** (computed from earlier weeks only): weeks since last bought, share of past weeks bought, drafted this week and by the rule table, removed last time, share of households buying it last week, unit price.
+- **Model:** LightGBM LambdaRank grouped by basket; **leave-last-basket-out** NDCG@10 and Recall@10 against "repeat last week" and "top frequency" (eval protocol §4), in the model card and in `model_metrics`.
+- **Registry (ADR-0025):** `models/basket_ranker/<version>/{model.txt, card.json}` and `models/basket_ranker/latest.json` on R2, the same layout under the Space's `MODELS_DIR`; `/models` lists it. Without a model the fallback ranks by frequency then popularity (`source: "fallback"`).
+- v1 (P4): SHAP explanations, price delta and festival features, the ranker's preference term in planner v2.
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**

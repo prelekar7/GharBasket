@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, assignment, pantry, registry, routing
+from gharbasket_ml import __version__, assignment, pantry, ranker, registry, routing
 from gharbasket_ml.planner import plan_week
 from gharbasket_ml.schemas import (
     AssignRequest,
@@ -21,6 +21,8 @@ from gharbasket_ml.schemas import (
     PantryResponse,
     PlanRequest,
     PlanResponse,
+    RankRequest,
+    RankResponse,
     RouteRequest,
     RouteResponse,
 )
@@ -78,7 +80,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="The models this service is serving, with versions (M10 §3)",
     )
     async def models(settings: Annotated[Settings, Depends(get_settings)]) -> list[dict[str, str]]:
-        return [m.__dict__ for m in registry.served_models(settings.models_manifest)]
+        return [
+            m.__dict__
+            for m in registry.served_models(settings.models_manifest, settings.models_dir)
+        ]
 
     @app.get(
         "/health/ai",
@@ -86,7 +91,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Health with the served models and the road network",
     )
     async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
-        return await registry.health(settings.models_manifest, settings.osrm_url)
+        return await registry.health(
+            settings.models_manifest, settings.osrm_url, settings.models_dir
+        )
 
     @app.post(
         "/pantry/quantities",
@@ -95,6 +102,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def pantry_quantities(body: PantryRequest) -> PantryResponse:
         return pantry.quantities(body)
+
+    @app.post(
+        "/basket/rank",
+        dependencies=[Depends(require_service_token)],
+        summary="Rank next-basket candidates (LightGBM LambdaRank from the registry, M10 §3.7)",
+    )
+    async def basket_rank(
+        body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> RankResponse:
+        return ranker.rank(body, settings.models_dir)
 
     @app.post(
         "/assign/kitchens",

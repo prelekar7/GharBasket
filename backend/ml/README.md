@@ -30,5 +30,6 @@ pings `/health` every 10 minutes so the Space does not sleep.
 
 Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the image to
 the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `MODELS_MANIFEST`
-(a local stand-in for the R2 registry pointer). The service is stateless and receives no personal
+(a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry
+layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer). The service is stateless and receives no personal
 data (DPDP; the Space is hosted outside India).

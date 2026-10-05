@@ -20,6 +20,8 @@ class Lake(Protocol):
     def write(self, key: str, table: pa.Table) -> None: ...
     def read(self, key: str) -> pa.Table | None: ...
     def keys(self, prefix: str) -> Iterator[str]: ...
+    def write_bytes(self, key: str, body: bytes) -> None: ...
+    def read_bytes(self, key: str) -> bytes | None: ...
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,15 @@ class LocalLake:
             return iter(())
         return (str(p.relative_to(self.root)) for p in sorted(base.rglob("*.parquet")))
 
+    def write_bytes(self, key: str, body: bytes) -> None:
+        path = self.root / key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+
+    def read_bytes(self, key: str) -> bytes | None:
+        path = self.root / key
+        return path.read_bytes() if path.exists() else None
+
 
 @dataclass(frozen=True)
 class S3Lake:
@@ -58,6 +69,15 @@ class S3Lake:
         except self.client.exceptions.NoSuchKey:
             return None
         return pq.read_table(io.BytesIO(body))
+
+    def write_bytes(self, key: str, body: bytes) -> None:
+        self.client.put_object(Bucket=self.bucket, Key=key, Body=body)
+
+    def read_bytes(self, key: str) -> bytes | None:
+        try:
+            return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
+        except self.client.exceptions.NoSuchKey:
+            return None
 
     def keys(self, prefix: str) -> Iterator[str]:
         paginator = self.client.get_paginator("list_objects_v2")

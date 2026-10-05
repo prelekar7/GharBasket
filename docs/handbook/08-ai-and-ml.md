@@ -139,6 +139,7 @@ sequenceDiagram
 - **Features:** recency, frequency, last accept/reject, price delta vs 4-week average, season, festival flag, cohort popularity, substitution-acceptance history.
 - **Model:** LightGBM LambdaRank. Label = kept in final box vs removed.
 - **Metrics:** Recall@10, NDCG@10, box acceptance rate, edits per box. Baselines: "repeat last week", top-frequency.
+- **Status (5 Oct 2026, v0):** `train_ranker` in `backend/training` (LambdaRank on boxes and edits, leave-last-basket-out against both baselines, model and card to the registry) and `POST /basket/rank` on the Space with a frequency fallback (M10 §3.7). SHAP and the planner's preference term are v1.
 
 ### M-C Meal planner — CP-SAT (research, deepest; core of Kitchen Autopilot)
 - **Variables:** `x[d,s,r]` ∈ {0,1} (day, meal slot, recipe); `t[d,s]` = tiffin on no-cook slots.

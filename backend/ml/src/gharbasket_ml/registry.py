@@ -29,11 +29,15 @@ class Served:
     source: str  # builtin, manifest
 
 
-def served_models(manifest: Path | None) -> list[Served]:
+def served_models(manifest: Path | None, models_dir: Path | None = None) -> list[Served]:
     models = [Served(name, version, kind, "builtin") for name, version, kind in BUILTIN]
     if manifest is not None and manifest.exists():
         for entry in json.loads(manifest.read_text()).get("models", []):
             models.append(Served(entry["name"], entry["version"], "learned", "manifest"))
+    if models_dir is not None and models_dir.exists():
+        for pointer in sorted(models_dir.glob("*/latest.json")):
+            version = json.loads(pointer.read_text()).get("version", "?")
+            models.append(Served(pointer.parent.name, version, "learned", "registry"))
     return models
 
 
@@ -57,10 +61,12 @@ async def osrm_status(
         return "down"
 
 
-async def health(manifest: Path | None, osrm_url: str | None = None) -> dict[str, object]:
+async def health(
+    manifest: Path | None, osrm_url: str | None = None, models_dir: Path | None = None
+) -> dict[str, object]:
     return {
         "status": "ok",
         "version": __version__,
-        "models": [m.__dict__ for m in served_models(manifest)],
+        "models": [m.__dict__ for m in served_models(manifest, models_dir)],
         "osrm": await osrm_status(osrm_url),
     }
