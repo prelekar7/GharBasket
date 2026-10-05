@@ -69,6 +69,7 @@ missing route.
 |---|---|
 | `hubs.js` | `GET /v1/hubs`, `GET /v1/hubs/{id}` (one hub, Kharghar; admins would see all) |
 | `catalog.js` | `GET /v1/products`, `/v1/products/{id}`, `/v1/search` (frozen S1 contract, 68 seed products with made-up Kharghar prices in paise) and `GET /v1/categories` |
+| `admin.js` | One list of the admin pages' mocks: `community.js` (`GET /v1/societies` with `hub_id` and `with_unassigned`, `POST` and `PATCH /v1/admin/societies`, `GET /v1/admin/society-requests` and its `accept`, `duplicate` and `PATCH` steps), `identity.js` (`GET /v1/admin/users`, `POST /v1/admin/user-roles`, `DELETE /v1/admin/user-roles/{id}`), `tiffin.js` (`GET /v1/hubs/{hub}/tiffin-menus`, `POST /v1/tiffin-menus/{id}/approve`, `send-back`, `reopen`) and `hubadmin.js` (`GET|POST /v1/admin/hubs`, `PATCH /v1/admin/hubs/{id}`). Paths the module specs name are used; the rest are proposals. They check the caller's role (`x-gb-role`) the way the API will. |
 
 | `prices.js` | `GET /v1/prices`, `GET/POST /v1/hubs/{id}/price-lists` (the list in use, scheduled and past lists, bulk publish) |
 | `plans.js` | `GET /v1/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |

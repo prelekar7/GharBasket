@@ -26,6 +26,8 @@ dist/
 coverage/
 *.tsbuildinfo
 storybook-static/
+# MapLibre worker copied for the console by scripts/copy-maplibre-worker.mjs
+frontend/console/public/maplibre/
 
 # Python
 .venv/

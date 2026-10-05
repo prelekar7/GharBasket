@@ -41,10 +41,11 @@ export const NAV = [
       },
       { href: "/plans", label: "Plans", ready: true },
       { href: "/hubs", label: "Hubs", key: "h" },
-      { href: "/societies", label: "Societies", key: "s", roles: ADMIN_AND_HUB },
+      { href: "/societies", label: "Societies", ready: true, key: "s", roles: ADMIN_AND_HUB },
       {
         href: "/societies/requests",
         label: "Society requests",
+        ready: true,
         hidden: true,
         roles: ADMIN_AND_HUB,
       },
