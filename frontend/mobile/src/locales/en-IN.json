@@ -1026,6 +1026,7 @@
     "tabs": {
       "route": "Route",
       "stop": "Stop",
+      "pickups": "Pickups",
       "earnings": "Earnings"
     },
     "title": "Your route",
@@ -1096,6 +1097,22 @@
       "allDone": "Every stop is handed over",
       "allDoneBody": "Collect the empty crates and donations on the way back.",
       "toPickups": "Go to pickups"
+    },
+    "pickups": {
+      "when": "Return leg · {window}",
+      "title": "Pickups",
+      "crates": "{n, plural, one {# empty crate} other {# empty crates}}",
+      "donation": "Donation · {ref}",
+      "scan": "Scan a crate or donation bag",
+      "manual": "Type the code instead",
+      "scanned": "Picked up",
+      "unknown": "Not on today’s pickups. Check the code.",
+      "why": "Pickups ride on the way back, so there’s no extra trip. Donations go to the hub for checking; the family gets Kindness points after.",
+      "none": "No pickups on this route.",
+      "typeTitle": "Type the code",
+      "codeLabel": "Crate or bag code",
+      "codeHelp": "It’s printed on the crate or the bag, like S-1 or B-402.",
+      "collect": "Mark as picked up"
     },
     "earnings": {
       "who": "{name} · Rider",
