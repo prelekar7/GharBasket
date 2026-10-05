@@ -47,35 +47,56 @@ const retryable = (/** @type {unknown} */ e) =>
 
 /** @type {Promise<void> | null} */
 let flushing = null;
+/** Set when flush() is called during a run: something may have been saved after that run read its list. */
+let again = false;
 
-/** Sends waiting actions in order; stops at the first one that should be retried later. */
+/** One pass over the waiting actions. @returns {Promise<boolean>} true = stop, retry later */
+async function pass() {
+  const waiting = await outbox.where("status").equals("waiting").sortBy("createdAt");
+  if (waiting.length === 0) return false;
+  if (!(await refresh())) return true;
+  for (const item of waiting) {
+    try {
+      await request(item.path, {
+        method: item.method,
+        body: item.body,
+        headers: { "idempotency-key": item.key },
+      });
+      await outbox.delete(/** @type {number} */ (item.id));
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : "network";
+      const status = retryable(e) ? "waiting" : "failed";
+      await outbox.update(/** @type {number} */ (item.id), {
+        status,
+        attempts: item.attempts + 1,
+        lastError: code,
+      });
+      if (status === "waiting") return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Sends waiting actions in order; stops at the first one that should be retried later. One run at
+ * a time: a call made during a run does not start another, it makes that run read the list again,
+ * so an action saved mid-flush goes out in the same burst.
+ */
 export function flush() {
   if (!navigator.onLine) return Promise.resolve();
-  flushing ??= (async () => {
+  if (flushing) {
+    again = true;
+    return flushing;
+  }
+  flushing = (async () => {
     try {
-      const waiting = await outbox.where("status").equals("waiting").sortBy("createdAt");
-      if (waiting.length === 0 || !(await refresh())) return;
-      for (const item of waiting) {
-        try {
-          await request(item.path, {
-            method: item.method,
-            body: item.body,
-            headers: { "idempotency-key": item.key },
-          });
-          await outbox.delete(/** @type {number} */ (item.id));
-        } catch (e) {
-          const code = e instanceof ApiError ? e.code : "network";
-          const status = retryable(e) ? "waiting" : "failed";
-          await outbox.update(/** @type {number} */ (item.id), {
-            status,
-            attempts: item.attempts + 1,
-            lastError: code,
-          });
-          if (status === "waiting") return;
-        }
-      }
+      do {
+        again = false;
+        if (await pass()) break;
+      } while (again);
     } finally {
       flushing = null;
+      again = false;
     }
   })();
   return flushing;

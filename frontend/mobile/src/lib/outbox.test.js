@@ -73,4 +73,22 @@ describe("outbox", () => {
     });
     expect(request).toHaveBeenCalledTimes(2);
   });
+
+  it("sends an action saved during a flush in the same run, once and in order", async () => {
+    /** @type {() => void} */
+    let release = () => {};
+    request
+      .mockImplementationOnce(() => new Promise((resolve) => (release = () => resolve({}))))
+      .mockResolvedValue({});
+    await save({ path: "/v1/a" });
+    const running = flush();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    // /v1/a is in flight; this save calls flush() while the run holds an older list.
+    await enqueue({ path: "/v1/b" });
+    release();
+    await running;
+    expect(request.mock.calls.map((c) => c[0])).toEqual(["/v1/a", "/v1/b"]);
+    expect(await db.table("outbox").where("status").equals("waiting").count()).toBe(0);
+    expect(await rows()).toEqual([]);
+  });
 });
