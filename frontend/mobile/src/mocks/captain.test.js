@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { tally } from "@/features/captain/day.js";
 import { mockFetch } from "./index.js";
 
@@ -88,5 +88,16 @@ describe("captain day (M7 mocks)", () => {
     const n = tally(await (await today()).json());
     expect(n).toMatchObject({ door: 1, lobby: 5 });
     expect(n.problems.map((b) => [b.flat, b.note])).toEqual([["B-1104", "eggs broken"]]);
+  });
+
+  it("pays per box from the ledger, and leaves other partners' earnings to their own mocks", async () => {
+    const get = (/** @type {Record<string, string>} */ headers) =>
+      mockFetch(new Request("http://localhost/v1/earnings", { headers }));
+    const e = await (await get(CAPTAIN)).json();
+    expect(e.total_paise).toBe(131000);
+    expect(e.items.every((/** @type {any} */ d) => Number.isInteger(d.amount_paise))).toBe(true);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    await get({ "x-active-role": "kitchen:hub-kharghar" });
+    expect(fetchSpy).toHaveBeenCalled();
   });
 });

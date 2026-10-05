@@ -1270,6 +1270,18 @@
       "problemNone": "Reported",
       "lobbyNote": "Lobby bags not collected by 7 PM go back to the hub on the return leg, and the family chooses another slot or money back.",
       "earnings": "See today’s earnings"
+    },
+    "earnings": {
+      "who": "{name} · Society Captain, {society}",
+      "title": "Earnings",
+      "recent": "{count, plural, one {Last delivery day} =3 {Last three delivery days} other {Last # delivery days}}",
+      "rate": "Paid per box handed over, at the rate in your partner agreement",
+      "boxes": "{count, plural, one {# box} other {# boxes}}",
+      "tiffins": "{count, plural, one {# tiffin} other {# tiffins}}",
+      "payout": "Paid every Monday to your bank. Only verified partners are paid; you’re verified.",
+      "payoutPending": "Paid every Monday to your bank. Only verified partners are paid; we’ll pay you once you’re verified.",
+      "cert": "Download income certificate",
+      "certFailed": "We couldn’t get the certificate. Try again."
     }
   }
 }

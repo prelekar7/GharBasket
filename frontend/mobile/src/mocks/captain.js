@@ -167,6 +167,45 @@ export const captainHandlers = [
         : problem(422, "logistics.note_required", "Say what is damaged"),
     ),
   ),
+
+  // M8 US-7: earnings from the ledger (via billing.api). Other partners' earnings have their own
+  // mocks, so this one answers only a captain and lets anyone else's request pass on.
+  http.get("*/v1/earnings", ({ request }) => {
+    if (guard(request)) return undefined;
+    const items = [
+      { date: "2026-10-06", boxes: 46, tiffins: 2, amount_paise: 46000 },
+      { date: "2026-10-02", boxes: 44, tiffins: 0, amount_paise: 44000 },
+      { date: "2026-09-29", boxes: 41, tiffins: 1, amount_paise: 41000 },
+    ];
+    return HttpResponse.json({
+      display_name: "Meena tai",
+      scope_name: "Sunrise Towers",
+      verified: true,
+      total_paise: items.reduce((n, e) => n + e.amount_paise, 0),
+      items,
+    });
+  }),
+
+  // The income certificate as a short-lived link; here a one-line PDF made on the spot.
+  http.get("*/v1/earnings/certificate", ({ request }) => {
+    if (guard(request)) return undefined;
+    const text = "GharBasket income certificate (example) - Meena Jadhav, Society Captain";
+    const stream = `BT /F1 12 Tf 48 780 Td (${text}) Tj ET`;
+    const pdf = [
+      "%PDF-1.4",
+      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+      "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
+      `4 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj`,
+      "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+      "trailer << /Root 1 0 R >>",
+      "%%EOF",
+    ].join("\n");
+    return HttpResponse.json({
+      url: `data:application/pdf;base64,${btoa(pdf)}`,
+      filename: "gharbasket-income-certificate.pdf",
+    });
+  }),
 ];
 
 /** Dev helper: start the day again. */
