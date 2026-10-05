@@ -277,7 +277,7 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
   it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
     expect(await society("green-valley")).toMatchObject({
       status: "prospect",
-      unlock: { joined: 14 },
+      unlock: { joined: 19, threshold: 25 },
     });
     for (let i = 0; i < 6; i++)
       await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
@@ -286,7 +286,7 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     const s = await society("green-valley");
     expect(s).toMatchObject({
       status: "live",
-      unlock: { joined: 20 },
+      unlock: { joined: 25 },
       captain: { name: "Asha tai" },
     });
     expect(s.unlocked_at).toBeTruthy();
