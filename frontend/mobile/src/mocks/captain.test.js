@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { tally } from "@/features/captain/day.js";
 import { mockFetch } from "./index.js";
 
@@ -96,8 +96,8 @@ describe("captain day (M7 mocks)", () => {
     const e = await (await get(CAPTAIN)).json();
     expect(e.total_paise).toBe(131000);
     expect(e.items.every((/** @type {any} */ d) => Number.isInteger(d.amount_paise))).toBe(true);
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
-    await get({ "x-active-role": "kitchen:hub-kharghar" });
-    expect(fetchSpy).toHaveBeenCalled();
+    // A kitchen partner's call is answered by mocks/kitchen.js, not with the captain's numbers.
+    const k = await (await get({ "x-active-role": "kitchen:hub-kharghar" })).json();
+    expect(k.total_paise).not.toBe(e.total_paise);
   });
 });
