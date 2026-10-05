@@ -46,7 +46,9 @@ const TABS = [
   { value: "profile", Icon: UserIcon },
 ];
 
-const UNDER_PROFILE = ["wallet", "society", "partner", "notifications"];
+const UNDER_PROFILE = ["wallet", "society", "partner", "notifications", "budget"];
+
+const NO_ASSISTANT = ["profile", "partner", "budget"];
 
 function CustomerShell() {
   const { t } = useTranslation();
@@ -54,12 +56,12 @@ function CustomerShell() {
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
   const segment = pathname.split("/")[1] || "week";
-  // Wallet, Society and Become a partner open from Profile (HcWallet, HcSociety, HcPartner).
+  // Wallet, Society, Become a partner and Budget Lock open from Profile (HcWallet, HcSociety,
+  // HcPartner, HcBudget).
   const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
-  // The designs leave the assistant button off Profile, Become a partner, and the screens that
-  // end in one big button (HcTiffin, HcRate).
-  const showAssistant =
-    segment !== "profile" && segment !== "partner" && !/\/(tiffin|rate)(\/|$)/.test(pathname);
+  // The designs leave the assistant button off Profile, the settings screens opened from it, and
+  // the screens that end in one big button (HcTiffin, HcRate).
+  const showAssistant = !NO_ASSISTANT.includes(segment) && !/\/(tiffin|rate)(\/|$)/.test(pathname);
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

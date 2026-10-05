@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { request } from "@/lib/api.js";
 
 /**
@@ -118,5 +119,45 @@ export function useEditLine() {
         })
       ),
     onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+  });
+}
+
+/**
+ * @typedef {"swap" | "trim" | "ask"} WhenOver what Autopilot does when a week would go over
+ * @typedef {{ month: string, budget_paise: number | null, spent_paise: number, delivery_days_left: number, when_over: WhenOver, applies_from: string }} BudgetLock
+ */
+
+/** This month's Budget Lock: limit, spent so far, days left (GET /v1/budget-lock, M3). */
+export function useBudgetLock() {
+  return useQuery({
+    queryKey: ["budget-lock"],
+    queryFn: () => /** @type {Promise<BudgetLock>} */ (request("/v1/budget-lock")),
+  });
+}
+
+/**
+ * Set or turn off the monthly limit and what happens when a week would go over (PUT
+ * /v1/budget-lock, M3). Retrying the same change reuses its Idempotency-Key.
+ */
+export function useSaveBudgetLock() {
+  const client = useQueryClient();
+  const keys = useRef(/** @type {Record<string, string>} */ ({}));
+  return useMutation({
+    mutationFn: (/** @type {{ budget_paise: number | null, when_over: WhenOver }} */ v) => {
+      const id = JSON.stringify(v);
+      keys.current[id] ??= crypto.randomUUID();
+      return /** @type {Promise<BudgetLock>} */ (
+        request("/v1/budget-lock", {
+          method: "PUT",
+          body: v,
+          headers: { "idempotency-key": keys.current[id] },
+        })
+      );
+    },
+    onSuccess: (saved) => {
+      keys.current = {};
+      client.setQueryData(["budget-lock"], saved);
+      client.invalidateQueries({ queryKey: ["household", "me"] });
+    },
   });
 }

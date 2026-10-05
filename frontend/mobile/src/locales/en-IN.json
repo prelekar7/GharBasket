@@ -1479,5 +1479,34 @@
     "notYetTitle": "Not delivered yet",
     "notYetBody": "You can rate it once it reaches your door.",
     "backToOrders": "Back to Orders"
+  },
+  "budget": {
+    "title": "Budget Lock",
+    "spent": "Spent so far",
+    "spentValue": "{spent} of {limit}",
+    "left": "{amount} left for {n, plural, one {# more delivery day} other {# more delivery days}}. Autopilot plans each week to fit.",
+    "over": "{amount} over this month’s limit. Autopilot keeps the rest of the month lean.",
+    "off": "Budget Lock is off. Set a monthly limit and Autopilot plans each week to fit.",
+    "limitLabel": "Monthly limit for sabzi and staples",
+    "limitHelp": "Tiffins and add-ons you pick yourself count too. A new limit applies from next week’s plan.",
+    "tightTitle": "When a week would go over",
+    "tight": {
+      "swap": {
+        "title": "Swap to cheaper items",
+        "body": "Same meals, seasonal sabzi; you see every swap"
+      },
+      "trim": {
+        "title": "Plan fewer extras",
+        "body": "Fruit and add-ons first; staples stay"
+      },
+      "ask": {
+        "title": "Ask me first",
+        "body": "We keep the plan and show you the gap"
+      }
+    },
+    "save": "Save Budget Lock",
+    "saved": "Budget Lock saved. It applies from next week’s plan.",
+    "turnOff": "Turn off Budget Lock",
+    "turnedOff": "Budget Lock is off from next week’s plan."
   }
 }

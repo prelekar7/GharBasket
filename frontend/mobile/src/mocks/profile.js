@@ -16,6 +16,33 @@ const problem = (
   );
 const LOCALES = ["en-IN", "hi-IN", "mr-IN"];
 const DEVICES_KEY = "gb-mock-devices";
+const WHEN_OVER_KEY = "gb-mock-budget-when-over";
+const WHEN_OVER = ["swap", "trim", "ask"];
+
+/** The caller's household; a demo phone gets the designs' family the first time. @param {string} phone */
+function householdOrDemo(phone) {
+  let h = householdOf(phone);
+  if (!h && !isNewUser(phone)) {
+    h = demoHousehold();
+    saveHousehold(phone, h);
+  }
+  return h;
+}
+
+/**
+ * This month's Budget Lock (M3 budget_locks). The limit is the household's `budget_paise`, the
+ * field onboarding writes; `when_over` and the counters are our proposal. A demo household has
+ * spent the designs' ₹1,180 of October so far. @param {string} phone @param {import("./householdStore.js").Household} h
+ */
+const budgetLock = (phone, h) => ({
+  month: "2026-10",
+  budget_paise: h.budget_paise,
+  spent_paise: isNewUser(phone) ? 0 : 118000,
+  delivery_days_left: 10,
+  when_over: JSON.parse(localStorage.getItem(WHEN_OVER_KEY) ?? "{}")[phone] ?? "swap",
+  // A new limit applies from next week's plan; this week's box is already planned.
+  applies_from: "2026-10-12",
+});
 
 /** @returns {{ id: string, platform: "android" | "web", label: string, last_seen_at: string, current: boolean }[]} */
 const devices = () =>
@@ -60,11 +87,7 @@ export const profileHandlers = [
   http.get("*/v1/households/me", ({ request }) => {
     const phone = caller(request);
     if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
-    let h = householdOf(phone);
-    if (!h && !isNewUser(phone)) {
-      h = demoHousehold();
-      saveHousehold(phone, h);
-    }
+    const h = householdOrDemo(phone);
     if (!h) return problem(404, "identity.household_not_found", "No household yet");
     return HttpResponse.json(h.health_consent ? h : { ...h, health: {} });
   }),
@@ -124,6 +147,44 @@ export const profileHandlers = [
     };
     saveHousehold(phone, { ...h, subscription });
     return HttpResponse.json(subscription);
+  }),
+
+  // GET /v1/budget-lock (M3): the month's limit, what is spent, and what Autopilot does when a
+  // week would go over.
+  http.get("*/v1/budget-lock", ({ request }) => {
+    const phone = caller(request);
+    const h = phone && householdOrDemo(phone);
+    if (!phone || !h) return problem(404, "subscriptions.not_found", "No subscription");
+    return HttpResponse.json(budgetLock(phone, h));
+  }),
+
+  // PUT /v1/budget-lock (M3, Idempotency-Key): { budget_paise: number | null, when_over }. null
+  // turns Budget Lock off. The household's budget changes too, so its version moves on.
+  http.put("*/v1/budget-lock", async ({ request }) => {
+    const phone = caller(request);
+    const h = phone && householdOrDemo(phone);
+    if (!phone || !h) return problem(404, "subscriptions.not_found", "No subscription");
+    if (!request.headers.get("idempotency-key"))
+      return problem(
+        400,
+        "platform.idempotency_key_required",
+        "Idempotency-Key header is required",
+      );
+    const { budget_paise: budget = null, when_over: mode = "swap" } =
+      /** @type {{ budget_paise?: number | null, when_over?: string }} */ (await request.json());
+    if (budget !== null && (!Number.isInteger(budget) || budget < 50000 || budget > 10_000_000))
+      return problem(422, "subscriptions.budget_invalid", "Set a limit between ₹500 and ₹1,00,000");
+    if (!WHEN_OVER.includes(mode))
+      return problem(
+        422,
+        "subscriptions.budget_invalid",
+        "Pick what happens when a week would go over",
+      );
+    const next = { ...h, budget_paise: budget, version: h.version + 1 };
+    saveHousehold(phone, next);
+    const all = JSON.parse(localStorage.getItem(WHEN_OVER_KEY) ?? "{}");
+    localStorage.setItem(WHEN_OVER_KEY, JSON.stringify({ ...all, [phone]: mode }));
+    return HttpResponse.json(budgetLock(phone, next));
   }),
 
   http.get("*/v1/me/devices", () => HttpResponse.json({ items: devices() })),
