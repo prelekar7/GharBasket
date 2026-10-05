@@ -3,6 +3,7 @@
 // and logout-all are not in §3.1 yet, so their shapes here are our proposal (see the PR).
 import { HttpResponse, http } from "msw";
 import { seedShortWallet } from "./billing.js";
+import { clearRatings } from "./orders.js";
 import { seedPaymentFailed } from "./subscriptions.js";
 import { restartTrip } from "./tracking.js";
 
@@ -166,6 +167,7 @@ export const handlers = [
     const pair = issue(phone);
     // Every sign-in starts the demo delivery day again: today's van leaves the hub.
     restartTrip();
+    clearRatings();
     // 98000 00004 signs in to the "payment didn't go through" week (design Core-D4).
     if (phone === "+919800000004") {
       seedShortWallet();

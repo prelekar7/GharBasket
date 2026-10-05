@@ -486,3 +486,22 @@ describe("live tracking demo day (HcTracking)", () => {
     restartTrip();
   });
 });
+
+describe("rating a delivered day (HcRate)", () => {
+  it("rates once a delivery arrives, once per order", async () => {
+    const { restartTrip, deliveryStage, TRIP_MS, DOOR_MS } = await import("./tracking.js");
+    const body = { score: 5, tags: ["fresh", "on_time"], comment: "Methi was fresh" };
+    restartTrip();
+    deliveryStage(Date.now()); // the van has just left
+    const early = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-1");
+    expect((await early.json()).code).toBe("orders.not_delivered");
+    restartTrip();
+    deliveryStage(Date.now() - TRIP_MS - DOOR_MS); // delivered
+    const a = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-2");
+    expect(a.status).toBe(201);
+    expect((await post("/v1/orders/ord-2026-10-06/rating", body, "rate-2")).status).toBe(201);
+    const again = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-3");
+    expect((await again.json()).code).toBe("orders.already_rated");
+    restartTrip();
+  });
+});

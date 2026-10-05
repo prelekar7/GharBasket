@@ -96,6 +96,58 @@ export const TIFFIN_OFFER = {
   price_paise: 11000,
 };
 
+/** A tiffin for the box's day comes with the box: cooked while the van drives, then the captain brings both. */
+const TIFFIN_WITH_BOX = /** @type {Record<string, string>} */ ({
+  DISPATCHED: "PREPARING",
+  AT_SOCIETY: "PICKED_UP",
+  DELIVERED: "DELIVERED",
+});
+
+/** Ratings by order id (POST /v1/orders/{id}/rating, our proposal for M4 and M8); they survive reloads. */
+const RATINGS_KEY = "gb-mock-ratings";
+/** @returns {Record<string, { key: string, score: number, tags: string[], comment: string | null }>} */
+const ratings = () => JSON.parse(localStorage.getItem(RATINGS_KEY) ?? "{}");
+/** A new demo day (sign-in) has nothing rated yet. */
+export const clearRatings = () => localStorage.removeItem(RATINGS_KEY);
+const RATING_TAGS = {
+  box: ["fresh", "on_time", "packed_well", "missing"],
+  tiffin: ["tasty", "hot", "portion", "oily"],
+};
+
+/** The seeded orders and the booked tiffins, soonest first, each with its rating if any. */
+function allOrders(/** @type {"en" | "hi"} */ lang) {
+  const hi = lang === "hi";
+  const seeded = orders(lang);
+  const box = seeded[0];
+  const booked = bookedTiffins().map((b) => {
+    const status =
+      b.delivery_date === box.delivery_date ? TIFFIN_WITH_BOX[box.status] : "SCHEDULED";
+    return {
+      id: b.id,
+      kind: "tiffin",
+      status,
+      delivery_date: b.delivery_date,
+      slot: b.slot,
+      qty: b.qty ?? 1,
+      total_paise: (b.qty ?? 1) * TIFFIN_OFFER.price_paise,
+      paid_from: "wallet",
+      address: { flat: "B-402", society: "Sunrise Towers" },
+      kitchen_id: b.kitchen_id,
+      cook: { name: TIFFIN_OFFER.cook[hi ? 1 : 0] },
+      dish: { name: TIFFIN_OFFER.dish[hi ? 1 : 0] },
+      events:
+        status === "DELIVERED"
+          ? [{ to_status: "DELIVERED", at: `${b.delivery_date}T09:30:00+05:30` }]
+          : [],
+      version: 1,
+    };
+  });
+  const rated = ratings();
+  return [...seeded, ...booked]
+    .map((o) => ({ ...o, rating: rated[o.id] ? { score: rated[o.id].score } : null }))
+    .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date));
+}
+
 const ISSUE_KINDS = ["missing", "damaged", "late", "other"];
 /** @type {Record<string, any>} */
 const issuesByKey = {};
@@ -106,25 +158,7 @@ export const orderHandlers = [
     // A household still in onboarding has no orders yet.
     if (isNewUser(caller(request) ?? ""))
       return HttpResponse.json({ items: [], next_cursor: null });
-    const hi = langOf(request) === "hi";
-    const booked = bookedTiffins().map((b) => ({
-      id: b.id,
-      kind: "tiffin",
-      status: "SCHEDULED",
-      delivery_date: b.delivery_date,
-      slot: b.slot,
-      qty: b.qty ?? 1,
-      total_paise: (b.qty ?? 1) * TIFFIN_OFFER.price_paise,
-      paid_from: "wallet",
-      address: { flat: "B-402", society: "Sunrise Towers" },
-      cook: { name: TIFFIN_OFFER.cook[hi ? 1 : 0] },
-      dish: { name: TIFFIN_OFFER.dish[hi ? 1 : 0] },
-      events: [],
-      version: 1,
-    }));
-    const items = [...orders(langOf(request)), ...booked].sort((a, b) =>
-      a.delivery_date.localeCompare(b.delivery_date),
-    );
+    const items = allOrders(langOf(request));
     return HttpResponse.json({ items, next_cursor: null });
   }),
 
@@ -169,8 +203,48 @@ export const orderHandlers = [
   }),
 
   http.get("*/v1/orders/:id", ({ request, params }) => {
-    const order = orders(langOf(request)).find((o) => o.id === params.id);
+    const order = allOrders(langOf(request)).find((o) => o.id === params.id);
     return order ? HttpResponse.json(order) : problem(404, "orders.not_found", "No such order");
+  }),
+
+  // Our proposal: one rating per delivered order, 1–5 with tags and words. M8 keeps the
+  // kitchen's and captain's averages; they never see who rated.
+  http.post("*/v1/orders/:id/rating", async ({ request, params }) => {
+    const key = request.headers.get("idempotency-key");
+    if (!key)
+      return problem(
+        400,
+        "platform.idempotency_key_required",
+        "Idempotency-Key header is required",
+      );
+    const id = String(params.id);
+    const rated = ratings();
+    if (rated[id]?.key === key)
+      return HttpResponse.json({ order_id: id, ...rated[id] }, { status: 201 });
+    if (rated[id]) return problem(409, "orders.already_rated", "This delivery is rated already");
+    const order = allOrders("en").find((o) => o.id === id);
+    if (!order) return problem(404, "orders.not_found", "No such order");
+    if (order.status !== "DELIVERED")
+      return problem(409, "orders.not_delivered", "Rate it once it reaches you");
+    const body = /** @type {{ score?: number, tags?: string[], comment?: string }} */ (
+      await request.json()
+    );
+    const allowed = RATING_TAGS[order.kind === "tiffin" ? "tiffin" : "box"];
+    if (
+      !(Number.isInteger(body.score) && Number(body.score) >= 1 && Number(body.score) <= 5) ||
+      !(body.tags ?? []).every((t) => allowed.includes(t))
+    )
+      return problem(422, "orders.invalid_rating", "Pick 1 to 5");
+    // Read again after the await: the box and the tiffin are rated at the same time.
+    const all = ratings();
+    all[id] = {
+      key,
+      score: Number(body.score),
+      tags: body.tags ?? [],
+      comment: body.comment?.trim() || null,
+    };
+    localStorage.setItem(RATINGS_KEY, JSON.stringify(all));
+    return HttpResponse.json({ order_id: id, ...all[id] }, { status: 201 });
   }),
 
   // Our proposal (not yet in M4): a delivery problem the hub calls back about.

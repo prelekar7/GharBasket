@@ -22,7 +22,10 @@ import {
   weekdayName,
 } from "@/features/subscriptions/format.js";
 
-/** Orders: today's delivery with its timeline, live tracking, and what's coming up (designs HcOrders, HcTracking; M4). */
+/**
+ * Orders: today's delivery with its timeline, live tracking, rating it once delivered, and what's
+ * coming up (designs HcOrders, HcTracking, HcRate; M4).
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders")({ component: Orders });
 
@@ -185,7 +188,20 @@ function Orders() {
               todo: t("orders.tl.todo"),
             }}
           />
+          {current.rating && (
+            <p className="text-sm leading-5 text-fg-secondary">{t("orders.rated")}</p>
+          )}
           <div className="flex flex-wrap gap-2">
+            {current.status === "DELIVERED" && !current.rating && (
+              <Button
+                variant="primary"
+                onPress={() =>
+                  navigate({ to: "/orders/$orderId/rate", params: { orderId: current.id } })
+                }
+              >
+                {t("orders.rate")}
+              </Button>
+            )}
             {current.kind === "box" && TRACKABLE.has(current.status) && (
               <Button
                 variant="primary"
