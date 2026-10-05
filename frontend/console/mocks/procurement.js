@@ -108,7 +108,7 @@ function seedLines() {
  * @typedef {{ id: string, vendor_id: string, vendor_name: string, supplies: string, line_count: number,
  *   total_paise: number, status: "sent", sent_at: string }} PurchaseOrder
  */
-const state = () =>
+export const procurementState = () =>
   mockStore("procurement", () => ({
     plan: {
       id: "plan-2026-10-06",
@@ -124,7 +124,7 @@ const state = () =>
 
 /** The plan as the API returns it: lines plus the purchase orders each vendor would get. */
 function planOut() {
-  const { plan, orders } = state();
+  const { plan, orders } = procurementState();
   const draft = VENDORS.map((v) => {
     const own = plan.lines.filter((l) => l.vendor_id === v.id);
     return {
@@ -146,13 +146,13 @@ export const procurementHandlers = [
     if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
     const date = new URL(request.url).searchParams.get("date") ?? "2026-10-06";
     return HttpResponse.json({
-      items: date === state().plan.for_date ? [planOut()] : [],
+      items: date === procurementState().plan.for_date ? [planOut()] : [],
       next_cursor: null,
     });
   }),
 
   http.patch("*/v1/procurement-plans/:id/lines/:product", async ({ params, request }) => {
-    const { plan } = state();
+    const { plan } = procurementState();
     if (params.id !== plan.id) return problem(404, "procurement.plan_not_found", "No such plan");
     if (plan.status === "sent")
       return problem(409, "procurement.plan_sent", "Purchase orders are already sent");
@@ -173,7 +173,7 @@ export const procurementHandlers = [
 
   http.post("*/v1/procurement-plans/:id/purchase-orders", ({ params, request }) =>
     idempotent(request, () => {
-      const s = state();
+      const s = procurementState();
       if (params.id !== s.plan.id)
         return problem(404, "procurement.plan_not_found", "No such plan");
       if (s.plan.status === "sent")
