@@ -9,6 +9,7 @@ import { franchiseHandlers } from "./franchise.js";
 import { hubsHandlers } from "./hubs.js";
 import { impactHandlers } from "./impact.js";
 import { intelHandlers } from "./intel.js";
+import { notificationsHandlers } from "./notifications.js";
 import { ordersHandlers } from "./orders.js";
 import { plansHandlers } from "./plans.js";
 import { pricesHandlers } from "./prices.js";
@@ -27,6 +28,7 @@ export const handlers = [
   ...franchiseHandlers,
   ...impactHandlers,
   ...intelHandlers,
+  ...notificationsHandlers,
   ...ordersHandlers,
   ...plansHandlers,
   ...pricesHandlers,

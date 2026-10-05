@@ -68,8 +68,8 @@ export const NAV = [
     section: "admin",
     label: "Notifications",
     items: [
-      { href: "/templates", label: "Templates" },
-      { href: "/delivery-log", label: "Delivery log" },
+      { href: "/templates", label: "Templates", ready: true },
+      { href: "/delivery-log", label: "Delivery log", ready: true },
     ],
   },
   {
