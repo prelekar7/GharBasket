@@ -1,5 +1,15 @@
-import { Button, FlatChecklist, ProgressBar, SegmentedControl, Skeleton } from "@gharbasket/ui";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  BagLabel,
+  Button,
+  FlatChecklist,
+  ProgressBar,
+  SegmentedControl,
+  Sheet,
+  Skeleton,
+  TextField,
+  toast,
+} from "@gharbasket/ui";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
@@ -7,7 +17,7 @@ import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { nextBag } from "@/features/captain/day.js";
 import { dayLabel, isOpen, proof } from "@/features/captain/parts.jsx";
-import { useCaptainDay, useCaptainWrite } from "@/features/captain/queries.js";
+import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
 import { normalizeCode } from "@/lib/scan.js";
 import { useSession } from "@/lib/session.js";
 
@@ -40,11 +50,14 @@ function Flats() {
   const [last, setLast] = useState(
     /** @type {{ state: "success" | "error", text: string } | null} */ (null),
   );
+  const [drafts, setDrafts] = useDrafts(day.data?.date);
+  const [picked, setPicked] = useState(/** @type {string | null} */ (null));
 
   if (day.isPending) return <Skeleton lines={10} />;
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
-  const next = nextBag(d.bags);
+  const issues = drafts.issues;
+  const next = nextBag(d.bags.filter((b) => !issues[b.code]));
   const wings = [...new Set(d.bags.map((b) => b.wing))];
   const shown = wing ?? next?.wing ?? wings[0];
   const bags = d.bags.filter((b) => b.wing === shown);
@@ -62,6 +75,8 @@ function Flats() {
       return;
     }
     write(proof(bag, false));
+    // The family turned up after all: the door scan settles a problem not yet sent.
+    if (issues[code]) setDrafts((x) => ({ ...x, issues: omit(x.issues, code) }));
     setWing(bag.wing);
     setLast({ state: "success", text: t("captain.flats.delivered", { code, flat: bag.flat }) });
   };
@@ -93,10 +108,24 @@ function Flats() {
           total: bags.length,
         })}
       />
+      {Object.keys(issues).length > 0 && (
+        <Link
+          to="/captain/flats/exceptions"
+          className="flex min-h-12 items-center font-semibold text-link underline underline-offset-[3px]"
+        >
+          {t("captain.exceptions.count", { count: Object.keys(issues).length })}
+        </Link>
+      )}
       <FlatChecklist
         label={t("captain.flats.progress", { wing: shown })}
+        onSelect={(item) => setPicked(bags.find((b) => b.flat === item.flat)?.code ?? null)}
         items={bags.map((b) => {
-          const [status, word] = b.code === next?.code ? ["out", "next"] : PILL[b.status];
+          const issue = issues[b.code];
+          const [status, word] = issue
+            ? ["issue", issue.kind === "not_home" ? "notHome" : "damaged"]
+            : b.code === next?.code
+              ? ["out", "next"]
+              : PILL[b.status];
           return {
             flat: b.flat,
             note:
@@ -134,6 +163,102 @@ function Flats() {
           </Button>
         )}
       </div>
+      <FlatSheet
+        bag={d.bags.find((b) => b.code === picked)}
+        society={d.society.name}
+        canReport={!!d.stop.handed_over_at}
+        onClose={() => setPicked(null)}
+        onIssue={(code, issue) => {
+          setDrafts((x) => ({ ...x, issues: { ...x.issues, [code]: issue } }));
+          setPicked(null);
+          toast(t("captain.flat.added"));
+        }}
+      />
     </div>
+  );
+}
+
+const omit = (/** @type {Record<string, any>} */ o, /** @type {string} */ k) =>
+  Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
+
+/**
+ * A flat's bag label, and the two problems a captain meets at a door: no one home, or something
+ * broken. They wait on Exceptions until she saves them.
+ * @param {{ bag: import("@/features/captain/day.js").Bag | undefined, society: string, canReport: boolean,
+ *   onClose: () => void, onIssue: (code: string, issue: import("@/features/captain/queries.js").Issue) => void }} props
+ */
+function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
+  const { t } = useTranslation();
+  const [note, setNote] = useState("");
+  const [damaged, setDamaged] = useState(false);
+  const open = !!bag && canReport && bag.status === "planned";
+  const close = () => {
+    setNote("");
+    setDamaged(false);
+    onClose();
+  };
+  return (
+    <Sheet
+      open={!!bag}
+      onOpenChange={(o) => !o && close()}
+      title={bag?.flat ?? ""}
+      footer={
+        open &&
+        bag &&
+        (damaged ? (
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            isDisabled={!note.trim()}
+            onPress={() => {
+              onIssue(bag.code, { kind: "damaged", note: note.trim(), photo_key: null });
+              close();
+            }}
+          >
+            {t("captain.flat.report")}
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="lg"
+              onPress={() => onIssue(bag.code, { kind: "not_home", outcome: "lobby" })}
+            >
+              {t("captain.flat.notHome")}
+            </Button>
+            <Button size="lg" onPress={() => setDamaged(true)}>
+              {t("captain.flat.damaged")}
+            </Button>
+          </>
+        ))
+      }
+    >
+      {bag && (
+        <BagLabel
+          code={bag.code}
+          flat={bag.flat}
+          society={society}
+          crate={bag.crate}
+          lines={bag.lines}
+          flags={bag.contents === "box" ? [] : ["tiffin"]}
+          labels={{
+            bag: t("captain.flat.bag"),
+            flat: t("captain.flat.flatWord"),
+            crate: t("captain.flat.crate", { crate: "{crate}" }),
+            lines: t("captain.flat.lines", { n: "{n}" }),
+            flags: { tiffin: t("captain.flats.contents.tiffin") },
+          }}
+        />
+      )}
+      {open && damaged && (
+        <TextField
+          label={t("captain.flat.what")}
+          placeholder={t("captain.flat.whatPh")}
+          value={note}
+          onChange={setNote}
+          autoFocus
+        />
+      )}
+    </Sheet>
   );
 }

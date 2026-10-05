@@ -1225,6 +1225,38 @@
       "confirmAny": "Delivered",
       "notFound": "No bag with this code today",
       "done": "{code} delivered to {flat}"
+    },
+    "flat": {
+      "notHome": "No one home",
+      "damaged": "Something is damaged",
+      "what": "What is damaged?",
+      "whatPh": "eggs broken",
+      "report": "Report",
+      "added": "Added to exceptions",
+      "bag": "Bag",
+      "flatWord": "Flat",
+      "crate": "Crate {crate}",
+      "lines": "{n} items"
+    },
+    "exceptions": {
+      "back": "Back to flats",
+      "count": "{count, plural, one {# to sort out} other {# to sort out}}",
+      "title": "Exceptions",
+      "notHome": "{flat} · no one home",
+      "notHomeBody": "You rang twice. What should happen to their bag?",
+      "lobby": "Keep for lobby pickup",
+      "lobbyDesc": "They collect it by 7 PM today",
+      "return": "Not delivered",
+      "returnDesc": "Back to the hub: next slot, or money back",
+      "damaged": "{flat} · {note}",
+      "damagedBody": "The family gets the price of what broke back in the wallet once the hub checks your photo.",
+      "photo": "Take a photo of the damage",
+      "photoAdded": "Photo added",
+      "photoFailed": "The photo didn’t upload. Try again when you have signal.",
+      "save": "Save and tell the families",
+      "saved": "Saved. The families are told.",
+      "none": "Nothing to sort out",
+      "noneBody": "Problems you report at a door show up here."
     }
   }
 }
