@@ -146,7 +146,7 @@ export const NAV = [
       { href: "/unit-economics", label: "Unit economics", ready: true },
       { href: "/staff", label: "Staff", ready: true },
       { href: "/customers", label: "Customers", ready: true },
-      { href: "/settings", label: "Settings" },
+      { href: "/settings", label: "Settings", ready: true, roles: ["admin"] },
     ],
   },
   {
