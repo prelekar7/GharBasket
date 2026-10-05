@@ -1133,6 +1133,27 @@
       "scan": "Scan",
       "flats": "Flats",
       "earnings": "Earnings"
+    },
+    "actingAs": "Acting as",
+    "role": "Role",
+    "hello": "Namaste, {name} · {society}",
+    "ofTotal": "{done} of {total}",
+    "manualCrate": "Type the crate code instead",
+    "today": {
+      "title": "Today, {day}",
+      "vanTitle": "The van comes at about {time}",
+      "van": "{rider} brings {count, plural, one {# crate} other {# crates}} to gate {gate}. Scan each crate as you receive it.",
+      "crates": "Crates",
+      "bags": "Bags for your society",
+      "lobby": "Lobby pickup (families collect)",
+      "delivered": "Delivered",
+      "noExceptions": "Nothing to sort out yet",
+      "scan": "Scan crates when the van comes"
+    },
+    "received": {
+      "title": "Crates received at {time}",
+      "body": "Take the bags to the flats and scan each one at the door. Lobby-pickup bags stay in the lobby.",
+      "toFlats": "Take bags to the flats"
     }
   }
 }
