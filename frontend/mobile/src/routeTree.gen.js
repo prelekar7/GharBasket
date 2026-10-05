@@ -35,8 +35,10 @@ import { Route as AuthCaptainIndexRouteImport } from "./routes/_auth/captain/ind
 import { Route as AuthCaptainEarningsRouteImport } from "./routes/_auth/captain/earnings"
 import { Route as AuthCaptainScanRouteImport } from "./routes/_auth/captain/scan"
 import { Route as AuthKitchenIndexRouteImport } from "./routes/_auth/kitchen/index"
+import { Route as AuthKitchenEarningsRouteImport } from "./routes/_auth/kitchen/earnings"
 import { Route as AuthKitchenMenuRouteImport } from "./routes/_auth/kitchen/menu"
 import { Route as AuthKitchenPrepRouteImport } from "./routes/_auth/kitchen/prep"
+import { Route as AuthKitchenTrainingRouteImport } from "./routes/_auth/kitchen/training"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
 import { Route as AuthOnboardingCookingRouteImport } from "./routes/_auth/onboarding/cooking"
@@ -191,6 +193,11 @@ const AuthKitchenIndexRoute = AuthKitchenIndexRouteImport.update({
   path: "/",
   getParentRoute: () => AuthKitchenRoute,
 })
+const AuthKitchenEarningsRoute = AuthKitchenEarningsRouteImport.update({
+  id: "/earnings",
+  path: "/earnings",
+  getParentRoute: () => AuthKitchenRoute,
+})
 const AuthKitchenMenuRoute = AuthKitchenMenuRouteImport.update({
   id: "/menu",
   path: "/menu",
@@ -199,6 +206,11 @@ const AuthKitchenMenuRoute = AuthKitchenMenuRouteImport.update({
 const AuthKitchenPrepRoute = AuthKitchenPrepRouteImport.update({
   id: "/prep",
   path: "/prep",
+  getParentRoute: () => AuthKitchenRoute,
+})
+const AuthKitchenTrainingRoute = AuthKitchenTrainingRouteImport.update({
+  id: "/training",
+  path: "/training",
   getParentRoute: () => AuthKitchenRoute,
 })
 const AuthOnboardingBudgetRoute = AuthOnboardingBudgetRouteImport.update({
@@ -356,8 +368,10 @@ const AuthCaptainRouteWithChildren = AuthCaptainRoute._addFileChildren(
 )
 
 const AuthKitchenRouteChildren = {
+  AuthKitchenEarningsRoute: AuthKitchenEarningsRoute,
   AuthKitchenMenuRoute: AuthKitchenMenuRoute,
   AuthKitchenPrepRoute: AuthKitchenPrepRoute,
+  AuthKitchenTrainingRoute: AuthKitchenTrainingRoute,
   AuthKitchenIndexRoute: AuthKitchenIndexRoute,
 }
 
