@@ -30,15 +30,16 @@ export const NAV = [
     label: "Admin",
     items: [
       { href: "/catalog", label: "Catalog", ready: true, key: "c" },
-      { href: "/catalog/[id]", label: "Product", hidden: true },
-      { href: "/prices", label: "Prices", key: "p", roles: ADMIN_AND_HUB },
+      { href: "/catalog/[id]", label: "Product", hidden: true, ready: true },
+      { href: "/prices", label: "Prices", ready: true, key: "p", roles: ADMIN_AND_HUB },
       {
         href: "/prices/publish",
         label: "Publish a price list",
         hidden: true,
+        ready: true,
         roles: ADMIN_AND_HUB,
       },
-      { href: "/plans", label: "Plans" },
+      { href: "/plans", label: "Plans", ready: true },
       { href: "/hubs", label: "Hubs", key: "h" },
       { href: "/societies", label: "Societies", key: "s", roles: ADMIN_AND_HUB },
       {
@@ -48,7 +49,7 @@ export const NAV = [
         roles: ADMIN_AND_HUB,
       },
       { href: "/users", label: "Users and roles", key: "u" },
-      { href: "/festivals", label: "Festival calendar" },
+      { href: "/festivals", label: "Festival calendar", ready: true },
       { href: "/tiffin-menus", label: "Tiffin menus", roles: ADMIN_AND_HUB },
     ],
   },

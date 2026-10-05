@@ -2,6 +2,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/login/actions.js";
 import { CommandPalette } from "@/components/CommandPalette.jsx";
+import { ConsoleToaster } from "@/components/catalog/ConsoleToaster.jsx";
 import { HubSwitcher } from "@/components/HubSwitcher.jsx";
 import { Sidebar } from "@/components/Sidebar.jsx";
 import { Wordmark } from "@/components/Wordmark.jsx";
@@ -97,6 +98,7 @@ export default function ConsoleLayout({ children }) {
           </Suspense>
         </main>
       </div>
+      <ConsoleToaster />
     </div>
   );
 }

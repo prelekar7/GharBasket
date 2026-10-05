@@ -3,9 +3,10 @@
 // backend/api/.../modules/catalog/schemas.py (ProductOut, SearchResults); ids are the slugs.
 // Money is integer paise. Mock-only extras are listed in mocks/README.md.
 import { HttpResponse, http } from "msw";
-import { mockStore, problem } from "./util.js";
+import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
-export const PRICE_LIST_DATE = "2026-10-05";
+// The list in use at the hub: published for Thu 1 Oct 2026 (mocks/prices.js moves it when a new list starts).
+export const PRICE_LIST_DATE = "2026-10-01";
 
 /** [slug, English, Hindi, Marathi] */
 const CATEGORIES = [
@@ -112,6 +113,7 @@ const HUB_ID = "kharghar";
  */
 export function catalogStore() {
   return mockStore("catalog", () => ({
+    priceValidFrom: PRICE_LIST_DATE,
     categories: CATEGORIES.map(([slug, en, hi, mr]) => ({ slug, names: { en, hi, mr } })),
     products: PRODUCTS.map(
       ([slug, en, hi, mr, category, kind, qty, unit, shelf, paise, mrp, tags, synonyms]) => ({
@@ -121,7 +123,7 @@ export function catalogStore() {
         kind,
         step: { qty, unit },
         shelf_life_h: shelf,
-        price_paise: paise,
+        price_paise: /** @type {number | null} */ (paise), // null until a price list includes the product
         mrp_paise: mrp,
         tags,
         synonyms,
@@ -162,12 +164,16 @@ function productOut(p, lang) {
     tags: p.tags,
     shelf_life_h: p.shelf_life_h,
     image_url: null,
-    price: {
-      price_paise: p.price_paise,
-      mrp_paise: p.mrp_paise,
-      hub_id: HUB_ID,
-      valid_from: PRICE_LIST_DATE,
-    },
+    active: p.active, // MOCK ONLY: lets the Catalog table show inactive products (include_inactive)
+    price:
+      p.price_paise == null
+        ? null
+        : {
+            price_paise: p.price_paise,
+            mrp_paise: p.mrp_paise,
+            hub_id: HUB_ID,
+            valid_from: catalogStore().priceValidFrom,
+          },
   };
 }
 
@@ -194,6 +200,94 @@ function match(p, q) {
   }
   return best;
 }
+
+const UNITS = ["g", "kg", "ml", "l", "piece", "bunch", "pack"];
+const KINDS = ["veg", "fruit", "staple", "kit"];
+
+/** The editable record of the admin product screen (M2 §3.1 POST/PATCH /v1/admin/products). @param {Product} p */
+function adminProduct(p) {
+  const { priceValidFrom } = catalogStore();
+  return {
+    id: p.slug,
+    slug: p.slug,
+    kind: p.kind,
+    category: p.category,
+    names: p.names,
+    synonyms: p.synonyms,
+    step: p.step,
+    shelf_life_h: p.shelf_life_h,
+    tags: p.tags,
+    active: p.active,
+    price:
+      p.price_paise == null
+        ? null
+        : {
+            price_paise: p.price_paise,
+            mrp_paise: p.mrp_paise,
+            hub_id: HUB_ID,
+            valid_from: priceValidFrom,
+          },
+  };
+}
+
+/**
+ * Validates a whole editable product (what a PATCH leaves behind, or a POST body) and returns the
+ * 422 problem for the first failures, as `errors: [{ field, message }]`.
+ * @param {any} v
+ * @returns {{ errors: { field: string, message: string }[], value?: Omit<Product, "slug" | "price_paise" | "mrp_paise"> }}
+ */
+function validateProduct(v) {
+  /** @type {{ field: string, message: string }[]} */
+  const errors = [];
+  const bad = (/** @type {string} */ field, /** @type {string} */ message) =>
+    errors.push({ field, message });
+  const trimmed = (/** @type {unknown} */ x) => (typeof x === "string" ? x.trim() : "");
+  const names = {
+    en: trimmed(v?.names?.en),
+    hi: trimmed(v?.names?.hi),
+    mr: trimmed(v?.names?.mr),
+  };
+  for (const [lang, label] of /** @type {const} */ ([
+    ["en", "English"],
+    ["hi", "Hindi"],
+    ["mr", "Marathi"],
+  ])) {
+    if (!names[lang]) bad(`names.${lang}`, `Add the ${label} name`);
+    else if (names[lang].length > 80) bad(`names.${lang}`, "Keep the name under 80 characters");
+  }
+  if (!catalogStore().categories.some((c) => c.slug === v?.category))
+    bad("category", "Pick a category");
+  if (!KINDS.includes(v?.kind)) bad("kind", "Pick a kind");
+  if (!UNITS.includes(v?.step?.unit)) bad("step.unit", "Pick a unit");
+  if (!Number.isInteger(v?.step?.qty) || v.step.qty < 1 || v.step.qty > 100000)
+    bad("step.qty", "Enter a whole number above 0");
+  if (!Number.isInteger(v?.shelf_life_h) || v.shelf_life_h < 1 || v.shelf_life_h > 100000)
+    bad("shelf_life_h", "Enter a whole number of hours above 0");
+  if (!Array.isArray(v?.tags) || v.tags.some((/** @type {unknown} */ t) => typeof t !== "string"))
+    bad("tags", "Tags must be a list of codes");
+  if (!Array.isArray(v?.synonyms)) bad("synonyms", "Spellings must be a list");
+  if (typeof v?.active !== "boolean") bad("active", "Say whether the product is active");
+  if (errors.length) return { errors };
+  return {
+    errors,
+    value: {
+      names,
+      category: v.category,
+      kind: v.kind,
+      step: { qty: v.step.qty, unit: v.step.unit },
+      shelf_life_h: v.shelf_life_h,
+      tags: [...new Set(/** @type {string[]} */ (v.tags))],
+      synonyms: [
+        ...new Set(/** @type {string[]} */ (v.synonyms).map((s) => s.trim()).filter(Boolean)),
+      ],
+      active: v.active,
+    },
+  };
+}
+
+const forbidden = () => problem(403, "auth.forbidden", "Only an admin can change the catalog");
+const invalid = (/** @type {{ field: string, message: string }[]} */ errors) =>
+  problem(422, "request.invalid", "Check the highlighted fields", { errors });
 
 export const catalogHandlers = [
   // GET /v1/categories → MOCK ONLY: the real contract has no category list yet; the Catalog filter needs it.
@@ -263,4 +357,45 @@ export const catalogHandlers = [
       }));
     return HttpResponse.json({ items });
   }),
+  // GET /v1/admin/products/{id} → MOCK ONLY: the editable record (all names, spellings, inactive too).
+  http.get("*/v1/admin/products/:id", ({ request, params }) => {
+    if (roleOf(request) !== "admin") return forbidden();
+    const p = catalogStore().products.find((x) => x.slug === params.id);
+    return p
+      ? HttpResponse.json(adminProduct(p))
+      : problem(404, "catalog.product_not_found", "No such product");
+  }),
+
+  // PATCH /v1/admin/products/{id} (M2 §3.1, admin): any editable field; the Idempotency-Key makes a retry safe.
+  http.patch("*/v1/admin/products/:id", ({ request, params }) =>
+    idempotent(request, (body) => {
+      if (roleOf(request) !== "admin") return forbidden();
+      const p = catalogStore().products.find((x) => x.slug === params.id);
+      if (!p) return problem(404, "catalog.product_not_found", "No such product");
+      const { errors, value } = validateProduct({ ...adminProduct(p), ...body });
+      if (!value) return invalid(errors);
+      Object.assign(p, value);
+      return HttpResponse.json(adminProduct(p));
+    }),
+  ),
+
+  // POST /v1/admin/products (M2 §3.1, admin, Idempotency-Key required). A new product has no price
+  // until a price list includes it.
+  http.post("*/v1/admin/products", ({ request }) =>
+    idempotent(request, (body) => {
+      if (roleOf(request) !== "admin") return forbidden();
+      const { errors, value } = validateProduct({ active: true, ...body });
+      if (!value) return invalid(errors);
+      const slug = value.names.en
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const { products } = catalogStore();
+      if (!slug || products.some((x) => x.slug === slug))
+        return problem(409, "catalog.product_exists", "A product with this name already exists");
+      const p = { slug, ...value, price_paise: null, mrp_paise: null };
+      products.push(p);
+      return HttpResponse.json(adminProduct(p), { status: 201 });
+    }),
+  ),
 ];
