@@ -12,13 +12,14 @@ const BAR = {
 };
 
 /**
- * Every role screen starts with the 3px role bar, so a person with two roles always knows the mode.
- * @param {{ userRole: import("../lib/api.js").FieldRole, children: import("react").ReactNode }} props
+ * Every role screen starts with the role bar, so a person with two roles always knows the mode.
+ * Field roles use a thicker 6px bar, readable at arm's length (field-role canvas).
+ * @param {{ userRole: import("../lib/api.js").FieldRole, thick?: boolean, children: import("react").ReactNode }} props
  */
-export function RoleFrame({ userRole, children }) {
+export function RoleFrame({ userRole, thick = false, children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-bg pt-[env(safe-area-inset-top)] text-fg">
-      <div aria-hidden className={`h-[3px] shrink-0 ${BAR[userRole]}`} />
+      <div aria-hidden className={`${thick ? "h-1.5" : "h-[3px]"} shrink-0 ${BAR[userRole]}`} />
       <OutboxBanner />
       {children}
     </div>

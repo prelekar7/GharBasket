@@ -27,6 +27,37 @@ function rolesFor(/** @type {string} */ phone) {
       status: "verified",
     });
   }
+  // The backend seed's field people (backend/api/README.md): Meena tai (captain, Sunrise Towers),
+  // Lata Shinde (kitchen), Arjun Pawar (rider) and Kavita More (packer), all at the Kharghar hub.
+  /** @type {Record<string, import("@/lib/api.js").RoleGrant>} */
+  const SEED_FIELD = {
+    "+919800001004": {
+      role: "captain",
+      scope_type: "society",
+      scope_id: "sunrise-towers",
+      status: "verified",
+    },
+    "+919800001005": {
+      role: "kitchen",
+      scope_type: "hub",
+      scope_id: "hub-kharghar",
+      status: "verified",
+    },
+    "+919800001006": {
+      role: "rider",
+      scope_type: "hub",
+      scope_id: "hub-kharghar",
+      status: "verified",
+    },
+    "+919800001007": {
+      role: "packer",
+      scope_type: "hub",
+      scope_id: "hub-kharghar",
+      status: "verified",
+    },
+  };
+  if (SEED_FIELD[phone])
+    return phone === "+919800001004" ? [...roles, SEED_FIELD[phone]] : [SEED_FIELD[phone]];
   if (phone === "+919800000003") {
     roles.splice(0, 1, {
       role: "rider",
@@ -52,11 +83,20 @@ export const isNewUser = (/** @type {string} */ phone) =>
 
 /** Profile edits from PATCH /v1/me (mocks/profile.js), by phone; they survive reloads. */
 export const PROFILE_KEY = "gb-mock-me";
+/** @type {Record<string, string>} */
+const SEED_NAMES = {
+  "+919800001004": "Meena Jadhav",
+  "+919800001005": "Lata Shinde",
+  "+919800001006": "Arjun Pawar",
+  "+919800001007": "Kavita More",
+};
+
 export const userFor = (/** @type {string} */ phone) => ({
   id: `0190f0aa-0000-7000-8000-${phone.replace(/\D/g, "").slice(-12).padStart(12, "0")}`,
   phone_e164: phone,
-  // The designs' household is Priya's; anyone else has not told us a name yet.
-  name: DEMO_HOUSEHOLD.test(phone) ? "Priya" : null,
+  // The designs' household is Priya's, the field people are the seed's; anyone else has not told
+  // us a name yet.
+  name: DEMO_HOUSEHOLD.test(phone) ? "Priya" : (SEED_NAMES[phone] ?? null),
   locale: /** @type {"en-IN" | "hi-IN" | "mr-IN"} */ ("en-IN"),
   senior_mode: false,
   ...JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "{}")[phone],
