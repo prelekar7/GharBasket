@@ -38,6 +38,13 @@ export {
 } from "./components/Community.jsx";
 export { Description, FieldError, Label } from "./components/Field.jsx";
 export {
+  BagLabel,
+  CrateCounter,
+  FlatChecklist,
+  RouteStopCard,
+  ShortageReporter,
+} from "./components/FieldRoles.jsx";
+export {
   KnowYourCookCard,
   MealCard,
   ParchiList,
