@@ -44,3 +44,12 @@ export function ReceivedCard({ day }) {
     </section>
   );
 }
+
+/** A bag the captain can still hand over (lobby bags too, if the family is at the door). @param {import("./day.js").Bag} bag */
+export const isOpen = (bag) => bag.status === "planned" || bag.status === "in_lobby";
+
+/** Delivered at the door: POST /v1/deliveries/{order_id}/proof. @param {import("./day.js").Bag} bag @param {boolean} typed */
+export const proof = (bag, typed) => ({
+  path: `/v1/deliveries/${bag.order_id}/proof`,
+  body: { proof_kind: "captain_scan", bag_code: bag.code, typed, at: new Date().toISOString() },
+});

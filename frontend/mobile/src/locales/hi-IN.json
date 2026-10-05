@@ -1177,6 +1177,50 @@
       "missingBody": "{rider} और हब को बता दिया जाएगा। उन परिवारों को अगले स्लॉट में बॉक्स मिलेगा या पैसे वापस।",
       "missingConfirm": "बताएँ और आगे बढ़ें",
       "missingCancel": "स्कैन करते रहें"
+    },
+    "flats": {
+      "title": "फ़्लैट",
+      "when": "{society} · {day}",
+      "wing": "विंग",
+      "progress": "{wing} विंग में पहुँचाए",
+      "scan": "दरवाज़े पर बैग स्कैन करें",
+      "manual": "बैग का कोड टाइप करें",
+      "contents": {
+        "box": "बॉक्स",
+        "box_tiffin": "बॉक्स + टिफ़िन",
+        "tiffin": "टिफ़िन"
+      },
+      "lobbyPickup": "लॉबी से लेंगे",
+      "status": {
+        "delivered": "पहुँचा",
+        "next": "अगला",
+        "inLobby": "लॉबी में",
+        "toDeliver": "बाकी",
+        "returned": "हब वापस",
+        "reported": "दिक्कत बताई",
+        "missing": "गायब",
+        "notHome": "घर पर कोई नहीं",
+        "damaged": "टूट-फूट"
+      },
+      "delivered": "{code} · {flat} पहुँचा",
+      "notToday": "{code} आज के बैग में नहीं है। लेबल जाँचें।",
+      "alreadyDone": "{flat} का {code} पहले ही हो चुका है",
+      "firstHandover": "पहले क्रेट लें"
+    },
+    "manual": {
+      "back": "फ़्लैट पर वापस",
+      "why": "लेबल स्कैन नहीं हुआ",
+      "title": "बैग का कोड टाइप करें",
+      "field": "बैग कोड",
+      "help": "यह बैग लेबल पर चौकोर के नीचे छपा है।",
+      "found": "मिल गया",
+      "match": "{code} · फ़्लैट {flat}",
+      "matchDetail": "{contents} · {lines} चीज़ें · {society}",
+      "check": "देने से पहले देख लें कि लेबल का फ़्लैट दरवाज़े से मेल खाता है।",
+      "confirm": "{flat} पर पहुँचा दिया",
+      "confirmAny": "पहुँचा दिया",
+      "notFound": "आज इस कोड का कोई बैग नहीं है",
+      "done": "{code} {flat} पर पहुँचा दिया"
     }
   }
 }

@@ -33,7 +33,6 @@ import { Route as AuthCustomerWalletRouteImport } from "./routes/_auth/_customer
 import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/week"
 import { Route as AuthCaptainIndexRouteImport } from "./routes/_auth/captain/index"
 import { Route as AuthCaptainEarningsRouteImport } from "./routes/_auth/captain/earnings"
-import { Route as AuthCaptainFlatsRouteImport } from "./routes/_auth/captain/flats"
 import { Route as AuthCaptainScanRouteImport } from "./routes/_auth/captain/scan"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
@@ -56,6 +55,8 @@ import { Route as AuthRiderPickupsRouteImport } from "./routes/_auth/rider/picku
 import { Route as AuthRiderStopRouteImport } from "./routes/_auth/rider/stop"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
+import { Route as AuthCaptainFlatsIndexRouteImport } from "./routes/_auth/captain/flats.index"
+import { Route as AuthCaptainFlatsManualRouteImport } from "./routes/_auth/captain/flats.manual"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -176,11 +177,6 @@ const AuthCaptainEarningsRoute = AuthCaptainEarningsRouteImport.update({
   path: "/earnings",
   getParentRoute: () => AuthCaptainRoute,
 })
-const AuthCaptainFlatsRoute = AuthCaptainFlatsRouteImport.update({
-  id: "/flats",
-  path: "/flats",
-  getParentRoute: () => AuthCaptainRoute,
-})
 const AuthCaptainScanRoute = AuthCaptainScanRouteImport.update({
   id: "/scan",
   path: "/scan",
@@ -293,6 +289,16 @@ const AuthCustomerWalletStatementRoute =
     path: "/wallet/statement",
     getParentRoute: () => AuthCustomerRoute,
   })
+const AuthCaptainFlatsIndexRoute = AuthCaptainFlatsIndexRouteImport.update({
+  id: "/flats/",
+  path: "/flats/",
+  getParentRoute: () => AuthCaptainRoute,
+})
+const AuthCaptainFlatsManualRoute = AuthCaptainFlatsManualRouteImport.update({
+  id: "/flats/manual",
+  path: "/flats/manual",
+  getParentRoute: () => AuthCaptainRoute,
+})
 
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
@@ -313,9 +319,10 @@ const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
 
 const AuthCaptainRouteChildren = {
   AuthCaptainEarningsRoute: AuthCaptainEarningsRoute,
-  AuthCaptainFlatsRoute: AuthCaptainFlatsRoute,
   AuthCaptainScanRoute: AuthCaptainScanRoute,
   AuthCaptainIndexRoute: AuthCaptainIndexRoute,
+  AuthCaptainFlatsManualRoute: AuthCaptainFlatsManualRoute,
+  AuthCaptainFlatsIndexRoute: AuthCaptainFlatsIndexRoute,
 }
 
 const AuthCaptainRouteWithChildren = AuthCaptainRoute._addFileChildren(
