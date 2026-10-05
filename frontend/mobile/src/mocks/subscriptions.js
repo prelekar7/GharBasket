@@ -28,7 +28,7 @@ const DISHES = {
     ["पूरन पोली", "वरण भात"],
   ],
 };
-const TIFFIN_DAY = 2; // Wednesday: tiffin by Sunita tai
+const TIFFIN_DAY = 2; // Wednesday: tiffin by Lata tai
 /** Other meals Autopilot can swap in (M3 meal swap, our proposal): [en, hi]. */
 const ALT_DISHES = [
   ["Moong dal khichdi", "मूंग दाल खिचड़ी"],
@@ -302,7 +302,7 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       { code: "in_season", params: { item: lang === "hi" ? "मेथी" : "Methi" } },
       {
         code: "tiffin_day",
-        params: { weekday: TIFFIN_DAY, cook: lang === "hi" ? "सुनीता ताई" : "Sunita tai" },
+        params: { weekday: TIFFIN_DAY, cook: lang === "hi" ? "लता ताई" : "Lata tai" },
       },
       { code: "health_tag", params: { tag: "low_sugar", member: "adults-2" } },
     ],

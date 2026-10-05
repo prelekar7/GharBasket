@@ -50,7 +50,7 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       total_paise: 11000,
       paid_from: "wallet",
       address,
-      cook: { name: hi ? "सुनीता ताई" : "Sunita tai" },
+      cook: { name: hi ? "लता ताई" : "Lata tai" },
       dish: { name: hi ? "राजमा चावल" : "rajma chawal" },
       events: [],
       version: 1,
@@ -73,10 +73,13 @@ function orders(/** @type {"en" | "hi"} */ lang) {
 const TIFFINS_KEY = "gb-mock-tiffins";
 /** @returns {{ id: string, key: string, delivery_date: string, slot: string, kitchen_id: string }[]} */
 export const bookedTiffins = () => JSON.parse(localStorage.getItem(TIFFINS_KEY) ?? "[]");
-/** The home kitchen that offers a tiffin to the society this week (M8, priced by M2). */
+/**
+ * The home kitchen that offers a tiffin to the society this week (M8, priced by M2): the backend
+ * seed's only kitchen, Lata Shinde at the Kharghar hub. ₹110 to the family, ₹70 of it to her.
+ */
 export const TIFFIN_OFFER = {
-  kitchen_id: "kit-sunita",
-  cook: ["Sunita tai", "सुनीता ताई"],
+  kitchen_id: "kit-lata",
+  cook: ["Lata tai", "लता ताई"],
   dish: ["rajma chawal", "राजमा चावल"],
   price_paise: 11000,
 };

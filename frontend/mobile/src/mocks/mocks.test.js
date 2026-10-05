@@ -111,7 +111,7 @@ describe("week day: meal swap and tiffin", () => {
       kind: "tiffin",
       delivery_date: "2026-10-06",
       slot: "dinner",
-      kitchen_id: "kit-sunita",
+      kitchen_id: "kit-lata",
     };
     const a = await post("/v1/orders", body, "tif-1");
     const again = await post("/v1/orders", body, "tif-1");
