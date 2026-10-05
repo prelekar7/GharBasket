@@ -58,9 +58,9 @@ export const NAV = [
     section: "admin",
     label: "Money",
     items: [
-      { href: "/reconciliation", label: "Reconciliation" },
-      { href: "/refunds", label: "Refunds", roles: ADMIN_AND_HUB },
-      { href: "/payouts", label: "Payouts" },
+      { href: "/reconciliation", label: "Reconciliation", ready: true },
+      { href: "/refunds", label: "Refunds", ready: true, roles: ADMIN_AND_HUB },
+      { href: "/payouts", label: "Payouts", ready: true },
     ],
   },
   {

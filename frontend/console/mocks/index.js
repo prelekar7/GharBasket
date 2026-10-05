@@ -1,5 +1,6 @@
 // Every mock handler the console knows. A new domain adds one line here (see README.md).
 import { analyticsHandlers } from "./analytics.js";
+import { billingHandlers } from "./billing.js";
 import { catalogHandlers } from "./catalog.js";
 import { communityHandlers } from "./community.js";
 import { cyclesHandlers } from "./cycles.js";
@@ -19,6 +20,7 @@ export const handlers = [
   ...hubsHandlers,
   ...catalogHandlers,
   ...analyticsHandlers,
+  ...billingHandlers,
   ...communityHandlers,
   ...cyclesHandlers,
   ...festivalsHandlers,
