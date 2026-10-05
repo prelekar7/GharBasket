@@ -34,6 +34,8 @@ import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/w
 import { Route as AuthCaptainIndexRouteImport } from "./routes/_auth/captain/index"
 import { Route as AuthCaptainEarningsRouteImport } from "./routes/_auth/captain/earnings"
 import { Route as AuthCaptainScanRouteImport } from "./routes/_auth/captain/scan"
+import { Route as AuthKitchenIndexRouteImport } from "./routes/_auth/kitchen/index"
+import { Route as AuthKitchenPrepRouteImport } from "./routes/_auth/kitchen/prep"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
 import { Route as AuthOnboardingCookingRouteImport } from "./routes/_auth/onboarding/cooking"
@@ -182,6 +184,16 @@ const AuthCaptainScanRoute = AuthCaptainScanRouteImport.update({
   id: "/scan",
   path: "/scan",
   getParentRoute: () => AuthCaptainRoute,
+})
+const AuthKitchenIndexRoute = AuthKitchenIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => AuthKitchenRoute,
+})
+const AuthKitchenPrepRoute = AuthKitchenPrepRouteImport.update({
+  id: "/prep",
+  path: "/prep",
+  getParentRoute: () => AuthKitchenRoute,
 })
 const AuthOnboardingBudgetRoute = AuthOnboardingBudgetRouteImport.update({
   id: "/onboarding/budget",
@@ -337,6 +349,15 @@ const AuthCaptainRouteWithChildren = AuthCaptainRoute._addFileChildren(
   AuthCaptainRouteChildren,
 )
 
+const AuthKitchenRouteChildren = {
+  AuthKitchenPrepRoute: AuthKitchenPrepRoute,
+  AuthKitchenIndexRoute: AuthKitchenIndexRoute,
+}
+
+const AuthKitchenRouteWithChildren = AuthKitchenRoute._addFileChildren(
+  AuthKitchenRouteChildren,
+)
+
 const AuthPackerRouteChildren = {
   AuthPackerPickRoute: AuthPackerPickRoute,
   AuthPackerShortRoute: AuthPackerShortRoute,
@@ -362,7 +383,7 @@ const AuthRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthAssistantRoute: AuthAssistantRoute,
   AuthCaptainRoute: AuthCaptainRouteWithChildren,
-  AuthKitchenRoute: AuthKitchenRoute,
+  AuthKitchenRoute: AuthKitchenRouteWithChildren,
   AuthPackerRoute: AuthPackerRouteWithChildren,
   AuthRiderRoute: AuthRiderRouteWithChildren,
   AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,

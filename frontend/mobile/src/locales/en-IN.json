@@ -1283,5 +1283,54 @@
       "cert": "Download income certificate",
       "certFailed": "We couldn’t get the certificate. Try again."
     }
+  },
+  "kitchen": {
+    "tabs": {
+      "today": "Today",
+      "prep": "Prep"
+    },
+    "meal": "{meal, select, dinner {Dinner} other {Lunch}}",
+    "hello": "Namaste, {name} · {hub}",
+    "tiffins": "{n, plural, one {# tiffin} other {# tiffins}}",
+    "today": {
+      "title": "Tomorrow’s tiffins",
+      "forDay": "{meal, select, dinner {Dinner} other {Lunch}} · {day}",
+      "window": "Counts are in ({time}). Accept so you can buy and plan tonight.",
+      "accepted": "Accepted. Buy tonight; your prep list is ready for the morning.",
+      "declined": "You said you can’t cook on {day}. These tiffins go to other kitchens at the hub.",
+      "fair": "Shared fairly between the hub’s kitchens, within the capacity you set.",
+      "accept": "{n, plural, one {Accept # tiffin} other {Accept # tiffins}}",
+      "decline": "I can’t cook tomorrow",
+      "toPrep": "Go to prep",
+      "declineTitle": "Can’t cook on {day}?",
+      "declineBody": "{n, plural, one {We’ll give this tiffin to another kitchen at the hub.} other {We’ll give these # tiffins to other kitchens at the hub.}}",
+      "declineConfirm": "Yes, I can’t cook",
+      "declineCancel": "Go back",
+      "emptyTitle": "No tiffins for {day}",
+      "emptyBody": "No families booked lunch from your kitchen for tomorrow. Nothing to buy tonight.",
+      "emptyNote": "Counts come by 9:30 PM every night. A day with no orders doesn’t change your rating."
+    },
+    "prep": {
+      "title": "Prep",
+      "when": "{meal, select, dinner {Dinner} other {Lunch}} · {day} · pack by {time}",
+      "packed": "Tiffins packed",
+      "packedValue": "{done} of {total}",
+      "batch": "{dish} × {n}",
+      "label": "Each tiffin gets a label with the flat and your FSSAI number, so the family sees who cooked it.",
+      "status": {
+        "planned": "Not started",
+        "preparing": "Cooking",
+        "packed": "Packed"
+      },
+      "action": {
+        "planned": "Start cooking",
+        "preparing": "Mark packed",
+        "packed": "Print labels again"
+      },
+      "labelsAgain": "Labels sent to print again",
+      "emptyTitle": "Nothing to cook yet",
+      "emptyBody": "When you accept tomorrow’s tiffins, each dish shows here to mark as you cook and pack.",
+      "emptyAction": "See tomorrow’s tiffins"
+    }
   }
 }
