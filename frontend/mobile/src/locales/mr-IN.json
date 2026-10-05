@@ -36,8 +36,7 @@
   },
   "shell": {
     "comingTitle": "{screen} लवकरच येत आहे",
-    "comingBody": "ही स्क्रीन मॉड्यूल {module} सोबत येईल. डिझाइन Customer screens कॅनव्हासवर तयार आहे.",
-    "fieldBody": "{role} च्या स्क्रीन फेज 3 च्या सुरुवातीला डिझाइन होतील."
+    "comingBody": "ही स्क्रीन मॉड्यूल {module} सोबत येईल. डिझाइन Customer screens कॅनव्हासवर तयार आहे."
   },
   "profile": {
     "language": "भाषा",

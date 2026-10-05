@@ -4,6 +4,7 @@
 // Writes need an Idempotency-Key and replay the first answer, as the offline outbox relies on.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
+import { mockPdfUrl } from "./pdf.js";
 
 // Endpoints shared with other roles (handover, earnings) answer here unless another role is acting.
 const otherRole = (/** @type {Request} */ request) => {
@@ -277,19 +278,7 @@ export const logisticsHandlers = [
   // Income certificate (M8 US-7, a PDF). Real: a short-lived signed URL; mock: a tiny local PDF.
   http.get("*/v1/earnings/certificate", ({ request }) => {
     if (otherRole(request)) return undefined;
-    const pdf = [
-      "%PDF-1.4",
-      "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",
-      "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj",
-      "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 420 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj",
-      "4 0 obj<</Length 74>>stream",
-      "BT /F1 14 Tf 30 120 Td (GharBasket income certificate - mock) Tj ET",
-      "endstream endobj",
-      "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj",
-      "trailer<</Root 1 0 R>>",
-      "%%EOF",
-    ].join("\n");
-    const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
+    const url = mockPdfUrl("GharBasket income certificate - mock");
     return HttpResponse.json({ url, expires_in: 300 });
   }),
 ];

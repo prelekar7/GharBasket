@@ -71,24 +71,6 @@ export function useDrafts(date) {
   return /** @type {const} */ ([data, update]);
 }
 
-const MOCK = import.meta.env.VITE_API_MOCK !== "false";
-
-/** Uploads a damage photo straight to storage and returns its key (POST /v1/files/presign). @param {File} file */
-export async function uploadPhoto(file) {
-  const { url, key } = /** @type {{ url: string, key: string }} */ (
-    await request("/v1/files/presign", { method: "POST", body: { content_type: file.type } })
-  );
-  const put = new Request(url, {
-    method: "PUT",
-    body: file,
-    headers: { "content-type": file.type },
-  });
-  // Same switch as lib/api.js: the fake storage lives in the mocks.
-  const res = MOCK ? await (await import("@/mocks/index.js")).mockFetch(put) : await fetch(put);
-  if (!res.ok) throw new Error(`upload ${res.status}`);
-  return key;
-}
-
 /**
  * @typedef {{ date: string, boxes: number, tiffins: number, amount_paise: number }} EarningDay
  * @typedef {{ display_name: string, scope_name: string, verified: boolean, total_paise: number, items: EarningDay[] }} Earnings
