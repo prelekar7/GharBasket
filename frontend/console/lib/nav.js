@@ -130,8 +130,8 @@ export const NAV = [
     section: "community",
     label: "Community",
     items: [
-      { href: "/drives", label: "Drives" },
-      { href: "/donations", label: "Donations" },
+      { href: "/drives", label: "Drives", ready: true },
+      { href: "/donations", label: "Donations", ready: true },
       { href: "/impact", label: "Impact" },
       { href: "/handoffs", label: "NGO hand-offs" },
     ],
