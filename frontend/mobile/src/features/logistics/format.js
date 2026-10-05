@@ -1,8 +1,7 @@
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 
-/** "Tue 6 Oct" / "मंगल 6 अक्टू॰" from an ISO date, in Latin digits like every number on the field screens. @param {string} iso @param {string} lang */
-export const dayLabel = (iso, lang) =>
-  `${weekdayName(iso, lang)} ${shortDate(iso, `${lang}-u-nu-latn`)}`;
+/** "Tue 6 Oct" / "मंगल 6 अक्टू॰" from an ISO date, (shortDate uses Latin digits in every language). @param {string} iso @param {string} lang */
+export const dayLabel = (iso, lang) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
 
 /** The first stop not handed over yet, or null when every stop is done. @param {import("./queries.js").Route} route */
 export const nextStop = (route) => route.stops.find((s) => s.status !== "done") ?? null;

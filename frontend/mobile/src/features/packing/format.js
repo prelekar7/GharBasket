@@ -1,5 +1,7 @@
 // Words for packing data in the person's language.
+
 import { clockTime, shortDate } from "@/features/subscriptions/format.js";
+import { intlLocale } from "@/lib/intlLocale.js";
 
 /** @typedef {import("i18next").TFunction} TFunction */
 
@@ -18,7 +20,7 @@ const istHhmm = (iso) =>
  */
 export function dayLine(lang, day, at) {
   // The field designs use the calendar's short weekday ("Tue", "मंगल"), not the customer app's "Mangal".
-  const weekday = new Intl.DateTimeFormat(lang, {
+  const weekday = new Intl.DateTimeFormat(intlLocale(lang), {
     weekday: "short",
     timeZone: "Asia/Kolkata",
   }).format(new Date(`${day.date}T12:00:00+05:30`));

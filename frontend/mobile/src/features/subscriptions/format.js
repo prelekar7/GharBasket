@@ -1,3 +1,5 @@
+import { intlLocale } from "@/lib/intlLocale.js";
+
 // Turns M3 cycle data (ISO dates, reason codes) into words in the person's language.
 
 /** Monday = 0 … Sunday = 6, from an ISO date. @param {string} iso */
@@ -5,20 +7,19 @@ export const weekdayOf = (iso) => (new Date(`${iso}T12:00:00Z`).getUTCDay() + 6)
 
 /** "5 Oct" / "5 अक्टू॰". @param {string} iso @param {string} locale */
 export const shortDate = (iso, locale) =>
-  new Intl.DateTimeFormat(locale, {
+  new Intl.DateTimeFormat(intlLocale(locale), {
     day: "numeric",
     month: "short",
     timeZone: "Asia/Kolkata",
   }).format(new Date(`${iso}T12:00:00+05:30`));
 
-/** "8 am" (en) or "सुबह 8" (hi, mr) from "08:00"; Latin digits everywhere, like prices. @param {string} hhmm @param {string} locale */
+/** "8 am" (en) or "सुबह 8" (hi, mr) from "08:00"; Latin digits everywhere (intlLocale), like prices. @param {string} hhmm @param {string} locale */
 export const clockTime = (hhmm, locale) => {
   const [h, m] = hhmm.split(":").map(Number);
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     hour: "numeric",
     minute: m ? "2-digit" : undefined,
     dayPeriod: locale.startsWith("en") ? undefined : "short",
-    numberingSystem: "latn",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(2026, 0, 1, h, m)));
 };
@@ -51,10 +52,9 @@ export function timeRange({ from, to }, locale) {
   const lang = /** @type {keyof typeof TO} */ (
     locale.slice(0, 2) in TO ? locale.slice(0, 2) : "en"
   );
-  const fmt = new Intl.DateTimeFormat(locale, {
+  const fmt = new Intl.DateTimeFormat(intlLocale(locale), {
     hour: "numeric",
     dayPeriod: lang === "en" ? undefined : "short",
-    numberingSystem: "latn",
     timeZone: "UTC",
   });
   const part = (/** @type {string} */ hhmm) => {
@@ -81,7 +81,7 @@ export function timeRange({ from, to }, locale) {
 export function weekRange(weekStart, locale) {
   const start = new Date(`${weekStart}T12:00:00Z`);
   const end = new Date(start.getTime() + 6 * 86_400_000);
-  return new Intl.DateTimeFormat(locale, {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     day: "numeric",
     month: "short",
     timeZone: "UTC",
@@ -90,15 +90,16 @@ export function weekRange(weekStart, locale) {
 
 /** "October" for the month of `iso`. @param {string} iso @param {string} locale */
 export const monthName = (iso, locale) =>
-  new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(
+  new Intl.DateTimeFormat(intlLocale(locale), { month: "long", timeZone: "UTC" }).format(
     new Date(`${iso}T12:00:00Z`),
   );
 
 /** "Tue" / "मंगल" from an ISO date. @param {string} iso @param {string} locale */
 export const weekdayName = (iso, locale) =>
-  new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "Asia/Kolkata" }).format(
-    new Date(`${iso.slice(0, 10)}T12:00:00+05:30`),
-  );
+  new Intl.DateTimeFormat(intlLocale(locale), {
+    weekday: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(`${iso.slice(0, 10)}T12:00:00+05:30`));
 
 /** "HH:MM" in India time from an ISO timestamp, for clockTime(). @param {string} at */
 export const istClock = (at) =>
