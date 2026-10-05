@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit -p jsconfig.json",
-    "test": "node --test lib mocks"
+    "test": "node --test \"lib/**/*.test.js\" \"mocks/**/*.test.js\" \"app/**/*.test.js\""
   },
   "dependencies": {
     "@gharbasket/ui": "workspace:*",

@@ -75,3 +75,14 @@ export function formatPaiseExact(paise) {
   const cents = String(abs % 100).padStart(2, "0");
   return `${paise < 0 ? "−" : ""}₹${grouped.format(Math.floor(abs / 100))}.${cents}`;
 }
+
+/**
+ * Paise as rupees the way tiles show them: whole rupees without decimals, paise only when there are some.
+ * 845000 → "₹8,450", 4836 → "₹48.36", -112000 → "−₹1,120".
+ * @param {number} paise
+ */
+export function formatRupees(paise) {
+  return paise % 100 === 0
+    ? `${paise < 0 ? "−" : ""}₹${grouped.format(Math.abs(paise) / 100)}`
+    : formatPaiseExact(paise);
+}

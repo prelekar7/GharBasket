@@ -161,7 +161,7 @@ export const NAV = [
         key: "k",
         roles: [...ADMIN_AND_HUB, "franchise_owner"],
       },
-      { href: "/cohorts", label: "Cohorts", roles: ["admin"] },
+      { href: "/cohorts", label: "Cohorts", ready: true, roles: ["admin"] },
     ],
   },
 ];
