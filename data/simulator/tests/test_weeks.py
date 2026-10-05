@@ -5,7 +5,7 @@ from typing import Any
 
 from gharbasket_ml import planner as cpsat
 from gharbasket_ml.schemas import PlanRequest
-from gharbasket_sim import config
+from gharbasket_sim import config, weeks
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.weeks import (
@@ -142,3 +142,23 @@ def test_identical_requests_are_planned_once() -> None:
     plan({"household": {"size": 3}, "recipes": []})
 
     assert first is second and len(calls) == 2
+
+
+def test_observed_liking_needs_two_weeks_and_feeds_only_the_v2_planner() -> None:
+    meals = [
+        {"household": "h1", "week": 0, "planned": "dal-rice", "action": "accept"},
+        {"household": "h1", "week": 0, "planned": "poha", "action": "edit"},
+        {"household": "h1", "week": 0, "planned": None, "action": "tiffin"},
+    ]
+    assert weeks.observed_preference(meals, "h1") == {}
+    meals += [
+        {"household": "h1", "week": 1, "planned": "dal-rice", "action": "accept"},
+        {"household": "h1", "week": 1, "planned": "poha", "action": "accept"},
+        {"household": "h2", "week": 1, "planned": "poha", "action": "edit"},
+    ]
+    assert weeks.observed_preference(meals, "h1") == {"dal-rice": 1.0, "poha": 0.5}
+    request = {"recipes": [{"slug": "poha", "preference": 0.5}, {"slug": "dal-rice"}]}
+    assert weeks.without_preference(request) == {
+        "recipes": [{"slug": "poha"}, {"slug": "dal-rice"}]
+    }
+    assert set(weeks.PLANNERS) >= {"cpsat", "cpsat_v2", "rules", "greedy", "random"}

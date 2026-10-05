@@ -175,6 +175,11 @@ def score(week: Week, plan: Plan) -> Score:
         cost_paise=cost(week, plan),
         nutrition=None if days is None else round(sum(days) / len(days), 3),
         price_penalty=price_penalty(week, plan) if any(r.price_spike for r in used) else None,
+        liking=(
+            round(sum(r.preference or 0.0 for r in used) / len(used), 3)
+            if used and any(r.preference is not None for r in used)
+            else None
+        ),
     )
 
 
@@ -238,8 +243,14 @@ def solve(
         for p in sorted(perishables)
     ]
     w = week.weights
+    # v2: the learned liking; a dish the household always kept is worth liking x 10 points,
+    # about two dishes of variety, so taste tilts the plan without overriding the rules.
+    liking = sum(
+        round(10 * (week.recipes[slug].preference or 0.0)) * v for (_, _, slug), v in x.items()
+    )
     objective = (
         w.preference * preference
+        + w.liking * liking
         + w.variety * sum(used.values())
         - w.perishables * sum(bought)
         - w.price

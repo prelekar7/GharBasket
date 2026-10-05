@@ -170,4 +170,8 @@ def against_target(summary: dict[str, dict[str, Estimate]]) -> dict[str, Any]:
         )
         better = (own - base) / abs(base) if base else 0.0
         checks["score_30pct_over_greedy"] = {"value": better, "holds": better >= 0.30}
+    v2 = summary.get("cpsat_v2")
+    if cp is not None and v2 is not None:
+        lift = v2["acceptance"].mean - cp["acceptance"].mean
+        checks["v2_liking_lifts_acceptance"] = {"value": lift, "holds": lift >= 0}
     return checks

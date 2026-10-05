@@ -233,3 +233,26 @@ def test_v1_avoids_a_spiked_dish_when_another_is_as_good() -> None:
         or "bhindi-masala" in as_plan(without).values()
     )
     assert without.score.price_penalty is None
+
+
+def test_v2_liking_tilts_the_plan_towards_kept_dishes_and_is_scored() -> None:
+    body = v1_request().model_dump()
+    mains = [r for r in body["recipes"] if not r["is_side"] and "dinner" in r["slots"]]
+    assert len(mains) >= 2
+    for r in body["recipes"]:
+        r["preference"] = 0.0
+    liked = mains[0]
+    liked["preference"] = 1.0
+    answer = plan_week(PlanRequest.model_validate(body), deterministic=True)
+    assert answer.plan is not None and answer.score is not None
+    chosen = [m.recipe for m in answer.plan if m.recipe]
+    assert liked["slug"] in chosen and answer.score.liking is not None
+    assert answer.score.liking == round(chosen.count(liked["slug"]) / len(chosen), 3)
+
+    # With the liking weight off the term vanishes and the score still reports the mean.
+    body["weights"] = {"liking": 0}
+    off = plan_week(PlanRequest.model_validate(body), deterministic=True)
+    assert off.plan is not None and off.score is not None and off.score.liking is not None
+    # Unknown preferences: no liking in the score (v1 behaviour).
+    plain = plan_week(v1_request(), deterministic=True)
+    assert plain.score is not None and plain.score.liking is None

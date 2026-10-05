@@ -38,7 +38,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.smoke:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
-        args.planners = [p for p in args.planners if p != "cpsat"]
+        args.planners = [p for p in args.planners if not p.startswith("cpsat")]
 
     catalog = from_seed_files()
     shocks = None if args.no_shocks else config.load_shocks()

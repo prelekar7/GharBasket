@@ -67,6 +67,9 @@ class RecipeIn(BaseModel):
     price_spike: float | None = Field(
         default=None, ge=0, description="(price - 4-week index) / index of the costliest ingredient"
     )
+    # v2 (M10 §3.2): how much the household liked this dish's ingredients so far, 0..1 from the
+    # ranker's scores (None = unknown, counts as 0 in the objective).
+    preference: float | None = Field(default=None, ge=0, le=1)
 
 
 class Weights(BaseModel):
@@ -77,6 +80,8 @@ class Weights(BaseModel):
     perishables: int = Field(default=4, ge=0)
     nutrition: int = Field(default=4, ge=0)
     price: int = Field(default=3, ge=0)
+    # v2: the learned liking (recipes[].preference from the ranker); 0 switches it off.
+    liking: int = Field(default=3, ge=0)
 
 
 class PlanRequest(BaseModel):
@@ -107,6 +112,7 @@ class Score(BaseModel):
     cost_paise: int
     nutrition: float | None = Field(default=None, description="v1: share of days within ±20 %")
     price_penalty: float | None = Field(default=None, description="v1: sum of chosen price spikes")
+    liking: float | None = Field(default=None, description="v2: mean preference of chosen dishes")
 
 
 class PlanResponse(BaseModel):

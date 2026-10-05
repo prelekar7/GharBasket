@@ -6,7 +6,7 @@ JSON report here per run, named `<date>-<commit>`, following the pre-registered 
 `intel.model_metrics` through `POST /v1/internal/intel/model-metrics` with `--push`.
 
 What a report holds (v0, October 2026):
-- **RQ2 — meal planner A/B:** `cpsat` against the `rules` fallback and two baselines the simulator
+- **RQ2 — meal planner A/B:** `cpsat` (v1) and `cpsat_v2` (the liking term from each household's observed acceptance, M10 §3.2 v2) against the `rules` fallback and two baselines the simulator
   provides, `greedy` (the cheapest allowed dish per slot) and `random` (a random valid plan), over the
   protocol's five seeds: acceptance, edits per box, distinct perishables, variety, preference, relaxed
   and infeasible weeks, cost and hard-rule violations (must be 0); the M-C hypotheses with a yes/no.
