@@ -1,6 +1,5 @@
-import "maplibre-gl/dist/maplibre-gl.css";
-import { Map as MapLibre, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+import { Map as MapLibre, Marker } from "@/lib/maplibre.js";
 
 // OpenFreeMap: free OpenStreetMap vector tiles, no API key (TDD §3.2: MapLibre, not Google Maps).
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";

@@ -1,8 +1,7 @@
-import "maplibre-gl/dist/maplibre-gl.css";
 import { CheckIcon, TruckIcon, WarehouseIcon } from "@phosphor-icons/react";
-import { LngLatBounds, Map as MapLibre, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LngLatBounds, Map as MapLibre, Marker } from "@/lib/maplibre.js";
 
 // OpenFreeMap: free OpenStreetMap vector tiles, no API key (TDD §3.2), as in PinMap.
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
