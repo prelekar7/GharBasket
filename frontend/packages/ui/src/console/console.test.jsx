@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { cellSortValue, DataTable } from "./DataTable.jsx";
+import { FilterBar } from "./FilterBar.jsx";
+import { KpiTile, Sparkline } from "./Kpi.jsx";
 
 const columns = [
   { key: "name", label: "Item", sortable: true },
@@ -102,5 +104,68 @@ describe("DataTable", () => {
     );
     expect(html).toContain("1 selected");
     expect(html).toContain('aria-label="Select row b"');
+  });
+});
+
+describe("KpiTile", () => {
+  it("shows the delta with its note and says the direction in words", () => {
+    const html = renderToStaticMarkup(
+      <KpiTile
+        label="Waste"
+        value="0.7 kg"
+        delta={{ value: "−0.3 kg", direction: "down", good: true, note: "vs Fri" }}
+        hint="Spoiled at receiving"
+      />,
+    );
+    expect(html).toContain("−0.3 kg");
+    expect(html).toContain("vs Fri");
+    expect(html).toContain("Down, good");
+    expect(html).toContain("text-primary");
+  });
+
+  it("treats a rise as good unless told otherwise, and a bad change as danger", () => {
+    expect(
+      renderToStaticMarkup(
+        <KpiTile label="a" value="1" delta={{ value: "+2", direction: "up" }} />,
+      ),
+    ).toContain("text-primary");
+    const bad = renderToStaticMarkup(
+      <KpiTile label="a" value="1" delta={{ value: "+2", direction: "up", good: false }} />,
+    );
+    expect(bad).toContain("text-danger");
+    expect(bad).toContain("needs attention");
+  });
+
+  it("has no arrow when flat, and draws a sparkline only with 2+ points", () => {
+    expect(
+      renderToStaticMarkup(
+        <KpiTile label="a" value="1" delta={{ value: "same", direction: "flat" }} />,
+      ),
+    ).toContain("No change");
+    expect(renderToStaticMarkup(<Sparkline values={[1]} />)).toBe("");
+    expect(renderToStaticMarkup(<Sparkline values={[1, 3, 2]} />)).toContain("polyline");
+  });
+});
+
+describe("FilterBar", () => {
+  it("shows the count and removable chips", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar
+        search={{ value: "me", onChange: () => {} }}
+        count={6}
+        active={[{ key: "d", label: "Tue 6 Oct" }]}
+        filters={[
+          {
+            key: "s",
+            label: "Stop",
+            value: "all",
+            options: [{ value: "all", label: "All stops" }],
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain("6 results");
+    expect(html).toContain('aria-label="Remove filter: Tue 6 Oct"');
+    expect(html).toContain("All stops");
   });
 });

@@ -1,4 +1,5 @@
-import { DataTable } from "./index.js";
+import { useState } from "react";
+import { DataTable, FilterBar, KanbanBoard, KpiTile } from "./index.js";
 
 /** @type {import("@storybook/react-vite").Meta} */
 const meta = { title: "Console", parameters: { layout: "padded" } };
@@ -102,4 +103,125 @@ export const TableVirtual = {
       footer="2,000 bags, only the visible rows are in the page."
     />
   ),
+};
+
+export const Filters = {
+  render: () => {
+    const [q, setQ] = useState("");
+    const [stop, setStop] = useState("all");
+    const [active, setActive] = useState([{ key: "date", label: "Tue 6 Oct · 8 to 10 AM" }]);
+    return (
+      <FilterBar
+        search={{ value: q, onChange: setQ, placeholder: "Search bag or flat" }}
+        filters={[
+          {
+            key: "stop",
+            label: "Stop",
+            value: stop,
+            options: [
+              { value: "all", label: "All stops" },
+              { value: "1", label: "1 · Sunrise Towers" },
+              { value: "2", label: "2 · Krishna Kunj" },
+            ],
+          },
+        ]}
+        onFilterChange={(_, v) => setStop(v)}
+        active={active}
+        onRemove={(k) => setActive(active.filter((a) => a.key !== k))}
+        onClear={() => setActive([])}
+        count={58}
+      />
+    );
+  },
+};
+
+export const Kpis = {
+  render: () => (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <KpiTile
+        label="Boxes today"
+        value="58"
+        delta={{ value: "46 Sunrise · 12 Krishna Kunj", direction: "flat" }}
+        hint="Locked at the 9 PM cut-off"
+      />
+      <KpiTile
+        label="Waste so far"
+        value="0.7 kg"
+        delta={{ value: "−0.3 kg", direction: "down", good: true, note: "vs Fri" }}
+        hint="Spoiled at receiving"
+        spark={[1.4, 1.1, 1.2, 0.9, 1.0, 0.7]}
+      />
+      <KpiTile
+        label="Partner earnings"
+        value="₹8,450"
+        delta={{ value: "+₹1,120", direction: "up", note: "vs last week" }}
+        spark={[6200, 6900, 7330, 8450]}
+        hint="Week of 28 Sep"
+      />
+      <KpiTile
+        label="Short items"
+        value="4"
+        delta={{ value: "+3", direction: "up", good: false, note: "vs Fri" }}
+        spark={[1, 0, 1, 4]}
+      />
+    </div>
+  ),
+};
+
+/** @param {string} id @param {string} title @param {string} meta @param {Record<string, unknown>} [more] */
+const card = (id, title, meta, more) => ({ id, title, meta, ...more });
+const board = () => [
+  {
+    id: "todo",
+    title: "To pack",
+    cards: [
+      card("a", "B-217 · C-807", "Sunrise Towers · stop 1 · 16 items"),
+      card("b", "B-218 · A-1105", "Sunrise Towers · stop 1 · 13 items"),
+    ],
+  },
+  {
+    id: "packing",
+    title: "Packing",
+    limit: 1,
+    cards: [
+      card("d", "B-214 · B-402", "12 items", { badge: { tone: "accent", label: "Kavita" } }),
+      card("e", "B-215 · A-604", "15 items", { flag: "Methi short" }),
+    ],
+  },
+  {
+    id: "packed",
+    title: "Packed",
+    cards: [
+      card("f", "B-213 · A-302", "Sunrise Towers · stop 1", {
+        badge: { tone: "primary", label: "Labelled" },
+      }),
+    ],
+  },
+  { id: "crated", title: "In crates", cards: [] },
+];
+
+export const Kanban = {
+  render: () => {
+    const [columns, setColumns] = useState(board);
+    return (
+      <KanbanBoard
+        label="Packing board"
+        columns={columns}
+        onMove={(id, from, to) =>
+          setColumns((cols) => {
+            const moving = cols.find((c) => c.id === from)?.cards.find((c) => c.id === id);
+            return cols.map((c) => ({
+              ...c,
+              cards:
+                c.id === from
+                  ? c.cards.filter((x) => x.id !== id)
+                  : c.id === to && moving
+                    ? [...c.cards, moving]
+                    : c.cards,
+            }));
+          })
+        }
+      />
+    );
+  },
 };
