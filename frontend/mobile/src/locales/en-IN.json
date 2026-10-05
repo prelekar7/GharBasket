@@ -958,6 +958,48 @@
       "loadTitle": "Loading order",
       "loadRow": "Crate {crate} · {society}",
       "loadBags": "{n, plural, one {# bag} other {# bags}}: {first} to {last}"
+    },
+    "pick": {
+      "title": "Pick and pack",
+      "bag": "Bag {n} of {total} · {captain}’s handover",
+      "where": "Bag {code} · {society}, {flat}",
+      "label": {
+        "bag": "Bag",
+        "flat": "Flat",
+        "stop": "Stop {n}",
+        "crate": "Crate {crate}",
+        "lines": "{n, plural, one {# item} other {# items}}"
+      },
+      "lines": "Lines picked",
+      "scan": "Scan the next item",
+      "manual": "Type the item code instead",
+      "added": "{item} · {qty} added",
+      "how": {
+        "picked": "{qty} · scanned",
+        "short": "{qty} · marked short",
+        "next": "{qty} · {shelf}"
+      },
+      "state": {
+        "picked": "Done",
+        "short": "Short",
+        "next": "Next"
+      },
+      "showAll": "Show all {n} lines",
+      "short": "Mark short",
+      "close": "Close bag",
+      "allDone": "Every line is done. Close the bag and put it in crate {crate}.",
+      "packed": "This bag is packed and in crate {crate}.",
+      "wrong": "Wrong item: this is {item}",
+      "unknown": "{code} isn’t a code we know. Scan again or type it.",
+      "already": "{item} is already in the bag",
+      "putBackTitle": "Put it back",
+      "putBack": "This bag doesn’t need {item}. Return it to its shelf; nothing was added to the bag.",
+      "needs": "This bag needs next",
+      "isShort": "{item} is short",
+      "markedShort": "{item} marked short. The family’s own choice decides a swap or money back.",
+      "closed": "Bag {code} closed. Put it in crate {crate}.",
+      "noBag": "No bag open",
+      "noBagBody": "Scan a bag’s label to start picking it."
     }
   }
 }
