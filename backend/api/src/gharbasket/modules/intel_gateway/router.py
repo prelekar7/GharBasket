@@ -119,3 +119,48 @@ async def put_feature_snapshots(
         )
     await session.commit()
     return FeatureSnapshotsOut(accepted=len(body.items))
+
+
+class ForecastItemIn(BaseModel):
+    product_id: uuid.UUID
+    for_date: date
+    committed: float = Field(ge=0)
+    uncommitted_q50: float = Field(ge=0)
+    uncommitted_qtau: float = Field(ge=0)
+    order_qty: float = Field(ge=0)
+    model: str = Field(max_length=40)
+
+
+class ForecastsIn(BaseModel):
+    hub_id: uuid.UUID
+    model: str = Field(min_length=1, max_length=60)
+    items: list[ForecastItemIn] = Field(min_length=1, max_length=5000)
+
+
+class ForecastsOut(BaseModel):
+    accepted: int
+
+
+@router.post(
+    "/internal/intel/forecasts",
+    summary="Store a hub's demand forecast and order quantities (the forecast job; operator token)",
+)
+async def put_forecasts(body: ForecastsIn, session: DbSession) -> ForecastsOut:
+    """One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with
+    every product's lines in the payload; M6 reads it through `intel_gateway.api`."""
+    by_date: dict[date, list[dict[str, Any]]] = {}
+    for item in body.items:
+        by_date.setdefault(item.for_date, []).append(item.model_dump(mode="json"))
+    for for_date, items in by_date.items():
+        await service.record_prediction(
+            session,
+            kind="forecast",
+            subject_type="hub",
+            subject_id=body.hub_id,
+            for_date=for_date,
+            source="ml",
+            payload={"items": items},
+            model_name=body.model,
+        )
+    await session.commit()
+    return ForecastsOut(accepted=len(body.items))

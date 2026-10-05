@@ -165,6 +165,13 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
 - **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × the largest deviation of any kitchen's earnings (rolling + tonight) from the fair share — the linear proxy for the Gini in handbook 08 M-G.
 - **Fallbacks:** no plan or too many orders → greedy nearest kitchen with room (`status: fallback`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
 
+### 3.6 The forecast job (v0, M-E; `backend/training`, not an endpoint)
+`python -m gharbasket_training.jobs.forecast --push` at T-1 21:10 IST (M6 §6): next week's **uncommitted** demand per hub × product with newsvendor order quantities, from the module tables with the read-only role, handed to `POST /v1/internal/intel/forecasts` (one `intel.predictions` row per hub and delivery day, kind `forecast`, payload `items[{product_id, committed, uncommitted_q50, uncommitted_qtau, order_qty, model}]`); M6 reads it through `intel_gateway.api.hub_forecast(hub_id, for_date)`. The backtest's WAPE per model goes to `model_metrics` (split `backtest`).
+- **Series:** weekly buckets per hub × product from orders that reached `locked` or later; `committed` = box lines, `uncommitted` = add-on and tiffin lines.
+- **Models:** StatsForecast AutoETS, CrostonOptimized, SeasonalNaive(4); baselines SeasonalNaive and Naive ("buy last week"). Rolling-origin backtest (horizon one week, up to three windows); the champion per hub has the lowest WAPE; a series shorter than four weeks gets the naive answer.
+- **Intervals and quantities:** conformal — q_tau = point + the tau-quantile of the champion's backtest residuals; `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`).
+- v1 (P4): MLForecast LightGBM with festival, weekday, price and weather features; MinT reconciliation.
+
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**
@@ -218,7 +225,7 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 | `collect_mandi` | Daily 18:33 IST (`training-jobs.yml`, `backend/training`) | data.gov.in (Agmarknet) prices for Maharashtra markets → `s3://gb-lake/external/mandi/date=…/`; pushes the 4-week price index per product to `POST /v1/internal/intel/price-index` (operator token) → `intel.price_index`, read by `intel_gateway.api.price_spikes` |
 | `export_snapshots` | Daily 02:03 IST (Actions, `DATABASE_URL_RO`) | The module tables through the API's SQLAlchemy models with a read-only role → `snapshots/date=<day>/<table>.parquet` in the lake (no personal data: households without owner, members or address; every table with `data_source`), typed-column checks; then the point-in-time household features as of the run → `intel.feature_snapshots` (`POST /v1/internal/intel/feature-snapshots`) |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
-| `forecast_uncommitted` | T-1 21:10 | StatsForecast/MLForecast/Chronos-2 + reconciliation |
+| `forecast` (`backend/training`) | T-1 21:10 IST (Actions, cron-job.org for the minute) | StatsForecast v0 (§3.6); MLForecast and reconciliation in v1 |
 | `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |
 | `monitor_drift` | Daily | WAPE, acceptance, waste vs thresholds |
 

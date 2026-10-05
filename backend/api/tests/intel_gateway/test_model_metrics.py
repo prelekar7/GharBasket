@@ -73,3 +73,30 @@ async def test_feature_snapshots_are_stored_as_of_a_cut_off(
     rows = (await db_session.execute(select(FeatureSnapshot))).scalars().all()
     assert len(rows) == 1 and rows[0].features == {"weeks": 2}  # the same as_of replaces
     assert rows[0].as_of == datetime(2026, 10, 9, tzinfo=UTC)
+
+
+async def test_forecasts_are_stored_per_hub_and_day_and_read_back(
+    api: httpx2.AsyncClient, db_session: AsyncSession
+) -> None:
+    import uuid
+    from datetime import date
+
+    hub, product = uuid.uuid4(), uuid.uuid4()
+    item = {
+        "product_id": str(product),
+        "for_date": "2026-10-20",
+        "committed": 12,
+        "uncommitted_q50": 1.5,
+        "uncommitted_qtau": 3.0,
+        "order_qty": 15.0,
+        "model": "AutoETS",
+    }
+    stored = await api.post(
+        "/v1/internal/intel/forecasts",
+        json={"hub_id": str(hub), "model": "forecast-autoets-v0", "items": [item]},
+    )
+    assert stored.json() == {"accepted": 1}
+    kept = await gateway.hub_forecast(db_session, hub, date(2026, 10, 20))
+    assert kept is not None and kept["model"] == "forecast-autoets-v0"
+    assert kept["items"][0]["order_qty"] == 15.0 and kept["items"][0]["product_id"] == str(product)
+    assert await gateway.hub_forecast(db_session, hub, date(2026, 10, 27)) is None

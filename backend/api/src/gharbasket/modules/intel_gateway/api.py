@@ -120,6 +120,18 @@ async def pantry_quantities(
     return answer
 
 
+async def hub_forecast(
+    session: AsyncSession, hub_id: uuid.UUID, for_date: date
+) -> dict[str, Any] | None:
+    """The latest demand forecast stored for a hub and delivery day (the forecast job's rows:
+    `items[{product_id, committed, uncommitted_q50, uncommitted_qtau, order_qty, model}]`);
+    None when the job has not run. M6 builds its procurement plan from it (M6 §6)."""
+    kept = await service.latest_prediction(
+        session, kind="forecast", subject_id=hub_id, for_date=for_date
+    )
+    return None if kept is None else {**kept.payload, "model": kept.model_name}
+
+
 async def assign_kitchens(
     http: httpx2.AsyncClient,
     settings: Settings,

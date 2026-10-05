@@ -174,6 +174,7 @@ sequenceDiagram
 - **Procurement:** `order_qty = committed + Q_τ(uncommitted)`, where τ = C<sub>u</sub> / (C<sub>u</sub> + C<sub>o</sub>).
   C<sub>o</sub> = cost − salvage value from the surplus cascade. Shelf life caps the buffer.
 - **Metrics:** WAPE, MASE, pinball loss; downstream waste kg per 100 kg sold, stock-out %. Baselines: seasonal naive, "buy last week".
+- **Status (5 Oct 2026, v0):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive, rolling-origin backtest, conformal q_tau, newsvendor `order_qty`) stores a hub's lines in `intel.predictions`; M6 reads them through `intel_gateway.api.hub_forecast`. The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
 
 ### M-F Routing (OR-Tools)
 - **Problem:** capacitated vehicle routing with time windows and pickups/deliveries.

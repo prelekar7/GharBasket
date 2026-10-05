@@ -487,6 +487,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store a hub's demand forecast and order quantities (the forecast job; operator token)
+         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with
+         *     every product's lines in the payload; M6 reads it through `intel_gateway.api`.
+         */
+        post: operations["put_forecasts_v1_internal_intel_forecasts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/model-metrics": {
         parameters: {
             query?: never;
@@ -1579,6 +1600,46 @@ export interface components {
         Festivals: {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
+        };
+        /** ForecastItemIn */
+        ForecastItemIn: {
+            /** Committed */
+            committed: number;
+            /**
+             * For Date
+             * Format: date
+             */
+            for_date: string;
+            /** Model */
+            model: string;
+            /** Order Qty */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Uncommitted Q50 */
+            uncommitted_q50: number;
+            /** Uncommitted Qtau */
+            uncommitted_qtau: number;
+        };
+        /** ForecastsIn */
+        ForecastsIn: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Items */
+            items: components["schemas"]["ForecastItemIn"][];
+            /** Model */
+            model: string;
+        };
+        /** ForecastsOut */
+        ForecastsOut: {
+            /** Accepted */
+            accepted: number;
         };
         /** Health */
         Health: {
@@ -5357,6 +5418,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeatureSnapshotsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_forecasts_v1_internal_intel_forecasts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastsOut"];
                 };
             };
             /** @description http.400: the body cannot be read */

@@ -1262,6 +1262,100 @@
         "title": "Festivals",
         "type": "object"
       },
+      "ForecastItemIn": {
+        "properties": {
+          "committed": {
+            "minimum": 0.0,
+            "title": "Committed",
+            "type": "number"
+          },
+          "for_date": {
+            "format": "date",
+            "title": "For Date",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 40,
+            "title": "Model",
+            "type": "string"
+          },
+          "order_qty": {
+            "minimum": 0.0,
+            "title": "Order Qty",
+            "type": "number"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "uncommitted_q50": {
+            "minimum": 0.0,
+            "title": "Uncommitted Q50",
+            "type": "number"
+          },
+          "uncommitted_qtau": {
+            "minimum": 0.0,
+            "title": "Uncommitted Qtau",
+            "type": "number"
+          }
+        },
+        "required": [
+          "product_id",
+          "for_date",
+          "committed",
+          "uncommitted_q50",
+          "uncommitted_qtau",
+          "order_qty",
+          "model"
+        ],
+        "title": "ForecastItemIn",
+        "type": "object"
+      },
+      "ForecastsIn": {
+        "properties": {
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastItemIn"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "model": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hub_id",
+          "model",
+          "items"
+        ],
+        "title": "ForecastsIn",
+        "type": "object"
+      },
+      "ForecastsOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "ForecastsOut",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "commit": {
@@ -8778,6 +8872,73 @@
           }
         ],
         "summary": "Store point-in-time features as of a cut-off (the snapshot job; operator token)",
+        "tags": [
+          "intel_gateway"
+        ]
+      }
+    },
+    "/v1/internal/intel/forecasts": {
+      "post": {
+        "description": "One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with\nevery product's lines in the payload; M6 reads it through `intel_gateway.api`.",
+        "operationId": "put_forecasts_v1_internal_intel_forecasts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecastsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Store a hub's demand forecast and order quantities (the forecast job; operator token)",
         "tags": [
           "intel_gateway"
         ]
