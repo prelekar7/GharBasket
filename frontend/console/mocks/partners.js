@@ -3,7 +3,7 @@
 // and numbers are only ever returned masked ("••••4F"). Seed people: Lata Shinde (kitchen, ₹70 a tiffin), Arjun Pawar
 // (rider), Meena Jadhav (captain, Sunrise Towers) and Kavita More (packer); the applicants are made-up samples.
 import { HttpResponse, http } from "msw";
-import { idempotent, mockStore, problem } from "./util.js";
+import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 const HUB_ID = "kharghar";
 const NOW = "2026-10-06T09:40:00+05:30";
@@ -294,6 +294,58 @@ const applicationsStore = () =>
     },
   ]);
 
+// ---- Fairness: how kitchen tiffins were spread last week, and the weight the nightly assignment uses -------------------
+
+/** Week of 28 Sep. Lata Shinde is the seed kitchen at ₹70 a tiffin; the other three are samples. Gini and shares are the API's numbers. */
+const fairnessStore = () =>
+  mockStore("partners-fairness", () => ({
+    week_start: "2026-09-28",
+    gini: 0.14,
+    gini_trend: [0.24, 0.21, 0.19, 0.14],
+    gini_change: -0.05,
+    gini_change_note: "since λ was raised",
+    top_share_pct: 31,
+    top_share_change_pts: -6,
+    lambda: 0.3,
+    lambda_changed_by: /** @type {string | null} */ ("Neha Iyer"),
+    lambda_changed_at: /** @type {string | null} */ ("2026-09-22T18:10:00+05:30"),
+    fallback_active: false,
+    kitchens: [
+      {
+        partner_id: "p-lata",
+        name: "Lata Shinde",
+        tiffins: 47,
+        capacity: 80,
+        earned_paise: 47 * THALI_PAISE,
+        rating: 4.7,
+      },
+      {
+        partner_id: null,
+        name: "Kitchen 2",
+        tiffins: 44,
+        capacity: 70,
+        earned_paise: 44 * THALI_PAISE,
+        rating: 4.6,
+      },
+      {
+        partner_id: null,
+        name: "Kitchen 3",
+        tiffins: 38,
+        capacity: 60,
+        earned_paise: 38 * THALI_PAISE,
+        rating: 4.8,
+      },
+      {
+        partner_id: null,
+        name: "Kitchen 4",
+        tiffins: 22,
+        capacity: 60,
+        earned_paise: 22 * THALI_PAISE,
+        rating: 4.5,
+      },
+    ],
+  }));
+
 /** @param {string} iso */
 const daysSince = (iso) => Math.floor((Date.parse(NOW) - Date.parse(iso)) / 86_400_000);
 
@@ -406,4 +458,43 @@ export const partnersHandlers = [
       return HttpResponse.json({ id: p.id, status: p.status });
     }),
   ),
+  // GET /v1/hubs/{id}/fairness (proposal): the earnings distribution of last week (analytics `mv_partner_earnings_distribution`,
+  // M12) with the current fairness weight λ of the M10 assignment. `kitchens_under_half` counts kitchens below half their capacity.
+  http.get("*/v1/hubs/:hub/fairness", ({ params }) => {
+    if (params.hub !== HUB_ID) return problem(404, "hubs.not_found", "No such hub");
+    const f = fairnessStore();
+    return HttpResponse.json({
+      ...f,
+      kitchens_under_half: f.kitchens.filter((k) => k.tiffins < k.capacity / 2).length,
+    });
+  }),
+
+  // PUT /v1/hubs/{id}/fairness-weight (proposal): admin only; every change is logged with who made it.
+  http.put("*/v1/hubs/:hub/fairness-weight", async ({ request, params }) => {
+    if (params.hub !== HUB_ID) return problem(404, "hubs.not_found", "No such hub");
+    if (roleOf(request) !== "admin")
+      return problem(403, "partners.admin_only", "Only an admin can change the fairness weight");
+    const body = /** @type {any} */ (await request.json().catch(() => null));
+    const value = Number(body?.lambda);
+    if (
+      body?.lambda === "" ||
+      body?.lambda == null ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > 1
+    ) {
+      return problem(422, "request.invalid", "Weight must be from 0 to 1", {
+        errors: [{ field: "lambda", message: "Enter a number from 0 to 1" }],
+      });
+    }
+    const f = fairnessStore();
+    f.lambda = value;
+    f.lambda_changed_by = "Neha Iyer";
+    f.lambda_changed_at = NOW;
+    return HttpResponse.json({
+      lambda: f.lambda,
+      lambda_changed_by: f.lambda_changed_by,
+      lambda_changed_at: f.lambda_changed_at,
+    });
+  }),
 ];
