@@ -1,6 +1,7 @@
 // M9 community mocks (docs/modules/M9-community.md §3). The spec lists the endpoints but not the
 // response fields yet, so these shapes are our proposal, built from the M9 tables.
 import { HttpResponse, http } from "msw";
+import { caller, isNewUser } from "./handlers.js";
 
 /** @typedef {{ id: string, name: string, area: string, status: "live" | "prospect", distance_m: number, unlock: { joined: number, threshold: number }, towers: { id: string, label: string }[], captain: { name: string, flat: string, phone_e164?: string } | null, delivery?: { days: number[], from: string, to: string, first_date?: string }, unlocked_at?: string | null }} Society */
 
@@ -129,16 +130,45 @@ export const communityHandlers = [
     );
   }),
 
-  // GET /v1/impact?scope=society&id= (M9): this month's counters for the Society screen.
+  // GET /v1/impact?scope=society&id= or ?scope=me (M9): this month's counters. Society: food not
+  // wasted, items donated, what home cooks and the captain earned, homes on GharBasket. Me: the
+  // same for your family, neighbours who joined from your invites, and your share (what you gave
+  // and the Kindness points it earned).
   http.get("*/v1/impact", ({ request }) => {
     const url = new URL(request.url);
-    const live = SOCIETIES.find((s) => s.id === url.searchParams.get("id"))?.status === "live";
+    if (url.searchParams.get("scope") === "me") {
+      const phone = caller(request);
+      if (!phone)
+        return HttpResponse.json(
+          { type: "about:blank", title: "Sign in again", status: 401, code: "auth.invalid_token" },
+          { status: 401, headers: { "content-type": "application/problem+json" } },
+        );
+      const demo = !isNewUser(phone);
+      return HttpResponse.json({
+        scope: "me",
+        period: "2026-10",
+        food_saved_kg: demo ? 3 : 0,
+        items_donated: demo ? 2 : 0,
+        cooks_earned_paise: demo ? 84000 : 0,
+        homes_invited: demo ? 2 : 0,
+        donated: demo
+          ? [
+              { code: "school_bags", qty: 1 },
+              { code: "clothes", kg: 3 },
+            ]
+          : [],
+        points_earned: demo ? 340 : 0,
+      });
+    }
+    const society = SOCIETIES.find((s) => s.id === url.searchParams.get("id"));
+    const live = society?.status === "live";
     return HttpResponse.json({
-      scope: url.searchParams.get("scope") ?? "me",
+      scope: "society",
       period: "2026-10",
       food_saved_kg: live ? 42 : 0,
       items_donated: live ? 18 : 0,
       cooks_earned_paise: live ? 1240000 : 0,
+      homes: live ? 50 : (society?.unlock.joined ?? 0),
     });
   }),
 

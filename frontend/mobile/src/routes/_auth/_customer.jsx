@@ -59,9 +59,12 @@ function CustomerShell() {
   // Wallet, Society, Become a partner, Budget Lock and UPI Autopay open from Profile (HcWallet,
   // HcSociety, HcPartner, HcBudget, HcAutopay).
   const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
-  // The designs leave the assistant button off Profile, the settings screens opened from it, and
-  // the screens that end in one big button (HcTiffin, HcRate).
-  const showAssistant = !NO_ASSISTANT.includes(segment) && !/\/(tiffin|rate)(\/|$)/.test(pathname);
+  // The designs leave the assistant button off Profile, the settings screens opened from it, Our
+  // impact (HcImpact), and the screens that end in one big button (HcTiffin, HcRate).
+  const showAssistant =
+    !NO_ASSISTANT.includes(segment) &&
+    pathname !== "/kindness/impact" &&
+    !/\/(tiffin|rate)(\/|$)/.test(pathname);
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

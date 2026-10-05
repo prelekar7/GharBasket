@@ -1639,5 +1639,33 @@
     "doneTitle": "Training done",
     "doneBody": "The hub will check your documents and call you before your first day.",
     "back": "Back to your application"
+  },
+  "impact": {
+    "title": "Our impact",
+    "link": "Our impact this month",
+    "scope": "Whose impact",
+    "me": "My family",
+    "society": "Our society",
+    "kg": "{kg} kg",
+    "stats": {
+      "society": {
+        "food": "Food saved from waste",
+        "items": "Items donated",
+        "cooks": "Earned by home cooks and our captain",
+        "homes": "Homes on GharBasket"
+      },
+      "me": {
+        "food": "Food your family saved from waste",
+        "items": "Items you donated",
+        "cooks": "Paid to home cooks for your tiffins",
+        "homes": "Neighbours who joined from your invites"
+      }
+    },
+    "youTitle": "Your share",
+    "you": "You gave {items} and earned {points} Kindness points.",
+    "youNone": "Nothing given yet this month. Give clothes, books or toys from the Kindness tab.",
+    "how": "Counted from verified donations, surplus that was eaten instead of thrown away, and partner earnings in the ledger. Updated every hour.",
+    "share": "Share with neighbours",
+    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}"
   }
 }

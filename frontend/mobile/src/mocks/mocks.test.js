@@ -296,7 +296,27 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     const r = await mockFetch(
       new Request("http://localhost/v1/impact?scope=society&id=sunrise-towers"),
     );
-    expect(await r.json()).toMatchObject({ food_saved_kg: 42, items_donated: 18 });
+    expect(await r.json()).toMatchObject({ food_saved_kg: 42, items_donated: 18, homes: 50 });
+  });
+
+  it("reports your family's month and your share for a signed-in person", async () => {
+    const me = () => mockFetch(new Request("http://localhost/v1/impact?scope=me"));
+    expect((await me()).status).toBe(401);
+    await mockFetch(
+      new Request("http://localhost/v1/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-gb-client": "web" },
+        body: JSON.stringify({ dev_phone: "+919800000001" }),
+      }),
+    );
+    expect(await (await me()).json()).toMatchObject({
+      scope: "me",
+      points_earned: 340,
+      donated: [
+        { code: "school_bags", qty: 1 },
+        { code: "clothes", kg: 3 },
+      ],
+    });
   });
 });
 

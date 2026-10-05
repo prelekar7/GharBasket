@@ -9,13 +9,14 @@ import {
   toast,
 } from "@gharbasket/ui";
 import { PlusIcon } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useKindness } from "@/features/billing/queries.js";
 import {
   DONATION_ITEMS,
+  describeItems,
   useDonations,
   useDrives,
   useScheduleDonation,
@@ -73,20 +74,8 @@ function Kindness() {
   const drive = drives.data?.[0];
   const pickupOn = donations.data.next_pickup_on;
   const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
-  const list = new Intl.ListFormat(lang, { type: "conjunction" });
-  /** "School bag and 3 kg clothes" from the donation's items. @param {import("@/features/community/kindness.js").Donation} d */
-  const describe = (d) => {
-    const text = list.format(
-      d.items.map(({ code, qty, kg }) =>
-        kg
-          ? t("kindness.kg", { kg, item: t(`kindness.of.${code}`) })
-          : qty
-            ? t(`kindness.count.${code}`, { count: qty })
-            : t(`kindness.of.${code}`),
-      ),
-    );
-    return text.charAt(0).toLocaleUpperCase(lang) + text.slice(1);
-  };
+  /** @param {import("@/features/community/kindness.js").Donation} d */
+  const describe = (d) => describeItems(t, lang, d.items);
   const toggle = (/** @type {string} */ code, /** @type {boolean} */ on) =>
     setPicked((p) => (on ? [...p, code] : p.filter((c) => c !== code)));
 
@@ -111,6 +100,15 @@ function Kindness() {
             })
           : t("kindness.pointsNoteNoExpiry")}
       </p>
+      <Link
+        to="/kindness/impact"
+        className="-mt-1 flex min-h-12 items-center justify-between gap-3 border-y border-line outline-none focus-visible:shadow-focus"
+      >
+        <span>{t("impact.link")}</span>
+        <span aria-hidden className="text-fg-secondary">
+          ›
+        </span>
+      </Link>
       <section className="flex flex-col gap-2.5 rounded-md bg-surface px-4 py-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong>{t("kindness.give")}</strong>
