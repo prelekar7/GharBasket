@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { ChartCard, DataTable, FilterBar, KanbanBoard, KpiTile, MapPanel } from "./index.js";
+import {
+  ChartCard,
+  DataTable,
+  FilterBar,
+  KanbanBoard,
+  KpiTile,
+  MapPanel,
+  PolygonEditor,
+} from "./index.js";
 
 /** @type {import("@storybook/react-vite").Meta} */
 const meta = { title: "Console", parameters: { layout: "padded" } };
@@ -308,4 +316,48 @@ export const RouteMap = {
       note="The van's position updates every 15 seconds while it is out."
     />
   ),
+};
+
+/** @type {import("./PolygonEditor.jsx").Area[]} */
+const areaList = [
+  {
+    id: "kharghar",
+    label: "Kharghar hub · service area",
+    status: "live",
+    coordinates: [
+      [73.04, 19.052],
+      [73.085, 19.05],
+      [73.095, 19.03],
+      [73.08, 19.012],
+      [73.045, 19.014],
+      [73.032, 19.033],
+    ],
+  },
+  {
+    id: "taloja",
+    label: "Taloja · prospect",
+    status: "prospect",
+    coordinates: [
+      [73.1, 19.06],
+      [73.13, 19.06],
+      [73.13, 19.04],
+      [73.1, 19.04],
+    ],
+  },
+];
+
+export const BoundaryEditor = {
+  render: () => {
+    const [areas, setAreas] = useState(areaList);
+    return (
+      <PolygonEditor
+        areas={areas}
+        selected="kharghar"
+        onSave={(id, coordinates) =>
+          setAreas((all) => all.map((a) => (a.id === id ? { ...a, coordinates } : a)))
+        }
+        labels={{ draw: "Draw area", remove: "Delete area", save: "Save service area" }}
+      />
+    );
+  },
 };

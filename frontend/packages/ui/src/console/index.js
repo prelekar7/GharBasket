@@ -8,3 +8,4 @@ export { KanbanBoard } from "./KanbanBoard.jsx";
 export { KpiTile, Sparkline } from "./Kpi.jsx";
 export { MapPanel } from "./MapPanel.jsx";
 export { configureMaps } from "./mapShared.jsx";
+export { PolygonEditor } from "./PolygonEditor.jsx";
