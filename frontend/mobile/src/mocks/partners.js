@@ -2,7 +2,6 @@
 // endpoints and tables, not JSON; these shapes are our proposal. One open application per person.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
-import { MODULES } from "./trainingModules.js";
 
 const KEY = "gb-mock-partner";
 const KINDS = ["captain", "kitchen", "rider", "packer"];
@@ -29,12 +28,6 @@ const KITCHENS = /** @type {Record<string, Record<string, [string, string]>>} */
     specialty: ["Maharashtrian thali, Jain thali", "महाराष्ट्रीयन थाली, जैन थाली"],
   },
 });
-
-const TRAINING_KEY = "gb-mock-training";
-/** @returns {Record<string, Record<string, { score: number, total: number, passed: boolean, completed_at: string }>>} results by phone, then module */
-const loadTraining = () => JSON.parse(localStorage.getItem(TRAINING_KEY) ?? "{}");
-const langOf = (/** @type {Request} */ r) =>
-  (r.headers.get("accept-language") ?? "").startsWith("hi") ? 1 : 0;
 
 /** Documents each role needs before training (M8 US-2): kitchens also need FSSAI and kitchen photos. */
 const DOCS_BY_KIND = /** @type {Record<string, string[]>} */ ({
@@ -66,9 +59,8 @@ const docList = (phone, app) => {
   );
 };
 
-/** A verified kitchen partner's training list comes from mocks/kitchen.js; applicants' from here. */
-const verifiedKitchen = (/** @type {Request} */ r) =>
-  !!r.headers.get("x-active-role")?.startsWith("kitchen");
+/** The caller's partner application, if any (mocks/trainings.js asks, so applicants get their modules). @param {string} phone */
+export const applicationOf = (phone) => load()[phone] ?? null;
 
 export const partnerHandlers = [
   // GET /v1/partners/{id}/public: the Know your cook card, never the phone or address.
@@ -194,69 +186,5 @@ export const partnerHandlers = [
       save(all);
     }
     return HttpResponse.json(docs[phone][type], { status: 201 });
-  }),
-
-  // GET /v1/trainings (M8 US-3): the modules in order with their quiz, in the caller's language,
-  // and how each went. Training opens once the documents are in (status TRAINING or later).
-  http.get("*/v1/trainings", ({ request }) => {
-    if (verifiedKitchen(request)) return undefined; // the kitchen app's own list: mocks/kitchen.js
-    const phone = caller(request);
-    const app = phone && load()[phone];
-    if (!phone || !app) return problem(404, "partners.no_application", "Apply first");
-    const l = langOf(request);
-    const done = loadTraining()[phone] ?? {};
-    return HttpResponse.json({
-      modules: MODULES.map((m) => ({
-        code: m.code,
-        title: m.title[l],
-        result: done[m.code] ?? null,
-        questions: m.questions.map(([text, options, answer, why], i) => ({
-          id: `${m.code}-${i + 1}`,
-          text: text[l],
-          options: options.map((o, j) => ({ value: String.fromCharCode(97 + j), title: o[l] })),
-          answer: String.fromCharCode(97 + answer),
-          why: why[l],
-        })),
-      })),
-    });
-  }),
-
-  // POST /v1/trainings/{code}/complete (M8, Idempotency-Key): { answers: { [question id]: value } }.
-  // The server scores the answers; one wrong answer is allowed.
-  http.post("*/v1/trainings/:code/complete", async ({ request, params }) => {
-    if (verifiedKitchen(request)) return undefined; // the kitchen app's own list: mocks/kitchen.js
-    const phone = caller(request);
-    const app = phone && load()[phone];
-    if (!phone || !app) return problem(404, "partners.no_application", "Apply first");
-    if (!request.headers.get("idempotency-key"))
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
-    if (app.status === "APPLIED" || app.status === "KYC_PENDING")
-      return problem(409, "partners.training_locked", "Add your documents first");
-    const m = MODULES.find((x) => x.code === params.code);
-    if (!m) return problem(404, "partners.training_not_found", "No such module");
-    const { answers = {} } = /** @type {{ answers?: Record<string, string> }} */ (
-      await request.json()
-    );
-    const score = m.questions.filter(
-      ([, , answer], i) => answers[`${m.code}-${i + 1}`] === String.fromCharCode(97 + answer),
-    ).length;
-    const total = m.questions.length;
-    const result = {
-      score,
-      total,
-      passed: score >= total - 1,
-      completed_at: new Date().toISOString(),
-    };
-    const all = loadTraining();
-    // A pass is kept; a later try can't undo it.
-    if (!all[phone]?.[m.code]?.passed) {
-      all[phone] = { ...all[phone], [m.code]: result };
-      localStorage.setItem(TRAINING_KEY, JSON.stringify(all));
-    }
-    return HttpResponse.json({ code: m.code, ...result }, { status: 201 });
   }),
 ];

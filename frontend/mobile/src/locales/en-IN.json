@@ -1370,7 +1370,6 @@
       "done": "Required modules done",
       "doneValue": "{done} of {total}",
       "quiz": "Quiz {score} of {total}",
-      "finished": "Finished",
       "todo": "{kind, select, refresher {Refresher} other {Required}} · about {minutes} minutes",
       "todoDue": "{kind, select, refresher {Refresher} other {Required}} · due {date} · about {minutes} minutes",
       "badge": {
@@ -1380,18 +1379,7 @@
       },
       "why": "You’re verified. Short refreshers keep your hygiene rating current; your hub manager sees the scores.",
       "whyPending": "Finish the required modules to get verified. Your hub manager sees the scores.",
-      "next": "Start: {name}",
-      "about": "About {minutes} minutes",
-      "soon": "The video and quiz for this module come with the training content. Until then, your hub manager goes through it with you; tap Mark as done when you have.",
-      "markDone": "Mark as done",
-      "doneToast": "Marked done. Your hub manager sees it.",
-      "modules": {
-        "hygiene": "Kitchen hygiene",
-        "storage": "Safe storage and leftovers",
-        "allergens_jain": "Allergens and Jain food",
-        "packing_labels": "Packing and labels",
-        "monsoon_safety": "Monsoon food safety"
-      }
+      "next": "Start: {name}"
     },
     "earnings": {
       "title": "Earnings",

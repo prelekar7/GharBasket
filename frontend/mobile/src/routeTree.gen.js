@@ -68,6 +68,7 @@ import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/
 import { Route as AuthCaptainFlatsIndexRouteImport } from "./routes/_auth/captain/flats.index"
 import { Route as AuthCaptainFlatsExceptionsRouteImport } from "./routes/_auth/captain/flats.exceptions"
 import { Route as AuthCaptainFlatsManualRouteImport } from "./routes/_auth/captain/flats.manual"
+import { Route as AuthKitchenTrainingCodeRouteImport } from "./routes/_auth/kitchen/training_.$code"
 import { Route as AuthCustomerOrdersOrderIdRateRouteImport } from "./routes/_auth/_customer/orders_.$orderId.rate"
 import { Route as AuthCustomerOrdersOrderIdTrackRouteImport } from "./routes/_auth/_customer/orders_.$orderId.track"
 import { Route as AuthCustomerWeekTiffinDateRouteImport } from "./routes/_auth/_customer/week_.tiffin.$date"
@@ -371,6 +372,11 @@ const AuthCaptainFlatsManualRoute = AuthCaptainFlatsManualRouteImport.update({
   path: "/flats/manual",
   getParentRoute: () => AuthCaptainRoute,
 })
+const AuthKitchenTrainingCodeRoute = AuthKitchenTrainingCodeRouteImport.update({
+  id: "/training_/$code",
+  path: "/training/$code",
+  getParentRoute: () => AuthKitchenRoute,
+})
 const AuthCustomerOrdersOrderIdRateRoute =
   AuthCustomerOrdersOrderIdRateRouteImport.update({
     id: "/orders_/$orderId/rate",
@@ -433,6 +439,7 @@ const AuthKitchenRouteChildren = {
   AuthKitchenPrepRoute: AuthKitchenPrepRoute,
   AuthKitchenTrainingRoute: AuthKitchenTrainingRoute,
   AuthKitchenIndexRoute: AuthKitchenIndexRoute,
+  AuthKitchenTrainingCodeRoute: AuthKitchenTrainingCodeRoute,
 }
 
 const AuthKitchenRouteWithChildren = AuthKitchenRoute._addFileChildren(

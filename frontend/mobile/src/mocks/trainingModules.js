@@ -1,16 +1,20 @@
 // M8 training modules (US-3): short lessons, each ending in a quiz; the score is kept per module.
 // The content would come from the hub's CMS in English, Hindi and Marathi (M8 open question); the
 // mock has English and Hindi. Each question: [text, options, index of the safe answer, why].
-// Answers are not secret: this is practice, and the server still scores what is sent.
+// Answers are not secret: this is teaching content, shown with the reason after each answer, and
+// the server still scores what is sent. "refresher" modules renew a pass and are offered only to
+// verified partners.
 
 /** @typedef {[string, string]} EnHi */
 /** @typedef {[EnHi, EnHi[], number, EnHi]} Question */
 
-/** @type {{ code: string, title: EnHi, questions: Question[] }[]} */
+/** @type {{ code: string, title: EnHi, kind: "required" | "refresher", minutes: number, due?: string, questions: Question[] }[]} */
 export const MODULES = [
   {
     code: "hygiene",
     title: ["Clean hands, clean kitchen", "साफ़ हाथ, साफ़ रसोई"],
+    kind: "required",
+    minutes: 10,
     questions: [
       [
         ["Before you start cooking, what comes first?", "खाना बनाना शुरू करने से पहले सबसे पहले क्या?"],
@@ -53,6 +57,8 @@ export const MODULES = [
   {
     code: "storage",
     title: ["Safe storage", "सुरक्षित रखना"],
+    kind: "required",
+    minutes: 10,
     questions: [
       [
         ["Where do you keep paneer and curd?", "पनीर और दही कहाँ रखें?"],
@@ -127,6 +133,8 @@ export const MODULES = [
   {
     code: "packing",
     title: ["Packing tiffins", "टिफ़िन पैक करना"],
+    kind: "required",
+    minutes: 8,
     questions: [
       [
         ["When do you close the tiffin?", "टिफ़िन कब बंद करें?"],
@@ -169,6 +177,8 @@ export const MODULES = [
   {
     code: "handover",
     title: ["Handing over on time", "समय पर सौंपना"],
+    kind: "required",
+    minutes: 6,
     questions: [
       [
         ["When must tiffins be ready for the rider?", "राइडर के लिए टिफ़िन कब तैयार हों?"],
@@ -214,6 +224,8 @@ export const MODULES = [
   {
     code: "money",
     title: ["Earnings and the app", "कमाई और ऐप"],
+    kind: "required",
+    minutes: 6,
     questions: [
       [
         ["When are your earnings paid?", "आपकी कमाई कब मिलती है?"],
@@ -253,6 +265,60 @@ export const MODULES = [
         ],
         2,
         ["GharBasket never asks for your OTP.", "GharBasket कभी आपका OTP नहीं माँगता।"],
+      ],
+    ],
+  },
+  {
+    code: "monsoon_safety",
+    title: ["Monsoon food safety", "मानसून में खाने की सुरक्षा"],
+    kind: "refresher",
+    minutes: 5,
+    due: "2026-10-31",
+    questions: [
+      [
+        ["Rain has made the kitchen damp. What do you do?", "बारिश से रसोई में सीलन है। आप क्या करेंगी?"],
+        [
+          ["Keep cooking and wipe the floor later", "खाना बनाती रहें, फ़र्श बाद में पोंछें"],
+          ["Dry the floor and counters before you start", "शुरू करने से पहले फ़र्श और प्लेटफ़ॉर्म सुखा लें"],
+          ["Spray perfume to hide the smell", "गंध छिपाने के लिए सुगंध छिड़कें"],
+        ],
+        1,
+        [
+          "Damp surfaces grow mould and germs fast in the monsoon.",
+          "मानसून में सीली जगहों पर फफूँद और कीटाणु तेज़ी से बढ़ते हैं।",
+        ],
+      ],
+      [
+        [
+          "Which leafy vegetables need the most care in the rains?",
+          "बारिश में किन पत्तेदार सब्ज़ियों का सबसे ज़्यादा ध्यान रखें?",
+        ],
+        [
+          ["Wash leaves well in clean water, several times", "पत्तों को साफ़ पानी में कई बार अच्छे से धोएँ"],
+          ["Skip washing; cooking kills everything", "धोएँ नहीं; पकाने से सब मर जाता है"],
+          ["Rinse once under the tap", "एक बार नल के नीचे धो लें"],
+        ],
+        0,
+        [
+          "Mud and insects hide in leaves; wash several times before cutting.",
+          "पत्तों में मिट्टी और कीड़े छिपे रहते हैं; काटने से पहले कई बार धोएँ।",
+        ],
+      ],
+      [
+        [
+          "How long can cooked food stay out in humid weather?",
+          "उमस भरे मौसम में पका खाना कितनी देर बाहर रख सकते हैं?",
+        ],
+        [
+          ["Overnight", "रात भर"],
+          ["A full day", "पूरा दिन"],
+          ["Not more than 2 hours", "2 घंटे से ज़्यादा नहीं"],
+        ],
+        2,
+        [
+          "In humid heat, cooked food turns unsafe within about 2 hours.",
+          "उमस भरी गर्मी में पका खाना लगभग 2 घंटे में असुरक्षित हो जाता है।",
+        ],
       ],
     ],
   },

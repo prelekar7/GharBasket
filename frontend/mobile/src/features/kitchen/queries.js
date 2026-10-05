@@ -51,11 +51,6 @@ import { enqueue } from "@/lib/outbox.js";
  */
 
 /**
- * @typedef {{ code: string, kind: "required" | "refresher", done: boolean, score: number | null, out_of: number, due: string | null, minutes: number }} TrainingModule
- * @typedef {{ verified: boolean, required_done: number, required_total: number, items: TrainingModule[] }} Trainings GET /v1/trainings
- */
-
-/**
  * @typedef {{ date: string, meal: "lunch" | "dinner", tiffins: number, amount_paise: number, this_week: boolean }} EarningDay
  * @typedef {{ week_start: string, total_paise: number, tiffins: number, days: number, rating: number, items: EarningDay[] }} Earnings GET /v1/earnings (this week)
  */
@@ -80,10 +75,6 @@ export const useAssignments = () =>
 export const useCapacity = () =>
   /** @type {import("@tanstack/react-query").UseQueryResult<Capacity>} */ (
     useKitchenQuery("capacity", "/v1/kitchen-capacity")
-  );
-export const useTrainings = () =>
-  /** @type {import("@tanstack/react-query").UseQueryResult<Trainings>} */ (
-    useKitchenQuery("trainings", "/v1/trainings")
   );
 export const useEarnings = () =>
   /** @type {import("@tanstack/react-query").UseQueryResult<Earnings>} */ (
