@@ -19,7 +19,34 @@ const problem = (
 const load = () => JSON.parse(localStorage.getItem(KEY) ?? "{}");
 const save = (/** @type {Record<string, any>} */ s) => localStorage.setItem(KEY, JSON.stringify(s));
 
+/** The seed's kitchen as families see it on Know your cook (M8 US-8): [en, hi]. */
+const KITCHENS = /** @type {Record<string, Record<string, [string, string]>>} */ ({
+  "kit-lata": {
+    name: ["Lata Shinde", "लता शिंदे"],
+    kitchen: ["Lata tai’s kitchen", "लता ताई की रसोई"],
+    area: ["Kharghar", "खारघर"],
+    specialty: ["Maharashtrian thali, Jain thali", "महाराष्ट्रीयन थाली, जैन थाली"],
+  },
+});
+
 export const partnerHandlers = [
+  // GET /v1/partners/{id}/public: the Know your cook card, never the phone or address.
+  http.get("*/v1/partners/:id/public", ({ request, params }) => {
+    const k = KITCHENS[String(params.id)];
+    if (!k) return problem(404, "partners.not_found", "No such partner");
+    const i = (request.headers.get("accept-language") ?? "").startsWith("hi") ? 1 : 0;
+    return HttpResponse.json({
+      id: params.id,
+      kind: "kitchen",
+      name: k.name[i],
+      kitchen: k.kitchen[i],
+      area: k.area[i],
+      specialty: k.specialty[i],
+      fssai_registered: true,
+      hygiene_trained: true,
+    });
+  }),
+
   http.get("*/v1/partner-applications/me", ({ request }) => {
     const phone = caller(request);
     if (!phone) return problem(401, "auth.invalid_token", "Sign in again");

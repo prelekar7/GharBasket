@@ -81,7 +81,7 @@ function orders(/** @type {"en" | "hi"} */ lang) {
 
 /** Tiffins booked from the Week day sheet (POST /v1/orders, kind "tiffin"); they survive reloads. */
 const TIFFINS_KEY = "gb-mock-tiffins";
-/** @returns {{ id: string, key: string, delivery_date: string, slot: string, kitchen_id: string }[]} */
+/** @returns {{ id: string, key: string, delivery_date: string, slot: string, kitchen_id: string, qty?: number }[]} */
 export const bookedTiffins = () => JSON.parse(localStorage.getItem(TIFFINS_KEY) ?? "[]");
 /**
  * The home kitchen that offers a tiffin to the society this week (M8, priced by M2): the backend
@@ -89,8 +89,10 @@ export const bookedTiffins = () => JSON.parse(localStorage.getItem(TIFFINS_KEY) 
  */
 export const TIFFIN_OFFER = {
   kitchen_id: "kit-lata",
+  slot: "lunch",
   cook: ["Lata tai", "लता ताई"],
-  dish: ["rajma chawal", "राजमा चावल"],
+  dish: ["Chapati-bhaji thali", "चपाती-भाजी थाली"],
+  items: ["Chapati, bhaji, dal, rice, salad", "चपाती, भाजी, दाल, चावल, सलाद"],
   price_paise: 11000,
 };
 
@@ -110,7 +112,9 @@ export const orderHandlers = [
       kind: "tiffin",
       status: "SCHEDULED",
       delivery_date: b.delivery_date,
-      total_paise: TIFFIN_OFFER.price_paise,
+      slot: b.slot,
+      qty: b.qty ?? 1,
+      total_paise: (b.qty ?? 1) * TIFFIN_OFFER.price_paise,
       paid_from: "wallet",
       address: { flat: "B-402", society: "Sunrise Towers" },
       cook: { name: TIFFIN_OFFER.cook[hi ? 1 : 0] },
@@ -137,23 +141,28 @@ export const orderHandlers = [
     const replay = list.find((b) => b.key === key);
     if (replay) return HttpResponse.json(replay, { status: 201 });
     const body =
-      /** @type {{ kind?: string, delivery_date?: string, slot?: string, kitchen_id?: string }} */ (
+      /** @type {{ kind?: string, delivery_date?: string, slot?: string, kitchen_id?: string, qty?: number }} */ (
         await request.json()
       );
+    const qty = body.qty ?? 1;
     if (
       body.kind !== "tiffin" ||
       !body.delivery_date ||
       body.kitchen_id !== TIFFIN_OFFER.kitchen_id
     )
       return problem(422, "orders.invalid_order", "Only a tiffin from this week's kitchen");
+    if (!(Number.isInteger(qty) && qty >= 1 && qty <= 6))
+      return problem(422, "orders.qty_invalid", "Book between 1 and 6 tiffins");
     if (list.some((b) => b.delivery_date === body.delivery_date && b.slot === body.slot))
       return problem(409, "orders.already_booked", "A tiffin is already booked for that meal");
     const order = {
       id: `ord-tif-${body.delivery_date}-${body.slot}`,
       key,
       delivery_date: body.delivery_date,
-      slot: body.slot ?? "dinner",
+      slot: body.slot ?? TIFFIN_OFFER.slot,
       kitchen_id: body.kitchen_id,
+      qty,
+      total_paise: qty * TIFFIN_OFFER.price_paise,
     };
     localStorage.setItem(TIFFINS_KEY, JSON.stringify([...list, order]));
     return HttpResponse.json(order, { status: 201 });

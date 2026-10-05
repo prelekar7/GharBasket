@@ -43,3 +43,17 @@ export function useApply() {
     },
   });
 }
+
+/**
+ * @typedef {{ id: string, kind: PartnerKind, name: string, kitchen: string, area: string, specialty: string,
+ *   fssai_registered: boolean, hygiene_trained: boolean }} PublicPartner
+ */
+
+/** Who cooks a tiffin, for the Know your cook card (GET /v1/partners/{id}/public, M8 US-8). @param {string | undefined} id @param {string} lang */
+export function usePublicPartner(id, lang) {
+  return useQuery({
+    queryKey: ["partner-public", id, lang],
+    queryFn: () => /** @type {Promise<PublicPartner>} */ (request(`/v1/partners/${id}/public`)),
+    enabled: !!id,
+  });
+}

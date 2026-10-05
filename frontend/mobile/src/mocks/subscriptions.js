@@ -279,7 +279,7 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
                 : null,
           };
         }),
-        // A home kitchen's dinner tiffin, until the cut-off (design Core-W2).
+        // A home kitchen's lunch tiffin, until the cut-off (designs Core-W2, HcTiffin).
         tiffin_offer:
           i === TIFFIN_DAY ||
           bookedTiffins().some(
@@ -288,9 +288,12 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
             ? null
             : {
                 kitchen_id: TIFFIN_OFFER.kitchen_id,
-                slot: "dinner",
+                slot: TIFFIN_OFFER.slot,
                 cook: { name: pick(TIFFIN_OFFER.cook, lang) },
-                dish: { name: pick(TIFFIN_OFFER.dish, lang) },
+                dish: {
+                  name: pick(TIFFIN_OFFER.dish, lang),
+                  items: pick(TIFFIN_OFFER.items, lang),
+                },
                 price_paise: TIFFIN_OFFER.price_paise,
                 order_by: "2026-10-05T21:00:00+05:30",
               },
