@@ -91,8 +91,8 @@ export const NAV = [
     items: [
       { href: "/cutoff", label: "Cut-off", ready: true },
       { href: "/slots", label: "Slots", ready: true },
-      { href: "/cycles", label: "Cycles" },
-      { href: "/delivery-days", label: "Delivery days" },
+      { href: "/cycles", label: "Cycles", ready: true },
+      { href: "/delivery-days", label: "Delivery days", ready: true },
     ],
   },
   {

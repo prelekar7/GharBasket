@@ -142,6 +142,13 @@ const state = () =>
     },
   }));
 
+/** The slots that carry boxes, for the society delivery-day pickers (mocks/cycles.js). */
+export function boxSlots() {
+  return state()
+    .slots.filter((s) => s.serves === "Boxes")
+    .map((s) => ({ id: s.id, label: s.label }));
+}
+
 /** @param {string} t "HH:MM" */
 const hour12 = (t) => {
   const [h, m] = t.split(":").map(Number);

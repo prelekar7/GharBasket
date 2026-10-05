@@ -2,6 +2,7 @@
 import { analyticsHandlers } from "./analytics.js";
 import { catalogHandlers } from "./catalog.js";
 import { communityHandlers } from "./community.js";
+import { cyclesHandlers } from "./cycles.js";
 import { festivalsHandlers } from "./festivals.js";
 import { franchiseHandlers } from "./franchise.js";
 import { hubsHandlers } from "./hubs.js";
@@ -19,6 +20,7 @@ export const handlers = [
   ...catalogHandlers,
   ...analyticsHandlers,
   ...communityHandlers,
+  ...cyclesHandlers,
   ...festivalsHandlers,
   ...franchiseHandlers,
   ...impactHandlers,
