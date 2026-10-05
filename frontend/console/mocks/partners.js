@@ -10,6 +10,7 @@ const NOW = "2026-10-06T09:40:00+05:30";
 const THALI_PAISE = 7000;
 
 /** @typedef {"kitchen" | "captain" | "rider" | "packer"} PartnerKind */
+/** @type {Record<PartnerKind, string>} */
 const KIND_LABEL = {
   kitchen: "Kitchen partner",
   captain: "Society Captain",
@@ -24,150 +25,154 @@ const payout = (week, units, paid_paise) => ({ week, units, paid_paise });
 
 /** Active partners with everything the profile page shows. */
 const partnersStore = () =>
-  mockStore("partners-list", () => [
-    {
-      id: "p-lata",
-      name: "Lata Shinde",
-      kind: /** @type {PartnerKind} */ ("kitchen"),
-      hub_id: HUB_ID,
-      society: "Kharghar",
-      status: /** @type {"active" | "suspended"} */ ("active"),
-      rating: 4.7,
-      since: "2026-09-12",
-      language: "Marathi",
-      training: { done: 5, total: 5, note: "refresher due 31 Oct" },
-      public_card: {
-        kitchen: "Kharghar",
-        specialty: "Maharashtrian thali, Jain thali",
-        fssai: true,
-        hygiene: true,
-      },
-      stats: [
-        { label: "Tiffins this week", value: "34", hint: "Mon and Tue lunch" },
-        { label: "Earned this week", value: "₹2,380", hint: "Paid Monday" },
-        { label: "Families’ rating", value: "4.7", hint: "Last 30 days" },
-        { label: "Accepted on time", value: "100%", hint: "Counts accepted within the window" },
-      ],
-      facts: [
-        { k: "FSSAI registration", v: "••••••••••3318" },
-        { k: "Training", v: "5 of 5 · refresher due 31 Oct" },
-        { k: "Capacity, lunch", v: "Up to 20 a day · set daily by Lata" },
-        { k: "Skills", v: "Maharashtrian, chapati-bhaji, Jain, puran poli" },
-        { k: "Bank", v: "••••7731 (simulated)" },
-      ],
-      payouts: {
-        unit_label: "Tiffins",
-        items: [
-          payout("28 Sep", 47, 47 * THALI_PAISE),
-          payout("21 Sep", 44, 44 * THALI_PAISE),
-          payout("14 Sep", 39, 39 * THALI_PAISE),
-        ],
-      },
-      suspended_reason: null,
-    },
-    {
-      id: "p-arjun",
-      name: "Arjun Pawar",
-      kind: /** @type {PartnerKind} */ ("rider"),
-      hub_id: HUB_ID,
-      society: "Kharghar",
-      status: "active",
-      rating: 4.8,
-      since: "2026-09-14",
-      language: "Marathi, Hindi",
-      training: { done: 4, total: 4, note: "road safety refresher due 15 Nov" },
-      public_card: null,
-      stats: [
-        { label: "Routes this week", value: "2", hint: "Mon and Tue morning" },
-        { label: "Earned this week", value: "₹1,900", hint: "Paid Monday" },
-        { label: "On-time stops", value: "96%", hint: "Last 30 days" },
-        { label: "Handovers scanned", value: "100%", hint: "Crates and bags counted" },
-      ],
-      facts: [
-        { k: "Vehicle", v: "Van 1 · MH-46 BX 2041" },
-        { k: "Licence", v: "••••6209" },
-        { k: "Training", v: "4 of 4 · road safety refresher due 15 Nov" },
-        { k: "Bank", v: "••••4410 (simulated)" },
-      ],
-      payouts: {
-        unit_label: "Routes",
-        items: [
-          payout("28 Sep", 6, 570000),
-          payout("21 Sep", 6, 570000),
-          payout("14 Sep", 5, 475000),
-        ],
-      },
-      suspended_reason: null,
-    },
-    {
-      id: "p-meena",
-      name: "Meena Jadhav",
-      kind: /** @type {PartnerKind} */ ("captain"),
-      hub_id: HUB_ID,
-      society: "Sunrise Towers",
-      status: "active",
-      rating: 4.9,
-      since: "2026-09-10",
-      language: "Marathi, Hindi",
-      training: { done: 5, total: 5, note: "refresher due 31 Oct" },
-      public_card: null,
-      stats: [
-        { label: "Bags handed out this week", value: "92", hint: "Mon and Tue" },
-        { label: "Earned this week", value: "₹1,380", hint: "Paid Monday" },
-        { label: "Flats served", value: "46", hint: "Tuesday’s boxes" },
-        { label: "Problems raised", value: "1", hint: "Eggs broken, B-1104" },
-      ],
-      facts: [
-        { k: "Society", v: "Sunrise Towers · gate 2" },
-        { k: "Photo ID (PAN)", v: "••••8C" },
-        { k: "Training", v: "5 of 5 · refresher due 31 Oct" },
-        { k: "Bank", v: "••••2285 (simulated)" },
-      ],
-      payouts: {
-        unit_label: "Bags",
-        items: [
-          payout("28 Sep", 215, 322500),
-          payout("21 Sep", 198, 297000),
-          payout("14 Sep", 160, 240000),
-        ],
-      },
-      suspended_reason: null,
-    },
-    {
-      id: "p-kavita",
-      name: "Kavita More",
-      kind: /** @type {PartnerKind} */ ("packer"),
-      hub_id: HUB_ID,
-      society: "Kharghar",
-      status: "active",
-      rating: 4.6,
-      since: "2026-09-16",
-      language: "Marathi, Hindi",
-      training: { done: 3, total: 3, note: "no refresher due" },
-      public_card: null,
-      stats: [
-        { label: "Boxes packed this week", value: "58", hint: "Mon and Tue" },
-        { label: "Earned this week", value: "₹1,160", hint: "Paid Monday" },
-        { label: "Shortages reported", value: "2", hint: "Both fixed before the van left" },
-        { label: "Packing errors", value: "0", hint: "Last 30 days" },
-      ],
-      facts: [
-        { k: "Shift", v: "6:00 to 8:00 AM, packing room" },
-        { k: "Photo ID (PAN)", v: "••••2D" },
-        { k: "Training", v: "3 of 3 · no refresher due" },
-        { k: "Bank", v: "••••9012 (simulated)" },
-      ],
-      payouts: {
-        unit_label: "Boxes",
-        items: [
-          payout("28 Sep", 120, 240000),
-          payout("21 Sep", 112, 224000),
-          payout("14 Sep", 96, 192000),
-        ],
-      },
-      suspended_reason: null,
-    },
-  ]);
+  mockStore(
+    "partners-list",
+    () =>
+      /** @type {any[]} */ ([
+        {
+          id: "p-lata",
+          name: "Lata Shinde",
+          kind: /** @type {PartnerKind} */ ("kitchen"),
+          hub_id: HUB_ID,
+          society: "Kharghar",
+          status: /** @type {"active" | "suspended"} */ ("active"),
+          rating: 4.7,
+          since: "2026-09-12",
+          language: "Marathi",
+          training: { done: 5, total: 5, note: "refresher due 31 Oct" },
+          public_card: {
+            kitchen: "Kharghar",
+            specialty: "Maharashtrian thali, Jain thali",
+            fssai: true,
+            hygiene: true,
+          },
+          stats: [
+            { label: "Tiffins this week", value: "34", hint: "Mon and Tue lunch" },
+            { label: "Earned this week", value: "₹2,380", hint: "Paid Monday" },
+            { label: "Families’ rating", value: "4.7", hint: "Last 30 days" },
+            { label: "Accepted on time", value: "100%", hint: "Counts accepted within the window" },
+          ],
+          facts: [
+            { k: "FSSAI registration", v: "••••••••••3318" },
+            { k: "Training", v: "5 of 5 · refresher due 31 Oct" },
+            { k: "Capacity, lunch", v: "Up to 20 a day · set daily by Lata" },
+            { k: "Skills", v: "Maharashtrian, chapati-bhaji, Jain, puran poli" },
+            { k: "Bank", v: "••••7731 (simulated)" },
+          ],
+          payouts: {
+            unit_label: "Tiffins",
+            items: [
+              payout("28 Sep", 47, 47 * THALI_PAISE),
+              payout("21 Sep", 44, 44 * THALI_PAISE),
+              payout("14 Sep", 39, 39 * THALI_PAISE),
+            ],
+          },
+          suspended_reason: null,
+        },
+        {
+          id: "p-arjun",
+          name: "Arjun Pawar",
+          kind: /** @type {PartnerKind} */ ("rider"),
+          hub_id: HUB_ID,
+          society: "Kharghar",
+          status: "active",
+          rating: 4.8,
+          since: "2026-09-14",
+          language: "Marathi, Hindi",
+          training: { done: 4, total: 4, note: "road safety refresher due 15 Nov" },
+          public_card: null,
+          stats: [
+            { label: "Routes this week", value: "2", hint: "Mon and Tue morning" },
+            { label: "Earned this week", value: "₹1,900", hint: "Paid Monday" },
+            { label: "On-time stops", value: "96%", hint: "Last 30 days" },
+            { label: "Handovers scanned", value: "100%", hint: "Crates and bags counted" },
+          ],
+          facts: [
+            { k: "Vehicle", v: "Van 1 · MH-46 BX 2041" },
+            { k: "Licence", v: "••••6209" },
+            { k: "Training", v: "4 of 4 · road safety refresher due 15 Nov" },
+            { k: "Bank", v: "••••4410 (simulated)" },
+          ],
+          payouts: {
+            unit_label: "Routes",
+            items: [
+              payout("28 Sep", 6, 570000),
+              payout("21 Sep", 6, 570000),
+              payout("14 Sep", 5, 475000),
+            ],
+          },
+          suspended_reason: null,
+        },
+        {
+          id: "p-meena",
+          name: "Meena Jadhav",
+          kind: /** @type {PartnerKind} */ ("captain"),
+          hub_id: HUB_ID,
+          society: "Sunrise Towers",
+          status: "active",
+          rating: 4.9,
+          since: "2026-09-10",
+          language: "Marathi, Hindi",
+          training: { done: 5, total: 5, note: "refresher due 31 Oct" },
+          public_card: null,
+          stats: [
+            { label: "Bags handed out this week", value: "92", hint: "Mon and Tue" },
+            { label: "Earned this week", value: "₹1,380", hint: "Paid Monday" },
+            { label: "Flats served", value: "46", hint: "Tuesday’s boxes" },
+            { label: "Problems raised", value: "1", hint: "Eggs broken, B-1104" },
+          ],
+          facts: [
+            { k: "Society", v: "Sunrise Towers · gate 2" },
+            { k: "Photo ID (PAN)", v: "••••8C" },
+            { k: "Training", v: "5 of 5 · refresher due 31 Oct" },
+            { k: "Bank", v: "••••2285 (simulated)" },
+          ],
+          payouts: {
+            unit_label: "Bags",
+            items: [
+              payout("28 Sep", 215, 322500),
+              payout("21 Sep", 198, 297000),
+              payout("14 Sep", 160, 240000),
+            ],
+          },
+          suspended_reason: null,
+        },
+        {
+          id: "p-kavita",
+          name: "Kavita More",
+          kind: /** @type {PartnerKind} */ ("packer"),
+          hub_id: HUB_ID,
+          society: "Kharghar",
+          status: "active",
+          rating: 4.6,
+          since: "2026-09-16",
+          language: "Marathi, Hindi",
+          training: { done: 3, total: 3, note: "no refresher due" },
+          public_card: null,
+          stats: [
+            { label: "Boxes packed this week", value: "58", hint: "Mon and Tue" },
+            { label: "Earned this week", value: "₹1,160", hint: "Paid Monday" },
+            { label: "Shortages reported", value: "2", hint: "Both fixed before the van left" },
+            { label: "Packing errors", value: "0", hint: "Last 30 days" },
+          ],
+          facts: [
+            { k: "Shift", v: "6:00 to 8:00 AM, packing room" },
+            { k: "Photo ID (PAN)", v: "••••2D" },
+            { k: "Training", v: "3 of 3 · no refresher due" },
+            { k: "Bank", v: "••••9012 (simulated)" },
+          ],
+          payouts: {
+            unit_label: "Boxes",
+            items: [
+              payout("28 Sep", 120, 240000),
+              payout("21 Sep", 112, 224000),
+              payout("14 Sep", 96, 192000),
+            ],
+          },
+          suspended_reason: null,
+        },
+      ]),
+  );
 
 /** @typedef {{ kind: string, label: string, masked?: string, state: "ok" | "look" | "missing", state_text: string }} Check */
 
@@ -316,7 +321,7 @@ export const partnersHandlers = [
             id: p.id,
             name: p.name,
             kind: p.kind,
-            kind_label: KIND_LABEL[p.kind],
+            kind_label: KIND_LABEL[/** @type {PartnerKind} */ (p.kind)],
             society: p.society,
             status: p.status,
             rating: p.rating,
@@ -374,6 +379,31 @@ export const partnersHandlers = [
         id: app.id,
         status: body.decision === "approve" ? "approved" : "rejected",
       });
+    }),
+  ),
+  // GET /v1/partners/{id} (proposal; M8 only has /public for the know-your-cook card): the hub manager's view of one
+  // partner with this week's numbers, kitchen facts and recent payouts from the ledger. Numbers are masked.
+  http.get("*/v1/partners/:id", ({ params }) => {
+    const p = partnersStore().find((x) => x.id === params.id);
+    return p
+      ? HttpResponse.json({
+          ...p,
+          kind_label: KIND_LABEL[/** @type {PartnerKind} */ (p.kind)],
+          hub: { id: HUB_ID, name: "Kharghar hub" },
+        })
+      : problem(404, "partners.not_found", "No such partner");
+  }),
+
+  // POST /v1/partners/{id}/suspend (M8 §3). The reason is optional and goes to the audit log.
+  http.post("*/v1/partners/:id/suspend", ({ request, params }) =>
+    idempotent(request, (body) => {
+      const p = partnersStore().find((x) => x.id === params.id);
+      if (!p) return problem(404, "partners.not_found", "No such partner");
+      if (p.status === "suspended")
+        return problem(409, "partners.already_suspended", "Already suspended");
+      p.status = "suspended";
+      p.suspended_reason = String(body?.reason ?? "").trim() || null;
+      return HttpResponse.json({ id: p.id, status: p.status });
     }),
   ),
 ];
