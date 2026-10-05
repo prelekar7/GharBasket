@@ -403,6 +403,23 @@ describe("household edits and pause (M1, M3)", () => {
     );
     expect((await off.json()).budget_paise).toBe(null);
   });
+
+  it("sets up UPI Autopay once per key, then cancels it", async () => {
+    await signedIn();
+    expect((await call("GET", "/v1/mandates/current")).status).toBe(404);
+    const a = await (
+      await call("POST", "/v1/mandates", { max_paise: 300000 }, { "idempotency-key": "m1" })
+    ).json();
+    const b = await (
+      await call("POST", "/v1/mandates", { max_paise: 300000 }, { "idempotency-key": "m1" })
+    ).json();
+    expect(b.id).toBe(a.id);
+    expect(a).toMatchObject({ status: "active", max_paise: 300000 });
+    expect(a.key).toBeUndefined();
+    expect((await call("GET", "/v1/mandates/current")).status).toBe(200);
+    expect((await call("DELETE", `/v1/mandates/${a.id}`)).status).toBe(204);
+    expect((await call("GET", "/v1/mandates/current")).status).toBe(404);
+  });
 });
 
 describe("notifications inbox and preferences (M11)", () => {

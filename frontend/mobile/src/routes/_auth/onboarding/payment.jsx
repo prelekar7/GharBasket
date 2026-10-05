@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { createMandate } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
 import { request } from "@/lib/api.js";
@@ -38,11 +39,7 @@ function Payment() {
         body: { plan: "autopilot", payment_mode: mode },
       });
       if (mode === "autopay") {
-        await request("/v1/mandates", {
-          method: "POST",
-          headers: { "idempotency-key": crypto.randomUUID() },
-          body: {},
-        });
+        await createMandate({ key: crypto.randomUUID() });
         return done();
       }
       setSetup(false);

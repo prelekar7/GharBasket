@@ -13,7 +13,7 @@ import {
   WalletCard,
 } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
@@ -143,6 +143,12 @@ function Wallet() {
         )}
       </section>
       <p className="text-sm leading-[22px] text-fg-secondary">{t("wallet.rules")}</p>
+      <Link
+        to="/autopay"
+        className="flex min-h-12 items-center font-semibold text-link underline underline-offset-3 outline-none focus-visible:shadow-focus"
+      >
+        {t("autopay.walletLink")}
+      </Link>
       <Sheet
         open={open}
         onOpenChange={setOpen}
