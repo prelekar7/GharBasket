@@ -11,6 +11,11 @@ import { request } from "@/lib/api.js";
  * }} Order
  */
 
+/** Polling stands in for M7's SSE stream until it exists; the real one pushes every 15 s. */
+const LIVE_MS = 5000;
+/** Statuses where something is moving: the van, or the captain on the way to the door. */
+const MOVING = new Set(["DISPATCHED", "AT_SOCIETY", "REDELIVERY"]);
+
 /** The household's orders, soonest first (GET /v1/orders, M4). @param {string} lang */
 export function useOrders(lang) {
   return useQuery({
@@ -18,6 +23,31 @@ export function useOrders(lang) {
     queryFn: async () =>
       /** @type {{ items: Order[], next_cursor: string | null }} */ (await request("/v1/orders"))
         .items,
+    refetchInterval: (q) => (q.state.data?.some((o) => MOVING.has(o.status)) ? LIVE_MS : false),
+  });
+}
+
+/** One order with its timeline, kept fresh while it is on the way (GET /v1/orders/{id}, M4). @param {string} id @param {string} lang */
+export function useOrder(id, lang) {
+  return useQuery({
+    queryKey: ["orders", id, lang],
+    queryFn: () => /** @type {Promise<Order>} */ (request(`/v1/orders/${id}`)),
+    refetchInterval: (q) => (MOVING.has(q.state.data?.status ?? "") ? LIVE_MS : false),
+  });
+}
+
+/**
+ * @typedef {{ lat: number, lng: number }} Point
+ * @typedef {{ order_id: string, status: string, rider: { name: string }, hub: Point & { name: string },
+ *   society: Point & { name: string }, van: Point, eta_at: string, updated_at: string }} Tracking
+ */
+
+/** Where today's van is, polled while it drives (GET /v1/orders/{id}/tracking, our proposal for M7). @param {string} id @param {string} lang */
+export function useTracking(id, lang) {
+  return useQuery({
+    queryKey: ["tracking", id, lang],
+    queryFn: () => /** @type {Promise<Tracking>} */ (request(`/v1/orders/${id}/tracking`)),
+    refetchInterval: (q) => (q.state.data?.status === "DISPATCHED" ? LIVE_MS : false),
   });
 }
 

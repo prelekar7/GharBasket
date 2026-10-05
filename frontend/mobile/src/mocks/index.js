@@ -15,6 +15,7 @@ import { packerHandlers } from "./packer.js";
 import { partnerHandlers } from "./partners.js";
 import { profileHandlers } from "./profile.js";
 import { subscriptionHandlers } from "./subscriptions.js";
+import { trackingHandlers } from "./tracking.js";
 
 const all = [
   ...handlers,
@@ -22,6 +23,7 @@ const all = [
   ...identityHandlers,
   ...subscriptionHandlers,
   ...billingHandlers,
+  ...logisticsHandlers,
   ...orderHandlers,
   ...kindnessHandlers,
   ...profileHandlers,
@@ -31,7 +33,7 @@ const all = [
   ...catalogHandlers,
   ...notificationHandlers,
   ...packerHandlers,
-  ...logisticsHandlers,
+  ...trackingHandlers,
   ...captainHandlers,
 ];
 

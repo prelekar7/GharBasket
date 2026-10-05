@@ -63,6 +63,7 @@ import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/
 import { Route as AuthCaptainFlatsIndexRouteImport } from "./routes/_auth/captain/flats.index"
 import { Route as AuthCaptainFlatsExceptionsRouteImport } from "./routes/_auth/captain/flats.exceptions"
 import { Route as AuthCaptainFlatsManualRouteImport } from "./routes/_auth/captain/flats.manual"
+import { Route as AuthCustomerOrdersOrderIdTrackRouteImport } from "./routes/_auth/_customer/orders_.$orderId.track"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -336,6 +337,12 @@ const AuthCaptainFlatsManualRoute = AuthCaptainFlatsManualRouteImport.update({
   path: "/flats/manual",
   getParentRoute: () => AuthCaptainRoute,
 })
+const AuthCustomerOrdersOrderIdTrackRoute =
+  AuthCustomerOrdersOrderIdTrackRouteImport.update({
+    id: "/orders_/$orderId/track",
+    path: "/orders/$orderId/track",
+    getParentRoute: () => AuthCustomerRoute,
+  })
 
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
@@ -348,6 +355,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerWeekRoute: AuthCustomerWeekRoute,
   AuthCustomerSocietySocietyIdRoute: AuthCustomerSocietySocietyIdRoute,
   AuthCustomerWalletStatementRoute: AuthCustomerWalletStatementRoute,
+  AuthCustomerOrdersOrderIdTrackRoute: AuthCustomerOrdersOrderIdTrackRoute,
 }
 
 const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(

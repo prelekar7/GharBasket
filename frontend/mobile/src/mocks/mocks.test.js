@@ -450,3 +450,21 @@ describe("product detail (HcProduct)", () => {
     expect(missing.status).toBe(404);
   });
 });
+
+describe("live tracking demo day (HcTracking)", () => {
+  it("drives the van, then hands over to the captain, then delivers", async () => {
+    const { deliveryStage, restartTrip, TRIP_MS, DOOR_MS } = await import("./tracking.js");
+    restartTrip();
+    const t0 = 1_000_000;
+    expect(deliveryStage(t0)).toEqual({ progress: 0, status: "DISPATCHED" });
+    expect(deliveryStage(t0 + TRIP_MS / 2).progress).toBe(0.5);
+    expect(deliveryStage(t0 + TRIP_MS).status).toBe("AT_SOCIETY");
+    expect(deliveryStage(t0 + TRIP_MS + DOOR_MS).status).toBe("DELIVERED");
+    const order = await (
+      await mockFetch(new Request("http://localhost/v1/orders/ord-2026-10-06"))
+    ).json();
+    expect(order.status).toBe("DELIVERED");
+    expect(order.events.at(-1)).toMatchObject({ to_status: "DELIVERED" });
+    restartTrip();
+  });
+});
