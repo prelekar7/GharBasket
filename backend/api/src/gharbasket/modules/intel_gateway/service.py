@@ -17,6 +17,7 @@ from gharbasket.modules.intel_gateway.models import (
     Experiment,
     FeatureSnapshot,
     ModelMetric,
+    PantryPrior,
     Prediction,
     PriceIndex,
 )
@@ -246,6 +247,48 @@ async def save_price_index(
         )
         kept += 1
     return kept
+
+
+async def save_pantry_priors(
+    session: AsyncSession, rows: list[dict[str, Any]], ids: dict[str, uuid.UUID], version: str
+) -> int:
+    """Upsert (cohort, product) priors from the refit job; unknown slugs are skipped."""
+    kept = 0
+    for row in rows:
+        product_id = ids.get(row["product"])
+        if product_id is None:
+            continue
+        await session.execute(
+            insert(PantryPrior)
+            .values(
+                cohort=row["cohort"],
+                product_id=product_id,
+                prior_mean=row["prior_mean"],
+                prior_weeks=row["prior_weeks"],
+                version=version,
+            )
+            .on_conflict_do_update(
+                index_elements=[PantryPrior.cohort, PantryPrior.product_id],
+                set_={
+                    "prior_mean": row["prior_mean"],
+                    "prior_weeks": row["prior_weeks"],
+                    "version": version,
+                    "updated_at": func.now(),
+                },
+            )
+        )
+        kept += 1
+    return kept
+
+
+async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
+    """{product_id: (prior_mean, prior_weeks)} learned for a cohort; empty until the job ran."""
+    rows = await session.execute(
+        select(PantryPrior.product_id, PantryPrior.prior_mean, PantryPrior.prior_weeks).where(
+            PantryPrior.cohort == cohort
+        )
+    )
+    return {pid: (mean, weeks) for pid, mean, weeks in rows.all()}
 
 
 async def price_spikes(

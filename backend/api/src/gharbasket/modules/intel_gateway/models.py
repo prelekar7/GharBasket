@@ -132,6 +132,27 @@ class Experiment(Base):
     )
 
 
+class PantryPrior(Base):
+    """The pantry twin's learned cohort priors (M10 §3.3 v1): what the online Gamma-Poisson
+    update starts from for a household-size cohort and a daily-use product; the refit job
+    replaces them weekly. Products without a row keep the family-size rule table."""
+
+    __tablename__ = "pantry_priors"
+    __table_args__ = (
+        CheckConstraint("cohort IN ('small', 'medium', 'large')", name="cohort"),
+        CheckConstraint("prior_mean >= 0", name="prior_mean"),
+        CheckConstraint("prior_weeks > 0", name="prior_weeks"),
+        {"schema": SCHEMA},
+    )
+
+    cohort: Mapped[str] = mapped_column(String(10), primary_key=True)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # catalog.products
+    prior_mean: Mapped[float] = mapped_column(Float)  # base units a week
+    prior_weeks: Mapped[float] = mapped_column(Float)
+    version: Mapped[str] = mapped_column(String(40))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class PriceIndex(Base):
     __tablename__ = "price_index"
     __table_args__ = (

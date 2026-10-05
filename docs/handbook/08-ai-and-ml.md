@@ -25,7 +25,7 @@
 
 Until there is a paid worker (the pilot), long ML jobs run in GitHub Actions (`backend/training`, D25) or offline, never inside an API request (D21, [ADR-0021](../adr/0021-jobs-without-a-broker.md)). The serving service (`backend/ml`, a Hugging Face Space) is stateless and installs only solvers and inference libraries.
 
-Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean) and are logged to a **local MLflow** (Docker Compose). The registry of record is simpler: models go to `s3://gb-mlflow/models/<name>/<version>/` on R2 with a `latest.json` pointer per model; promotion is a manual `just promote` in v1 and the Space polls the pointer every 10 minutes (ADR-0025). Where the figures below say "MLflow registry", read "the R2 pointer".
+Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean) and are logged to a **local MLflow** (Docker Compose). The registry of record is simpler: models go to `s3://gb-mlflow/models/<name>/<version>/` on R2 with a `latest.json` pointer per model; promotion is a manual `just promote <model> <version>` in v1 (`backend/training/jobs/promote.py`; it refuses a version that is not in the registry, keeps `previous` in the pointer, and rolling back is the same command with the older version) and the Space polls the pointer every 10 minutes (ADR-0025). Where the figures below say "MLflow registry", read "the R2 pointer".
 
 ---
 

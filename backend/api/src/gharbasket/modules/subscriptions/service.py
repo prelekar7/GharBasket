@@ -454,16 +454,21 @@ async def twin_quantities(
     household has no observed week yet, so the rule table alone drafts the first boxes."""
     observed = await pantry_observations(session, profile.id, delivery_date)
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    learned = await intel_api.pantry_priors(session, rules.cohort_of(equivalents))  # v1
     items = []
+    prior_of: dict[str, str] = {}
     for slug, prior in rules.daily_use_plan(equivalents).items():
         product = catalog.product_by_slug(slug)
         if product is None or product.id not in observed:
             continue
+        prior_mean, prior_weeks = learned.get(product.id, (prior, 2.0))
+        prior_of[slug] = "learned" if product.id in learned else "rule"
         items.append(
             PantryItem(
                 product=slug,
                 step=product.step_qty * planning.BASE_FACTOR[product.step_unit],
-                prior_mean=prior,
+                prior_mean=prior_mean,
+                prior_weeks=prior_weeks,
                 observations=[
                     PantryObservation(qty=qty, signal=signal)  # pyright: ignore[reportArgumentType]
                     for qty, signal in observed[product.id]
@@ -490,6 +495,7 @@ async def twin_quantities(
                 "p90": by_slug[slug].p90,
                 "weeks": by_slug[slug].weeks_observed,
                 "source": answer.source,
+                "prior": prior_of.get(slug, "rule"),
             },
         )
         for slug in by_slug

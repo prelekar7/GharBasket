@@ -10,6 +10,7 @@ on:
     - cron: "3 13 * * *" # 18:33 IST daily: collect_mandi (Agmarknet publishes during the day)
     - cron: "33 20 * * *" # 02:03 IST daily: export_snapshots (the lake and the feature snapshots)
     - cron: "40 15 * * *" # 21:10 IST daily: forecast (next week's uncommitted demand, after the cut-off)
+    - cron: "33 21 * * 6" # 03:03 IST Sunday: refit_pantry (the twin's cohort priors)
   workflow_dispatch:
     inputs:
       job:
@@ -71,6 +72,6 @@ jobs:
         if: steps.configured.outputs.ready == 'true'
         env:
           # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots.
-          JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || 'collect_mandi') }}
-          ARGS: ${{ inputs.args || (github.event.schedule == '33 20 * * *' && '--push-features' || github.event.schedule == '40 15 * * *' && '--push' || '--push-index') }}
+          JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || github.event.schedule == '33 21 * * 6' && 'refit_pantry' || 'collect_mandi') }}
+          ARGS: ${{ inputs.args || (github.event.schedule == '33 20 * * *' && '--push-features' || (github.event.schedule == '40 15 * * *' || github.event.schedule == '33 21 * * 6') && '--push' || '--push-index') }}
         run: uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
