@@ -1,6 +1,6 @@
 import { Button, IconButton, OrderTimeline, RadioCards, Skeleton, toast } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
@@ -37,6 +37,7 @@ const STEP_OF = /** @type {Record<string, number>} */ ({
 function Partner() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const navigate = useNavigate();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { role } = Route.useSearch();
   const [kind, setKind] = useState(/** @type {PartnerKind} */ (role ?? "captain"));
@@ -123,6 +124,18 @@ function Partner() {
           }}
         />
       </section>
+      {app && at === 1 && (
+        <div className="mt-auto">
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            onPress={() => navigate({ to: "/partner/documents" })}
+          >
+            {t("partner.docsCta")}
+          </Button>
+        </div>
+      )}
       {!app && (
         <div className="mt-auto">
           <Button

@@ -764,7 +764,8 @@
     "sent": "Application sent. The hub will call you about KYC.",
     "failed": "We couldn’t send your application. Check your internet and try again.",
     "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
-    "rejected": "Your application as {role} needs another look. The hub will call you about what to send again."
+    "rejected": "Your application as {role} needs another look. The hub will call you about what to send again.",
+    "docsCta": "Add your documents"
   },
   "ghar": {
     "title": "Ghar Saathi",
@@ -1551,5 +1552,74 @@
     "cancelFailed": "Couldn’t cancel UPI Autopay. Try again.",
     "on": "On",
     "walletLink": "Pay per box with UPI Autopay"
+  },
+  "partnerDocs": {
+    "step": "{kind, select, kitchen {Become a kitchen partner} captain {Become a Society Captain} rider {Become a rider} other {Become a packer}} · step 2 of 4",
+    "title": "Your documents",
+    "progress": "Application steps",
+    "steps": {
+      "application": "Application",
+      "documents": "Documents",
+      "training": "Training",
+      "hub": "Hub check"
+    },
+    "addedOf": "{added} of {total} added",
+    "added": "Added",
+    "todo": "To do",
+    "safe": "Documents go to private storage that only the hub’s verifier can open. We show only the last digits, and we never ask for Aadhaar.",
+    "cta": "Upload the next document",
+    "done": "All added. Back to your application",
+    "docs": {
+      "photo_id": {
+        "name": "Photo ID",
+        "note": "PAN, voter ID, driving licence or passport",
+        "added": "{idKind} · {masked}"
+      },
+      "fssai": {
+        "name": "FSSAI registration",
+        "note": "Basic registration for home kitchens"
+      },
+      "bank": {
+        "name": "Bank account",
+        "note": "We send ₹1 to check the name",
+        "added": "Account {masked} · ₹1 sent to check the name"
+      },
+      "kitchen_photos": {
+        "name": "Kitchen photos",
+        "note": "3 photos: stove, storage, sink",
+        "added": "{n} photos added"
+      }
+    },
+    "idKinds": {
+      "pan": "PAN card",
+      "voter_id": "Voter ID",
+      "driving_licence": "Driving licence",
+      "passport": "Passport"
+    },
+    "sheet": {
+      "title": "Add: {doc}",
+      "lead": "A clear photo or PDF, with every corner showing. Never send Aadhaar.",
+      "idKind": "Type of ID",
+      "number": {
+        "photo_id": "ID number",
+        "fssai": "FSSAI registration number",
+        "bank": "Account number"
+      },
+      "masked": "After this we show only the last 4 characters.",
+      "ifsc": "IFSC",
+      "invalid": {
+        "photo_id": "Use 4 to 20 letters and numbers",
+        "fssai": "Enter the 14-digit number",
+        "bank": "Enter 9 to 18 digits",
+        "ifsc": "An IFSC looks like SBIN0001234"
+      },
+      "file": "Choose a photo or PDF",
+      "photos": "Choose 3 photos",
+      "chosen": "{n, plural, one {# file chosen} other {# files chosen}}",
+      "add": "Add document",
+      "saved": "{doc} added.",
+      "failed": "Couldn’t add the document. Check your internet and try again.",
+      "leadBank": "We send ₹1 to this account to check the name. Nothing else is taken."
+    }
   }
 }

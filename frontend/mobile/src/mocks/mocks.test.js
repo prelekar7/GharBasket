@@ -549,3 +549,57 @@ describe("rating a delivered day (HcRate)", () => {
     restartTrip();
   });
 });
+
+describe("partner documents (M8 US-2)", () => {
+  const call = async (
+    /** @type {string} */ method,
+    /** @type {string} */ path,
+    /** @type {object | undefined} */ body = undefined,
+    /** @type {Record<string, string>} */ headers = {},
+  ) =>
+    mockFetch(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { "content-type": "application/json", "x-gb-client": "web", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+    );
+  const key = () => ({ "idempotency-key": crypto.randomUUID() });
+
+  it("lists a kitchen's four documents, keeps only the last 4 of a number, never Aadhaar", async () => {
+    await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+    expect((await call("GET", "/v1/kyc-documents")).status).toBe(404);
+    await call("POST", "/v1/partner-applications", { kind: "kitchen" }, key());
+    const list = await (await call("GET", "/v1/kyc-documents")).json();
+    expect(list.items.map((/** @type {{ doc_type: string }} */ d) => d.doc_type)).toEqual([
+      "photo_id",
+      "fssai",
+      "bank",
+      "kitchen_photos",
+    ]);
+    const presign = await (await call("POST", "/v1/files/presign", { purpose: "kyc" })).json();
+    expect(presign.key).toMatch(/^kyc\//);
+    const aadhaar = await call(
+      "POST",
+      "/v1/kyc-documents",
+      {
+        doc_type: "photo_id",
+        id_kind: "aadhaar",
+        number: "123412341234",
+        file_keys: [presign.key],
+      },
+      key(),
+    );
+    expect(aadhaar.status).toBe(422);
+    const pan = await call(
+      "POST",
+      "/v1/kyc-documents",
+      { doc_type: "photo_id", id_kind: "pan", number: "ABCDE1234F", file_keys: [presign.key] },
+      key(),
+    );
+    expect(await pan.json()).toMatchObject({ status: "added", masked: "••••234F" });
+    expect(JSON.stringify(localStorage)).not.toContain("ABCDE1234F");
+    const app = await (await call("GET", "/v1/partner-applications/me")).json();
+    expect(app.status).toBe("KYC_PENDING");
+  });
+});

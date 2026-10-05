@@ -104,10 +104,11 @@ export const kindnessHandlers = [
 
   // Direct-to-storage upload (handbook §10.1): presign, PUT the bytes, keep only the key.
   http.post("*/v1/files/presign", async ({ request }) => {
-    const { content_type: type = "image/jpeg" } = /** @type {{ content_type?: string }} */ (
-      await request.json()
-    );
-    const key = `donations/${crypto.randomUUID()}.${type.split("/")[1] ?? "bin"}`;
+    const { content_type: type = "image/jpeg", purpose = "media" } =
+      /** @type {{ content_type?: string, purpose?: string }} */ (await request.json());
+    // KYC documents go to their own private bucket that only the hub's verifier can read (M8).
+    const folder = purpose === "kyc" ? "kyc" : "donations";
+    const key = `${folder}/${crypto.randomUUID()}.${type.split("/")[1] ?? "bin"}`;
     return HttpResponse.json({ key, url: `${location.origin}/mock-s3/${key}`, method: "PUT" });
   }),
   http.put("*/mock-s3/*", () => new HttpResponse(null, { status: 200 })),
