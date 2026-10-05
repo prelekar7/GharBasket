@@ -70,6 +70,13 @@ missing route.
 | `hubs.js` | `GET /v1/hubs`, `GET /v1/hubs/{id}` (one hub, Kharghar; admins would see all) |
 | `catalog.js` | `GET /v1/products`, `/v1/products/{id}`, `/v1/search` (frozen S1 contract, 68 seed products with made-up Kharghar prices in paise) and `GET /v1/categories` |
 
+| `prices.js` | `GET /v1/prices`, `GET/POST /v1/hubs/{id}/price-lists` (the list in use, scheduled and past lists, bulk publish) |
+| `plans.js` | `GET /v1/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
+| `festivals.js` | `GET /v1/festivals`, `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
+
+Proposals beyond the specs (M2, M3): `GET /v1/admin/products/{id}`, `GET /v1/hubs/{id}/price-lists`, the admin plan writes,
+and the extra festival fields (`name`, `summary`, `starts_on`/`ends_on`/`repeat`, `households`).
+
 Mock-only additions beyond the real contract: `GET /v1/categories` (the Catalog filter needs a
 list), and `q` and `include_inactive` on `GET /v1/products`. Ask the backend for them before a page
 depends on them for good. `catalogStore()` exposes the products so a price-list mock can edit prices.
