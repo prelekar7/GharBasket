@@ -16,9 +16,60 @@ export const PRODUCTS = /** @type {const} */ ([
   ["tomato", "Tomato", "टमाटर", ["tamatar", "tomato"], 500, "g", "ग्रा", 2800],
 ]);
 
+/**
+ * What the product sheet shows (M2 `names` jsonb and the hub's list price): [id, en, hi, mr, also
+ * called, list price in paise per unit, unit, in season this week]. Box lines and add-ons both.
+ * @type {[string, string, string, string, string | null, number, "kg" | "l" | "pc" | "bunch" | "loaf", boolean][]}
+ */
+const FACTS = [
+  ["methi", "Methi", "मेथी", "मेथी", "Fenugreek leaves", 2000, "bunch", true],
+  ["lauki", "Lauki", "लौकी", "दुधी", "Bottle gourd", 3000, "pc", true],
+  ["bhindi", "Bhindi", "भिंडी", "भेंडी", "Okra", 8000, "kg", true],
+  ["paneer", "Paneer", "पनीर", "पनीर", "Cottage cheese", 45000, "kg", false],
+  ["onion", "Onion", "प्याज़", "कांदा", null, 3800, "kg", false],
+  ["potato", "Potato", "आलू", "बटाटा", null, 3500, "kg", false],
+  ["toor-dal", "Toor dal", "तूर दाल", "तूर डाळ", "Arhar dal", 18000, "kg", false],
+  ["rajma", "Rajma", "राजमा", "राजमा", "Kidney beans", 12000, "kg", false],
+  ["coriander", "Coriander", "धनिया", "कोथिंबीर", null, 1000, "bunch", true],
+  ["chilli", "Green chilli", "हरी मिर्च", "हिरवी मिरची", null, 10000, "kg", false],
+  ["ginger", "Ginger", "अदरक", "आले", null, 15000, "kg", false],
+  ["curd", "Curd", "दही", "दही", "Dahi", 11250, "kg", false],
+  ["lemon", "Lemon", "नींबू", "लिंबू", null, 400, "pc", false],
+  ["cucumber", "Cucumber", "खीरा", "काकडी", null, 4200, "kg", true],
+  ["tomato", "Tomato", "टमाटर", "टोमॅटो", null, 11200, "kg", false],
+  ["eggs", "Eggs", "अंडे", "अंडी", null, 700, "pc", false],
+  ["milk", "Milk", "दूध", "दूध", null, 6400, "l", false],
+  ["bread", "Bread", "ब्रेड", "ब्रेड", "Pav", 4500, "loaf", false],
+  ["ghee", "Ghee", "घी", "तूप", null, 65000, "kg", false],
+  ["atta", "Wheat atta", "गेहूँ का आटा", "गव्हाचे पीठ", null, 5200, "kg", false],
+  ["rice", "Rice", "चावल", "तांदूळ", null, 7800, "kg", false],
+  ["poha", "Poha", "पोहा", "पोहे", "Flattened rice", 7600, "kg", false],
+  ["banana", "Banana", "केला", "केळी", null, 600, "pc", false],
+];
+
 const fold = (/** @type {string} */ s) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
 
 export const catalogHandlers = [
+  // GET /v1/products/{id} → names in every language, the list price per unit and the season tag.
+  http.get("*/v1/products/:id", ({ request, params }) => {
+    const p = FACTS.find(([id]) => id === params.id);
+    if (!p)
+      return HttpResponse.json(
+        { type: "about:blank", title: "No such product", status: 404, code: "catalog.not_found" },
+        { status: 404, headers: { "content-type": "application/problem+json" } },
+      );
+    const [id, en, hin, mr, aka, paise, unit, season] = p;
+    const hi = (request.headers.get("accept-language") ?? "").startsWith("hi");
+    return HttpResponse.json({
+      product_id: id,
+      name: hi ? hin : en,
+      names: { en, hi: hin, mr },
+      also_called: aka ? [aka] : [],
+      unit_price: { price_paise: paise, unit },
+      tags: season ? ["in_season"] : [],
+    });
+  }),
+
   // GET /v1/search?q= → items in the caller's language, best match first.
   http.get("*/v1/search", ({ request }) => {
     const url = new URL(request.url);

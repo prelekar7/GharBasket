@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { AddItemSheet } from "@/features/catalog/AddItemSheet.jsx";
 import { reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
-import { QtySheet } from "@/features/subscriptions/QtySheet.jsx";
+import { ProductSheet } from "@/features/subscriptions/ProductSheet.jsx";
 import {
   useCurrentCycle,
   useCycleAction,
@@ -30,7 +30,10 @@ const FIRST_LINES = 5;
 /** @type {Record<string, "planned" | "preparing" | "ready" | "out" | "delivered" | "issue">} */
 const PILL = { ready: "preparing", approved: "ready", skipped: "planned", locked: "out" };
 
-/** Your box as a parchi, with Swap on each line while edits are open (designs HcBox, HcSubstitute; M3, M2). */
+/**
+ * Your box as a parchi, with Swap on each line while edits are open; tapping a line opens it as a
+ * product with swaps and how much (designs HcBox, HcSubstitute, HcProduct; M3, M2).
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/box")({ component: Box });
 
@@ -72,6 +75,29 @@ function Box() {
     );
     refetch();
   };
+
+  /** Swap a line for a substitute, with Undo on the toast. */
+  const swapTo = (
+    /** @type {{ id: string, name: string }} */ from,
+    /** @type {import("@/features/subscriptions/queries.js").Substitute} */ sub,
+  ) =>
+    swap.mutate(
+      { cycle: c, productId: from.id, substituteId: sub.product_id },
+      {
+        onSuccess: (after) =>
+          toast(t("box.swapped", { from: from.name, to: sub.name }), {
+            action: {
+              label: t("box.undo"),
+              onClick: () =>
+                edit.mutate(
+                  { cycle: after, productId: sub.product_id, op: "undo_swap" },
+                  { onError },
+                ),
+            },
+          }),
+        onError,
+      },
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -237,24 +263,7 @@ function Box() {
             );
             const from = swapping;
             setSwapping(null);
-            if (!sub || !from) return;
-            swap.mutate(
-              { cycle: c, productId: from.id, substituteId: sub.product_id },
-              {
-                onSuccess: (after) =>
-                  toast(t("box.swapped", { from: from.name, to: sub.name }), {
-                    action: {
-                      label: t("box.undo"),
-                      onClick: () =>
-                        edit.mutate(
-                          { cycle: after, productId: sub.product_id, op: "undo_swap" },
-                          { onError },
-                        ),
-                    },
-                  }),
-                onError,
-              },
-            );
+            if (sub && from) swapTo(from, sub);
           }}
         />
       )}
@@ -270,10 +279,15 @@ function Box() {
           )
         }
       />
-      <QtySheet
+      <ProductSheet
         line={c.lines.find((l) => l.product_id === changing) ?? null}
         onClose={() => setChanging(null)}
-        busy={edit.isPending}
+        busy={edit.isPending || swap.isPending}
+        onSwap={(sub) => {
+          const line = c.lines.find((l) => l.product_id === changing);
+          setChanging(null);
+          if (line) swapTo({ id: line.product_id, name: line.name }, sub);
+        }}
         onSave={(qty) => {
           const line = c.lines.find((l) => l.product_id === changing);
           if (!line) return;

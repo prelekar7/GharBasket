@@ -431,3 +431,22 @@ describe("notifications inbox and preferences (M11)", () => {
     expect((await bad.json()).code).toBe("notifications.category_unknown");
   });
 });
+
+describe("product detail (HcProduct)", () => {
+  it("gives names in every language, the list price per unit and the season", async () => {
+    const res = await mockFetch(
+      new Request("http://localhost/v1/products/bhindi", {
+        headers: { "accept-language": "hi-IN" },
+      }),
+    );
+    expect(await res.json()).toMatchObject({
+      name: "भिंडी",
+      names: { en: "Bhindi", hi: "भिंडी", mr: "भेंडी" },
+      also_called: ["Okra"],
+      unit_price: { price_paise: 8000, unit: "kg" },
+      tags: ["in_season"],
+    });
+    const missing = await mockFetch(new Request("http://localhost/v1/products/nope"));
+    expect(missing.status).toBe(404);
+  });
+});
