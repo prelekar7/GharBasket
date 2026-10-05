@@ -9,7 +9,8 @@
   ],
   "exports": {
     ".": "./src/index.js",
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./src/styles.css",
+    "./console": "./src/console/index.js"
   },
   "scripts": {
     "storybook": "storybook dev -p 6006",
@@ -26,9 +27,15 @@
     "@fontsource-variable/fraunces": "5.3.0",
     "@fontsource/mukta": "5.3.0",
     "@phosphor-icons/react": "2.1.10",
+    "@tanstack/react-table": "9.2.6",
+    "@tanstack/react-virtual": "3.14.13",
+    "echarts": "6.1.0",
+    "maplibre-gl": "6.11.2",
     "react-aria-components": "1.21.1",
     "sonner": "2.0.8",
     "tailwind-variants": "3.3.1",
+    "terra-draw": "1.36.0",
+    "terra-draw-maplibre-gl-adapter": "1.4.1",
     "vaul": "1.1.2"
   },
   "devDependencies": {
