@@ -1021,5 +1021,50 @@
       "noneTitle": "No shortages to report",
       "noneBody": "When an item comes in short, it shows here with what each family gets."
     }
+  },
+  "rider": {
+    "tabs": {
+      "route": "Route"
+    },
+    "title": "Your route",
+    "when": "{day} · {slot} slot · van {plate}",
+    "map": {
+      "fallback": "The map can’t show on this phone right now. Your stops are below, in order."
+    },
+    "card": {
+      "stop": "Stop {n}",
+      "crates": "{n, plural, one {# crate} other {# crates}}",
+      "bags": "{n, plural, one {# bag} other {# bags}}",
+      "captain": "Captain: {name}",
+      "todo": "Not yet",
+      "current": "Now",
+      "done": "Done",
+      "issue": "Problem"
+    },
+    "back": "{time} · back to {hub}",
+    "backDetail": "{count, plural, =0 {empty crates} one {empty crates and # donation pickup} other {empty crates and # donation pickups}}",
+    "offline": "Works offline after you start: stops and crates are saved on the phone.",
+    "offlineNow": "You’re offline",
+    "start": "Start route",
+    "goTo": "Go to stop {n}",
+    "finish": "Finish route",
+    "finished": "Route finished. Thank you!",
+    "none": {
+      "title": "No route for you today",
+      "body": "Your next route is {day}, {slot}. We’ll remind you the evening before.",
+      "bodyLater": "No route is planned for you yet. We’ll remind you the evening before.",
+      "earnings": "See this week’s earnings"
+    },
+    "error": {
+      "title": "Your route didn’t load",
+      "body": "There’s no signal right now. Move near the hub gate or switch on mobile data, then try again.",
+      "retry": "Try again",
+      "support": "Still stuck? Call your hub manager.",
+      "tip": "Load the route once at the hub. After that, stops, crates and handover codes work without signal."
+    },
+    "stop": {
+      "navigate": "Open in Maps",
+      "call": "Call {name}"
+    }
   }
 }
