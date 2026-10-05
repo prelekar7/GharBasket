@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.subscriptions import service
@@ -13,6 +14,7 @@ from gharbasket.modules.subscriptions.models import WeeklyCycle
 __all__ = [
     "LineEdit",
     "WeeklyCycle",
+    "acceptance_on",
     "current_cycle_of",
     "cycle_for",
     "edit_cycle_lines",
@@ -65,6 +67,26 @@ async def skip_cycle(
     cycle = await service.get_cycle(session, household_id, cycle_id)
     await service.skip(session, cycle)
     return _summary(cycle, await service.lines_of(session, cycle.id))
+
+
+ACCEPTED = ("approved", "locked")
+
+
+async def acceptance_on(session: AsyncSession, delivery_date: date) -> dict[str, tuple[int, int]]:
+    """Per plan source (`ml`, `fallback`): (accepted, offered) weeks for a delivery day, where
+    offered is every cycle past draft and accepted means approved or locked (M10 monitoring)."""
+    rows = (
+        await session.execute(
+            select(WeeklyCycle.plan_source, WeeklyCycle.status, func.count())
+            .where(WeeklyCycle.delivery_date == delivery_date, WeeklyCycle.status != "draft")
+            .group_by(WeeklyCycle.plan_source, WeeklyCycle.status)
+        )
+    ).all()
+    out: dict[str, tuple[int, int]] = {}
+    for source, status, count in rows:
+        accepted, offered = out.get(source, (0, 0))
+        out[source] = (accepted + (count if status in ACCEPTED else 0), offered + count)
+    return out
 
 
 async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid.UUID) -> None:

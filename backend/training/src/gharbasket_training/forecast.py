@@ -31,8 +31,12 @@ import pandas as pd
 
 HORIZON = 1  # delivery weeks ahead (the next cut-off plans the next week)
 MIN_POINTS = 4  # below this a series gets the naive answer, no backtest
-MODELS = ("AutoETS", "CrostonOptimized", "SeasonalNaive")
+MODELS = ("AutoETS", "CrostonOptimized", "SeasonalNaive", "LightGBM")
 BASELINES = ("SeasonalNaive", "Naive")
+LAGS = (1, 2, 3)  # weeks; a series needs LAGS[-1] + 1 points before it gives a training row
+LGBM_MIN_ROWS = 8  # fewer training rows than this: LightGBM sits the window out
+EXOG_COLUMNS = ("festival_days", "fast_days", "price_index")
+FEATURES = (*(f"lag{lag}" for lag in LAGS), "mean4", "week_sin", "week_cos", *EXOG_COLUMNS)
 
 
 @dataclass(frozen=True)
@@ -45,6 +49,16 @@ class Costs:
     @property
     def tau(self) -> float:
         return self.underage / (self.underage + self.overage)
+
+
+@dataclass
+class Exog:
+    """What is known in advance (v1, M10 §3.6): per week `weeks` (ds, festival_days, fast_days)
+    and per product x week `prices` (unique_id, ds, price_index: 1.0 = usual). Missing weeks
+    count as no festival and the usual price."""
+
+    weeks: pd.DataFrame | None = None
+    prices: pd.DataFrame | None = None
 
 
 @dataclass
@@ -106,19 +120,82 @@ def _statsforecast(train: pd.DataFrame, h: int) -> pd.DataFrame:
     from statsforecast import StatsForecast
     from statsforecast.models import AutoETS, CrostonOptimized, Naive, SeasonalNaive
 
-    sf = StatsForecast(
-        models=[
-            AutoETS(season_length=1),
-            CrostonOptimized(),
-            SeasonalNaive(season_length=4),
-            Naive(),
-        ],
-        freq="W-MON",
-        n_jobs=1,
-    )
+    simple = [CrostonOptimized(), SeasonalNaive(season_length=4), Naive()]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return sf.forecast(df=train, h=h)
+        try:
+            sf = StatsForecast(models=[AutoETS(season_length=1), *simple], freq="W-MON", n_jobs=1)
+            return sf.forecast(df=train, h=h)
+        except (NotImplementedError, ValueError):  # AutoETS refuses tiny series
+            answer = StatsForecast(models=simple, freq="W-MON", n_jobs=1).forecast(df=train, h=h)
+            assert isinstance(answer, pd.DataFrame)
+            answer["AutoETS"] = answer["Naive"]
+            return answer
+
+
+def _features(frame: pd.DataFrame, exog: Exog | None) -> pd.DataFrame:
+    """One row per series x week: lags of y, the 4-week mean before it, the week of the year
+    on the circle, and the exogenous columns (zeros and 1.0 where unknown)."""
+    df = frame.sort_values(["unique_id", "ds"]).reset_index(drop=True).copy()
+    by_series = df.groupby("unique_id")["y"]
+    for lag in LAGS:
+        df[f"lag{lag}"] = by_series.shift(lag)
+    df["mean4"] = by_series.transform(lambda s: s.shift(1).rolling(4, min_periods=1).mean())
+    week = df["ds"].dt.isocalendar().week.astype(float)
+    df["week_sin"] = np.sin(2 * np.pi * week / 52)
+    df["week_cos"] = np.cos(2 * np.pi * week / 52)
+    weeks = exog.weeks if exog is not None else None
+    if weeks is not None and not weeks.empty:
+        df = df.merge(weeks[["ds", "festival_days", "fast_days"]], on="ds", how="left")
+    else:
+        df["festival_days"], df["fast_days"] = 0.0, 0.0
+    prices = exog.prices if exog is not None else None
+    if prices is not None and not prices.empty:
+        df = df.merge(
+            prices[["unique_id", "ds", "price_index"]], on=["unique_id", "ds"], how="left"
+        )
+        df["price_index"] = df.groupby("unique_id")["price_index"].ffill()
+    else:
+        df["price_index"] = 1.0
+    df[["festival_days", "fast_days"]] = df[["festival_days", "fast_days"]].fillna(0.0)
+    df["price_index"] = df["price_index"].fillna(1.0)
+    return df
+
+
+def _lightgbm(train: pd.DataFrame, h: int, exog: Exog | None) -> pd.DataFrame | None:
+    """A global LightGBM over every series of the hub (one model, the series id is not a
+    feature): next week's point forecast per series, or None when there is too little to fit."""
+    import lightgbm as lgb
+
+    future = train.groupby("unique_id")["ds"].max().reset_index()
+    future["ds"] = future["ds"] + pd.Timedelta(weeks=h)
+    future["y"] = np.nan
+    feats = _features(pd.concat([train, future], ignore_index=True), exog)
+    fit = feats[feats["y"].notna() & feats[f"lag{LAGS[-1]}"].notna()]
+    if len(fit) < LGBM_MIN_ROWS:
+        return None
+    params = {
+        "objective": "regression",
+        "learning_rate": 0.05,
+        "num_leaves": 7,
+        "min_data_in_leaf": 3,
+        "bagging_fraction": 0.9,
+        "bagging_freq": 1,
+        "feature_fraction": 0.9,
+        "verbosity": -1,
+        "seed": 7,
+    }
+    columns = list(FEATURES)
+    booster = lgb.train(
+        params,
+        lgb.Dataset(fit[columns].to_numpy(dtype=float), fit["y"].to_numpy(dtype=float)),
+        num_boost_round=200,
+    )
+    ask = feats[feats["y"].isna()]
+    out = ask[["unique_id", "ds"]].copy()
+    predicted = np.asarray(booster.predict(ask[columns].to_numpy(dtype=float)), dtype=float)
+    out["LightGBM"] = np.clip(predicted, 0, None)
+    return out
 
 
 def _wape(actual: np.ndarray, predicted: np.ndarray) -> float:
@@ -128,9 +205,12 @@ def _wape(actual: np.ndarray, predicted: np.ndarray) -> float:
     return float(np.abs(actual - predicted).sum() / denominator)
 
 
-def backtest(series: pd.DataFrame, hub_id: str) -> tuple[Backtest, dict[str, np.ndarray]]:
+def backtest(
+    series: pd.DataFrame, hub_id: str, exog: Exog | None = None
+) -> tuple[Backtest, dict[str, np.ndarray]]:
     """Rolling-origin backtest of the uncommitted series of one hub: WAPE per model and the
-    champion's residuals (for the conformal interval)."""
+    champion's residuals (for the conformal interval). LightGBM is scored only when it could
+    fit in every window."""
     mine = series[series["hub_id"] == hub_id]
     frame = mine.rename(columns={"uncommitted": "y"})[["product_id", "ds", "y"]].rename(
         columns={"product_id": "unique_id"}
@@ -143,6 +223,7 @@ def backtest(series: pd.DataFrame, hub_id: str) -> tuple[Backtest, dict[str, np.
     windows = int(min(3, lengths[usable].min() - MIN_POINTS))
     actuals: list[np.ndarray] = []
     predictions: dict[str, list[np.ndarray]] = {m: [] for m in (*MODELS, "Naive")}
+    boosted_everywhere = True
     last = frame["ds"].max()
     for w in range(windows, 0, -1):
         origin = last - pd.Timedelta(weeks=w)
@@ -151,14 +232,22 @@ def backtest(series: pd.DataFrame, hub_id: str) -> tuple[Backtest, dict[str, np.
         if train.empty or test.empty:
             continue
         forecast = _statsforecast(train, HORIZON)
+        boosted = _lightgbm(train, HORIZON, exog)
+        if boosted is not None:
+            forecast = forecast.merge(boosted, on=["unique_id", "ds"], how="left")
         merged = test.merge(forecast, on=["unique_id", "ds"], how="inner")
         if merged.empty:
             continue
         actuals.append(merged["y"].to_numpy(dtype=float))
         for m in predictions:
-            predictions[m].append(np.clip(merged[m].to_numpy(dtype=float), 0, None))
+            if m == "LightGBM" and (boosted is None or merged["LightGBM"].isna().any()):
+                boosted_everywhere = False
+            elif m != "LightGBM" or boosted_everywhere:
+                predictions[m].append(np.clip(merged[m].to_numpy(dtype=float), 0, None))
     if not actuals:
         return Backtest(hub_id, {}, "Naive", 0, len(usable)), {}
+    if not boosted_everywhere:
+        del predictions["LightGBM"]  # scored only when every window could fit it
     actual = np.concatenate(actuals)
     wape = {m: round(_wape(actual, np.concatenate(p)), 4) for m, p in predictions.items() if p}
     champion = min(MODELS, key=lambda m: wape.get(m, math.inf))
@@ -167,7 +256,7 @@ def backtest(series: pd.DataFrame, hub_id: str) -> tuple[Backtest, dict[str, np.
 
 
 def forecast_hub(
-    series: pd.DataFrame, hub_id: str, costs: Costs | None = None
+    series: pd.DataFrame, hub_id: str, costs: Costs | None = None, exog: Exog | None = None
 ) -> tuple[list[Line], Backtest]:
     """Next week's lines for one hub: the committed part is the last known week's boxes
     (M6 replaces it with the cut-off's exact count), the uncommitted part is forecast."""
@@ -175,7 +264,7 @@ def forecast_hub(
     mine = series[series["hub_id"] == hub_id]
     if mine.empty:
         return [], Backtest(hub_id, {}, "Naive", 0, 0)
-    test, residuals = backtest(series, hub_id)
+    test, residuals = backtest(series, hub_id, exog)
     pooled = residuals.get(test.champion, np.zeros(1))
     margin = float(max(0.0, np.quantile(pooled, costs.tau))) if pooled.size else 0.0
     frame = mine.rename(columns={"product_id": "unique_id", "uncommitted": "y"})[
@@ -186,6 +275,13 @@ def forecast_hub(
     point: dict[str, float] = {}
     if not long_enough.empty:
         answer = _statsforecast(long_enough, HORIZON)
+        if test.champion == "LightGBM":
+            boosted = _lightgbm(long_enough, HORIZON, exog)
+            if boosted is not None:
+                answer = answer.merge(boosted, on=["unique_id", "ds"], how="left")
+            if "LightGBM" not in answer.columns:
+                answer["LightGBM"] = answer["Naive"]
+            answer["LightGBM"] = answer["LightGBM"].fillna(answer["Naive"])
         for row in answer.itertuples(index=False):
             point[str(row.unique_id)] = max(0.0, float(getattr(row, test.champion)))
     last_week = mine["ds"].max()

@@ -112,6 +112,55 @@ async def latest_metrics(session: AsyncSession, model_name: str) -> list[ModelMe
     return sorted(seen.values(), key=lambda m: (m.metric, m.split, m.data_source))
 
 
+async def forecasts_on(session: AsyncSession, day: date) -> list[Prediction]:
+    """The newest forecast per hub for a delivery day."""
+    rows = (
+        await session.execute(
+            select(Prediction)
+            .where(Prediction.kind == "forecast", Prediction.for_date == day)
+            .order_by(Prediction.id.desc())
+        )
+    ).scalars()
+    newest: dict[uuid.UUID, Prediction] = {}
+    for row in rows:
+        newest.setdefault(row.subject_id, row)
+    return list(newest.values())
+
+
+async def scored_already(
+    session: AsyncSession, model_name: str, metric: str, day: date, hub_id: uuid.UUID | None
+) -> bool:
+    """Is there a live row of this metric for the day (and hub) already? Jobs rerun safely."""
+    stmt = select(ModelMetric.id).where(
+        ModelMetric.model_name == model_name,
+        ModelMetric.metric == metric,
+        ModelMetric.split == "live",
+        ModelMetric.details["for_date"].astext == day.isoformat(),
+    )
+    if hub_id is not None:
+        stmt = stmt.where(ModelMetric.details["hub_id"].astext == str(hub_id))
+    return (await session.execute(stmt.limit(1))).scalar_one_or_none() is not None
+
+
+async def model_names(session: AsyncSession) -> list[str]:
+    rows = await session.execute(
+        select(ModelMetric.model_name).distinct().order_by(ModelMetric.model_name)
+    )
+    return [row for (row,) in rows.all()]
+
+
+async def prediction_counts(session: AsyncSession, since: datetime) -> list[tuple[str, str, int]]:
+    """(kind, source, count) of predictions recorded since a time: how often the fallback
+    answered instead of the ML service."""
+    rows = await session.execute(
+        select(Prediction.kind, Prediction.source, func.count())
+        .where(Prediction.created_at >= since)
+        .group_by(Prediction.kind, Prediction.source)
+        .order_by(Prediction.kind, Prediction.source)
+    )
+    return [(kind, source, int(count)) for kind, source, count in rows.all()]
+
+
 async def save_features(
     session: AsyncSession,
     *,

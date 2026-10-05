@@ -170,7 +170,7 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
 - **Series:** weekly buckets per hub × product from orders that reached `locked` or later; `committed` = box lines, `uncommitted` = add-on and tiffin lines.
 - **Models:** StatsForecast AutoETS, CrostonOptimized, SeasonalNaive(4); baselines SeasonalNaive and Naive ("buy last week"). Rolling-origin backtest (horizon one week, up to three windows); the champion per hub has the lowest WAPE; a series shorter than four weeks gets the naive answer.
 - **Intervals and quantities:** conformal — q_tau = point + the tau-quantile of the champion's backtest residuals; `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`).
-- v1 (P4): MLForecast LightGBM with festival, weekday, price and weather features; MinT reconciliation.
+- **v1 (built 5 Oct 2026, F25):** a global LightGBM per hub joins the backtest (`LightGBM`, the native booster; lags 1–3, the 4-week mean, the week of the year on the circle, and what is known in advance: festival and fast days of the target week from M2's calendar, the product's mandi price index from `intel.price_index`); it is scored only when every backtest window could fit it (8 training rows) and wins the champion slot like any other model. Predictions are stored as `forecast-<champion>-v1`. Weather and MinT reconciliation stay open.
 
 ### 3.7 `POST /basket/rank` and the ranker job (v0, M-B)
 The next-basket ranker: which candidates belong in a household's box this week. The training job (`backend/training`, `train_ranker`, weekly) learns from every household's boxes and edits; the Space serves the model from the registry.
@@ -242,7 +242,7 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast` (`backend/training`) | T-1 21:10 IST (Actions, cron-job.org for the minute) | StatsForecast v0 (§3.6); MLForecast and reconciliation in v1 |
 | `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |
-| `monitor_drift` | Daily | WAPE, acceptance, waste vs thresholds |
+| `monitor_drift` | Daily 03:33 IST (`jobs-staging.yml`; API job) | For the last 7 delivery days: realised WAPE of each hub's forecast (uncommitted quantity per product against the add-on and tiffin lines of locked-or-later orders, `orders.api.sold_lines`) → `model_metrics` split `live`, with `drift` = 1 when more than 10 points worse than the model's latest backtest WAPE; plan acceptance per plan source (`subscriptions.api.acceptance_on`) → `planner_<source>` `acceptance`. Once per hub and day (details carry `for_date`). Waste waits for M6 |
 
 Until a paid worker exists, these batch jobs run in the ML service or offline, triggered by the API's internal job endpoints on a GitHub Actions schedule (ADR-0021).
 

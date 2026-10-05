@@ -11,6 +11,7 @@ name: Scheduled jobs (staging)
 on:
   schedule:
     - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
+    - cron: "3 22 * * *" # 03:33 IST daily: monitor_drift
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
   workflow_dispatch:
     inputs:
@@ -52,6 +53,7 @@ jobs:
           fi
           case "$SCHEDULE" in
             "33 22 * * *") job=cleanup_idempotency_keys ;;
+            "3 22 * * *") job=monitor_drift ;;
             "17 * * * *") job=outbox_sweep ;;
             "") job="$INPUT_JOB" ;;
             *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;

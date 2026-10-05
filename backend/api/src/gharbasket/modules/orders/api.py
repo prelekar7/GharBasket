@@ -7,7 +7,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import time
+from datetime import date, time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -90,6 +90,29 @@ class SlotRef:
     start: time
     end: time
     active: bool
+
+
+SOLD = ("locked", "picking", "packed", "dispatched", "at_society", "delivered")
+
+
+@dataclass(frozen=True)
+class SoldLine:
+    product_id: uuid.UUID
+    kind: str  # box | addon | tiffin
+    qty: int  # steps
+
+
+async def sold_lines(
+    session: AsyncSession, hub_id: uuid.UUID, delivery_date: date
+) -> list[SoldLine]:
+    """Every line of the hub's orders that reached the cut-off on a day (locked or later): what
+    was really sold, for scoring forecasts (M10 `monitor_drift`)."""
+    summaries = await service.orders_for_delivery(session, hub_id, delivery_date, statuses=SOLD)
+    return [
+        SoldLine(line.product_id, line.kind, line.qty)
+        for summary in summaries
+        for line in summary.lines
+    ]
 
 
 async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:

@@ -7,7 +7,8 @@ slow, failing or refuses the token, a rule-based answer is returned instead, mar
 
 import uuid
 from collections.abc import Callable
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 import httpx2
@@ -38,16 +39,20 @@ from gharbasket.platform.settings import Settings
 log = structlog.get_logger("gharbasket.intel_gateway")
 
 __all__ = [
+    "MetricRow",
+    "ModelHealth",
     "PantryItem",
     "PantryObservation",
     "PantryQuantities",
     "PantryRequest",
     "PlanRequest",
+    "PredictionCount",
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
     "latest_metrics",
     "latest_prediction",
+    "model_health",
     "pantry_quantities",
     "plan_week",
     "price_spikes",
@@ -118,6 +123,56 @@ async def pantry_quantities(
             model_name=answer.model,
         )
     return answer
+
+
+@dataclass(frozen=True)
+class MetricRow:
+    metric: str
+    value: float
+    split: str
+    data_source: str
+    version: str
+    computed_at: datetime
+
+
+@dataclass(frozen=True)
+class ModelHealth:
+    model_name: str
+    metrics: tuple[MetricRow, ...]
+    drift: bool  # the newest live `drift` row says 1
+
+
+@dataclass(frozen=True)
+class PredictionCount:
+    kind: str
+    source: str  # ml | fallback
+    count: int
+
+
+async def model_health(
+    session: AsyncSession, *, since: datetime
+) -> tuple[list[ModelHealth], list[PredictionCount]]:
+    """What the console's AI health table shows (M12): every model's newest value per
+    (metric, split, data source) from `model_metrics`, its drift flag, and how often each kind
+    of prediction came from the ML service or the fallback since `since`."""
+    models = []
+    for name in await service.model_names(session):
+        rows = await service.latest_metrics(session, name)
+        models.append(
+            ModelHealth(
+                name,
+                tuple(
+                    MetricRow(m.metric, m.value, m.split, m.data_source, m.version, m.computed_at)
+                    for m in rows
+                ),
+                any(m.metric == "drift" and m.split == "live" and m.value >= 1 for m in rows),
+            )
+        )
+    counts = [
+        PredictionCount(kind, source, count)
+        for kind, source, count in await service.prediction_counts(session, since)
+    ]
+    return models, counts
 
 
 async def hub_forecast(

@@ -52,7 +52,7 @@ flowchart LR
 - **Data mix:** train on `synthetic + pilot + live` data (D8). **Report** metrics separately for `pilot`/`live` rows. This is the paper's honesty guarantee.
 - **Point-in-time features:** features are computed *as of the cut-off time*, stored in `intel.feature_snapshots`, so future information never leaks into training.
 - **Time-based splits only.** Random splits on time-series data overstate accuracy.
-- **Monitoring:** a daily job compares forecast vs actual (WAPE), plan acceptance rate and waste %. Results appear on the console **AI health** page, with an alert when drift exceeds a threshold.
+- **Monitoring:** a daily job compares forecast vs actual (WAPE), plan acceptance rate and waste %. Results appear on the console **AI health** page, with an alert when drift exceeds a threshold. *Built (5 Oct 2026, F25):* `monitor_drift` (M10 §6) writes live WAPE and acceptance rows and a `drift` flag (more than 10 points worse than the backtest) to `intel.model_metrics`; `GET /v1/analytics/ai-health` (M12) serves the table; waste joins when M6 counts it.
 
 ```mermaid
 flowchart TD

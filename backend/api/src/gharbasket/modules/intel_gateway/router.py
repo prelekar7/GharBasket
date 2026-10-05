@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from gharbasket.modules.catalog import api as catalog_api
+from gharbasket.modules.intel_gateway import jobs as _jobs  # noqa: F401 (registers the job)
 from gharbasket.modules.intel_gateway import service
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.operator import require_operator

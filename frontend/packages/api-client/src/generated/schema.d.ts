@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/ai-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every model's newest metrics, live drift flags and the ML-or-fallback share */
+        get: operations["ai_health_v1_analytics_ai_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assistant/confirm/{proposal_id}": {
         parameters: {
             query?: never;
@@ -1236,6 +1253,23 @@ export interface components {
             /** Tower Id */
             tower_id?: string | null;
         };
+        /** AiHealthOut */
+        AiHealthOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Models */
+            models: components["schemas"]["ModelHealthOut"][];
+            /**
+             * Predictions
+             * @description How often each kind of prediction came from the ML service or the fallback
+             */
+            predictions: components["schemas"]["PredictionCountOut"][];
+            /** Window Days */
+            window_days: number;
+        };
         /** BudgetLockIn */
         BudgetLockIn: {
             /**
@@ -2162,6 +2196,42 @@ export interface components {
             /** Tool Calls */
             tool_calls: string[];
         };
+        /** MetricOut */
+        MetricOut: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /** Metric */
+            metric: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "train" | "holdout" | "backtest" | "live";
+            /** Value */
+            value: number;
+            /** Version */
+            version: string;
+        };
+        /** ModelHealthOut */
+        ModelHealthOut: {
+            /**
+             * Drift
+             * @description The newest live measurement is worse than the backtest
+             */
+            drift: boolean;
+            /** Metrics */
+            metrics: components["schemas"]["MetricOut"][];
+            /** Model Name */
+            model_name: string;
+        };
         /** ModelMetricIn */
         ModelMetricIn: {
             /**
@@ -2471,6 +2541,18 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /** PredictionCountOut */
+        PredictionCountOut: {
+            /** Count */
+            count: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
         };
         /** Price */
         Price: {
@@ -3962,6 +4044,55 @@ export interface operations {
                 };
             };
             /** @description identity.invalid_scope, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ai_health_v1_analytics_ai_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiHealthOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -28,6 +28,7 @@ The web console for admins, hub managers, franchise owners and NGO coordinators,
 | GET | `/v1/analytics/cohorts?data_source=` | admin | |
 | GET | `/v1/analytics/impact?scope=` | ngo_coordinator, admin | |
 | GET | `/v1/analytics/experiments/{key}` | admin | |
+| GET | `/v1/analytics/ai-health` | admin, hub_manager, franchise_owner (`analytics:read`) | **Built (F25).** Every model's newest value per (metric, split, data source) from `intel.model_metrics`, a `drift` flag from `monitor_drift`, and how often each prediction kind came from the ML service or the fallback over 7 days (`intel_gateway.api.model_health`) |
 | GET | `/v1/public/societies/{slug}` | Public | For the SEO landing page |
 
 ## 4. Tables owned
@@ -42,7 +43,7 @@ Materialised views in `analytics`: `mv_daily_hub_kpis`, `mv_unit_economics`, `mv
 | `refresh_materialised_views` | Every 15 min (KPIs), nightly (cohorts) | `REFRESH MATERIALIZED VIEW CONCURRENTLY` |
 
 ## 7. Permissions
-`analytics:read` scoped by hub for hub_manager/franchise_owner; global for admin; impact for ngo_coordinator.
+`analytics:read` scoped by hub for hub_manager/franchise_owner; global for admin; impact for ngo_coordinator. Granted in `analytics/permissions.py` (admin, hub_manager, franchise_owner); AI health is system-wide and holds no household data.
 
 ## 8. Screens
 Console route groups: `(auth)`, `(public)`, `(admin)`, `(hub)`, `(franchise)`, `(analytics)` — full list in `docs/FRONTEND_DESIGN.md` Section 10. Charts: ECharts; maps: MapLibre + deck.gl; tables: TanStack Table.
