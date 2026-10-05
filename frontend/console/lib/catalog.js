@@ -105,6 +105,15 @@ export function formatDay(iso, year = false) {
   return (year ? dayYearFormat : dayFormat).format(d).replace(/,/g, "");
 }
 
+const shortFormat = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+/** "1 Oct" for an ISO date. @param {string} iso */
+export const formatDayShort = (iso) => shortFormat.format(new Date(`${iso}T00:00:00Z`));
+
 /** Today in India as an ISO date, whatever the server's own time zone. */
 export function todayIso() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
