@@ -690,7 +690,8 @@ sequenceDiagram
     participant LLM as Claude API
     participant API as api (as the user)
     C->>APP: Kal aloo 2 kilo extra bhejna aur paneer hata do
-    APP->>AS: POST /assistant/messages (SSE)
+    APP->>API: POST /v1/assistant/messages (JSON in v0; SSE later)
+    API->>AS: POST /assistant/turn (history, user token)
     AS->>LLM: System prompt and tools (cached), user message
     LLM-->>AS: Tool call get_my_week
     AS->>API: GET /v1/cycles/current (user token)

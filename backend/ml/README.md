@@ -31,5 +31,8 @@ pings `/health` every 10 minutes so the Space does not sleep.
 Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the image to
 the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `MODELS_MANIFEST`
 (a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry
-layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer). The service is stateless and receives no personal
-data (DPDP; the Space is hosted outside India).
+layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer), `ANTHROPIC_API_KEY`
+(a Space secret; Ghar Saathi's `POST /assistant/turn` answers 503 without it) and `ASSISTANT_MODEL`
+(`claude-opus-5-5` until the S8 evaluation, ADR-0013). The service is stateless and receives no personal
+data (DPDP; the Space is hosted outside India): the assistant gets the conversation with phone numbers
+scrubbed and the user's short-lived access token, which it uses only to call the API back as them.

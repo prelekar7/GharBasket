@@ -54,6 +54,7 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
         valkey: Redis | None = None,
         headers: dict[str, str] | None = None,
         razorpay: Any = None,
+        http: httpx2.AsyncClient | None = None,
         **settings: Any,
     ) -> httpx2.AsyncClient:
         app = create_app(make_settings(app_env=app_env, **settings))
@@ -61,6 +62,8 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
         app.state.firebase_verifier = google.verifier() if firebase else None
         app.state.valkey = valkey
         app.state.razorpay = razorpay  # a RazorpayClient on a fake transport (billing tests)
+        if http is not None:
+            app.state.http = http  # outbound calls on a fake transport (the ML service)
         client = httpx2.AsyncClient(
             transport=httpx2.ASGITransport(app=app), base_url="https://t", headers=headers
         )

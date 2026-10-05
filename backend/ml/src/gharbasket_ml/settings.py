@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
     # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
     osrm_url: str | None = None
+    # Ghar Saathi (M13): the Anthropic key (a Space secret) and the model (ADR-0013: Opus 5.5
+    # until the S8 evaluation); unset key: /assistant/turn answers 503 and the API says so.
+    anthropic_api_key: SecretStr | None = None
+    assistant_model: str = "claude-opus-5-5"
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

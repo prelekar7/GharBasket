@@ -1,6 +1,6 @@
 """Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -365,3 +365,45 @@ class RankResponse(BaseModel):
     source: Literal["ml", "fallback"]
     model: str
     ranked: list[RankedOut]
+
+
+# --- POST /assistant/turn (M13 §3): one turn of Ghar Saathi -------------------------------------
+
+
+class AssistantMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class AssistantTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str = Field(min_length=1, max_length=80)
+    locale: str = Field(default="en-IN", max_length=10)
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
+    api_base_url: str = Field(description="Where the tools call back, as the user")
+    user_token: str = Field(min_length=1, description="The user's access token, never logged")
+
+
+class AssistantProposal(BaseModel):
+    action: Literal["edit_box_line", "skip_week"]
+    payload: dict[str, Any]
+    summary: str
+
+
+class AssistantUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+
+
+class AssistantTurnResponse(BaseModel):
+    reply: str
+    proposals: list[AssistantProposal]
+    tool_calls: list[str]
+    usage: AssistantUsage
+    model: str
+    stop_reason: str

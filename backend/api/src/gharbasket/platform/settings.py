@@ -84,6 +84,12 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
+    # solver call. Tokens (in + out) a user may spend a day; the public URL the ML service's
+    # tools call back as the user (unset: the request's own base URL).
+    assistant_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    assistant_daily_tokens: int = Field(default=60_000, gt=0)
+    api_public_url: str | None = None
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

@@ -18,5 +18,9 @@ What a report holds (v0, October 2026):
   orders per seed: the Gini of the kitchens' earnings against ₹ and km a portion, with greedy nearest
   kitchen as the baseline and the M-G target (Gini ≤ 0.25 at ≤ +5 % cost) checked.
 
+`just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
+candidate model (intent accuracy, slot F1, no proposal on injection fixtures, cost a turn) and writes
+`assistant-<date>.json` here; it needs `ANTHROPIC_API_KEY` and costs real tokens.
+
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT, under a minute); the committed reports come from full runs.

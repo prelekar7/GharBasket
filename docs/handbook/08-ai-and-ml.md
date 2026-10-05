@@ -249,6 +249,8 @@ Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI;
 ## 8.6 LLM usage
 
 ### Assistant "Ghar Saathi" (text MVP, D5)
+
+**Built 5 Oct 2026 (F23/F24):** the loop in `backend/ml/src/gharbasket_ml/assistant.py` (`POST /assistant/turn`, four tools, strict schemas, caching, refusal fallback, four tool rounds a turn), the API module `assistant` (sessions, scrubbed messages, 15-minute proposals, `usage_daily` cap, `expire_proposals`), and `just eval-assistant` (intent accuracy, slot F1, the injection rule, cost a turn) on `data/eval/assistant_utterances.jsonl`. The Space needs the secret `ANTHROPIC_API_KEY`; without it the API answers with a fixed fallback reply (`source: fallback`).
 - Built with the Anthropic Python SDK. Tools call **our own API as the user**:
   - `get_my_week`, `edit_box_line`, `skip_week`, `book_tiffin`, `track_order`, `explain_item`.
 - Tools use `strict: true` schemas with `tool_choice: auto` (current Claude models reject forced tool choice).
