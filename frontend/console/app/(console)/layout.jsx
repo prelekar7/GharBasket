@@ -1,30 +1,46 @@
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/login/actions.js";
+import { HubSwitcher } from "@/components/HubSwitcher.jsx";
 import { Sidebar } from "@/components/Sidebar.jsx";
-import { NAV } from "@/lib/nav.js";
-import { parseSession, ROLES, SESSION_COOKIE } from "@/lib/session.js";
+import { Wordmark } from "@/components/Wordmark.jsx";
+import { getPerson, getRole } from "@/lib/auth.js";
+import { currentHub, listHubs } from "@/lib/hub.js";
+import { navFor } from "@/lib/nav.js";
+import { initialsOf } from "@/lib/session.js";
 
-async function currentRole() {
-  return parseSession((await cookies()).get(SESSION_COOKIE)?.value);
+/** The role's sections (proxy.js has already kept signed-out people out). */
+async function RoleSidebar() {
+  const role = await getRole();
+  return <Sidebar groups={role ? navFor(role) : []} />;
 }
 
-/** The sections this role sees (proxy.js has already kept signed-out people out). */
-async function RoleSidebar() {
-  const role = await currentRole();
-  const sections = role ? ROLES[role].sections : [];
-  return <Sidebar groups={NAV.filter((g) => sections.includes(g.section))} />;
+async function HeaderControls() {
+  const [hubs, hub] = await Promise.all([listHubs(), currentHub()]);
+  return <HubSwitcher hubs={hubs} value={hub.id} />;
 }
 
 async function Account() {
-  const role = await currentRole();
+  const person = await getPerson();
   return (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="text-fg-secondary">{role ? ROLES[role].label : ""}</span>
+    <div className="flex items-center gap-3">
+      {person && (
+        <div className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className="grid size-9 place-items-center rounded-full bg-accent-soft font-bold text-accent-fg"
+          >
+            {initialsOf(person.name)}
+          </span>
+          <span className="flex flex-col leading-[18px]">
+            <strong className="text-sm">{person.name}</strong>
+            <span className="text-xs text-fg-secondary">{person.roleLabel}</span>
+          </span>
+        </div>
+      )}
       <form action={signOut}>
         <button
           type="submit"
-          className="min-h-10 rounded-md px-3 font-semibold text-primary outline-none hover:bg-primary-soft focus-visible:shadow-focus"
+          className="min-h-11 rounded-sm px-3 text-sm font-semibold text-primary outline-none hover:bg-primary-soft focus-visible:shadow-focus"
         >
           Sign out
         </button>
@@ -34,28 +50,37 @@ async function Account() {
 }
 
 /**
- * Console shell shared by the Admin, Hub, Franchise and Analytics groups: sidebar and top bar.
- * Hub switcher and ⌘K palette join with the operations screens.
+ * Console shell shared by every console page: a sidebar (a top menu below 900px), and a top bar
+ * with the hub switcher, the signed-in person and Sign out. Everything that reads the session sits
+ * in its own Suspense boundary, as cacheComponents needs.
  * @param {{ children: import("react").ReactNode }} props
  */
 export default function ConsoleLayout({ children }) {
   return (
-    <div className="flex min-h-dvh">
-      <aside className="sticky top-0 h-dvh w-60 shrink-0 overflow-y-auto border-r border-line bg-surface">
-        <div className="flex h-14 items-center px-6 font-display text-lg font-semibold">
-          GharBasket
-        </div>
-        <Suspense>
+    <div className="min-h-dvh min-[900px]:flex">
+      <aside className="border-b border-line bg-surface min-[900px]:sticky min-[900px]:top-0 min-[900px]:h-dvh min-[900px]:w-60 min-[900px]:shrink-0 min-[900px]:overflow-y-auto min-[900px]:border-r min-[900px]:border-b-0">
+        <Suspense
+          fallback={
+            <div className="px-4 py-3 min-[900px]:px-6 min-[900px]:pt-5">
+              <Wordmark />
+            </div>
+          }
+        >
           <RoleSidebar />
         </Suspense>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-end border-b border-line bg-surface px-6">
+        <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-4 py-3 min-[900px]:px-6">
+          <div className="flex flex-wrap items-end gap-3">
+            <Suspense fallback={<div className="h-[76px] w-[220px]" />}>
+              <HeaderControls />
+            </Suspense>
+          </div>
           <Suspense>
             <Account />
           </Suspense>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex min-w-0 flex-1 flex-col gap-4 p-4 min-[900px]:p-6">{children}</main>
       </div>
     </div>
   );
