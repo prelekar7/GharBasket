@@ -132,8 +132,8 @@ export const NAV = [
     items: [
       { href: "/drives", label: "Drives", ready: true },
       { href: "/donations", label: "Donations", ready: true },
-      { href: "/impact", label: "Impact" },
-      { href: "/handoffs", label: "NGO hand-offs" },
+      { href: "/impact", label: "Impact", ready: true },
+      { href: "/handoffs", label: "NGO hand-offs", ready: true },
     ],
   },
   {
