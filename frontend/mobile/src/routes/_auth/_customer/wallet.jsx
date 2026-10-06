@@ -17,13 +17,13 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { entryLabel } from "@/features/billing/entries.js";
 import { useKindness, useWallet } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { useCurrentCycle } from "@/features/subscriptions/queries.js";
 
 const QUICK_RUPEES = [500, 1000, 2000];
-const CAP_PAISE = 1_000_000;
 
 /** Wallet: balance, next box, kindness points (not money), recent entries, top up (designs HcWallet, HcTopUp; M5). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -54,19 +54,13 @@ function Wallet() {
   }
   const balance = wallet.data.balance_paise;
   const amountPaise = rupees * 100;
-  const overCap = balance + amountPaise > CAP_PAISE;
+  // The API says what still fits: under the cap, the unpaid top-ups and this month's allowance.
+  const room = wallet.data.topup_room_paise;
+  const overCap = amountPaise > room;
+  const quick = QUICK_RUPEES.filter((r) => r * 100 <= room);
   const nextBox = cycle && cycle.status !== "skipped" ? cycle : null;
   const day = (/** @type {string} */ iso) =>
     `${t(`days.short.d${weekdayOf(iso)}`)} ${shortDate(iso, lang)}`;
-
-  /** Words for a ledger entry. @param {import("@/features/billing/queries.js").Wallet["entries"][number] & { ref?: string }} e */
-  const entryLabel = (e) =>
-    e.kind === "box_debit" && e.ref
-      ? t("wallet.entry.box", { day: day(e.ref) })
-      : t(`wallet.entry.${e.kind}`, {
-          date: shortDate(e.at.slice(0, 10), lang),
-          defaultValue: e.kind,
-        });
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,7 +129,7 @@ function Wallet() {
                 key={e.id}
                 className="flex items-baseline justify-between gap-3 border-b border-line py-3"
               >
-                <span>{entryLabel(e)}</span>
+                <span>{entryLabel(t, e, lang)}</span>
                 <MoneyText paise={e.amount_paise} delta />
               </li>
             ))}
@@ -172,7 +166,7 @@ function Wallet() {
       >
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
-            {QUICK_RUPEES.map((r) => (
+            {quick.map((r) => (
               <Chip
                 key={r}
                 isSelected={!other && rupees === r}
@@ -198,7 +192,11 @@ function Wallet() {
               isInvalid={amountPaise < 10_000 || overCap}
               errorMessage={
                 overCap
-                  ? t("onboarding.payment.errors.billing_wallet_limit")
+                  ? room >= 10_000
+                    ? t("onboarding.payment.errors.billing_wallet_limit_room", {
+                        room: formatPaise(room),
+                      })
+                    : t("onboarding.payment.errors.billing_wallet_limit_full")
                   : t("onboarding.payment.errors.billing_topup_too_small")
               }
             />
@@ -215,7 +213,14 @@ function Wallet() {
               <dd className="font-semibold">{t("wallet.upi")}</dd>
             </div>
           </dl>
-          <p className="text-sm text-fg-secondary">{t("wallet.cap")}</p>
+          <p className="text-sm text-fg-secondary">
+            {room >= 10_000
+              ? t("wallet.room", {
+                  room: formatPaise(room),
+                  cap: formatPaise(wallet.data.cap_paise),
+                })
+              : t("wallet.full")}
+          </p>
         </div>
       </Sheet>
       <Dialog

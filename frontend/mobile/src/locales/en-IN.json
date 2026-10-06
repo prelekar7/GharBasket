@@ -374,7 +374,15 @@
         "billing_topup_too_small": "Top up at least ₹100",
         "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
         "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet.",
-        "subscriptions_payment_mode_unavailable": "UPI Autopay isn’t open yet. Choose the wallet for now."
+        "subscriptions_payment_mode_unavailable": "UPI Autopay isn’t open yet. Choose the wallet for now.",
+        "billing_wallet_limit_room": "You can add up to {room} more to your wallet.",
+        "billing_wallet_limit_full": "Your wallet is full for now.",
+        "billing_monthly_topup_limit_room": "This month’s top-up limit is ₹20,000. You can add {room} more.",
+        "billing_monthly_topup_limit_full": "You’ve reached this month’s top-up limit of ₹20,000.",
+        "billing_too_many_topups": "Too many top-ups started. Try again in an hour.",
+        "billing_payments_unavailable": "Payments aren’t available right now. Try again later.",
+        "payment_pending": "We haven’t had confirmation of your payment yet. If money was taken, it will show in your wallet shortly. Check Wallet in a minute.",
+        "payment_refunded": "Your wallet was full when the payment arrived, so it was sent back to your bank."
       }
     },
     "done": {
@@ -599,12 +607,18 @@
     "entry": {
       "topup": "Top-up with UPI · {date}",
       "box": "Box for {day}",
-      "refund": "Refund · {date}"
+      "refund": "Refund · {date}",
+      "topup_bonus": "Bonus · {date}",
+      "adjustment": "Adjustment · {date}",
+      "generic": "Wallet entry · {date}",
+      "boxNoDate": "Box payment · {date}"
     },
     "addMoney": "Add money",
     "newBalance": "New balance",
     "payWith": "Pay with",
     "upi": "Any UPI app",
+    "room": "You can add up to {room} now. Your balance can be up to {cap}.",
+    "full": "Your wallet is full for now. You can top up again after your next box.",
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
     "added": "{amount} added to your wallet",

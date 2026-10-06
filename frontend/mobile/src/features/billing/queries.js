@@ -2,9 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { ApiError, request } from "@/lib/api.js";
 
-/** @typedef {{ balance_paise: number, entries: { id: string, kind: string, amount_paise: number, at: string }[] }} Wallet */
+/**
+ * One line of the wallet ledger, signed (+ into the wallet). `kind` may be one the app doesn't know
+ * yet: show a generic label for it. `ref` says what caused the entry.
+ * @typedef {{ id: string, kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment",
+ *   amount_paise: number, at: string,
+ *   ref: { type: "topup", id: string } | { type: "order", id: string, delivery_date: string | null } | null }} Entry
+ * `cap_paise` is the most the wallet can hold; `topup_room_paise` what can be added right now.
+ * @typedef {{ balance_paise: number, cap_paise: number, topup_room_paise: number, entries: Entry[] }} Wallet
+ */
 
-/** Wallet balance and recent entries (GET /v1/wallet, M5). */
+/** Wallet balance, the room left to top up, and the latest 20 entries (GET /v1/wallet, M5). */
 export function useWallet() {
   return useQuery({
     queryKey: ["wallet"],
@@ -22,7 +30,10 @@ export function useKindness() {
   });
 }
 
-/** @typedef {{ period: string, opening_paise: number, credits_paise: number, debits_paise: number, closing_paise: number, entries: (Wallet["entries"][number] & { ref?: string })[] }} Statement */
+/**
+ * @proposal (not in the contract yet): one month of the ledger with its opening and closing balance.
+ * @typedef {{ period: string, opening_paise: number, credits_paise: number, debits_paise: number, closing_paise: number, entries: Entry[] }} Statement
+ */
 
 /** One month of the wallet ledger (GET /v1/statements?period=YYYY-MM, M5). @param {string} period */
 export function useStatement(period) {
