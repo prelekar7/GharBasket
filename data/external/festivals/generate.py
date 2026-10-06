@@ -14,7 +14,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-import kalagana
+import kalagana  # pyright: ignore[reportMissingImports]
 
 HERE = Path(__file__).parent
 OUT = HERE.parent.parent / "seeds" / "catalog" / "festivals.json"
