@@ -3,6 +3,7 @@
 import { Button, Select, TextField, toast } from "@gharbasket/ui";
 import { DataTable } from "@gharbasket/ui/console";
 import { useRef, useState, useTransition } from "react";
+import { LinkButton } from "@/components/LinkButton.jsx";
 import { PageHeader, Panel } from "@/components/PageHeader.jsx";
 import { Toasts } from "@/components/Toasts.jsx";
 import { downloadCsv } from "@/lib/csv.js";
@@ -34,7 +35,7 @@ const day = (iso) =>
     .replace(",", "")
     .replace("Sept", "Sep");
 
-/** @param {{ data: { label: string, items: Handoff[], open_batches: Batch[], report: { handoffs: number, people_reached: number } } }} props */
+/** @param {{ data: { month: string, label: string, items: Handoff[], open_batches: Batch[], report: { handoffs: number, people_reached: number } } }} props */
 export function HandoffsView({ data }) {
   const { items, open_batches: batches, report, label } = data;
   const month = label.split(" ")[0];
@@ -81,7 +82,19 @@ export function HandoffsView({ data }) {
           />
           <Panel
             title="Monthly report"
-            aside={<Button onPress={download}>{`Download ${month} (CSV)`}</Button>}
+            aside={
+              <div className="flex flex-wrap gap-2">
+                <LinkButton
+                  href={`/handoffs/report?month=${data.month}`}
+                  variant="primary"
+                  download
+                  onClick={() => toast(`${month} report is downloading`)}
+                >
+                  {`Download ${month} (PDF)`}
+                </LinkButton>
+                <Button onPress={download}>{`Download ${month} (CSV)`}</Button>
+              </div>
+            }
           >
             <p className="text-sm leading-5 text-fg-secondary">
               Items received, hand-offs, people reached, and the families’ societies (never their

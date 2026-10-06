@@ -78,12 +78,13 @@ function withQuery(path, searchParams = {}) {
 }
 
 /**
+ * Builds the request (mock or real) and returns the raw response, whatever its status.
  * @param {"GET" | "POST" | "PUT" | "PATCH" | "DELETE"} method
  * @param {string} path starts with /v1/
  * @param {{ searchParams?: SearchParams, body?: unknown, idempotencyKey?: string, headers?: Record<string, string> }} options
- * @returns {Promise<any>} the parsed JSON body, or null for 204
+ * @returns {Promise<Response>}
  */
-async function send(method, path, { searchParams, body, idempotencyKey, headers: extra = {} }) {
+async function dispatch(method, path, { searchParams, body, idempotencyKey, headers: extra = {} }) {
   const mock = process.env.GB_API_MOCK !== "false";
   const incoming = await headers();
   /** @type {Record<string, string>} */
@@ -126,7 +127,17 @@ async function send(method, path, { searchParams, body, idempotencyKey, headers:
   } else {
     response = await fetch(request);
   }
+  return response;
+}
 
+/**
+ * @param {"GET" | "POST" | "PUT" | "PATCH" | "DELETE"} method
+ * @param {string} path starts with /v1/
+ * @param {{ searchParams?: SearchParams, body?: unknown, idempotencyKey?: string, headers?: Record<string, string> }} options
+ * @returns {Promise<any>} the parsed JSON body, or null for 204
+ */
+async function send(method, path, options) {
+  const response = await dispatch(method, path, options);
   if (response.status === 204) return null;
   const isJson = /json/.test(response.headers.get("content-type") ?? "");
   const parsed = isJson ? await response.json().catch(() => null) : null;
@@ -142,6 +153,29 @@ async function send(method, path, { searchParams, body, idempotencyKey, headers:
  */
 export function apiGet(path, options = {}) {
   return send("GET", path, options);
+}
+
+/**
+ * GET a file (PDF, CSV) from the API, for Route Handlers that stream a download. Returns the bytes
+ * and the response's `content-type`; errors are thrown as `ApiProblem`, like `apiGet`.
+ * @param {string} path
+ * @param {GetOptions & { accept: string }} options `accept` is the media type asked for ("application/pdf")
+ * @returns {Promise<{ body: ArrayBuffer, contentType: string }>}
+ */
+export async function apiDownload(path, { accept, ...options }) {
+  const response = await dispatch("GET", path, {
+    ...options,
+    headers: { ...options.headers, accept },
+  });
+  if (!response.ok) {
+    const isJson = /json/.test(response.headers.get("content-type") ?? "");
+    const parsed = isJson ? await response.json().catch(() => null) : null;
+    throw new ApiProblem(response.status, parsed && typeof parsed === "object" ? parsed : {});
+  }
+  return {
+    body: await response.arrayBuffer(),
+    contentType: response.headers.get("content-type") ?? accept,
+  };
 }
 
 /**
