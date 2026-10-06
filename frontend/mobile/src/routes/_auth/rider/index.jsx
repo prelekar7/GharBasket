@@ -12,7 +12,7 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { clock, dayLabel, mapsLink, nextStop } from "@/features/logistics/format.js";
-import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
+import { useCachedHubManager, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
 import { useWaitingCount } from "@/lib/outbox.js";
 
@@ -28,6 +28,7 @@ function RiderRoute() {
   const navigate = useNavigate();
   const query = useMyRoute(lang);
   const actions = useRiderActions();
+  const manager = useCachedHubManager(lang);
   const waiting = useWaitingCount();
   const today = todayIst();
 
@@ -47,9 +48,15 @@ function RiderRoute() {
             retryLabel={t("rider.error.retry")}
             onRetry={() => query.refetch()}
             support={
-              <Link to="/help" className="font-semibold text-link underline">
-                {t("rider.error.support")}
-              </Link>
+              manager ? (
+                <a href={`tel:${manager.phone}`} className="font-semibold text-link underline">
+                  {t("rider.error.supportCall", { name: manager.name })}
+                </a>
+              ) : (
+                <Link to="/help" className="font-semibold text-link underline">
+                  {t("rider.error.support")}
+                </Link>
+              )
             }
           />
           <p className="text-[15px] leading-[22px] text-fg-secondary">{t("rider.error.tip")}</p>

@@ -41,6 +41,7 @@ function Handover() {
   const [manual, setManual] = useState(typing);
   const [code, setCode] = useState("");
   const [reporting, setReporting] = useState(false);
+  const [bagCode, setBagCode] = useState("");
 
   if (day.isPending) return <Skeleton lines={8} />;
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
@@ -49,7 +50,13 @@ function Handover() {
   const shown = done ? d.crates : crates;
   const scanned = shown.filter((c) => c.state === "scanned");
   const waiting = shown.filter((c) => c.state === "waiting");
-  const counted = scanned.reduce((sum, c) => sum + c.bags, 0);
+  // A bag reported missing from a crate that did arrive isn't counted.
+  const counted =
+    scanned.reduce((sum, c) => sum + c.bags, 0) -
+    d.bags.filter((b) => b.status === "missing" && scanned.some((c) => c.id === b.crate)).length;
+  const missingBag = d.bags.find(
+    (b) => b.status === "planned" && b.code === bagCode.trim().toUpperCase(),
+  );
 
   const take = (/** @type {string} */ raw) => {
     const r = receive(raw);
@@ -63,13 +70,14 @@ function Handover() {
     );
     return r.ok;
   };
-  const send = (/** @type {string[]} */ missing) => {
+  const send = (/** @type {string[]} */ missing, /** @type {string[]} */ missingBags = []) => {
     write({
       path: `/v1/stops/${d.stop.id}/handover`,
       body: {
         crates: scanned.map((c) => c.id),
         missing,
-        bags_count: counted,
+        missing_bags: missingBags,
+        bags_count: counted - missingBags.length,
         at: new Date().toISOString(),
       },
     });
@@ -167,11 +175,9 @@ function Handover() {
             >
               {t("captain.handover.done", { count: crates.length })}
             </Button>
-            {waiting.length > 0 && (
-              <Button variant="quiet" block onPress={() => setReporting(true)}>
-                {t("captain.handover.problem")}
-              </Button>
-            )}
+            <Button variant="quiet" block onPress={() => setReporting(true)}>
+              {t("captain.handover.problem")}
+            </Button>
           </>
         )}
       </div>
@@ -206,20 +212,57 @@ function Handover() {
           errorMessage={last?.text}
         />
       </Sheet>
-      <Dialog
-        isOpen={reporting}
-        onOpenChange={setReporting}
-        tone="danger"
-        title={t("captain.handover.missingTitle", {
-          count: waiting.length,
-          crates: waiting.map((c) => c.id).join(", "),
-        })}
-        confirmLabel={t("captain.handover.missingConfirm")}
-        cancelLabel={t("captain.handover.missingCancel")}
-        onConfirm={() => send(waiting.map((c) => c.id))}
-      >
-        {t("captain.handover.missingBody", { rider: d.stop.rider_name })}
-      </Dialog>
+      {waiting.length > 0 ? (
+        <Dialog
+          isOpen={reporting}
+          onOpenChange={setReporting}
+          tone="danger"
+          title={t("captain.handover.missingTitle", {
+            count: waiting.length,
+            crates: waiting.map((c) => c.id).join(", "),
+          })}
+          confirmLabel={t("captain.handover.missingConfirm")}
+          cancelLabel={t("captain.handover.missingCancel")}
+          onConfirm={() => send(waiting.map((c) => c.id))}
+        >
+          {t("captain.handover.missingBody", { rider: d.stop.rider_name })}
+        </Dialog>
+      ) : (
+        // Every crate is in, so the missing thing is a bag. A Dialog can't hold back its confirm
+        // until the code is a real bag's, so this asks in a sheet, as the crate code above does.
+        <Sheet
+          open={reporting}
+          onOpenChange={setReporting}
+          title={t("captain.handover.bagTitle")}
+          description={t("captain.handover.missingBody", { rider: d.stop.rider_name })}
+          footer={
+            <Button
+              variant="danger"
+              size="lg"
+              block
+              isDisabled={!missingBag}
+              onPress={() => {
+                if (!missingBag) return;
+                send([], [missingBag.code]);
+                setReporting(false);
+                setBagCode("");
+              }}
+            >
+              {t("captain.handover.missingConfirm")}
+            </Button>
+          }
+        >
+          <TextField
+            label={t("captain.handover.bagLabel")}
+            placeholder="B-214"
+            autoComplete="off"
+            value={bagCode}
+            onChange={setBagCode}
+            isInvalid={!!bagCode.trim() && !missingBag}
+            errorMessage={t("captain.handover.bagUnknown", { code: bagCode.trim().toUpperCase() })}
+          />
+        </Sheet>
+      )}
     </div>
   );
 }

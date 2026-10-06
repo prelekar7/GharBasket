@@ -140,9 +140,19 @@ export const captainHandlers = [
         return problem(409, "logistics.already_handed_over", "These crates are already received");
       const known = s.day.crates.map((c) => c.id);
       const all = [...(body.crates ?? []), ...(body.missing ?? [])];
-      return all.length === known.length && known.every((c) => all.includes(c))
+      if (!(all.length === known.length && known.every((c) => all.includes(c))))
+        return problem(
+          422,
+          "logistics.crates_mismatch",
+          "Every crate is either received or missing",
+        );
+      // Bags missing from crates that did arrive (our proposal: `missing_bags`, bag codes).
+      const lost = /** @type {string[]} */ (body.missing_bags ?? []);
+      return lost.every((code) =>
+        s.day.bags.some((b) => b.code === code && !(body.missing ?? []).includes(b.crate)),
+      )
         ? null
-        : problem(422, "logistics.crates_mismatch", "Every crate is either received or missing");
+        : problem(422, "logistics.bag_unknown", "Those bags aren't in the crates received");
     }),
   ),
 

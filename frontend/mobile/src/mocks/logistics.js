@@ -41,7 +41,14 @@ const problem = (
 
 /** @param {string} en @param {string} hi @param {string} [mr] @returns {Words} */
 const w = (en, hi, mr = hi) => ({ en, hi, mr });
-const HUB = { id: "hub-kharghar", name: w("Kharghar hub", "खारघर हब"), lat: 19.0473, lng: 73.0699 };
+// The hub manager's number follows the seed's field-people pattern (+91 98000 01xxx, mocks/handlers.js).
+const HUB = {
+  id: "hub-kharghar",
+  name: w("Kharghar hub", "खारघर हब"),
+  lat: 19.0473,
+  lng: 73.0699,
+  manager: { name: w("Vikram Desai", "विक्रम देसाई"), phone: "+919800001008" },
+};
 const MEENA = { name: w("Meena tai", "मीना ताई"), phone: "+919800001004" };
 
 /**
