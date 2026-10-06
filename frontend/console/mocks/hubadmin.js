@@ -1,10 +1,11 @@
-// Hub administration mocks (M6 §3 `GET|POST /v1/admin/hubs`, service area polygon). The detail
-// fields and `PATCH /v1/admin/hubs/{id}` are our proposals. `GET /v1/hubs` (mocks/hubs.js) stays the
+// Hub administration mocks (M6 §3 `GET|POST /v1/admin/hubs`, service area polygon). None of these is in
+// the contract yet, so all of them are a @proposal (not in the contract yet), the detail fields and
+// `PATCH /v1/admin/hubs/{id}` too. `GET /v1/hubs` (mocks/hubs.js) stays the
 // switcher's list of working hubs, so a hub added here is "planned" and is not in the switcher yet.
 import { HttpResponse, http } from "msw";
 import { deny, polygon, slugify, validPolygon } from "./adminShared.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
-import { idempotent, mockStore, problem } from "./util.js";
+import { idempotent, mockStore, mockUuid, problem } from "./util.js";
 
 /**
  * @typedef {{ id: string, slug: string, name: string, city: string, status: "active" | "planned", address: string,
@@ -22,8 +23,8 @@ const seed = () => [
     city: "Navi Mumbai",
     status: "active",
     address: "Sector 10, Kharghar",
-    franchise_owner: { id: "u-sanjay", name: "Sanjay Mehta" },
-    hub_manager: { id: "u-vikram", name: "Vikram Desai" },
+    franchise_owner: { id: mockUuid("b600", 3), name: "Sanjay Mehta" },
+    hub_manager: { id: mockUuid("b600", 2), name: "Vikram Desai" },
     slots: ["8 to 10 AM", "5 to 7 PM"],
     cutoff: "9 PM the evening before",
     // Kharghar to New Panvel; Old Panvel (18.988 N) lies just outside.
