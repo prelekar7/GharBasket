@@ -479,7 +479,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Store an evaluation run's metrics (the eval harness and training jobs; operator token) */
+        /** Store an evaluation run's metrics (the eval harness, training jobs; operator token) */
         post: operations["put_model_metrics_v1_internal_intel_model_metrics_post"];
         delete?: never;
         options?: never;

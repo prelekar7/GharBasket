@@ -8707,7 +8707,7 @@
             "OperatorToken": []
           }
         ],
-        "summary": "Store an evaluation run's metrics (the eval harness and training jobs; operator token)",
+        "summary": "Store an evaluation run's metrics (the eval harness, training jobs; operator token)",
         "tags": [
           "intel_gateway"
         ]
