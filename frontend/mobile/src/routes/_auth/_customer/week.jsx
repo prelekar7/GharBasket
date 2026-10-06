@@ -12,8 +12,9 @@ import {
   ThaliWeek,
   toast,
 } from "@gharbasket/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { PILL } from "@/features/subscriptions/cycle.js";
@@ -30,7 +31,13 @@ import {
   weekdayOf,
   weekRange,
 } from "@/features/subscriptions/format.js";
-import { isEditable, useCurrentCycle, useCycleAction } from "@/features/subscriptions/queries.js";
+import { PaymentFailed } from "@/features/subscriptions/PaymentFailed.jsx";
+import {
+  isEditable,
+  useCurrentCycle,
+  useCycleAction,
+  useFailedBoxOrder,
+} from "@/features/subscriptions/queries.js";
 import { markFirstBoxApproved } from "@/lib/install.js";
 
 /**
@@ -51,8 +58,28 @@ function Week() {
   const unskip = useCycleAction("unskip");
   const [confirmSkip, setConfirmSkip] = useState(false);
   const [openDay, setOpenDay] = useState(/** @type {number | null} */ (null));
+  const client = useQueryClient();
+  // A box the cut-off couldn't charge: from its order and the wallet, not from the cycle (M4).
+  // After a top-up the order is re-read until the debit has gone through.
+  const [repaying, setRepaying] = useState(false);
+  const failedOrder = useFailedBoxOrder(c, { poll: repaying });
+  const order = failedOrder.data;
+  useEffect(() => {
+    if (!repaying) return;
+    if (failedOrder.isSuccess && order === null) {
+      setRepaying(false);
+      toast(t("week.paidToast"));
+      client.invalidateQueries({ queryKey: ["cycle"] });
+      return;
+    }
+    const giveUp = setTimeout(() => {
+      setRepaying(false);
+      toast(t("week.payingStill"));
+    }, 30_000);
+    return () => clearTimeout(giveUp);
+  }, [repaying, failedOrder.isSuccess, order, client, t]);
 
-  if (isPending) return <Skeleton lines={6} />;
+  if (isPending || failedOrder.isLoading) return <Skeleton lines={6} />;
   if (isError) return <ScreenError onRetry={() => refetch()} />;
   if (!c)
     return (
@@ -70,7 +97,9 @@ function Week() {
   const cutoffWhen = `${t(`days.long.d${weekdayOf(istDate(c.cutoff_at))}`)} ${clockTime(istClock(c.cutoff_at), lang)}`;
   const deliveryDay = `${t(`days.short.d${weekdayOf(c.delivery_date)}`)} ${shortDate(c.delivery_date, lang)}`;
   // Edits, including skipping, stay open until the cut-off, even after approving (W3).
-  const editable = isEditable(c);
+  const editable = isEditable(c) && !order;
+  // The failed-payment week shows only the alert, the wallet and the two ways out (design HcPayFailed).
+  const failed = !!order;
 
   /** Says why an action failed; Try again runs it once more. @param {unknown} e @param {() => void} [retry] */
   const onError = (e, retry) => showCycleError(t, e, { retry, refetch });
@@ -105,10 +134,12 @@ function Week() {
           </h1>
         </div>
         <div className="mt-1.5">
-          <StatusPill status={PILL[c.status]}>{t(`week.status.${c.status}`)}</StatusPill>
+          <StatusPill status={failed ? "issue" : PILL[c.status]}>
+            {t(`week.status.${failed ? "payment_failed" : c.status}`)}
+          </StatusPill>
         </div>
       </header>
-      {c.status !== "approved" && c.status !== "skipped" && (
+      {!failed && c.status !== "approved" && c.status !== "skipped" && (
         <p className="-mt-2 text-sm leading-[22px] text-fg-secondary">
           {t(`week.lead.${c.status}`, {
             when: cutoffWhen,
@@ -116,7 +147,7 @@ function Week() {
           })}
         </p>
       )}
-      {c.status === "approved" && (
+      {!failed && c.status === "approved" && (
         <section className="flex flex-col gap-1 rounded-md border-2 border-primary bg-primary-soft px-4 py-3">
           <strong>{t("week.approvedTitle")}</strong>
           <p className="text-sm leading-5">
@@ -124,7 +155,16 @@ function Week() {
           </p>
         </section>
       )}
-      {c.status === "skipped" ? (
+      {order && (
+        <PaymentFailed
+          cycle={c}
+          order={order}
+          repaying={repaying}
+          onPaid={() => setRepaying(true)}
+          onError={onError}
+        />
+      )}
+      {failed ? null : c.status === "skipped" ? (
         <>
           <EmptyState
             illustration={<EmptyBasket />}

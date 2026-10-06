@@ -27,11 +27,11 @@ import { qtyLabel, reasonText, shortDate, weekdayOf } from "@/features/subscript
 import { ProductSheet } from "@/features/subscriptions/ProductSheet.jsx";
 import {
   isEditable,
+  undoSwapOps,
   useCurrentCycle,
   useCycleAction,
-  useEditLine,
+  useEditCycle,
   useSubstitutes,
-  useSwapLine,
 } from "@/features/subscriptions/queries.js";
 import { markFirstBoxApproved } from "@/lib/install.js";
 
@@ -49,8 +49,7 @@ function Box() {
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { data: c, isPending, isError, refetch } = useCurrentCycle(lang);
   const approve = useCycleAction("approve");
-  const swap = useSwapLine();
-  const edit = useEditLine();
+  const edit = useEditCycle();
   const [changing, setChanging] = useState(/** @type {string | null} */ (null));
   const [adding, setAdding] = useState(false);
   const [all, setAll] = useState(false);
@@ -93,20 +92,23 @@ function Box() {
     /** @type {{ id: string, name: string }} */ from,
     /** @type {import("@/features/subscriptions/queries.js").Substitute} */ sub,
   ) =>
-    swap.mutate(
-      { cycle: c, productId: from.id, substituteId: sub.product_id },
+    edit.mutate(
       {
-        onSuccess: (after) =>
+        cycle: c,
+        ops: [{ op: "substitute", product_id: from.id, substitute_id: sub.product_id }],
+      },
+      {
+        onSuccess: (after) => {
+          // Undo takes the replacement out and adds back what it replaced.
+          const now = after.lines.find((l) => l.product_id === sub.product_id);
           toast(t("box.swapped", { from: from.name, to: sub.name }), {
             action: {
               label: t("box.undo"),
               onClick: () =>
-                edit.mutate(
-                  { cycle: after, productId: sub.product_id, op: "undo_swap" },
-                  { onError: fail() },
-                ),
+                now && edit.mutate({ cycle: after, ops: undoSwapOps(now) }, { onError: fail() }),
             },
-          }),
+          });
+        },
         onError: fail(() => swapTo(from, sub)),
       },
     );
@@ -123,7 +125,7 @@ function Box() {
   /** @param {string} productId @param {string} name */
   const addItem = (productId, name) =>
     edit.mutate(
-      { cycle: c, productId, op: "add" },
+      { cycle: c, ops: [{ op: "add", product_id: productId, qty: 1 }] },
       {
         onSuccess: () => toast(t("box.add.added", { name })),
         onError: fail(() => addItem(productId, name)),
@@ -133,7 +135,7 @@ function Box() {
   /** @param {import("@/features/subscriptions/queries.js").BoxLine} line @param {number} qty */
   const saveQty = (line, qty) =>
     edit.mutate(
-      { cycle: c, productId: line.product_id, op: "qty", qty },
+      { cycle: c, ops: [{ op: "qty", product_id: line.product_id, qty }] },
       {
         onSuccess: () => {
           setChanging(null);
@@ -146,7 +148,7 @@ function Box() {
   /** Take a line out, with Undo on the toast. @param {import("@/features/subscriptions/queries.js").BoxLine} line */
   const removeLine = (line) =>
     edit.mutate(
-      { cycle: c, productId: line.product_id, op: "remove" },
+      { cycle: c, ops: [{ op: "remove", product_id: line.product_id }] },
       {
         onSuccess: (after) => {
           setChanging(null);
@@ -155,7 +157,10 @@ function Box() {
               label: t("box.undo"),
               onClick: () =>
                 edit.mutate(
-                  { cycle: after, productId: line.product_id, op: "restore" },
+                  {
+                    cycle: after,
+                    ops: [{ op: "add", product_id: line.product_id, qty: line.qty }],
+                  },
                   { onError: fail() },
                 ),
             },
@@ -185,12 +190,14 @@ function Box() {
           alert={alert}
           budget={c.budget_lock ? formatPaise(c.budget_lock.budget_paise) : null}
           busy={edit.isPending}
-          onKeep={(a) =>
-            edit.mutate(
-              { cycle: c, productId: a.product_id, op: "undo_swap" },
-              { onSuccess: () => toast(t("box.spike.kept", { item: a.item })), onError: fail() },
-            )
-          }
+          onKeep={(a) => {
+            const line = c.lines.find((l) => l.product_id === a.product_id);
+            if (line)
+              edit.mutate(
+                { cycle: c, ops: undoSwapOps(line) },
+                { onSuccess: () => toast(t("box.spike.kept", { item: a.item })), onError: fail() },
+              );
+          }}
           onOk={(a) => dismiss(a.product_id)}
         />
       )}
@@ -218,7 +225,7 @@ function Box() {
                 const line = byName.get(item.name);
                 if (line)
                   edit.mutate(
-                    { cycle: c, productId: line.product_id, op: "undo_swap" },
+                    { cycle: c, ops: undoSwapOps(line) },
                     {
                       onSuccess: () => toast(t("box.undone", { name: line.name })),
                       onError: fail(),
@@ -329,13 +336,17 @@ function Box() {
         open={adding}
         onClose={() => setAdding(false)}
         inBox={new Set(c.lines.map((l) => l.product_id))}
-        busyId={edit.isPending && edit.variables?.op === "add" ? edit.variables.productId : null}
+        busyId={
+          edit.isPending && edit.variables?.ops[0]?.op === "add"
+            ? edit.variables.ops[0].product_id
+            : null
+        }
         onAdd={addItem}
       />
       <ProductSheet
         line={c.lines.find((l) => l.product_id === changing) ?? null}
         onClose={() => setChanging(null)}
-        busy={edit.isPending || swap.isPending}
+        busy={edit.isPending}
         onSwap={(sub) => {
           const line = c.lines.find((l) => l.product_id === changing);
           setChanging(null);

@@ -87,17 +87,74 @@ describe("weekly cycle lifecycle", () => {
     expect(c).not.toHaveProperty("payment_due");
   });
 
-  it("charges the wallet after a top-up when the cut-off found it short", async () => {
+  it("skips with just a key, and approves only with If-Match", async () => {
+    const bare = (/** @type {string} */ action, /** @type {Record<string, string>} */ headers) =>
+      mockFetch(
+        new Request(`http://localhost/v1/cycles/cyc-2026-10-05/${action}`, {
+          method: "POST",
+          headers: { "idempotency-key": crypto.randomUUID(), ...headers },
+        }),
+      );
+    const noMatch = await bare("approve", {});
+    expect(noMatch.status).toBe(428);
+    expect((await noMatch.json()).code).toBe("request.precondition_required");
+    expect((await (await bare("skip", {})).json()).status).toBe("skipped");
+    const again = await bare("skip", {});
+    expect(again.status).toBe(409);
+    expect((await again.json()).code).toBe("subscriptions.not_editable");
+  });
+
+  it("shows the failed payment as an order, never as a cycle status, and retries after a top-up", async () => {
     const { seedShortWallet } = await import("./billing.js");
     const { seedPaymentFailed } = await import("./subscriptions.js");
+    const failed = async () =>
+      (
+        await (
+          await mockFetch(new Request("http://localhost/v1/orders?status=payment_failed"))
+        ).json()
+      ).items;
     seedShortWallet();
     seedPaymentFailed();
-    expect((await act("pay", 1)).status).toBe(402);
+    const cycleNow = await (
+      await mockFetch(new Request("http://localhost/v1/cycles/current"))
+    ).json();
+    expect(cycleNow).toMatchObject({ status: "approved" });
+    expect(cycleNow).not.toHaveProperty("payment_due");
+    const [order] = await failed();
+    expect(order).toMatchObject({
+      kind: "box",
+      status: "payment_failed",
+      cycle_id: cycleNow.id,
+      total_paise: 69000,
+      cutoff_at: "2026-10-05T15:30:00Z",
+    });
+    expect(Object.keys(order)).not.toContain("items_count");
+    // Still short: nothing changes. After a top-up the debit re-runs and the order leaves the list.
+    expect(await failed()).toHaveLength(1);
     const s = JSON.parse(localStorage.getItem("gb-mock-billing") ?? "{}");
     localStorage.setItem("gb-mock-billing", JSON.stringify({ ...s, balance_paise: 69000 }));
-    const paid = await act("pay", 1);
-    expect((await paid.json()).status).toBe("locked");
+    expect(await failed()).toEqual([]);
     expect(JSON.parse(localStorage.getItem("gb-mock-billing") ?? "{}").balance_paise).toBe(0);
+    expect(
+      (await (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json()).status,
+    ).toBe("locked");
+  });
+
+  it("lets an unpaid box go with a cancel, and the cycle is cancelled", async () => {
+    const { seedShortWallet } = await import("./billing.js");
+    const { seedPaymentFailed, uid } = await import("./subscriptions.js");
+    seedShortWallet();
+    seedPaymentFailed();
+    const cancel = await mockFetch(
+      new Request(`http://localhost/v1/orders/${uid("order-box-2026-10-06")}/cancel`, {
+        method: "POST",
+        headers: { "idempotency-key": "cancel-1" },
+      }),
+    );
+    expect((await cancel.json()).status).toBe("cancelled");
+    const c = await (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json();
+    expect(c.status).toBe("cancelled");
+    expect((await act("skip", 2)).status).toBe(409);
   });
 });
 
@@ -174,7 +231,9 @@ describe("box line quantity (Core-B3)", () => {
     );
 
   it("prices a line by its steps and keeps the box total in step", async () => {
-    const c = await (await patch({ op: "qty", product_id: uid("methi"), qty: 3 }, 1)).json();
+    const c = await (
+      await patch({ ops: [{ op: "qty", product_id: uid("methi"), qty: 3 }] }, 1)
+    ).json();
     const methi = c.lines.find((/** @type {any} */ l) => l.slug === "methi");
     expect(methi).toMatchObject({
       qty: 3,
@@ -186,7 +245,9 @@ describe("box line quantity (Core-B3)", () => {
   });
 
   it("counts a line in steps of its own size, with the price per step", async () => {
-    const c = await (await patch({ op: "qty", product_id: uid("bhindi"), qty: 6 }, 1)).json();
+    const c = await (
+      await patch({ ops: [{ op: "qty", product_id: uid("bhindi"), qty: 6 }] }, 1)
+    ).json();
     expect(c.lines.find((/** @type {any} */ l) => l.slug === "bhindi")).toMatchObject({
       qty: 6,
       step: { qty: 250, unit: "g", label: "250 g" },
@@ -195,15 +256,15 @@ describe("box line quantity (Core-B3)", () => {
   });
 
   it("removes a line and puts it back", async () => {
-    let c = await (await patch({ op: "remove", product_id: uid("paneer") }, 1)).json();
+    let c = await (await patch({ ops: [{ op: "remove", product_id: uid("paneer") }] }, 1)).json();
     expect(c.lines.some((/** @type {any} */ l) => l.slug === "paneer")).toBe(false);
     expect(c.total_paise).toBe(69000 - 9000);
-    c = await (await patch({ op: "restore", product_id: uid("paneer") }, 2)).json();
+    c = await (await patch({ ops: [{ op: "add", product_id: uid("paneer"), qty: 2 }] }, 2)).json();
     expect(c.total_paise).toBe(69000);
   });
 
   it("refuses a quantity outside 1 to 20", async () => {
-    const bad = await patch({ op: "qty", product_id: uid("methi"), qty: 0 }, 1);
+    const bad = await patch({ ops: [{ op: "qty", product_id: uid("methi"), qty: 0 }] }, 1);
     expect(bad.status).toBe(422);
     expect((await bad.json()).code).toBe("subscriptions.qty_invalid");
   });
@@ -238,7 +299,7 @@ describe("add-ons (M2 search, lines on the box)", () => {
           }),
         )
       ).json();
-    let c = await patch({ op: "add", product_id: "eggs" }, 1);
+    let c = await patch({ ops: [{ op: "add", product_id: "eggs", qty: 1 }] }, 1);
     expect(c.lines.at(-1)).toMatchObject({
       product_id: "eggs",
       qty: 1,
@@ -247,10 +308,10 @@ describe("add-ons (M2 search, lines on the box)", () => {
       source: "customer",
     });
     expect(c.total_paise).toBe(69000 + 4200);
-    c = await patch({ op: "qty", product_id: "eggs", qty: 2 }, 2);
-    c = await patch({ op: "remove", product_id: "eggs" }, 3);
+    c = await patch({ ops: [{ op: "qty", product_id: "eggs", qty: 2 }] }, 2);
+    c = await patch({ ops: [{ op: "remove", product_id: "eggs" }] }, 3);
     expect(c.total_paise).toBe(69000);
-    c = await patch({ op: "restore", product_id: "eggs" }, 4);
+    c = await patch({ ops: [{ op: "add", product_id: "eggs", qty: 2 }] }, 4);
     expect(c.lines.at(-1)).toMatchObject({ qty: 2, total_paise: 8400 });
   });
 });
@@ -279,16 +340,131 @@ describe("price spike (Core-B4)", () => {
     });
   });
 
-  it("keeps the original item at its price, and Undo swaps back", async () => {
-    let c = await patch({ op: "undo_swap", product_id: uid("lauki") }, 1);
+  it("keeps the original item with a remove and an add in one request", async () => {
+    const c = await patch(
+      {
+        ops: [
+          { op: "remove", product_id: uid("lauki") },
+          { op: "add", product_id: uid("tomato"), qty: 1 },
+        ],
+      },
+      1,
+    );
+    expect(c.version).toBe(2);
+    expect(c.lines.some((/** @type {any} */ l) => l.slug === "lauki")).toBe(false);
     expect(c.lines.find((/** @type {any} */ l) => l.slug === "tomato")).toMatchObject({
       unit_price_paise: 5600,
       total_paise: 5600,
+      reason_code: "added_by_you",
+      source: "customer",
       replaces: null,
     });
     expect(c.total_paise).toBe(69000 + 2600);
-    c = await patch({ op: "undo_swap", product_id: uid("tomato") }, 2);
+  });
+
+  it("puts a person's own swap back the same way", async () => {
+    let c = await patch(
+      { ops: [{ op: "substitute", product_id: uid("bhindi"), substitute_id: uid("tondli") }] },
+      1,
+    );
+    const tondli = c.lines.find((/** @type {any} */ l) => l.slug === "tondli");
+    expect(tondli).toMatchObject({
+      reason_code: "swapped_by_you",
+      replaces: { slug: "bhindi", unit_price_paise: 2000 },
+      total_paise: 3200,
+    });
+    c = await patch(
+      {
+        ops: [
+          { op: "remove", product_id: tondli.product_id },
+          { op: "add", product_id: tondli.replaces.product_id, qty: tondli.qty },
+        ],
+      },
+      2,
+    );
     expect(c.total_paise).toBe(69000);
+    expect(c.lines.find((/** @type {any} */ l) => l.slug === "bhindi")).toMatchObject({
+      qty: 2,
+      reason_code: "meal_plan",
+    });
+  });
+});
+
+describe("cycle edits follow the M3 spec (PR #102)", () => {
+  const send = async (
+    /** @type {any} */ body,
+    /** @type {Record<string, string>} */ headers = { "if-match": '"1"' },
+  ) =>
+    mockFetch(
+      new Request("http://localhost/v1/cycles/cyc-2026-10-05/lines", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      }),
+    );
+  const ok = [{ op: "qty", product_id: uid("methi"), qty: 3 }];
+
+  it("needs If-Match, and a current one", async () => {
+    const none = await send({ ops: ok }, {});
+    expect(none.status).toBe(428);
+    expect((await none.json()).code).toBe("request.precondition_required");
+    const stale = await send({ ops: ok }, { "if-match": '"7"' });
+    expect(stale.status).toBe(412);
+    expect((await stale.json()).code).toBe("subscriptions.version_conflict");
+  });
+
+  it("refuses a flat body, extra fields, an add without qty and 0 or 21 ops with field errors", async () => {
+    for (const body of [
+      { op: "qty", product_id: uid("methi"), qty: 3 },
+      { ops: [{ op: "qty", product_id: uid("methi"), qty: 3, note: "x" }] },
+      { ops: [{ op: "add", product_id: "eggs" }] },
+      { ops: [{ op: "restore", product_id: "eggs" }] },
+      { ops: [] },
+      { ops: Array.from({ length: 21 }, () => ok[0]) },
+    ]) {
+      const res = await send(body);
+      expect(res.status).toBe(422);
+      const problem = await res.json();
+      expect(problem.code).toBe("request.invalid");
+      expect(problem.errors[0]).toMatchObject({ loc: expect.arrayContaining(["body"]) });
+    }
+    const missing = await (await send({ ops: [{ op: "add", product_id: "eggs" }] })).json();
+    expect(missing.errors[0]).toMatchObject({ loc: ["body", "ops", 0, "qty"], type: "missing" });
+  });
+
+  it("names what is wrong with an op, and one bad op changes nothing", async () => {
+    const unknown = await send({ ops: [{ op: "remove", product_id: "no-such" }] });
+    expect((await unknown.json()).code).toBe("subscriptions.product_unknown");
+    const sub = await send({
+      ops: [{ op: "substitute", product_id: uid("bhindi"), substitute_id: uid("nothing") }],
+    });
+    expect((await sub.json()).code).toBe("subscriptions.substitute_unknown");
+    const mixed = await send({ ops: [...ok, { op: "qty", product_id: uid("methi"), qty: 21 }] });
+    expect((await mixed.json()).code).toBe("subscriptions.qty_invalid");
+    const now = await (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json();
+    expect(now.version).toBe(1);
+    expect(now.total_paise).toBe(69000);
+  });
+
+  it("stops an add that takes the month past its Budget Lock, saying by how much", async () => {
+    const res = await send({ ops: [{ op: "qty", product_id: uid("toor-dal"), qty: 20 }] });
+    expect(res.status).toBe(422);
+    const problem = await res.json();
+    expect(problem.code).toBe("subscriptions.budget_exceeded");
+    // 118000 earlier + 69000 now - 18000 + 20 x 18000 = 529000 against 300000
+    expect(problem.over_paise).toBe(118000 + 69000 - 18000 + 20 * 18000 - 300000);
+  });
+
+  it("refuses edits to a skipped week as not editable", async () => {
+    await mockFetch(
+      new Request("http://localhost/v1/cycles/cyc-2026-10-05/skip", {
+        method: "POST",
+        headers: { "idempotency-key": "skip-1" },
+      }),
+    );
+    const res = await send({ ops: ok }, { "if-match": '"2"' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe("subscriptions.not_editable");
   });
 });
 
