@@ -14,8 +14,10 @@ const PERIODS = [
 
 /**
  * The platform's health in five numbers, each with its trend, and two charts for the detail. The
- * period lives in the URL; changing it re-runs the page on the server.
- * @param {{ kpis: import("./tiles.js").Kpis & { period: string } }} props
+ * hub and the period live in the URL; changing either re-runs the page on the server. The Hub select
+ * appears only when the person has more than one choice: admins get "All hubs" and each hub, a hub
+ * manager or franchise owner with a single hub gets no select.
+ * @param {{ kpis: import("./tiles.js").Kpis & { period: string, hub: string, hubs: { id: string, name: string }[] } }} props
  */
 export function KpisView({ kpis }) {
   const [pending, startTransition] = useTransition();
@@ -23,7 +25,12 @@ export function KpisView({ kpis }) {
     "period",
     parseAsString.withOptions({ shallow: false, startTransition }),
   );
+  const [, setHub] = useQueryState(
+    "hub",
+    parseAsString.withOptions({ shallow: false, startTransition }),
+  );
   const tiles = buildTiles(kpis);
+  const hubName = kpis.hubs.find((h) => h.id === kpis.hub)?.name ?? "";
   const label = PERIODS.find((p) => p.value === kpis.period)?.label ?? "Last 4 weeks";
 
   return (
@@ -35,6 +42,16 @@ export function KpisView({ kpis }) {
             <Badge tone="accent">
               Data source: {kpis.data_source === "simulator" ? "household simulator" : "pilot"}
             </Badge>
+            {kpis.hubs.length > 1 && (
+              <div className="w-[220px] max-w-full">
+                <Select
+                  label="Hub"
+                  options={kpis.hubs.map((h) => ({ value: h.id, label: h.name }))}
+                  value={kpis.hub}
+                  onChange={setHub}
+                />
+              </div>
+            )}
             <div className="w-[180px]">
               <Select label="Period" options={PERIODS} value={kpis.period} onChange={setPeriod} />
             </div>
@@ -54,7 +71,7 @@ export function KpisView({ kpis }) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <ChartCard
           title="Active households"
-          subtitle="By week · Kharghar hub"
+          subtitle={`By week · ${hubName}`}
           labels={kpis.weeks}
           series={[{ name: "Active households", values: kpis.active_households }]}
         />
