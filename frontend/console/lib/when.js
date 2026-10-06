@@ -132,3 +132,9 @@ export function whenLabel(iso, asOf) {
 export function dateLabel(iso) {
   return dayLabel(iso).split(" ").slice(1).join(" ");
 }
+
+/** Weekday names as the contract numbers them: index 0 is Monday (`weekday` of a delivery day). */
+export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** "07:00:00" → "07:00": the API sends times of day with seconds. @param {string} time */
+export const hhmm = (time) => time.slice(0, 5);
