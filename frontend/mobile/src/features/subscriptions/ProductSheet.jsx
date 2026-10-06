@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useProduct } from "@/features/catalog/queries.js";
-import { reasonText, weekdayOf } from "./format.js";
+import { intlLocale } from "@/lib/intlLocale.js";
+import { humanize, perUnit, reasonText } from "./format.js";
 import { useSubstitutes } from "./queries.js";
 
 /**
- * One box line as a product: its names in our other languages, list price, season, good swaps
- * best first, and how much to bring with Save and Remove (designs HcProduct, Core-B3; M2). Saving,
- * removing and swapping are the caller's job.
+ * One box line as a product: its names in our other languages, price per step and per kilo, season,
+ * good swaps best first, and how much to bring with Save and Remove (designs HcProduct, Core-B3;
+ * M2). Prices are for one step, as the API sends them. Saving, removing and swapping are the caller's job.
  * @param {{ line: import("./queries.js").BoxLine | null, onClose: () => void, onSave: (qty: number) => void, onRemove: () => void, onSwap: (sub: import("./queries.js").Substitute) => void, busy: boolean }} props
  */
 export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) {
@@ -21,17 +22,19 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
   const product = useProduct(id, lang);
   const subs = useSubstitutes(id, lang);
   const step = line?.step;
-  const list = new Intl.ListFormat(lang, { type: "conjunction" });
-  const uses = (line?.used_in ?? []).map((u) =>
-    t("box.qty.use", { day: t(`days.short.d${weekdayOf(u.date)}`), dish: u.dish }),
-  );
+  const list = new Intl.ListFormat(intlLocale(lang), { type: "conjunction" });
+  // The meals a planned line is for; the API names the recipes, not the days.
+  const recipes = line?.reason_code === "meal_plan" ? (line.reason_params?.recipes ?? []) : [];
   const p = product.data;
-  // The names in our other languages, then the English common name: "भिंडी · भेंडी · Okra".
+  // The names in our other languages, then the common English name: "भिंडी · भेंडी · Okra".
   const otherNames = p
-    ? [...new Set([p.names.hi, p.names.mr, p.names.en, ...p.also_called])]
-        .filter((n) => n !== line?.name)
-        .join(" · ")
+    ? [...new Set([p.names.hi, p.names.mr, p.names.en])].filter((n) => n !== line?.name).join(" · ")
     : undefined;
+  const per = line ? perUnit(line.step, line.unit_price_paise) : null;
+  const inSeason = line?.reason_code === "in_season" || p?.tags.includes("in_season");
+  const priced = subs.data?.items.flatMap((s) =>
+    s.price_paise === null ? [] : [{ ...s, price_paise: s.price_paise }],
+  );
 
   return (
     <Sheet
@@ -55,12 +58,11 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
       {line && step && (
         <div className="flex flex-col gap-3">
           <p className="text-sm leading-5 text-fg-secondary">
-            {t("box.qty.each", { price: formatPaise(step.price_paise), step: step.label })}
-            {p &&
-              ` · ${t("product.per", { price: formatPaise(p.unit_price.price_paise), unit: p.unit_price.unit })}`}
+            {t("box.qty.each", { price: formatPaise(line.unit_price_paise), step: step.label })}
+            {per &&
+              ` · ${t("product.per", { price: formatPaise(per.price_paise), unit: per.unit })}`}
           </p>
-          {product.isPending && <Skeleton className="h-6 w-40" />}
-          {p?.tags.includes("in_season") && (
+          {inSeason && (
             <div>
               <Chip kind="reason">{t("product.season")}</Chip>
             </div>
@@ -68,18 +70,13 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
           <span className="text-xs leading-[18px] font-semibold tracking-[0.04em] text-fg-secondary uppercase">
             {t("product.swaps")}
           </span>
-          {product.isError || subs.isError ? (
-            <ScreenError
-              onRetry={() => {
-                product.refetch();
-                subs.refetch();
-              }}
-            />
-          ) : !subs.data ? (
+          {subs.isError ? (
+            <ScreenError onRetry={() => subs.refetch()} />
+          ) : !priced ? (
             <Skeleton lines={3} />
           ) : (
             <ul className="-mt-2">
-              {subs.data.items.map((s) => (
+              {priced.map((s) => (
                 <li key={s.product_id} className="border-b border-line">
                   <button
                     type="button"
@@ -90,13 +87,11 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
                     <span className="flex flex-col">
                       <span className="sr-only">{t("box.useThis", { name: s.name })}:</span>
                       <strong>
-                        {s.name} · {s.qty_label}
+                        {s.name} · {s.step.label}
                       </strong>
-                      {s.reason_code && (
-                        <span className="text-fg-secondary">
-                          {reasonText(t, { code: s.reason_code, params: s.reason_params })}
-                        </span>
-                      )}
+                      <span className="text-fg-secondary">
+                        {reasonText(t, { code: s.reason_code, params: s.reason_params }, lang)}
+                      </span>
                     </span>
                     <MoneyText paise={s.price_paise} />
                   </button>
@@ -104,9 +99,9 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
               ))}
             </ul>
           )}
-          {uses.length > 0 && (
+          {recipes.length > 0 && (
             <p className="text-sm leading-5 text-fg-secondary">
-              {t("box.qty.for", { meals: list.format(uses) })}
+              {t("box.qty.for", { meals: list.format(recipes.map(humanize)) })}
             </p>
           )}
           <div>
@@ -115,17 +110,17 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
               value={qty}
               onChange={setQty}
               min={1}
-              max={20}
+              max={Math.max(20, line.qty)}
               unit={`× ${step.label}`}
               labels={{ decrease: t("box.qty.less"), increase: t("box.qty.more") }}
             />
           </div>
           <div className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
             <span className="text-sm leading-5 text-fg-secondary">{t("box.qty.thisLine")}</span>
-            <MoneyText paise={qty * step.price_paise} size="lg" />
+            <MoneyText paise={qty * line.unit_price_paise} size="lg" />
           </div>
           <Button variant="danger" onPress={onRemove} isDisabled={busy}>
-            {t("box.qty.remove", { price: formatPaise(line.price_paise) })}
+            {t("box.qty.remove", { price: formatPaise(line.total_paise) })}
           </Button>
         </div>
       )}

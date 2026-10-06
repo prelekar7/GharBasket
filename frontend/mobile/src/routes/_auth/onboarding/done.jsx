@@ -86,7 +86,7 @@ function Done() {
           <dt className="text-sm text-fg-secondary">{t("onboarding.done.delivery")}</dt>
           <dd className="font-semibold">
             {cycle ? (
-              `${weekdayName(cycle.delivery_date, lang)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.delivery_window, lang)}`
+              `${weekdayName(cycle.delivery_date, lang)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.slot, lang)}`
             ) : (
               <Skeleton className="h-5 w-32" />
             )}

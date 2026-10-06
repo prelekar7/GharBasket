@@ -346,7 +346,8 @@
       "when": "{day}, {range}",
       "within": "within your {budget} Budget Lock",
       "cta": "Looks good, continue",
-      "edit": "Change something first"
+      "edit": "Change something first",
+      "later": "Your society’s delivery day isn’t set yet, so there’s no sample week to show. Your first real week appears here once it’s planned."
     },
     "payment": {
       "title": "How do you want to pay?",
@@ -415,22 +416,27 @@
     "today": "Aaj",
     "skip": "Skip",
     "slot": {
+      "breakfast": "Breakfast",
       "lunch": "Lunch",
       "dinner": "Dinner"
     },
     "title": "Your week",
     "status": {
-      "ready": "Ready to check",
+      "awaiting_approval": "Ready to check",
       "approved": "Approved",
       "skipped": "Skipped",
       "locked": "Being packed",
-      "payment_failed": "Payment needed"
+      "payment_failed": "Payment needed",
+      "draft": "Planning",
+      "cancelled": "Cancelled"
     },
     "lead": {
-      "ready": "Aapka hafte ka khana ready hai. Edits close {when}.",
+      "awaiting_approval": "Aapka hafte ka khana ready hai. Edits close {when}.",
       "approved": "Approved. Your box comes on {day}.",
       "skipped": "This week is skipped. No box and no charge.",
-      "locked": "Edits are closed. Your box is being packed."
+      "locked": "Edits are closed. Your box is being packed.",
+      "draft": "We’re still planning this week. You’ll be able to check it soon.",
+      "cancelled": "This week’s box was cancelled. Nothing was charged."
     },
     "brings": "{name} brings it to {flat}",
     "open": "Open box",
@@ -470,34 +476,49 @@
       },
       "offer": "{cook}’s {dish} from your society · {price} · order by {when}",
       "addTiffin": "Add tiffin",
-      "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off."
+      "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off.",
+      "tiffinSlot": "Tiffin",
+      "with": "With {sides}"
     },
     "pauseLead": "Away for longer?",
     "pauseLink": "Pause Autopilot in Profile",
     "thisBox": "This week’s box: ",
     "paidFromWallet": "Paid from wallet",
-    "atCutoff": "At the cut-off"
+    "atCutoff": "At the cut-off",
+    "noCycleTitle": "Your first week is on its way",
+    "noCycleBody": "Autopilot plans each week three days before delivery. When it’s ready, it shows up here to check and approve.",
+    "atSociety": "At your society",
+    "failed": "That didn’t go through. Please try again."
   },
   "reasons": {
     "in_season": "{item} is in season",
     "tiffin_day": "{weekday}: tiffin by {cook}",
     "health_tag": "{tag} for {member}",
-    "price_spike": "{item} +{pct}% this week",
-    "high_protein": "High protein for {member}",
     "tags": {
       "low_sugar": "Low sugar",
       "low_salt": "Low salt",
       "low_oil": "Low oil",
       "high_protein": "High protein"
     },
-    "same_style": "Same sabzi style",
-    "seasonal": "In season",
-    "half_qty": "Half quantity",
-    "same_protein": "Same protein",
     "swapped_by_you": "You swapped this",
-    "quick_cook": "Ready in {minutes} minutes",
     "added_by_you": "You added this",
-    "kept_by_you": "You kept this"
+    "meal_plan": "For {recipes}",
+    "meal_plan_plain": "For this week’s meals",
+    "daily_use": "Daily use for your family",
+    "price_swap": "Cheaper this week: the usual pick is up {pct}%",
+    "price_swap_plain": "Cheaper this week",
+    "fallback_rules": "Based on your family size",
+    "pantry_low": "Running low at home",
+    "in_season_plain": "In season",
+    "health_tag_plain": "Good for your family’s health",
+    "festival": "Fasting on {days}",
+    "festival_plain": "A festival week",
+    "budget_near": "Close to your Budget Lock",
+    "tiffin_day_plain": "A tiffin day",
+    "similar_use": "Similar use in the kitchen",
+    "same_family": "From the same family",
+    "cheaper": "Cheaper, saves {saves}",
+    "cheaper_plain": "Cheaper"
   },
   "box": {
     "when": "{day} delivery",
@@ -521,7 +542,6 @@
       "change": "Change {name}",
       "each": "{price} for {step}",
       "for": "Planned for {meals}.",
-      "use": "{day}’s {dish}",
       "label": "How much {name}",
       "less": "Less",
       "more": "More",
@@ -546,12 +566,16 @@
     "undone": "{name} is back as planned",
     "spike": {
       "title": "Prices moved this week",
-      "body": "{item} is up {pct}% at {market}. To keep you within {budget}, Autopilot used {sub} in {n, plural, one {# meal} other {# meals}} instead.",
-      "bodyNoLock": "{item} is up {pct}% at {market}, so Autopilot used {sub} in {n, plural, one {# meal} other {# meals}} instead.",
+      "body": "{lead}. To keep you within {budget}, Autopilot used {sub} instead.",
+      "bodyNoLock": "{lead}, so Autopilot used {sub} instead.",
       "keep": "Keep {item} (+{delta})",
       "ok": "OK",
-      "kept": "{item} kept in your box"
-    }
+      "kept": "{item} kept in your box",
+      "up": "{item} is up {pct}%",
+      "pricier": "{item} got pricier"
+    },
+    "overBudget": "That would put your box {amount} over your Budget Lock.",
+    "cantEdit": "That change isn’t possible. Check your box and try again."
   },
   "wallet": {
     "title": "Wallet",
@@ -1496,7 +1520,7 @@
     "title": "Budget Lock",
     "spent": "Spent so far",
     "spentValue": "{spent} of {limit}",
-    "left": "{amount} left for {n, plural, one {# more delivery day} other {# more delivery days}}. Autopilot plans each week to fit.",
+    "left": "{amount} left this month. Autopilot plans each week to fit.",
     "over": "{amount} over this month’s limit. Autopilot keeps the rest of the month lean.",
     "off": "Budget Lock is off. Set a monthly limit and Autopilot plans each week to fit.",
     "limitLabel": "Monthly limit for sabzi and staples",
