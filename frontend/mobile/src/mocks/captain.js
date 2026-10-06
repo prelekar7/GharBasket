@@ -99,11 +99,7 @@ const write =
     if (refused) return refused;
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const s = load();
     if (s.keys[key]) return HttpResponse.json(s.keys[key]);
     const body = await request.json().catch(() => ({}));

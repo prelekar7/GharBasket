@@ -40,7 +40,7 @@ function rolesFor(/** @type {string} */ phone) {
       status: "verified",
     },
     "+919800001005": {
-      role: "kitchen",
+      role: "kitchen_partner",
       scope_type: "hub",
       scope_id: "hub-kharghar",
       status: "verified",
@@ -175,8 +175,12 @@ export const handlers = [
     }
     if (request.headers.get("x-gb-client") === "web")
       webSession.set({ phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
+    const web = request.headers.get("x-gb-client") === "web";
     return HttpResponse.json({
-      ...pair,
+      // Browsers get null tokens: the httpOnly cookies carry them (ExchangeOut).
+      ...(web
+        ? { access_token: null, access_expires_in: ACCESS_TTL_S, refresh_token: null }
+        : pair),
       is_new_user: isNewUser(phone),
       user: userFor(phone),
     });
@@ -193,7 +197,12 @@ export const handlers = [
       const session = webSession.get();
       if (!session) return problem(401, "auth.invalid_token", "Please sign in again.");
       webSession.set({ phone: session.phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
-      return HttpResponse.json({ access_expires_in: ACCESS_TTL_S });
+      // TokensOut: browsers get null tokens, the cookies carry them.
+      return HttpResponse.json({
+        access_token: null,
+        access_expires_in: ACCESS_TTL_S,
+        refresh_token: null,
+      });
     }
     const { refresh_token: token } = /** @type {any} */ (await request.json());
     const phone = refreshTokens.get(token);
@@ -203,9 +212,11 @@ export const handlers = [
     return HttpResponse.json(issue(phone));
   }),
 
-  http.post("*/v1/auth/logout", async ({ request }) => {
-    const body = /** @type {any} */ (await request.json().catch(() => ({})));
-    if (body.refresh_token) refreshTokens.delete(body.refresh_token);
+  // No body: the access token (or cookie) says whose session this is.
+  http.post("*/v1/auth/logout", ({ request }) => {
+    const phone = caller(request);
+    if (!phone) return problem(401, "auth.invalid_token", "Your session has expired.");
+    for (const [token, owner] of refreshTokens) if (owner === phone) refreshTokens.delete(token);
     saveRefresh();
     webSession.set(null);
     return new HttpResponse(null, { status: 204 });

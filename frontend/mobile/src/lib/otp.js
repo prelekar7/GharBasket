@@ -2,9 +2,13 @@
 // path; staging uses fictional test numbers, so app verification is off when
 // VITE_FIREBASE_TEST_MODE=true. Native: @capacitor-firebase/authentication. Mock mode (no
 // backend yet): code 123456 passes and the app signs in with dev_phone instead of an ID token.
+// The same dev sign-in runs in `vite dev` against a local backend (VITE_API_MOCK=false) while no
+// Firebase config is set; production builds never take it.
 
 const NATIVE = import.meta.env.MODE === "native";
 const MOCK = import.meta.env.VITE_API_MOCK !== "false";
+const DEV_SIGNIN =
+  MOCK || (import.meta.env.DEV && !NATIVE && !import.meta.env.VITE_FIREBASE_API_KEY);
 const MOCK_CODE = "123456";
 
 /** @type {{ phone: string, confirm: (code: string) => Promise<string | null> } | null} */
@@ -91,7 +95,7 @@ function sendNative(phone) {
  * @param {string} containerId
  */
 export async function sendCode(phone, containerId) {
-  if (MOCK) {
+  if (DEV_SIGNIN) {
     pending = {
       phone,
       confirm: async (code) => {

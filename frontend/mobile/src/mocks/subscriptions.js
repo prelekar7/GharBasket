@@ -378,11 +378,7 @@ const FROM = /** @type {Record<string, string[]>} */ ({
 const transition = (/** @type {keyof typeof FROM} */ action) =>
   http.post(`*/v1/cycles/:id/${action}`, ({ request }) => {
     if (!request.headers.get("idempotency-key"))
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const state = loadState();
     const ifMatch = request.headers.get("if-match");
     if (ifMatch && Number(ifMatch) !== state.version)

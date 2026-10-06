@@ -6,7 +6,7 @@ import { OutboxBanner } from "./OutboxBanner.jsx";
 const BAR = {
   customer: "bg-role-customer",
   captain: "bg-role-captain",
-  kitchen: "bg-role-kitchen",
+  kitchen_partner: "bg-role-kitchen",
   rider: "bg-role-rider",
   packer: "bg-role-packer",
 };

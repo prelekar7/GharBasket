@@ -165,11 +165,7 @@ export const profileHandlers = [
     const h = phone && householdOrDemo(phone);
     if (!phone || !h) return problem(404, "subscriptions.not_found", "No subscription");
     if (!request.headers.get("idempotency-key"))
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const { budget_paise: budget = null, when_over: mode = "swap" } =
       /** @type {{ budget_paise?: number | null, when_over?: string }} */ (await request.json());
     if (budget !== null && (!Number.isInteger(budget) || budget < 50000 || budget > 10_000_000))

@@ -11,7 +11,7 @@ import { clearLocalData } from "@/lib/localData.js";
  * @typedef {object} Session
  * @property {boolean} signedIn True once GET /v1/me has succeeded in this app run.
  * @property {UserOut | null} user
- * @property {RoleGrant[]} grants Verified field-role grants from GET /v1/me.
+ * @property {RoleGrant[]} grants Verified field-role grants from GET /v1/me (applied, kyc_pending and suspended ones are not selectable, M1 US-5).
  * @property {FieldRole[]} roles The same, as role names.
  * @property {FieldRole | null} activeRole Last choice is remembered (handbook ch. 03 §2); sent as X-Active-Role.
  * @property {(profile: UserOut & { roles: RoleGrant[] }) => void} signIn
@@ -22,7 +22,7 @@ import { clearLocalData } from "@/lib/localData.js";
  * @property {() => void} clear Forget the session locally (after it expired).
  */
 
-const FIELD_ROLES = ["customer", "captain", "kitchen", "rider", "packer"];
+const FIELD_ROLES = ["customer", "captain", "kitchen_partner", "rider", "packer"];
 
 /** @param {RoleGrant[]} grants @param {FieldRole | null} role */
 function headerFor(grants, role) {
@@ -93,7 +93,14 @@ export const useSession = create(
 export const HOME_BY_ROLE = /** @type {const} */ ({
   customer: "/week",
   captain: "/captain",
-  kitchen: "/kitchen",
+  kitchen_partner: "/kitchen",
   rider: "/rider",
   packer: "/packer",
 });
+
+/**
+ * A role's key in @gharbasket/ui (role colours, TabBar) and in its URL: the backend's
+ * `kitchen_partner` is "kitchen" there.
+ * @param {FieldRole} role
+ */
+export const uiRole = (role) => (role === "kitchen_partner" ? "kitchen" : role);

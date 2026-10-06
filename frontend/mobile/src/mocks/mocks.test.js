@@ -35,7 +35,7 @@ describe("mock API idempotency (the same key never creates twice)", () => {
       }),
     );
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe("platform.idempotency_key_required");
+    expect((await res.json()).code).toBe("request.idempotency_key_required");
   });
 });
 

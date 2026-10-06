@@ -96,7 +96,7 @@ describe("rider writes (offline outbox replays them)", () => {
   it("requires an Idempotency-Key", async () => {
     const r = await route();
     const res = await post(`/v1/routes/${r.id}/start`, {}, "");
-    expect((await res.json()).code).toBe("platform.idempotency_key_required");
+    expect((await res.json()).code).toBe("request.idempotency_key_required");
   });
 
   it("finishes only after every stop is handed over", async () => {

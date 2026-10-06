@@ -10,26 +10,64 @@ const NATIVE = import.meta.env.MODE === "native";
 const BASE = NATIVE ? (import.meta.env.VITE_API_BASE_URL ?? "") : "";
 const MOCK = import.meta.env.VITE_API_MOCK !== "false";
 
-/** @typedef {"customer" | "captain" | "kitchen" | "rider" | "packer"} FieldRole */
-/** @typedef {{ role: string, scope_type: string | null, scope_id: string | null, status: "verified" | "pending" }} RoleGrant */
+/** @typedef {"customer" | "captain" | "kitchen_partner" | "rider" | "packer"} FieldRole */
+/** @typedef {{ role: string, scope_type: "society" | "hub" | "ngo" | null, scope_id: string | null, status: "applied" | "kyc_pending" | "verified" | "suspended" }} RoleGrant */
 /** @typedef {{ id: string, phone_e164: string, name: string | null, locale: "en-IN" | "hi-IN" | "mr-IN", senior_mode: boolean }} UserOut */
-/** @typedef {{ access_token: string, access_expires_in: number, refresh_token: string, is_new_user: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null, is_new_user: boolean, user: UserOut }} ExchangeOut */
+/** @typedef {{ access_token: string | null, access_expires_in: number, refresh_token: string | null }} TokensOut */
+/** @typedef {{ loc: (string | number)[], message: string, type: string }} FieldProblem */
 
+const STANDARD_MEMBERS = new Set([
+  "type",
+  "title",
+  "status",
+  "detail",
+  "code",
+  "instance",
+  "request_id",
+  "errors",
+]);
+
+/**
+ * An RFC 9457 problem+json response, the same shape as ApiProblem in packages/api-client (kept as
+ * `ApiError` here: nearly every consumer imports that name). Branch on `code`, never on the text.
+ */
 export class ApiError extends Error {
-  /** @param {{ title?: string, status: number, code?: string, detail?: string }} problem RFC 9457 problem+json */
+  /** @param {{ title?: string, status: number, code?: string, detail?: string, request_id?: string, errors?: FieldProblem[] } & Record<string, unknown>} problem the problem body plus the HTTP status */
   constructor(problem) {
-    super(problem.title ?? `HTTP ${problem.status}`);
+    const code = typeof problem.code === "string" ? problem.code : `http.${problem.status}`;
+    super(problem.detail ?? problem.title ?? code);
+    this.name = "ApiError";
     this.status = problem.status;
-    this.code = problem.code ?? "http.error";
+    this.code = code;
+    this.title = problem.title;
     this.detail = problem.detail;
+    /** Extension members, e.g. `household_id` on identity.household_exists, `room_paise` on billing.wallet_limit. */
+    this.extra = Object.fromEntries(
+      Object.entries(problem).filter(([key]) => !STANDARD_MEMBERS.has(key)),
+    );
+    /** Field errors of `request.invalid` (422). */
+    this.errors = Array.isArray(problem.errors) ? problem.errors : [];
+    this.requestId = typeof problem.request_id === "string" ? problem.request_id : null;
   }
 
   /** @param {Response} res */
   static async from(res) {
     const type = res.headers.get("content-type") ?? "";
     const body = type.includes("json") ? await res.json().catch(() => ({})) : {};
-    return new ApiError({ ...body, status: res.status });
+    return new ApiError({ ...(body && typeof body === "object" ? body : {}), status: res.status });
   }
+}
+
+/**
+ * The message of the first field error of a 422 whose `loc` ends in `name` (the body is
+ * `["body", "phone"]`, so "phone" finds it), or undefined.
+ * @param {unknown} problem anything: only an ApiError has field errors
+ * @param {string} name
+ */
+export function fieldError(problem, name) {
+  if (!(problem instanceof ApiError)) return undefined;
+  return problem.errors.find((e) => e.loc.at(-1) === name)?.message;
 }
 
 /** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string> }} RequestOptions */
@@ -145,13 +183,10 @@ export async function exchange({ firebaseIdToken, devPhone }) {
 /** GET /v1/me @returns {Promise<UserOut & { roles: RoleGrant[] }>} */
 export const me = () => request("/v1/me");
 
-/** POST /v1/auth/logout: this device only. Local tokens are cleared even if the call fails. */
+/** POST /v1/auth/logout (no body): this device only. Local tokens are cleared even if the call fails. */
 export async function logout() {
   try {
-    await request("/v1/auth/logout", {
-      method: "POST",
-      body: NATIVE ? { refresh_token: await tokens.refreshToken() } : {},
-    });
+    await request("/v1/auth/logout", { method: "POST" });
   } finally {
     await tokens.clear();
   }
@@ -160,7 +195,7 @@ export async function logout() {
 /** POST /v1/auth/logout-all: every device of this user. */
 export async function logoutAll() {
   try {
-    await request("/v1/auth/logout-all", { method: "POST", body: {} });
+    await request("/v1/auth/logout-all", { method: "POST" });
   } finally {
     await tokens.clear();
   }

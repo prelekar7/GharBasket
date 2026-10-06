@@ -9,7 +9,7 @@ import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 export const Route = createFileRoute("/_auth/kitchen")({
   beforeLoad: () => {
     const role = useSession.getState().activeRole;
-    if (role && role !== "kitchen") throw redirect({ to: HOME_BY_ROLE[role] });
+    if (role && role !== "kitchen_partner") throw redirect({ to: HOME_BY_ROLE[role] });
   },
   component: KitchenShell,
 });
@@ -18,7 +18,7 @@ function KitchenShell() {
   const { t } = useTranslation();
   return (
     <FieldFrame
-      userRole="kitchen"
+      userRole="kitchen_partner"
       tabs={[
         { value: "", label: t("kitchen.tabs.today"), Icon: CalendarBlankIcon },
         { value: "menu", label: t("kitchen.tabs.menu"), Icon: BasketIcon },

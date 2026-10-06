@@ -14,7 +14,7 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { tally } from "@/features/captain/day.js";
 import { clock, dayLabel, ReceivedCard, useCrates } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useDrafts } from "@/features/captain/queries.js";
-import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
+import { HOME_BY_ROLE, uiRole, useSession } from "@/lib/session.js";
 
 /** Captain's morning at a glance: when the van comes, what it brings, how far along (design CaptainToday; M7). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -48,15 +48,17 @@ function Today() {
       <header className="flex flex-col gap-2">
         {roles.length > 1 && (
           <RoleSwitcher
-            roles={roles}
+            roles={roles.map(uiRole)}
             active="captain"
             roleNames={
-              /** @type {Record<import("@/lib/api.js").FieldRole, string>} */ (
-                Object.fromEntries(roles.map((r) => [r, t(`role.${r}`)]))
+              /** @type {Record<string, string>} */ (
+                Object.fromEntries(roles.map((r) => [uiRole(r), t(`role.${r}`)]))
               )
             }
             labels={{ actingAs: t("captain.actingAs"), role: t("captain.role") }}
-            onChange={(role) => {
+            onChange={(picked) => {
+              const role = roles.find((r) => uiRole(r) === picked);
+              if (!role) return;
               setActiveRole(role);
               navigate({ to: HOME_BY_ROLE[role] });
             }}

@@ -2,7 +2,7 @@ import { IconButton, TabBar } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useSession } from "@/lib/session.js";
+import { uiRole, useSession } from "@/lib/session.js";
 import { useToastAboveTabs } from "@/lib/toastOffset.js";
 import { RoleFrame } from "./RoleFrame.jsx";
 
@@ -17,7 +17,7 @@ import { RoleFrame } from "./RoleFrame.jsx";
  * Shell for a field role (packer, rider, captain, kitchen): the thick role bar, the outbox banner,
  * the screen and the role's bottom tabs. Field roles are tools, not apps: one-handed, scan first,
  * and they keep working offline (field-role canvas, Handbook 09).
- * @param {{ userRole: "captain" | "kitchen" | "rider" | "packer", tabs: FieldTab[] }} props
+ * @param {{ userRole: Exclude<import("@/lib/api.js").FieldRole, "customer">, tabs: FieldTab[] }} props
  */
 export function FieldFrame({ userRole, tabs }) {
   const { t } = useTranslation();
@@ -25,6 +25,7 @@ export function FieldFrame({ userRole, tabs }) {
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
   const tabBarRef = useToastAboveTabs();
+  const base = uiRole(userRole); // the URL segment and the role colour key
   const segment = pathname.split("/")[2] ?? "";
   const current = tabs.some((tab) => tab.value === segment) ? segment : "";
   return (
@@ -35,10 +36,10 @@ export function FieldFrame({ userRole, tabs }) {
       <div ref={tabBarRef} className="fixed inset-x-0 bottom-0">
         <TabBar
           label={t("tabs.main")}
-          role={userRole}
+          role={base}
           senior={senior}
           value={current}
-          onChange={(value) => navigate({ to: value ? `/${userRole}/${value}` : `/${userRole}` })}
+          onChange={(value) => navigate({ to: value ? `/${base}/${value}` : `/${base}` })}
           items={tabs.map(({ value, label, Icon }) => ({
             value,
             label,
