@@ -178,7 +178,7 @@
       "towerPh": "Choose your tower",
       "flat": "Flat number",
       "capTitle": "{name} is your Society Captain",
-      "capBody": "She lives in {flat}. She receives your society’s delivery and brings your box to your door."
+      "capBody": "She receives your society’s delivery and brings your box to your door."
     },
     "unlock": {
       "count": "{joined} of {target} homes",
@@ -325,7 +325,13 @@
       "notice": "privacy notice",
       "post": ". You can download or delete your data any time.",
       "cta": "Agree and continue",
-      "failed": "We couldn’t save your household. Check your internet and try again."
+      "failed": "We couldn’t save your household. Check your internet and try again.",
+      "errors": {
+        "identity_tower_unknown": "We couldn’t find that wing in this society. Go back and choose it again.",
+        "identity_address_outside_society": "That address is outside this society. Go back and check it.",
+        "identity_society_unknown": "We couldn’t find that society. Go back and choose it again.",
+        "identity_diet_conflict": "Jain food is veg only. Go back to Food and change one of them."
+      }
     },
     "preview": {
       "eyebrow": "Autopilot · sample week",
@@ -361,7 +367,8 @@
         "generic": "Payment didn’t go through. No money was taken. Try again.",
         "billing_topup_too_small": "Top up at least ₹100",
         "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
-        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
+        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet.",
+        "subscriptions_payment_mode_unavailable": "UPI Autopay isn’t open yet. Choose the wallet for now."
       }
     },
     "done": {

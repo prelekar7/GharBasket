@@ -6,7 +6,7 @@ import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { createMandate } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
-import { request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 
 const QUICK_RUPEES = [1000, 2000, 3000];
 
@@ -37,6 +37,9 @@ function Payment() {
         method: "POST",
         headers: { "idempotency-key": subscriptionKey.current },
         body: { plan: "autopilot", payment_mode: mode },
+      }).catch((e) => {
+        // Already subscribed (a first try that went through): carry on to the payment.
+        if (!(e instanceof ApiError && e.code === "subscriptions.exists")) throw e;
       });
       if (mode === "autopay") {
         await createMandate({ key: crypto.randomUUID() });
@@ -46,6 +49,9 @@ function Payment() {
       await topUp.start(amountPaise);
     } catch (e) {
       setSetup(false);
+      // UPI Autopay is not open yet (subscriptions.payment_mode_unavailable): back to the wallet.
+      if (e instanceof ApiError && e.code === "subscriptions.payment_mode_unavailable")
+        setMode("wallet");
       topUp.fail(e);
     }
   };

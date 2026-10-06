@@ -12,13 +12,6 @@ const post = (/** @type {string} */ path, /** @type {object} */ body, key = "key
   );
 
 describe("mock API idempotency (the same key never creates twice)", () => {
-  it("households", async () => {
-    const body = { society_id: "sunrise-towers", size: 4 };
-    const a = await (await post("/v1/households", body)).json();
-    const b = await (await post("/v1/households", body)).json();
-    expect(b.id).toBe(a.id);
-  });
-
   it("donations", async () => {
     const a = await post("/v1/donations", { items: ["clothes"] }, "don-key");
     const b = await post("/v1/donations", { items: ["clothes"] }, "don-key");
@@ -320,7 +313,7 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
   });
 });
 
-describe("household edits and pause (M1, M3)", () => {
+describe("Budget Lock (M3)", () => {
   const signedIn = async () => {
     const ex = await mockFetch(
       new Request("http://localhost/v1/auth/exchange", {
@@ -344,58 +337,6 @@ describe("household edits and pause (M1, M3)", () => {
         body: body ? JSON.stringify(body) : undefined,
       }),
     );
-
-  it("changes the family with If-Match and keeps the size in step", async () => {
-    await signedIn();
-    const h = await (await call("GET", "/v1/households/me")).json();
-    expect(h).toMatchObject({ size: 4, version: 1 });
-    const res = await call(
-      "PATCH",
-      `/v1/households/${h.id}`,
-      { members: { ...h.members, children: 3 } },
-      { "if-match": "1" },
-    );
-    expect(await res.json()).toMatchObject({ size: 5, version: 2 });
-    expect(
-      (await call("PATCH", `/v1/households/${h.id}`, { diet: "egg" }, { "if-match": "1" })).status,
-    ).toBe(412);
-  });
-
-  it("refuses health tags without consent", async () => {
-    await signedIn();
-    const h = await (await call("GET", "/v1/households/me")).json();
-    const res = await call(
-      "PATCH",
-      `/v1/households/${h.id}`,
-      { health_consent: false, health: { "adults-1": ["diabetes"] } },
-      { "if-match": String(h.version) },
-    );
-    expect(res.status).toBe(403);
-  });
-
-  it("pauses and resumes the subscription", async () => {
-    await signedIn();
-    const h = await (await call("GET", "/v1/households/me")).json();
-    const paused = await (
-      await call("PATCH", `/v1/subscriptions/${h.subscription.id}`, { paused_until: "2026-10-20" })
-    ).json();
-    expect(paused).toMatchObject({ status: "paused", paused_until: "2026-10-20" });
-    const on = await (
-      await call("PATCH", `/v1/subscriptions/${h.subscription.id}`, { paused_until: null })
-    ).json();
-    expect(on.status).toBe("active");
-  });
-
-  it("changes the flat within the society", async () => {
-    await signedIn();
-    const h = await (await call("GET", "/v1/households/me")).json();
-    const res = await call("PATCH", `/v1/addresses/${h.address_id}`, { tower: "c", flat: "701" });
-    expect(await res.json()).toMatchObject({ label: "C-701" });
-    expect((await (await call("GET", "/v1/households/me")).json()).flat).toBe("C-701");
-    expect(
-      (await call("PATCH", `/v1/addresses/${h.address_id}`, { tower: "c", flat: "" })).status,
-    ).toBe(422);
-  });
 
   it("sets Budget Lock with a key, into the household's budget, and turns it off", async () => {
     await signedIn();

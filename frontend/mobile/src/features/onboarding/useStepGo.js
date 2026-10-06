@@ -5,15 +5,14 @@ import { useTranslation } from "react-i18next";
 import { ApiError, request } from "@/lib/api.js";
 import { nextStep, useOnboardingDraft } from "./draft.js";
 
-/** The household as PATCH /v1/households/{id} takes it (M1, If-Match). @param {import("./draft.js").HouseholdDraft} h */
+/**
+ * The household's own settings as PATCH /v1/households/{id} takes them (HouseholdUpdate). The
+ * family, the food rules and health tags are members, saved through …/members.
+ * @param {import("./draft.js").HouseholdDraft} h
+ */
 const toApi = (h) => ({
-  members: h.members,
   diet: h.diet,
   cuisine_tags: h.cuisines,
-  rules: { jain: h.jain, no_onion_some_days: h.noOnionSomeDays },
-  fasting: h.fasting,
-  health_consent: h.healthConsent,
-  health: h.healthConsent ? h.health : {},
   weekday_cook_minutes: h.weekdayCookMinutes,
   weekend_cook_minutes: h.weekendCookMinutes,
   no_cook_days: h.noCookDays,
@@ -36,7 +35,7 @@ export function useStepGo(path) {
       return request(`/v1/households/${editing.id}`, {
         method: "PATCH",
         body: toApi(household),
-        headers: { "if-match": String(editing.version) },
+        headers: { "if-match": `"${editing.version}"` },
       });
     },
     onSuccess: () => {

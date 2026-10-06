@@ -18,7 +18,7 @@ const problem = (status, code, title) =>
   );
 
 /** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider. */
-function rolesFor(/** @type {string} */ phone) {
+export function rolesFor(/** @type {string} */ phone) {
   /** @type {import("@/lib/api.js").RoleGrant[]} */
   const roles = [{ role: "customer", scope_type: null, scope_id: null, status: "verified" }];
   if (phone === "+919800000002") {

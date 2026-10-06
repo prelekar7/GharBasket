@@ -8,8 +8,10 @@ import {
   addWeeks,
   HOUSEHOLD_STEPS_EDIT,
   householdValue,
+  useHealthConsent,
   useMyHousehold,
   usePause,
+  useSubscription,
 } from "@/features/identity/profile.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
@@ -24,15 +26,15 @@ function Household() {
   const router = useRouter();
   const navigate = useNavigate();
   const { data: hh, isPending, isError, refetch } = useMyHousehold();
-  const pause = usePause(hh?.subscription.id);
+  const { data: health = false } = useHealthConsent();
+  const { data: subscription } = useSubscription();
+  const pause = usePause();
   const startEdit = useOnboardingDraft((d) => d.startEdit);
   const [pausing, setPausing] = useState(false);
   const [weeks, setWeeks] = useState("2");
-  const paused = hh?.subscription.status === "paused";
+  const paused = subscription?.status === "paused";
   const backOn = addWeeks(weeks);
-  const pausedUntil = hh?.subscription.paused_until
-    ? shortDate(hh.subscription.paused_until, lang)
-    : "";
+  const pausedUntil = subscription?.paused_until ? shortDate(subscription.paused_until, lang) : "";
 
   /** @type {{ key: string, label: string, value: string, onPress: () => void }[]} */
   const rows = hh
@@ -40,20 +42,25 @@ function Household() {
         ...HOUSEHOLD_STEPS_EDIT.map(({ key, to }) => ({
           key,
           label: t(`profile.edit.${key}`),
-          value: householdValue(t, key, hh),
+          value: householdValue(t, key, hh, health),
           onPress: () => {
-            if (key !== "budget") startEdit(hh);
+            if (key !== "budget") startEdit(hh, health);
             navigate({ to });
           },
         })),
-        {
-          key: "autopilot",
-          label: t("profile.pause.row"),
-          value: paused
-            ? t("profile.pause.pausedValue", { date: pausedUntil })
-            : t("profile.pause.on"),
-          onPress: () => setPausing(true),
-        },
+        // Pausing is on the subscription, so it needs one.
+        ...(subscription
+          ? [
+              {
+                key: "autopilot",
+                label: t("profile.pause.row"),
+                value: paused
+                  ? t("profile.pause.pausedValue", { date: pausedUntil })
+                  : t("profile.pause.on"),
+                onPress: () => setPausing(true),
+              },
+            ]
+          : []),
       ]
     : [];
 
