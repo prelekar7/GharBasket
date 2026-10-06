@@ -17,6 +17,7 @@ import { useMandate, useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
 import { flatNumber } from "@/features/identity/address.js";
 import {
+  istDate,
   useChangeAddress,
   useDataExport,
   useDeleteAccount,
@@ -28,6 +29,7 @@ import {
 import { useInbox } from "@/features/notifications/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
 import { LOCALES } from "@/i18n.js";
+import { ApiError } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 
 /** Profile: who you are, senior mode, and the way to everything about your account (design HcProfile, M1). */
@@ -252,7 +254,14 @@ function Profile() {
                     setSheet(null);
                     toast(t("profile.address.saved"));
                   },
-                  onError: () => toast(t("profile.saveFailed")),
+                  onError: (e) =>
+                    toast(
+                      t(
+                        e instanceof ApiError && e.code === "identity.tower_unknown"
+                          ? "onboarding.consent.errors.identity_tower_unknown"
+                          : "profile.saveFailed",
+                      ),
+                    ),
                 },
               )
             }
@@ -301,14 +310,12 @@ function Profile() {
               >
                 <span className="flex flex-col">
                   <span className="font-semibold">
-                    {d.current ? t("profile.thisPhone") : d.label}
+                    {d.current ? t("profile.thisPhone") : t(`profile.platform.${d.platform}`)}
                   </span>
                   <span className="text-sm text-fg-secondary">
                     {d.current
                       ? t("profile.activeNow")
-                      : t("profile.lastSeen", {
-                          date: shortDate(d.last_seen_at.slice(0, 10), lang),
-                        })}
+                      : t("profile.lastSeen", { date: shortDate(istDate(d.last_seen_at), lang) })}
                   </span>
                 </span>
                 {!d.current && (
@@ -317,7 +324,10 @@ function Profile() {
                     isPending={revoke.isPending && revoke.variables === d.id}
                     onPress={() =>
                       revoke.mutate(d.id, {
-                        onSuccess: () => toast(t("profile.revoked", { device: d.label })),
+                        onSuccess: () =>
+                          toast(
+                            t("profile.revoked", { device: t(`profile.platform.${d.platform}`) }),
+                          ),
                         onError: () => toast(t("profile.saveFailed")),
                       })
                     }

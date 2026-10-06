@@ -56,6 +56,10 @@
     "saveFailed": "सेव नहीं हो पाया। इंटरनेट देखकर फिर कोशिश करें।",
     "thisPhone": "यह फ़ोन",
     "activeNow": "अभी चालू",
+    "platform": {
+      "android": "Android फ़ोन",
+      "web": "वेब ब्राउज़र"
+    },
     "lastSeen": "आख़िरी बार {date}",
     "signOutDevice": "साइन आउट",
     "revoked": "{device} से साइन आउट हो गया।",

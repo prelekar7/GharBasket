@@ -2,21 +2,14 @@ import { toast } from "@gharbasket/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ApiError, request } from "@/lib/api.js";
+import { ApiError } from "@/lib/api.js";
 import { nextStep, useOnboardingDraft } from "./draft.js";
+import { saveHouseholdEdits } from "./save.js";
 
-/**
- * The household's own settings as PATCH /v1/households/{id} takes them (HouseholdUpdate). The
- * family, the food rules and health tags are members, saved through …/members.
- * @param {import("./draft.js").HouseholdDraft} h
- */
-const toApi = (h) => ({
-  diet: h.diet,
-  cuisine_tags: h.cuisines,
-  weekday_cook_minutes: h.weekdayCookMinutes,
-  weekend_cook_minutes: h.weekendCookMinutes,
-  no_cook_days: h.noCookDays,
-  budget_paise: h.budgetLockPaise,
+/** Saves that fail with their own words; any other failure is "check your internet". */
+const ERROR_COPY = /** @type {Record<string, string>} */ ({
+  "identity.version_conflict": "profile.edit.conflict",
+  "identity.diet_conflict": "onboarding.consent.errors.identity_diet_conflict",
 });
 
 /**
@@ -32,27 +25,17 @@ export function useStepGo(path) {
   const save = useMutation({
     mutationFn: () => {
       if (!editing) throw new Error("not editing");
-      return request(`/v1/households/${editing.id}`, {
-        method: "PATCH",
-        body: toApi(household),
-        headers: { "if-match": `"${editing.version}"` },
-      });
+      return saveHouseholdEdits(household);
     },
     onSuccess: () => {
       stopEdit();
       client.invalidateQueries({ queryKey: ["household", "me"] });
-      client.invalidateQueries({ queryKey: ["cycle", "current"] });
+      client.invalidateQueries({ queryKey: ["consents"] });
+      client.invalidateQueries({ queryKey: ["cycle"] });
       toast(t("profile.edit.saved"));
       navigate({ to: "/household" });
     },
-    onError: (e) =>
-      toast(
-        t(
-          e instanceof ApiError && e.code === "identity.version_conflict"
-            ? "profile.edit.conflict"
-            : "profile.saveFailed",
-        ),
-      ),
+    onError: (e) => toast(t((e instanceof ApiError && ERROR_COPY[e.code]) || "profile.saveFailed")),
   });
   return {
     editing: !!editing,
