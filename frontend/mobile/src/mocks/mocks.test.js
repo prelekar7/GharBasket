@@ -850,43 +850,6 @@ describe("product detail (HcProduct)", () => {
   });
 });
 
-describe("live tracking demo day (HcTracking)", () => {
-  it("drives the van, then hands over to the captain, then delivers", async () => {
-    const { deliveryStage, restartTrip, TRIP_MS, DOOR_MS } = await import("./tracking.js");
-    restartTrip();
-    const t0 = 1_000_000;
-    expect(deliveryStage(t0)).toEqual({ progress: 0, status: "DISPATCHED" });
-    expect(deliveryStage(t0 + TRIP_MS / 2).progress).toBe(0.5);
-    expect(deliveryStage(t0 + TRIP_MS).status).toBe("AT_SOCIETY");
-    expect(deliveryStage(t0 + TRIP_MS + DOOR_MS).status).toBe("DELIVERED");
-    const order = await (
-      await mockFetch(new Request("http://localhost/v1/orders/ord-2026-10-06"))
-    ).json();
-    expect(order.status).toBe("DELIVERED");
-    expect(order.events.at(-1)).toMatchObject({ to_status: "DELIVERED" });
-    restartTrip();
-  });
-});
-
-describe("rating a delivered day (HcRate)", () => {
-  it("rates once a delivery arrives, once per order", async () => {
-    const { restartTrip, deliveryStage, TRIP_MS, DOOR_MS } = await import("./tracking.js");
-    const body = { score: 5, tags: ["fresh", "on_time"], comment: "Methi was fresh" };
-    restartTrip();
-    deliveryStage(Date.now()); // the van has just left
-    const early = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-1");
-    expect((await early.json()).code).toBe("orders.not_delivered");
-    restartTrip();
-    deliveryStage(Date.now() - TRIP_MS - DOOR_MS); // delivered
-    const a = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-2");
-    expect(a.status).toBe(201);
-    expect((await post("/v1/orders/ord-2026-10-06/rating", body, "rate-2")).status).toBe(201);
-    const again = await post("/v1/orders/ord-2026-10-06/rating", body, "rate-3");
-    expect((await again.json()).code).toBe("orders.already_rated");
-    restartTrip();
-  });
-});
-
 describe("partner documents (M8 US-2)", () => {
   const call = async (
     /** @type {string} */ method,

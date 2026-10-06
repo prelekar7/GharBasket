@@ -15,7 +15,14 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
-import { useOrder, useOrders, useRateDelivery } from "@/features/orders/queries.js";
+import {
+  useDeliveryPlace,
+  useOrder,
+  useOrders,
+  useRateDelivery,
+  useRating,
+  useTiffinInfo,
+} from "@/features/orders/queries.js";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 
 /** "How was today?": rate the delivered box and the tiffin that came with it (design HcRate; M4, M8). */
@@ -66,6 +73,7 @@ function Rate() {
   const { orderId } = Route.useParams();
   const order = useOrder(orderId, lang);
   const list = useOrders(lang);
+  const place = useDeliveryPlace();
   const rate = useRateDelivery();
   const [boxScore, setBoxScore] = useState("");
   const [boxTags, setBoxTags] = useState(/** @type {string[]} */ ([]));
@@ -74,6 +82,15 @@ function Rate() {
   const [comment, setComment] = useState("");
   const [reporting, setReporting] = useState(false);
   const o = order.data;
+  // The tiffin that came the same day, if there was one.
+  const sameDay =
+    o &&
+    (list.data ?? []).find(
+      (x) => x.kind === "tiffin" && x.delivery_date === o.delivery_date && x.status === "delivered",
+    );
+  const boxRating = useRating(o?.id);
+  const tiffinRating = useRating(sameDay?.id);
+  const tiffinInfo = useTiffinInfo(sameDay?.id, lang);
 
   const header = (
     <header className="-ml-3 flex items-center gap-1">
@@ -97,14 +114,14 @@ function Rate() {
     </header>
   );
 
-  if (order.isPending || list.isPending)
+  if (order.isPending || list.isPending || boxRating.isLoading || tiffinRating.isLoading)
     return (
       <div className="flex flex-col gap-4">
         {header}
         <Skeleton lines={10} />
       </div>
     );
-  if (order.isError || list.isError || !o)
+  if (order.isError || list.isError || boxRating.isError || !o)
     return (
       <div className="flex flex-col gap-4">
         {header}
@@ -112,33 +129,29 @@ function Rate() {
           onRetry={() => {
             order.refetch();
             list.refetch();
+            boxRating.refetch();
           }}
         />
       </div>
     );
-  if (o.status !== "DELIVERED" || o.rating)
+  if (o.status !== "delivered" || boxRating.data)
     return (
       <div className="flex flex-col gap-4">
         {header}
         <EmptyState
           illustration={<TiffinSteam className="h-auto w-28" />}
-          title={t(o.rating ? "rate.doneTitle" : "rate.notYetTitle")}
-          body={t(o.rating ? "rate.doneBody" : "rate.notYetBody")}
+          title={t(boxRating.data ? "rate.doneTitle" : "rate.notYetTitle")}
+          body={t(boxRating.data ? "rate.doneBody" : "rate.notYetBody")}
           action={t("rate.backToOrders")}
           onAction={() => navigate({ to: "/orders" })}
         />
       </div>
     );
 
-  // The tiffin that came the same day, if there was one and it is not rated yet.
-  const tiffin = (list.data ?? []).find(
-    (x) =>
-      x.kind === "tiffin" &&
-      x.delivery_date === o.delivery_date &&
-      x.status === "DELIVERED" &&
-      !x.rating,
-  );
-  const captain = o.captain?.name ?? "";
+  // ...and it is not rated yet.
+  const tiffin = sameDay && !tiffinRating.data ? sameDay : undefined;
+  const cook = tiffinInfo.data?.cook.name;
+  const captain = place.captain;
   const send = () => {
     /** @type {import("@/features/orders/queries.js").Rating[]} */
     const ratings = [];
@@ -169,8 +182,15 @@ function Rate() {
       />
       {tiffin && (
         <RateCard
-          title={t("rate.tiffin", { slot: tiffin.slot ?? "lunch" })}
-          by={t("rate.tiffinBy", { dish: tiffin.dish?.name ?? "", cook: tiffin.cook?.name ?? "" })}
+          title={t("rate.tiffin", { slot: tiffinInfo.data?.meal ?? "lunch" })}
+          by={
+            tiffinInfo.data
+              ? t("rate.tiffinBy", {
+                  dish: tiffinInfo.data.dish.name,
+                  cook: tiffinInfo.data.cook.name,
+                })
+              : undefined
+          }
           kind="tiffin"
           score={tiffinScore}
           onScore={setTiffinScore}
@@ -187,8 +207,12 @@ function Rate() {
       />
       <p className="text-sm leading-5 text-fg-secondary">
         {tiffin
-          ? t("rate.privacy", { cook: tiffin.cook?.name ?? "", captain })
-          : t("rate.privacyBox", { captain })}
+          ? captain
+            ? t("rate.privacy", { cook: cook ?? "", captain })
+            : t("rate.privacyNoCaptain", { cook: cook ?? "" })
+          : captain
+            ? t("rate.privacyBox", { captain })
+            : t("rate.privacyBoxNoCaptain")}
       </p>
       <div className="mt-auto flex flex-col">
         <Button

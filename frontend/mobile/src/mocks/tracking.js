@@ -1,9 +1,14 @@
 // M7 live-tracking mocks (docs/modules/M7-logistics.md US-5): where today's van is, for the customer.
 // The rider's side of M7 is mocks/logistics.js.
 // The real API streams GET /v1/routes/{id}/live over SSE every 15 s; until it exists the app polls
-// GET /v1/orders/{id}/tracking, our proposal. The van drives a short demo trip in real time.
+// GET /v1/orders/{id}/tracking, our proposal. It adds only what the order cannot say (the van, the
+// rider, the hub's name, the map's two ends); the order's status and times are the order's.
+// The van drives a short demo trip in real time.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
+
+/** Today's box, the one on the van: M4's order id (a UUID). */
+export const TODAY_BOX_ID = "0199b000-0000-7000-8000-0000000000a6";
 
 /** The demo delivery day starts on the first request after sign-in and survives reloads. */
 const TRIP_KEY = "gb-mock-trip";
@@ -34,7 +39,7 @@ export function deliveryStage(now = Date.now()) {
   const t = now - start;
   return {
     progress: Math.min(1, t / TRIP_MS),
-    status: t < TRIP_MS ? "DISPATCHED" : t < TRIP_MS + DOOR_MS ? "AT_SOCIETY" : "DELIVERED",
+    status: t < TRIP_MS ? "dispatched" : t < TRIP_MS + DOOR_MS ? "at_society" : "delivered",
   };
 }
 
@@ -60,7 +65,7 @@ export const trackingHandlers = [
         { type: "about:blank", title: "Sign in again", status: 401, code: "auth.invalid_token" },
         { status: 401, headers: { "content-type": "application/problem+json" } },
       );
-    if (params.id !== "ord-2026-10-06")
+    if (params.id !== TODAY_BOX_ID)
       return HttpResponse.json(
         {
           type: "about:blank",
@@ -71,16 +76,15 @@ export const trackingHandlers = [
         { status: 404, headers: { "content-type": "application/problem+json" } },
       );
     const hi = langOf(request) === "hi";
-    const { progress, status } = deliveryStage();
+    const { progress } = deliveryStage();
     const [lng, lat] = ROUTE[ROUTE.length - 1];
     return HttpResponse.json({
       order_id: params.id,
-      status,
       rider: { name: hi ? "अर्जुन" : "Arjun" },
       hub: { name: hi ? "खारघर" : "Kharghar", lat: ROUTE[0][1], lng: ROUTE[0][0] },
-      society: { name: hi ? "सनराइज़ टावर्स" : "Sunrise Towers", lat, lng },
+      society: { lat, lng },
       van: along(progress),
-      eta_at: "08:40",
+      eta_at: "2026-10-06T03:10:00Z",
       updated_at: new Date().toISOString(),
     });
   }),
