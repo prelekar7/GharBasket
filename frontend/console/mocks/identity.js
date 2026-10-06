@@ -3,6 +3,7 @@
 // backend seed's staff. No Aadhaar anywhere: M1 does not hold it.
 import { HttpResponse, http } from "msw";
 import { deny, istDay } from "./adminShared.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /** Roles an admin may give here; the others come from Partners and KYC (M8). */
@@ -30,7 +31,7 @@ const staff = (id, role, by, hub = false) => ({
   id: `r-${id}-${role}`,
   role,
   scope_type: hub ? "hub" : null,
-  scope_id: hub ? "kharghar" : null,
+  scope_id: hub ? KHARGHAR_HUB_ID : null,
   scope_label: hub ? "Kharghar hub" : null,
   status: "verified",
   given_by: by,
@@ -153,7 +154,7 @@ const users = () => mockStore("identity.users", seedUsers);
 /** Who is signed in, by role, for "Given by" and the self-removal guard. */
 const ME = { admin: "u-neha", hub_manager: "u-vikram", franchise_owner: "u-sanjay" };
 
-const HUB_LABELS = /** @type {Record<string, string>} */ ({ kharghar: "Kharghar hub" });
+const HUB_LABELS = /** @type {Record<string, string>} */ ({ [KHARGHAR_HUB_ID]: "Kharghar hub" });
 
 /** The 10 digits of an Indian mobile number typed any usual way, or null. @param {string} text */
 function tenDigits(text) {

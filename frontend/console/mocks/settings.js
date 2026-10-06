@@ -3,6 +3,7 @@
 // is logged with who and when). The clock lists the scheduled jobs of a delivery day (T) as the other
 // modules own them; this page shows it and does not edit it.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { mockStore, problem, roleOf } from "./util.js";
 
 /**
@@ -54,7 +55,7 @@ const QUIET = /** @type {Record<string, string>} */ ({
 });
 
 const view = () => ({
-  hub_id: "kharghar",
+  hub_id: KHARGHAR_HUB_ID,
   hub_name: "Kharghar hub",
   clock: CLOCK,
   ...store().value,

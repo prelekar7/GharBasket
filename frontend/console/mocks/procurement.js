@@ -9,6 +9,7 @@
 // greens, vegetables and dairy. Money is integer paise.
 import { HttpResponse, http } from "msw";
 import { catalogStore } from "./catalog.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /** Placeholder vendors until real ones are onboarded (M6 §11); shared with receiving and vendor scores. */
@@ -112,7 +113,7 @@ export const procurementState = () =>
   mockStore("procurement", () => ({
     plan: {
       id: "plan-2026-10-06",
-      hub_id: "kharghar",
+      hub_id: KHARGHAR_HUB_ID,
       for_date: "2026-10-06",
       made_at: "2026-10-05T21:15:00+05:30",
       status: /** @type {"ready" | "sent"} */ ("ready"),
@@ -143,7 +144,7 @@ function planOut() {
 
 export const procurementHandlers = [
   http.get("*/v1/hubs/:id/procurement-plans", ({ params, request }) => {
-    if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
     const date = new URL(request.url).searchParams.get("date") ?? "2026-10-06";
     return HttpResponse.json({
       items: date === procurementState().plan.for_date ? [planOut()] : [],

@@ -9,6 +9,7 @@
 // The LLM and the console never compute these numbers; the mock stands in for the API doing it.
 import { HttpResponse, http } from "msw";
 import { catalogStore } from "./catalog.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 const DATE = "2026-10-06";
@@ -102,7 +103,7 @@ const wastedKg = () =>
 
 export const wasteHandlers = [
   http.get("*/v1/hubs/:id/waste-logs", ({ params }) => {
-    if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
     return HttpResponse.json({
       date: DATE,
       as_of: "12:35 PM",
@@ -112,7 +113,7 @@ export const wasteHandlers = [
   }),
 
   http.get("*/v1/hubs/:id/waste-metrics", ({ params }) => {
-    if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
     const kg = wastedKg();
     const per100 = +((kg / SOLD_KG) * 100).toFixed(1);
     return HttpResponse.json({
@@ -126,7 +127,7 @@ export const wasteHandlers = [
   // POST /v1/hubs/{id}/waste-logs  { product_id, qty, unit, reason, note? }
   http.post("*/v1/hubs/:id/waste-logs", ({ params, request }) =>
     idempotent(request, (body) => {
-      if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+      if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
       const product = catalogStore().products.find((p) => p.slug === body?.product_id);
       /** @type {{ field: string, message: string }[]} */
       const errors = [];

@@ -2,16 +2,41 @@
 import { HttpResponse } from "msw";
 
 /**
+ * One item of a 422's `errors`, the way the real API reports it: `loc` is the path into the request
+ * body, `["body", "items", 2, "price_paise"]`, and `type` says what rule failed. The console reads the
+ * last string of `loc` as the field name (lib/problem-fields.js).
+ * @param {string | (string | number)[]} field a field name ("name"), a dotted path ("lines.2.price_paise"), or the path itself
+ * @param {string} message
+ * @param {string} [type] e.g. "missing", "value_error"
+ * @returns {{ loc: (string | number)[], message: string, type: string }}
+ */
+export function fieldError(field, message, type = "value_error") {
+  const path = Array.isArray(field)
+    ? field
+    : field.split(".").map((part) => (/^\d+$/.test(part) ? Number(part) : part));
+  return { loc: ["body", ...path], message, type };
+}
+
+/**
  * An RFC 9457 problem+json response, the way the real API reports every error. `code` is
- * namespaced ("catalog.product_not_found"); the UI branches on it, never on the text.
+ * namespaced ("catalog.product_not_found"); the UI branches on it, never on the text. A 422's
+ * `errors` should be `fieldError(...)` items; the older `{ field, message }` (or `detail`) shape that
+ * some mocks still write is converted here, so every mock emits `{ loc, message, type }`.
  * @param {number} status
  * @param {string} code
  * @param {string} title
  * @param {Record<string, unknown>} [extra] extension members, e.g. `{ errors: [...] }` for 422
  */
 export function problem(status, code, title, extra = {}) {
+  const errors = Array.isArray(extra.errors)
+    ? extra.errors.map((/** @type {Record<string, any>} */ e) =>
+        Array.isArray(e.loc)
+          ? e
+          : fieldError(String(e.field ?? ""), e.message ?? e.detail ?? "Not valid"),
+      )
+    : undefined;
   return HttpResponse.json(
-    { type: "about:blank", title, status, code, ...extra },
+    { type: "about:blank", title, status, code, ...extra, ...(errors && { errors }) },
     { status, headers: { "content-type": "application/problem+json" } },
   );
 }
@@ -57,7 +82,7 @@ export function roleOf(request) {
  */
 export async function idempotent(request, run) {
   const key = request.headers.get("idempotency-key");
-  if (!key) return problem(400, "request.idempotency_key_missing", "Idempotency-Key is required");
+  if (!key) return problem(400, "request.idempotency_key_required", "Idempotency-Key is required");
   const text = await request.clone().text();
   const seen = mockStore(
     "idempotency",
@@ -67,7 +92,7 @@ export async function idempotent(request, run) {
   if (earlier) {
     return earlier.text === text
       ? earlier.response.clone()
-      : problem(422, "request.idempotency_conflict", "This key was used with a different request");
+      : problem(422, "request.idempotency_mismatch", "This key was used with a different request");
   }
   const response = await run(text ? JSON.parse(text) : null);
   seen.set(key, { text, response: response.clone() });

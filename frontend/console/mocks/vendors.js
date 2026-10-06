@@ -4,6 +4,7 @@
 // design shows for the week of 28 Sep 2026. The score columns and `history` are our proposal; the spec
 // lists freshness, price, reliability, defects and score per week.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { procurementState, VENDORS } from "./procurement.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
@@ -82,7 +83,7 @@ const vendors = () =>
 
 export const vendorsHandlers = [
   http.get("*/v1/hubs/:id/vendors", ({ params }) => {
-    if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
     const lines = procurementState().plan.lines;
     return HttpResponse.json({
       week: WEEKS.at(-1),
@@ -97,7 +98,7 @@ export const vendorsHandlers = [
 
   http.post("*/v1/hubs/:id/vendors", ({ params, request }) =>
     idempotent(request, (body) => {
-      if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+      if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
       const name = String(body?.name ?? "").trim();
       const supplies = String(body?.supplies ?? "").trim();
       const phone = String(body?.phone ?? "").trim();

@@ -3,9 +3,10 @@
 // and numbers are only ever returned masked ("••••4F"). Seed people: Lata Shinde (kitchen, ₹70 a tiffin), Arjun Pawar
 // (rider), Meena Jadhav (captain, Sunrise Towers) and Kavita More (packer); the applicants are made-up samples.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
-const HUB_ID = "kharghar";
+const HUB_ID = KHARGHAR_HUB_ID;
 const NOW = "2026-10-06T09:40:00+05:30";
 const THALI_PAISE = 7000;
 

@@ -4,7 +4,7 @@
 // The numbers are simulator output; the pilot has no data yet, so the pilot source answers empty.
 // Simulator and pilot are separate sources and the handlers never merge them.
 import { HttpResponse, http } from "msw";
-import { visibleHubs } from "./hubs.js";
+import { KHARGHAR_HUB_ID, TALOJA_HUB_ID, visibleHubs } from "./hubs.js";
 import { problem, roleOf } from "./util.js";
 
 /** The last 12 delivery weeks (Mondays) up to the week of 28 Sep 2026, oldest first. */
@@ -49,7 +49,7 @@ const TALOJA = {
 
 /** @typedef {typeof KHARGHAR} Series */
 /** @type {Record<string, Series>} */
-const BY_HUB = { kharghar: KHARGHAR, taloja: TALOJA };
+const BY_HUB = { [KHARGHAR_HUB_ID]: KHARGHAR, [TALOJA_HUB_ID]: TALOJA };
 
 /**
  * All hubs together: households and earnings add up; the rates are averaged with the hubs' active

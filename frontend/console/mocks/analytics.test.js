@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getResponse } from "msw";
 import { analyticsHandlers } from "./analytics.js";
+import { KHARGHAR_HUB_ID, TALOJA_HUB_ID } from "./hubs.js";
 
 /** @param {string} query @param {string | null} role */
 const kpis = (query, role) =>
@@ -15,8 +16,8 @@ const kpis = (query, role) =>
 test("each hub has its own numbers and all hubs add up", async () => {
   const [a, k, t] = await Promise.all([
     kpis("from=2026-09-07&to=2026-10-05", "admin").then((r) => r?.json()),
-    kpis("hub_id=kharghar&from=2026-09-07&to=2026-10-05", "admin").then((r) => r?.json()),
-    kpis("hub_id=taloja&from=2026-09-07&to=2026-10-05", "admin").then((r) => r?.json()),
+    kpis(`hub_id=${KHARGHAR_HUB_ID}&from=2026-09-07&to=2026-10-05`, "admin").then((r) => r?.json()),
+    kpis(`hub_id=${TALOJA_HUB_ID}&from=2026-09-07&to=2026-10-05`, "admin").then((r) => r?.json()),
   ]);
   assert.equal(a.hub_id, null);
   assert.equal(k.active_households.at(-1), 64);
@@ -41,8 +42,8 @@ test("each hub has its own numbers and all hubs add up", async () => {
 test("only admins may ask for all hubs or for a hub that is not theirs", async () => {
   assert.equal((await kpis("", "hub_manager"))?.status, 403);
   assert.equal((await kpis("", "franchise_owner"))?.status, 403);
-  assert.equal((await kpis("hub_id=taloja", "franchise_owner"))?.status, 403);
-  assert.equal((await kpis("hub_id=kharghar", "franchise_owner"))?.status, 200);
+  assert.equal((await kpis(`hub_id=${TALOJA_HUB_ID}`, "franchise_owner"))?.status, 403);
+  assert.equal((await kpis(`hub_id=${KHARGHAR_HUB_ID}`, "franchise_owner"))?.status, 200);
   assert.equal((await kpis("hub_id=nowhere", "admin"))?.status, 404);
-  assert.equal((await kpis("hub_id=kharghar", null))?.status, 401);
+  assert.equal((await kpis(`hub_id=${KHARGHAR_HUB_ID}`, null))?.status, 401);
 });

@@ -4,6 +4,7 @@
 // and GET /v1/analytics/customer-summary (aggregates only, M12 open question).
 import { HttpResponse, http } from "msw";
 import { mulDivRound } from "../lib/money.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /**
@@ -162,7 +163,7 @@ export const teamHandlers = [
       0,
     );
     return HttpResponse.json({
-      hub_id: "kharghar",
+      hub_id: KHARGHAR_HUB_ID,
       active_households: active,
       active_households_change: 6,
       paused_households: live.reduce((n, s) => n + (s.paused_households ?? 0), 0),

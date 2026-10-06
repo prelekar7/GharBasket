@@ -1,13 +1,26 @@
 // Hub mocks (M0 hub registry / M6): the pilot has one hub. The seed hub is Kharghar. Shapes are our
-// proposal until the hubs endpoints land; ids are slugs.
+// proposal until the hubs endpoints land. Ids are uuids like the real API's (the seed hub's id is the
+// backend's SEED_HUB_ID); the readable name is `slug`.
 import { HttpResponse, http } from "msw";
 import { problem, roleOf } from "./util.js";
 
-/** @type {{ id: string, name: string, city: string, status: "active" | "planned" }[]} */
+/** The backend seed's hub, Kharghar (tools/seed.py `SEED_HUB_ID`). */
+export const KHARGHAR_HUB_ID = "0199a000-0000-7000-8000-00000000a001";
+
+/** A made-up second hub, so the KPI Hub filter has something to compare. Not in the backend seed. */
+export const TALOJA_HUB_ID = "0199a000-0000-7000-8000-00000000a002";
+
+/** @type {{ id: string, slug: string, name: string, city: string, status: "active" | "planned" }[]} */
 export const HUBS = [
-  { id: "kharghar", name: "Kharghar hub", city: "Navi Mumbai", status: "active" },
-  // The second hub gives the KPI Hub filter something to compare. Only admins see it (see visibleHubs).
-  { id: "taloja", name: "Taloja hub", city: "Navi Mumbai", status: "active" },
+  {
+    id: KHARGHAR_HUB_ID,
+    slug: "kharghar",
+    name: "Kharghar hub",
+    city: "Navi Mumbai",
+    status: "active",
+  },
+  // Only admins see the second hub (see visibleHubs).
+  { id: TALOJA_HUB_ID, slug: "taloja", name: "Taloja hub", city: "Navi Mumbai", status: "active" },
 ];
 
 /**
@@ -15,7 +28,7 @@ export const HUBS = [
  * @param {Request} request
  */
 export function visibleHubs(request) {
-  return roleOf(request) === "admin" ? HUBS : HUBS.filter((h) => h.id === "kharghar");
+  return roleOf(request) === "admin" ? HUBS : HUBS.filter((h) => h.id === KHARGHAR_HUB_ID);
 }
 
 export const hubsHandlers = [

@@ -4,6 +4,7 @@
 // fixed by GharBasket. Neither is ever computed by the console or by an LLM.
 import { HttpResponse, http } from "msw";
 import { deny, istDay } from "./adminShared.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /**
@@ -18,7 +19,7 @@ import { idempotent, mockStore, problem } from "./util.js";
 const seed = () => [
   {
     id: "puran-poli-thali",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Puran poli thali",
     components: "Puran poli, katachi amti, rice, salad",
     kitchen: { id: "u-lata", name: "Lata Shinde" },
@@ -39,7 +40,7 @@ const seed = () => [
   },
   {
     id: "sabudana-khichdi-upvas",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Sabudana khichdi (upvas)",
     components: "Sabudana, groundnuts, potato, curd",
     kitchen: { id: "u-lata", name: "Lata Shinde" },
@@ -60,7 +61,7 @@ const seed = () => [
   },
   {
     id: "varan-bhaat-thali",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Varan-bhaat thali",
     components: "Approved 28 Sep",
     kitchen: { id: "u-lata", name: "Lata Shinde" },
@@ -81,7 +82,7 @@ const seed = () => [
   },
   {
     id: "rajma-chawal-thali",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Rajma-chawal thali",
     components: "Rajma, jeera rice, kachumber, papad",
     kitchen: { id: "u-lata", name: "Lata Shinde" },
@@ -102,7 +103,7 @@ const seed = () => [
   },
   {
     id: "pithla-bhakri-thali",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Pithla-bhakri thali",
     components: "Pithla, jowar bhakri, thecha, onion",
     kitchen: { id: "u-lata", name: "Lata Shinde" },

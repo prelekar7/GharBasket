@@ -3,13 +3,14 @@
 // The story is Tue 6 Oct 2026: van MH-46 BX 2041, rider Arjun Pawar, Sunrise Towers (gate 2, 3 crates, 46 bags,
 // captain Meena tai) then Krishna Kunj (1 crate, 12 bags). Coordinates are made up around Kharghar.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 const DAY = "2026-10-06";
 /** @param {string} hhmm */
 const at = (hhmm) => `${DAY}T${hhmm}:00+05:30`;
 
-const HUB = { id: "kharghar", name: "Kharghar hub", lat: 19.033, lng: 73.066 };
+const HUB = { id: KHARGHAR_HUB_ID, name: "Kharghar hub", lat: 19.033, lng: 73.066 };
 const SUNRISE = { lat: 19.052, lng: 73.078 };
 const KRISHNA = { lat: 19.009, lng: 73.105 };
 

@@ -3,10 +3,11 @@
 // switcher's list of working hubs, so a hub added here is "planned" and is not in the switcher yet.
 import { HttpResponse, http } from "msw";
 import { deny, polygon, slugify, validPolygon } from "./adminShared.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /**
- * @typedef {{ id: string, name: string, city: string, status: "active" | "planned", address: string,
+ * @typedef {{ id: string, slug: string, name: string, city: string, status: "active" | "planned", address: string,
  *   franchise_owner: { id: string, name: string } | null, hub_manager: { id: string, name: string } | null,
  *   slots: string[], cutoff: string, service_area: { type: "Polygon", coordinates: number[][][] } | null,
  *   version: number }} AdminHub
@@ -15,7 +16,8 @@ import { idempotent, mockStore, problem } from "./util.js";
 /** @type {() => AdminHub[]} */
 const seed = () => [
   {
-    id: "kharghar",
+    id: KHARGHAR_HUB_ID,
+    slug: "kharghar",
     name: "Kharghar hub",
     city: "Navi Mumbai",
     status: "active",
@@ -58,12 +60,13 @@ export const hubadminHandlers = [
         if (!name) errors.push({ field: "name", message: "Enter the hub's name" });
         if (!address) errors.push({ field: "address", message: "Enter the hub's address" });
         if (errors.length) return problem(422, "request.invalid", "Check the fields", { errors });
-        const id = slugify(name.replace(/\s+hub$/i, ""));
-        if (hubs().some((h) => h.id === id))
+        const slug = slugify(name.replace(/\s+hub$/i, ""));
+        if (hubs().some((h) => h.slug === slug))
           return problem(409, "hubs.exists", "A hub with that name already exists");
         /** @type {AdminHub} */
         const hub = {
-          id,
+          id: crypto.randomUUID(),
+          slug,
           name: /hub$/i.test(name) ? name : `${name} hub`,
           city: String(body?.city ?? "").trim() || "Navi Mumbai",
           status: "planned",

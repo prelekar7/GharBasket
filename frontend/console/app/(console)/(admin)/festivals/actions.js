@@ -13,7 +13,7 @@ import { describeProblem } from "@/lib/catalog.js";
 const MESSAGES = {
   "auth.forbidden": "Only an admin can change the calendar.",
   "catalog.festival_not_found": "This day no longer exists. Reload the page.",
-  "request.idempotency_conflict": "This save was already sent with other values. Press Save again.",
+  "request.idempotency_mismatch": "This save was already sent with other values. Press Save again.",
 };
 
 /**

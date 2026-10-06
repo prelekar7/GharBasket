@@ -1,4 +1,5 @@
 import { ApiProblem } from "../api.js";
+import { fieldMessages } from "../problem-fields.js";
 
 /**
  * What a Server Action hands back: the data, or a sentence a person can read. Actions never throw an
@@ -26,7 +27,7 @@ const MESSAGES = /** @type {Record<string, string>} */ ({
   "hubs.not_found": "That hub is no longer on the list. Reload the page.",
   "tiffin.not_found": "That dish is no longer on the list. Reload the page.",
   "tiffin.not_waiting": "This dish was already handled. Reload the page.",
-  "request.idempotency_conflict": "That did not go through. Try again.",
+  "request.idempotency_mismatch": "That did not go through. Try again.",
 });
 
 /**
@@ -40,12 +41,7 @@ export async function safely(run) {
     return { ok: true, data: await run() };
   } catch (error) {
     if (!(error instanceof ApiProblem)) throw error;
-    /** @type {Record<string, string>} */
-    const fields = {};
-    for (const e of error.errors) {
-      if (e && typeof e.field === "string" && typeof e.message === "string")
-        fields[e.field] = e.message;
-    }
+    const fields = fieldMessages(error.errors);
     const first = Object.values(fields)[0];
     const message =
       MESSAGES[error.code] ??
