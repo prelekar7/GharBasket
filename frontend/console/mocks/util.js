@@ -36,11 +36,16 @@ export function mockStore(name, init) {
  * The console role the request was made as (`x-gb-role`, set by lib/api.js from the session), so a
  * handler can scope data the way the real API scopes it by role and hub.
  * @param {Request} request
- * @returns {"admin" | "hub_manager" | "franchise_owner" | null}
+ * @returns {"admin" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | null}
  */
 export function roleOf(request) {
   const role = request.headers.get("x-gb-role");
-  return role === "admin" || role === "hub_manager" || role === "franchise_owner" ? role : null;
+  return role === "admin" ||
+    role === "hub_manager" ||
+    role === "franchise_owner" ||
+    role === "ngo_coordinator"
+    ? role
+    : null;
 }
 
 /**
