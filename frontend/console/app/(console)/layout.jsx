@@ -69,16 +69,19 @@ async function Account() {
 export default function ConsoleLayout({ children }) {
   return (
     <div className="min-h-dvh min-[900px]:flex">
-      <aside className="border-b border-line bg-surface min-[900px]:sticky min-[900px]:top-0 min-[900px]:h-dvh min-[900px]:w-60 min-[900px]:shrink-0 min-[900px]:overflow-y-auto min-[900px]:border-r min-[900px]:border-b-0">
-        <Suspense
-          fallback={
-            <div className="px-4 py-3 min-[900px]:px-6 min-[900px]:pt-5">
-              <Wordmark />
-            </div>
-          }
-        >
-          <RoleSidebar />
-        </Suspense>
+      {/* The aside stretches to the page's full height so its background never stops at the viewport; the menu inside stays stuck to the top. */}
+      <aside className="border-b border-line bg-surface min-[900px]:w-60 min-[900px]:shrink-0 min-[900px]:border-r min-[900px]:border-b-0">
+        <div className="min-[900px]:sticky min-[900px]:top-0 min-[900px]:h-dvh min-[900px]:overflow-y-auto">
+          <Suspense
+            fallback={
+              <div className="px-4 py-3 min-[900px]:px-6 min-[900px]:pt-5">
+                <Wordmark />
+              </div>
+            }
+          >
+            <RoleSidebar />
+          </Suspense>
+        </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line px-4 py-3 min-[900px]:px-6">
