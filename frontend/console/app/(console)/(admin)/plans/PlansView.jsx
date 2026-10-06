@@ -3,6 +3,7 @@
 import {
   Badge,
   Button,
+  Checkbox,
   Dialog,
   EmptyState,
   formatPaise,
@@ -15,28 +16,19 @@ import {
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { PlusIcon } from "@/components/icons.jsx";
+import { FEATURE_LABELS, featureLabel, PLAN_KINDS } from "@/lib/plans.js";
 import { rupeesToPaise } from "@/lib/priceList.js";
 import { savePlan } from "./actions.js";
 
-/** @typedef {import("@/mocks/plans.js").Plan} Plan */
-
-const KIND_LABEL = {
-  autopilot: "weekly box",
-  tiffin: "home-cooked meals",
-  salad: "cut-salad add-on",
-};
-const KIND_OPTIONS = [
-  { value: "autopilot", label: "Autopilot (weekly box)" },
-  { value: "tiffin", label: "Tiffin (home-cooked meals)" },
-  { value: "salad", label: "Salad (cut-salad add-on)" },
-];
+/** @typedef {import("@/lib/plans.js").Plan} Plan */
 
 /**
  * Plans (M3): what a household can subscribe to. Cards for each plan; Edit plan and Add plan open
- * a bottom sheet. Changing a monthly fee is a money change, so it asks to confirm first.
- * @param {{ plans: Plan[] }} props
+ * a bottom sheet. Changing a monthly fee is a money change, so it asks to confirm first. The edit
+ * endpoints have not shipped (a @proposal), so without them (`editable` false) the plans are read-only.
+ * @param {{ plans: Plan[], editable: boolean }} props
  */
-export function PlansView({ plans }) {
+export function PlansView({ plans, editable }) {
   const [target, setTarget] = useState(/** @type {Plan | "new" | null} */ (null));
   const [opened, setOpened] = useState(0);
   const [open, setOpen] = useState(false);
@@ -58,10 +50,15 @@ export function PlansView({ plans }) {
             Each plan has a code, a monthly fee and its features.
           </p>
         </div>
-        <Button onPress={() => show("new")}>
-          <PlusIcon />
-          Add plan
-        </Button>
+        {editable && (
+          <Button
+            onPress={() => show("new")}
+            isDisabled={plans.length >= Object.keys(PLAN_KINDS).length}
+          >
+            <PlusIcon />
+            Add plan
+          </Button>
+        )}
       </div>
 
       {plans.length === 0 ? (
@@ -78,42 +75,50 @@ export function PlansView({ plans }) {
             >
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-[17px] leading-6 font-bold">{p.name}</h2>
-                <Badge tone={p.state === "live" ? "primary" : "outline"}>
-                  {p.state === "live" ? "Live" : "Draft"}
-                </Badge>
+                {p.state && (
+                  <Badge tone={p.state === "live" ? "primary" : "outline"}>
+                    {p.state === "live" ? "Live" : "Draft"}
+                  </Badge>
+                )}
               </div>
               <span className="text-sm leading-5 text-fg-secondary">
-                {p.code} · {KIND_LABEL[p.kind]}
+                {p.code} · {PLAN_KINDS[p.code]}
               </span>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm leading-5 text-fg-secondary">Monthly fee</span>
-                <strong>{p.fee_paise === null ? "Not set" : formatPaise(p.fee_paise)}</strong>
+                <strong>{p.fee_paise === 0 ? "Not set" : formatPaise(p.fee_paise)}</strong>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm leading-5 text-fg-secondary">Subscribers</span>
-                <strong>{p.subscriber_count ?? "—"}</strong>
-              </div>
+              {p.subscriber_count !== undefined && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm leading-5 text-fg-secondary">Subscribers</span>
+                  <strong>{p.subscriber_count ?? "—"}</strong>
+                </div>
+              )}
               <ul className="m-0 list-disc pl-[18px] text-sm leading-[22px]">
                 {p.features.map((f) => (
-                  <li key={f}>{f}</li>
+                  <li key={f}>{featureLabel(f)}</li>
                 ))}
               </ul>
-              <Button block onPress={() => show(p)}>
-                Edit plan
-              </Button>
+              {editable && (
+                <Button block onPress={() => show(p)}>
+                  Edit plan
+                </Button>
+              )}
             </section>
           ))}
         </div>
       )}
       <p className="text-sm leading-5 text-fg-secondary">
-        Fees stay “Not set” until the team decides pricing. A subscriber count of “—” means that
-        plan’s subscriptions are not tracked yet.
+        {editable
+          ? "Fees stay “Not set” until the team decides pricing. A subscriber count of “—” means that plan’s subscriptions are not tracked yet."
+          : "Editing plans is not available yet. It needs endpoints that have not shipped, so this page only shows the plans. A fee of “Not set” means pricing is not decided."}
       </p>
 
       {target && (
         <PlanSheet
           key={opened}
           plan={target === "new" ? null : target}
+          freeCodes={Object.keys(PLAN_KINDS).filter((c) => !plans.some((p) => p.code === c))}
           open={open}
           onOpenChange={setOpen}
         />
@@ -122,41 +127,20 @@ export function PlansView({ plans }) {
   );
 }
 
-/** @param {{ id: string, label: string, value: string, onChange: (v: string) => void, description?: string, error?: string }} props */
-function TextArea({ id, label, value, onChange, description, error }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm leading-5 font-semibold">
-        {label}
-      </label>
-      {description && <p className="text-sm leading-5 text-fg-secondary">{description}</p>}
-      <textarea
-        id={id}
-        rows={4}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={!!error}
-        className={`w-full rounded-sm border bg-surface px-3 py-2.5 text-base text-fg outline-none focus-visible:shadow-focus ${error ? "border-2 border-danger" : "border-line-strong"}`}
-      />
-      {error && <p className="text-sm leading-5 font-semibold text-danger">{error}</p>}
-    </div>
-  );
-}
-
 /**
  * The edit/add form of one plan in a bottom sheet. State lives here, so it survives the sheet
  * closing for the fee Dialog and comes back if the person cancels that Dialog.
- * @param {{ plan: Plan | null, open: boolean, onOpenChange: (open: boolean) => void }} props
+ * @param {{ plan: Plan | null, freeCodes: string[], open: boolean, onOpenChange: (open: boolean) => void }} props
+ * `freeCodes` are the plan codes no plan has yet (what a new plan can be)
  */
-function PlanSheet({ plan, open, onOpenChange }) {
+function PlanSheet({ plan, freeCodes, open, onOpenChange }) {
   const router = useRouter();
   const isNew = plan === null;
   const [name, setName] = useState(plan?.name ?? "");
-  const [code, setCode] = useState("");
-  const [kind, setKind] = useState("autopilot");
-  const [fee, setFee] = useState(plan?.fee_paise == null ? "" : String(plan.fee_paise / 100));
+  const [code, setCode] = useState(/** @type {string} */ (freeCodes[0] ?? ""));
+  const [fee, setFee] = useState(!plan?.fee_paise ? "" : String(plan.fee_paise / 100));
   const [live, setLive] = useState(plan?.state === "live");
-  const [features, setFeatures] = useState(plan?.features.join("\n") ?? "");
+  const [features, setFeatures] = useState(plan?.features ?? []);
   const [errors, setErrors] = useState(/** @type {Record<string, string>} */ ({}));
   const [failure, setFailure] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -171,24 +155,23 @@ function PlanSheet({ plan, open, onOpenChange }) {
     setter(v);
   };
 
-  const feePaise = fee.trim() === "" ? null : rupeesToPaise(fee);
-  const feeChanged = feePaise !== (plan?.fee_paise ?? null);
-  const feeText = feePaise === null ? "no fee" : `${formatPaise(feePaise)} a month`;
+  const feePaise = fee.trim() === "" ? 0 : rupeesToPaise(fee);
+  const feeChanged = feePaise !== (plan?.fee_paise ?? 0);
+  const feeText = feePaise === 0 ? "no fee" : `${formatPaise(feePaise ?? 0)} a month`;
 
   function check() {
     /** @type {Record<string, string>} */
     const e = {};
     if (!name.trim()) e.name = "Give the plan a name";
-    if (isNew && !/^[a-z][a-z0-9_]{1,23}$/.test(code))
-      e.code = "Use 2 to 24 lower-case letters, digits or _";
-    if (fee.trim() !== "" && feePaise === null) e.fee_paise = "Enter the fee in rupees, like 299";
+    if (isNew && !code) e.code = "Pick a plan code";
+    if (feePaise === null) e.fee_paise = "Enter the fee in rupees, like 299";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
   function onSave() {
     if (!check()) return;
-    if (feeChanged && !(isNew && feePaise === null)) {
+    if (feeChanged) {
       confirmed.current = false;
       onOpenChange(false);
       setConfirm(true);
@@ -202,13 +185,10 @@ function PlanSheet({ plan, open, onOpenChange }) {
     const idempotencyKey = key.current;
     const input = {
       name: name.trim(),
-      fee_paise: feePaise,
+      fee_paise: /** @type {number} */ (feePaise),
       state: /** @type {"live" | "draft"} */ (live ? "live" : "draft"),
-      features: features
-        .split("\n")
-        .map((f) => f.trim())
-        .filter(Boolean),
-      ...(isNew ? { code, kind } : {}),
+      features,
+      ...(isNew ? { code } : {}),
     };
     startSaving(async () => {
       const r = await savePlan(plan?.code ?? null, input, idempotencyKey).catch(() => ({
@@ -262,36 +242,44 @@ function PlanSheet({ plan, open, onOpenChange }) {
           errorMessage={errors.name}
         />
         {isNew && (
-          <>
-            <TextField
-              label="Code"
-              description="Used in the app and the API. It cannot change later."
-              value={code}
-              onChange={edit(setCode)}
-              isInvalid={!!errors.code}
-              errorMessage={errors.code}
-            />
-            <Select label="Kind" value={kind} onChange={edit(setKind)} options={KIND_OPTIONS} />
-          </>
+          <Select
+            label="Code"
+            description="Used in the app and the API. It cannot change later."
+            value={code}
+            onChange={edit(setCode)}
+            options={freeCodes.map((c) => ({
+              value: c,
+              label: `${c} (${PLAN_KINDS[/** @type {"autopilot"} */ (c)]})`,
+            }))}
+            error={errors.code}
+          />
         )}
         <TextField
           label="Monthly fee"
           prefix="₹"
           inputMode="decimal"
-          description="Leave empty until pricing is decided."
+          description="Leave empty (₹0) until pricing is decided."
           value={fee}
           onChange={edit(setFee)}
           isInvalid={!!errors.fee_paise}
           errorMessage={errors.fee_paise}
         />
-        <TextArea
-          id={`features-${plan?.code ?? "new"}`}
-          label="Features"
-          description="One per line, shown on the plan card."
-          value={features}
-          onChange={edit(setFeatures)}
-          error={errors.features}
-        />
+        <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+          <legend className="mb-1 text-sm leading-5 font-semibold">Features</legend>
+          {[...new Set([...Object.keys(FEATURE_LABELS), ...features])].map((f) => (
+            <Checkbox
+              key={f}
+              label={featureLabel(f)}
+              isSelected={features.includes(f)}
+              onChange={(on) =>
+                edit(setFeatures)(on ? [...features, f] : features.filter((x) => x !== f))
+              }
+            />
+          ))}
+          {errors.features && (
+            <p className="text-sm leading-5 font-semibold text-danger">{errors.features}</p>
+          )}
+        </fieldset>
         <Switch
           label="Live"
           description="Households can subscribe to a live plan; a draft stays hidden."
@@ -300,8 +288,8 @@ function PlanSheet({ plan, open, onOpenChange }) {
         />
       </Sheet>
       <Dialog
-        title={feePaise === null ? "Remove the monthly fee?" : `Set the fee to ${feeText}?`}
-        confirmLabel={feePaise === null ? "Remove the fee" : `Set ${feeText}`}
+        title={feePaise === 0 ? "Remove the monthly fee?" : `Set the fee to ${feeText}?`}
+        confirmLabel={feePaise === 0 ? "Remove the fee" : `Set ${feeText}`}
         cancelLabel="Keep editing"
         isOpen={confirm}
         onOpenChange={(o) => {

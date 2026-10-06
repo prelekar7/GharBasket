@@ -1,10 +1,10 @@
-// Catalog mocks (M2 §3.1, frozen S1 contract): categories, products and multilingual search, with the
-// 68-product Kharghar seed (data/seeds/catalog) and made-up hub prices. Response shapes follow
-// backend/api/.../modules/catalog/schemas.py (ProductOut, SearchResults); ids are the slugs.
-// Money is integer paise. Mock-only extras are listed in mocks/README.md.
+// Catalog mocks (M2 §3.1, frozen S1 contract): products and multilingual search, with the 68-product
+// Kharghar seed (data/seeds/catalog) and made-up hub prices. Response shapes follow
+// backend/api/.../modules/catalog/schemas.py (ProductOut, SearchResults); ids are uuids, the slug is in
+// `slug`. Money is integer paise. The admin product endpoints are proposals (mocks/README.md).
 import { HttpResponse, http } from "msw";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
-import { idempotent, mockStore, problem, roleOf } from "./util.js";
+import { idempotent, mockStore, mockUuid, problem, roleOf } from "./util.js";
 
 // The list in use at the hub: published for Thu 1 Oct 2026 (mocks/prices.js moves it when a new list starts).
 export const PRICE_LIST_DATE = "2026-10-01";
@@ -117,7 +117,8 @@ export function catalogStore() {
     priceValidFrom: PRICE_LIST_DATE,
     categories: CATEGORIES.map(([slug, en, hi, mr]) => ({ slug, names: { en, hi, mr } })),
     products: PRODUCTS.map(
-      ([slug, en, hi, mr, category, kind, qty, unit, shelf, paise, mrp, tags, synonyms]) => ({
+      ([slug, en, hi, mr, category, kind, qty, unit, shelf, paise, mrp, tags, synonyms], i) => ({
+        id: mockUuid("b000", i + 1),
         slug,
         names: { en, hi, mr },
         category,
@@ -155,17 +156,20 @@ function stepOf(p) {
 function productOut(p, lang) {
   const category = catalogStore().categories.find((c) => c.slug === p.category);
   return {
-    id: p.slug,
+    id: p.id,
     slug: p.slug,
     kind: p.kind,
-    category: { id: p.category, slug: p.category, name: category?.names[lang] ?? p.category },
+    category: {
+      id: mockUuid("b0c0", 1 + CATEGORIES.findIndex(([slug]) => slug === p.category)),
+      slug: p.category,
+      name: category?.names[lang] ?? p.category,
+    },
     name: p.names[lang],
     names: p.names,
     step: stepOf(p),
     tags: p.tags,
     shelf_life_h: p.shelf_life_h,
     image_url: null,
-    active: p.active, // MOCK ONLY: lets the Catalog table show inactive products (include_inactive)
     price:
       p.price_paise == null
         ? null
@@ -209,7 +213,7 @@ const KINDS = ["veg", "fruit", "staple", "kit"];
 function adminProduct(p) {
   const { priceValidFrom } = catalogStore();
   return {
-    id: p.slug,
+    id: p.id,
     slug: p.slug,
     kind: p.kind,
     category: p.category,
@@ -235,7 +239,7 @@ function adminProduct(p) {
  * Validates a whole editable product (what a PATCH leaves behind, or a POST body) and returns the
  * 422 problem for the first failures, as `errors: [{ field, message }]`.
  * @param {any} v
- * @returns {{ errors: { field: string, message: string }[], value?: Omit<Product, "slug" | "price_paise" | "mrp_paise"> }}
+ * @returns {{ errors: { field: string, message: string }[], value?: Omit<Product, "id" | "slug" | "price_paise" | "mrp_paise"> }}
  */
 function validateProduct(v) {
   /** @type {{ field: string, message: string }[]} */
@@ -291,35 +295,17 @@ const invalid = (/** @type {{ field: string, message: string }[]} */ errors) =>
   problem(422, "request.invalid", "Check the highlighted fields", { errors });
 
 export const catalogHandlers = [
-  // GET /v1/categories → MOCK ONLY: the real contract has no category list yet; the Catalog filter needs it.
-  http.get("*/v1/categories", ({ request }) => {
-    const { categories, products } = catalogStore();
-    const lang = langOf(request);
-    return HttpResponse.json({
-      items: categories.map((c) => ({
-        id: c.slug,
-        slug: c.slug,
-        name: c.names[lang],
-        names: c.names,
-        product_count: products.filter((p) => p.category === c.slug && p.active).length,
-      })),
-    });
-  }),
-
   // GET /v1/products?kind=&category=&tag=&cursor=&limit= → active products A to Z by English name.
-  // MOCK ONLY extras: `q` (name in any language) and `include_inactive`, for the Catalog table.
+  // (The real list has no `q` and no inactive products; the Catalog page filters in the browser.)
   http.get("*/v1/products", ({ request }) => {
     const url = new URL(request.url);
     const lang = langOf(request);
     const { kind, category, tag } = Object.fromEntries(url.searchParams);
-    const q = fold(url.searchParams.get("q")?.trim() ?? "");
-    const inactive = url.searchParams.get("include_inactive") === "true";
     const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
     const offset = Number(url.searchParams.get("cursor")) || 0;
     const all = catalogStore()
-      .products.filter((p) => (p.active || inactive) && (!kind || p.kind === kind))
+      .products.filter((p) => p.active && (!kind || p.kind === kind))
       .filter((p) => (!category || p.category === category) && (!tag || p.tags.includes(tag)))
-      .filter((p) => !q || match(p, q).score > 0)
       .sort((a, b) => a.names.en.localeCompare(b.names.en));
     const items = all.slice(offset, offset + limit).map((p) => productOut(p, lang));
     return HttpResponse.json({
@@ -329,7 +315,7 @@ export const catalogHandlers = [
   }),
 
   http.get("*/v1/products/:id", ({ request, params }) => {
-    const p = catalogStore().products.find((x) => x.slug === params.id && x.active);
+    const p = catalogStore().products.find((x) => x.id === params.id && x.active);
     return p
       ? HttpResponse.json(productOut(p, langOf(request)))
       : problem(404, "catalog.product_not_found", "No such product");
@@ -358,20 +344,40 @@ export const catalogHandlers = [
       }));
     return HttpResponse.json({ items });
   }),
-  // GET /v1/admin/products/{id} → MOCK ONLY: the editable record (all names, spellings, inactive too).
+  // GET /v1/admin/products?active=false&cursor=&limit= → @proposal (not in the contract yet): the products
+  // that are switched off (ProductOut plus `active`), for the Catalog's "Show inactive". A row of the
+  // real list has no `active`: it only lists active products.
+  http.get("*/v1/admin/products", ({ request }) => {
+    if (roleOf(request) !== "admin") return forbidden();
+    const url = new URL(request.url);
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+    const offset = Number(url.searchParams.get("cursor")) || 0;
+    const all = catalogStore()
+      .products.filter((p) => !p.active)
+      .sort((a, b) => a.names.en.localeCompare(b.names.en));
+    return HttpResponse.json({
+      items: all
+        .slice(offset, offset + limit)
+        .map((p) => ({ ...productOut(p, "en"), active: false })),
+      next_cursor: offset + limit < all.length ? String(offset + limit) : null,
+    });
+  }),
+
+  // GET /v1/admin/products/{id} → @proposal (not in the contract yet): the editable record (all names,
+  // spellings, inactive too).
   http.get("*/v1/admin/products/:id", ({ request, params }) => {
     if (roleOf(request) !== "admin") return forbidden();
-    const p = catalogStore().products.find((x) => x.slug === params.id);
+    const p = catalogStore().products.find((x) => x.id === params.id);
     return p
       ? HttpResponse.json(adminProduct(p))
       : problem(404, "catalog.product_not_found", "No such product");
   }),
 
-  // PATCH /v1/admin/products/{id} (M2 §3.1, admin): any editable field; the Idempotency-Key makes a retry safe.
+  // PATCH /v1/admin/products/{id} (listed in M2 §3, not shipped; the body is a @proposal): any editable field; the Idempotency-Key makes a retry safe.
   http.patch("*/v1/admin/products/:id", ({ request, params }) =>
     idempotent(request, (body) => {
       if (roleOf(request) !== "admin") return forbidden();
-      const p = catalogStore().products.find((x) => x.slug === params.id);
+      const p = catalogStore().products.find((x) => x.id === params.id);
       if (!p) return problem(404, "catalog.product_not_found", "No such product");
       const { errors, value } = validateProduct({ ...adminProduct(p), ...body });
       if (!value) return invalid(errors);
@@ -380,7 +386,8 @@ export const catalogHandlers = [
     }),
   ),
 
-  // POST /v1/admin/products (M2 §3.1, admin, Idempotency-Key required). A new product has no price
+  // POST /v1/admin/products (listed in M2 §3, not shipped; the body is a @proposal; admin, Idempotency-Key
+  // required). A new product has no price
   // until a price list includes it.
   http.post("*/v1/admin/products", ({ request }) =>
     idempotent(request, (body) => {
@@ -394,7 +401,13 @@ export const catalogHandlers = [
       const { products } = catalogStore();
       if (!slug || products.some((x) => x.slug === slug))
         return problem(409, "catalog.product_exists", "A product with this name already exists");
-      const p = { slug, ...value, price_paise: null, mrp_paise: null };
+      const p = {
+        ...value,
+        id: mockUuid("b000", products.length + 1),
+        slug,
+        price_paise: null,
+        mrp_paise: null,
+      };
       products.push(p);
       return HttpResponse.json(adminProduct(p), { status: 201 });
     }),

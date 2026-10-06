@@ -98,3 +98,14 @@ export async function idempotent(request, run) {
   seen.set(key, { text, response: response.clone() });
   return response;
 }
+
+/**
+ * A made-up UUID the way the real API's ids look (version 7 shape), stable per `(group, n)`, so mock
+ * records have uuids and not slugs for ids. `group` is four hex digits that tell kinds apart
+ * ("b000" products, "b100" price lists), `n` the record's number.
+ * @param {string} group
+ * @param {number} n
+ */
+export function mockUuid(group, n) {
+  return `0199${group}-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
+}

@@ -84,20 +84,19 @@ missing route.
 | File | Endpoints |
 |---|---|
 | `hubs.js` | `GET /v1/hubs`, `GET /v1/hubs/{id}` (one hub, Kharghar; admins would see all) |
-| `catalog.js` | `GET /v1/products`, `/v1/products/{id}`, `/v1/search` (frozen S1 contract, 68 seed products with made-up Kharghar prices in paise) and `GET /v1/categories` |
+| `catalog.js` | `GET /v1/products`, `/v1/products/{id}`, `/v1/search` (frozen S1 contract, 68 seed products with made-up Kharghar prices in paise; ids are uuids) and the admin product proposals |
 | `admin.js` | One list of the admin pages' mocks: `community.js` (`GET /v1/societies` with `hub_id` and `with_unassigned`, `POST` and `PATCH /v1/admin/societies`, `GET /v1/admin/society-requests` and its `accept`, `duplicate` and `PATCH` steps), `identity.js` (`GET /v1/admin/users`, `POST /v1/admin/user-roles`, `DELETE /v1/admin/user-roles/{id}`), `tiffin.js` (`GET /v1/hubs/{hub}/tiffin-menus`, `POST /v1/tiffin-menus/{id}/approve`, `send-back`, `reopen`) and `hubadmin.js` (`GET|POST /v1/admin/hubs`, `PATCH /v1/admin/hubs/{id}`). Paths the module specs name are used; the rest are proposals. They check the caller's role (`x-gb-role`) the way the API will. |
 
-| `prices.js` | `GET /v1/prices`, `GET/POST /v1/hubs/{id}/price-lists` (the list in use, scheduled and past lists, bulk publish) |
-| `plans.js` | `GET /v1/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
-| `festivals.js` | `GET /v1/festivals`, `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
+| `prices.js` | `GET /v1/prices` (PriceListOut), `POST /v1/hubs/{id}/price-lists` (whole list, PriceListCreated) and the proposed `GET /v1/hubs/{id}/price-lists` |
+| `plans.js` | `GET /v1/plans` (PlanOut), and the proposed `GET /v1/admin/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
+| `festivals.js` | `GET /v1/festivals` (FestivalOut, one row per date), and the proposed `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
 
-Proposals beyond the specs (M2, M3): `GET /v1/admin/products/{id}`, `GET /v1/hubs/{id}/price-lists`, the admin plan writes,
-and the extra festival fields (`name`, `summary`, `starts_on`/`ends_on`/`repeat`, `households`).
-
-Mock-only additions beyond the real contract: `GET /v1/categories` (the Catalog filter needs a
-list), and `q` and `include_inactive` on `GET /v1/products`. Ask the backend for them before a page
-depends on them for good. `catalogStore()` exposes the products so a price-list mock can edit prices.
-Product ids are slugs here; the real API uses UUIDs, so never parse an id.
+Proposals (marked `@proposal (not in the contract yet)` in the mocks; in real mode they 404 and the page says "not available yet",
+see `lib/proposal.js`): `GET /v1/admin/products` (`?active=false`), `GET /v1/admin/products/{id}`, `POST/PATCH /v1/admin/products`,
+`GET /v1/hubs/{id}/price-lists`, `GET /v1/admin/plans` and its writes, and `POST/PATCH /v1/admin/festivals` (the id of a run is
+`code:region:starts_on`). The real contract has no category list, no `q` or `include_inactive` on products, and no `active` on
+a product: pages derive categories from the products, filter in the browser, and treat a missing `active` as active.
+Product ids are uuids (`mockUuid` in `util.js`); the slug is in `slug`.
 
 ## Gotchas
 

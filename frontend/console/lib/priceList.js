@@ -4,7 +4,7 @@
 
 /**
  * @typedef {object} Known a product the hub can price, with the price it has now
- * @property {string} id @property {string} name @property {string} step
+ * @property {string} id the product's uuid @property {string} slug @property {string} name @property {string} step
  * @property {number | null} nowPaise @property {number | null} mrpPaise
  */
 /**
@@ -123,7 +123,7 @@ export function parseCsv(text) {
  * @returns {{ rows: Compared[], same: number, untouched: number }}
  */
 export function compare(lines, known, money) {
-  const byId = new Map(known.map((k) => [k.id, k]));
+  const byId = byIdOrSlug(known);
   const seen = new Set();
   /** @type {Compared[]} */
   const rows = [];
@@ -131,7 +131,7 @@ export function compare(lines, known, money) {
   for (const l of lines) {
     const k = byId.get(l.id);
     const base = {
-      id: l.id,
+      id: k?.id ?? l.id,
       name: k?.name ?? (l.id || "—"),
       step: k?.step ?? "—",
       nowPaise: k?.nowPaise ?? null,
@@ -148,7 +148,7 @@ export function compare(lines, known, money) {
       });
     if (l.problem) fail(l.problem);
     else if (!k) fail(`${l.id} is not in the catalog.`);
-    else if (seen.has(l.id)) fail(`${k.name} appears more than once.`);
+    else if (seen.has(k.id)) fail(`${k.name} appears more than once.`);
     else {
       const next = /** @type {number} */ (l.pricePaise);
       const mrp = l.mrpPaise === undefined ? k.mrpPaise : l.mrpPaise;
@@ -188,7 +188,7 @@ export function compare(lines, known, money) {
         });
       }
     }
-    seen.add(l.id);
+    seen.add(k?.id ?? l.id);
   }
   const rank = { error: 0, new: 1, changed: 1, same: 2 };
   rows.sort(
@@ -199,6 +199,50 @@ export function compare(lines, known, money) {
   );
   const untouched = known.filter((k) => k.nowPaise !== null && !seen.has(k.id)).length;
   return { rows, same, untouched };
+}
+
+/** The products by uuid and by slug, so a file may name a product either way. @param {Known[]} known */
+const byIdOrSlug = (known) =>
+  new Map(
+    known.flatMap((k) => [
+      [k.id, k],
+      [k.slug, k],
+    ]),
+  );
+
+/**
+ * The body items of a publish: the whole list, as the API wants it (a new list replaces the one in
+ * use from its date, so a product left out would lose its price). Every product priced now keeps its
+ * price and MRP unless the file changes them; a file without an MRP column keeps the MRPs, a blank
+ * MRP removes it. Products the file adds are included. Nothing is computed beyond that.
+ * @param {Line[]} lines the file's rows, already checked by `compare` @param {Known[]} known @param {boolean} hasMrp
+ * @returns {{ product_id: string, price_paise: number, mrp_paise: number | null }[]}
+ */
+export function buildItems(lines, known, hasMrp) {
+  const byId = byIdOrSlug(known);
+  /** @type {Map<string, { product_id: string, price_paise: number, mrp_paise: number | null }>} */
+  const items = new Map(
+    known
+      .filter((k) => k.nowPaise !== null)
+      .map((k) => [
+        k.id,
+        {
+          product_id: k.id,
+          price_paise: /** @type {number} */ (k.nowPaise),
+          mrp_paise: k.mrpPaise,
+        },
+      ]),
+  );
+  for (const l of lines) {
+    const k = byId.get(l.id);
+    if (!k || l.pricePaise === null) continue;
+    items.set(k.id, {
+      product_id: k.id,
+      price_paise: l.pricePaise,
+      mrp_paise: hasMrp ? (l.mrpPaise ?? null) : k.mrpPaise,
+    });
+  }
+  return [...items.values()];
 }
 
 /** Whole-number percent change from `now` to `next`. @param {number} now @param {number} next */

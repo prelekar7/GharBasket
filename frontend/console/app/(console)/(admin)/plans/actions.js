@@ -4,8 +4,8 @@ import { ApiProblem, apiPatch, apiPost } from "@/lib/api.js";
 import { describeProblem } from "@/lib/catalog.js";
 
 /**
- * @typedef {import("@/mocks/plans.js").Plan} Plan
- * @typedef {{ name: string, fee_paise: number | null, state: "live" | "draft", features: string[] }} PlanInput
+ * @typedef {import("@/lib/plans.js").Plan} Plan
+ * @typedef {{ name: string, fee_paise: number, state: "live" | "draft", features: string[] }} PlanInput
  * @typedef {{ ok: true, plan: Plan } | { ok: false, message: string, fields: Record<string, string> }} SaveResult
  */
 
@@ -17,10 +17,11 @@ const MESSAGES = {
 };
 
 /**
- * Edits a plan (code given) or adds one (code null, with its code and kind). The form makes the
- * Idempotency-Key once per save; a fee change was confirmed in a Dialog before this is called.
+ * Edits a plan (PATCH /v1/admin/plans/{code}) or adds one (POST /v1/admin/plans, with its `code`); both are
+ * a @proposal, not in the contract yet. The form makes the Idempotency-Key once per save; a fee change was
+ * confirmed in a Dialog before this is called.
  * @param {string | null} code
- * @param {PlanInput & { code?: string, kind?: string }} input
+ * @param {PlanInput & { code?: string }} input
  * @param {string} idempotencyKey
  * @returns {Promise<SaveResult>}
  */

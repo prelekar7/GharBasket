@@ -9,11 +9,15 @@ import { formatDay, formatDayShort, perBase, stepLabel } from "@/lib/catalog.js"
 import { toCsv } from "@/lib/priceList.js";
 
 /**
- * @typedef {{ product_id: string, name: string, names: import("@/lib/catalog.js").Names, synonyms: string[],
- *   category: { id: string, name: string }, step: import("@/lib/catalog.js").Step, price_paise: number,
- *   mrp_paise: number | null }} PriceItem GET /v1/prices
+ * A line of GET /v1/prices (`product_id`, `price_paise`, `mrp_paise`) joined with its product from
+ * GET /v1/products by `product_id`, which is where the name, category and step come from.
+ * @typedef {{ product_id: string, slug: string, name: string, names: import("@/lib/catalog.js").Names,
+ *   category: { id: string, slug: string, name: string }, step: import("@/lib/catalog.js").Step,
+ *   price_paise: number, mrp_paise: number | null }} PriceItem
+ * A row of GET /v1/hubs/{id}/price-lists (@proposal, not in the contract yet); the page adds `status`,
+ * derived from `valid_from`.
  * @typedef {{ id: string, valid_from: string, status: "current" | "scheduled" | "history", published_at: string,
- *   published_by: string, line_count: number, changed_count: number }} PriceListRow
+ *   published_by: string, items_count: number, changed_count: number }} PriceListRow
  */
 
 const PRODUCT_COLUMNS = [
@@ -33,9 +37,9 @@ const LIST_COLUMNS = [
   { key: "on", label: "Published on" },
 ];
 
-/** Same words, any case, any of the three names or a spelling. @param {PriceItem} i @param {string} q */
+/** Same words, any case, any of the three names or the slug. @param {PriceItem} i @param {string} q */
 const matches = (i, q) =>
-  [...Object.values(i.names), ...i.synonyms].some((n) => n.toLowerCase().includes(q));
+  [...Object.values(i.names), i.slug].some((n) => n.toLowerCase().includes(q));
 
 /** @param {string} iso */
 const publishedOn = (iso) =>
@@ -49,20 +53,21 @@ const publishedOn = (iso) =>
 /**
  * Prices of one hub (M2): the list in use, lists waiting for their date, and past lists. Search and
  * category filter the table in the browser; the tab is in the URL.
- * @param {{ hubName: string, validFrom: string, items: PriceItem[], lists: PriceListRow[],
- *   categories: import("@/lib/catalog.js").CategoryRow[] }} props
+ * @param {{ hubName: string, validFrom: string | null, items: PriceItem[], lists: PriceListRow[] | null,
+ *   categories: import("@/lib/catalog.js").CategoryRow[] }} props `validFrom` is null when the hub has no list yet;
+ *   `lists` is null while the list of lists is not available (real mode).
  */
 export function PricesView({ hubName, validFrom, items, lists, categories }) {
   const [tab, setTab] = useQueryState("tab", parseAsString.withDefault("current"));
   const [q, setQ] = useQueryState("q", parseAsString.withDefault(""));
   const [category, setCategory] = useQueryState("category", parseAsString.withDefault(""));
-  const scheduled = lists.filter((l) => l.status === "scheduled");
-  const history = lists.filter((l) => l.status === "history");
+  const scheduled = lists?.filter((l) => l.status === "scheduled") ?? [];
+  const history = lists?.filter((l) => l.status === "history") ?? [];
   const hubShort = hubName.replace(/ hub$/i, "");
 
   const needle = q.trim().toLowerCase();
   const shown = items.filter(
-    (i) => (!category || i.category.id === category) && (!needle || matches(i, needle)),
+    (i) => (!category || i.category.slug === category) && (!needle || matches(i, needle)),
   );
   const rows = shown.map((i) => {
     const per = perBase(i.step, i.price_paise);
@@ -82,13 +87,23 @@ export function PricesView({ hubName, validFrom, items, lists, categories }) {
     of.map((l) => ({
       id: l.id,
       starts: { text: formatDay(l.valid_from, true), sort: l.valid_from },
-      products: l.line_count,
+      products: l.items_count,
       changed: l.changed_count,
       by: l.published_by,
       on: publishedOn(l.published_at),
     }));
 
+  const notListed = (/** @type {string} */ what) => (
+    <div className="rounded-md border border-line">
+      <EmptyState
+        title="Not available yet"
+        body={`${what} need an endpoint that lists a hub’s price lists, which has not shipped. The list in use is under Current.`}
+      />
+    </div>
+  );
+
   function download() {
+    if (!validFrom) return;
     const blob = new Blob([toCsv(items)], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -106,12 +121,13 @@ export function PricesView({ hubName, validFrom, items, lists, categories }) {
             Prices · {hubName}
           </h1>
           <p className="text-sm leading-5 text-fg-secondary">
-            In use since {formatDay(validFrom, true)} · {items.length} products · price per step, as
-            customers add it
+            {validFrom
+              ? `In use since ${formatDay(validFrom, true)} · ${items.length} products · price per step, as customers add it`
+              : "No price list yet · publish the first one to price the catalog"}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onPress={download}>
+          <Button onPress={download} isDisabled={!validFrom}>
             <DownloadIcon />
             Download CSV
           </Button>
@@ -127,13 +143,18 @@ export function PricesView({ hubName, validFrom, items, lists, categories }) {
         value={tab}
         onChange={(v) => setTab(v === "current" ? null : v)}
         tabs={[
-          { value: "current", label: `Current · ${formatDayShort(validFrom)}` },
-          { value: "scheduled", label: "Scheduled", count: scheduled.length },
+          {
+            value: "current",
+            label: validFrom ? `Current · ${formatDayShort(validFrom)}` : "Current",
+          },
+          { value: "scheduled", label: "Scheduled", count: lists ? scheduled.length : undefined },
           { value: "history", label: "History" },
         ]}
       >
         {tab === "scheduled" ? (
-          scheduled.length === 0 ? (
+          !lists ? (
+            notListed("Scheduled lists")
+          ) : scheduled.length === 0 ? (
             <div className="rounded-md border border-line">
               <EmptyState
                 title="Nothing scheduled"
@@ -149,13 +170,24 @@ export function PricesView({ hubName, validFrom, items, lists, categories }) {
             />
           )
         ) : tab === "history" ? (
-          <DataTable
-            caption="Past price lists"
-            columns={LIST_COLUMNS}
-            rows={listRows(history)}
-            defaultSort={{ key: "starts", dir: "desc" }}
-            labels={{ empty: "No earlier lists yet." }}
-          />
+          !lists ? (
+            notListed("Past lists")
+          ) : (
+            <DataTable
+              caption="Past price lists"
+              columns={LIST_COLUMNS}
+              rows={listRows(history)}
+              defaultSort={{ key: "starts", dir: "desc" }}
+              labels={{ empty: "No earlier lists yet." }}
+            />
+          )
+        ) : validFrom === null ? (
+          <div className="rounded-md border border-line">
+            <EmptyState
+              title="No price list yet"
+              body="This hub has no prices. Publish a list to price the catalog."
+            />
+          </div>
         ) : (
           <div className="flex flex-col gap-4">
             <search className="flex flex-wrap items-end gap-3">

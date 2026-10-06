@@ -7,10 +7,16 @@ import { useTransition } from "react";
 import { PlusIcon } from "@/components/icons.jsx";
 import { LinkButton } from "@/components/LinkButton.jsx";
 import { LinkScope } from "@/components/LinkScope.jsx";
-import { formatShelfLife, KINDS, kindLabel, stepLabel } from "@/lib/catalog.js";
+import { categoriesOf, formatShelfLife, KINDS, kindLabel, stepLabel } from "@/lib/catalog.js";
 
 /** @typedef {import("@/lib/catalog.js").ProductRow} ProductRow */
-/** @typedef {import("@/lib/catalog.js").CategoryRow} CategoryRow */
+
+/** Latin letters without case, Devanagari as typed, so "BHINDI" and "bhindi" match. @param {string} s */
+const fold = (s) => s.toLowerCase().normalize("NFC");
+
+/** The names (any language), the slug and the tags, which is all a real product row has to search. @param {ProductRow} p @param {string} q */
+const matches = (p, q) =>
+  [...Object.values(p.names), p.slug, ...p.tags].some((t) => fold(t).includes(q));
 
 /** @type {{ key: string, label: string, sortable?: boolean, align?: "start" | "end" }[]} */
 const COLUMNS = [
@@ -26,11 +32,14 @@ const COLUMNS = [
 ];
 
 /**
- * The catalog list (M2): search, filters and the product table. Filters live in the URL; the server
- * page re-reads the API when they change.
- * @param {{ hubName: string, products: ProductRow[], truncated: boolean, categories: CategoryRow[] }} props
+ * The catalog list (M2): search, filters and the product table. Filters live in the URL and are applied
+ * here, in the browser, to the products the page read (the real list has no search); only "Show inactive"
+ * asks the server for more, from a proposed endpoint.
+ * @param {{ hubName: string, products: ProductRow[], truncated: boolean,
+ *   inactive: ProductRow[] | null | undefined }} props `inactive`: the switched-off products, `undefined` while
+ *   "Show inactive" is off, `null` when the endpoint that lists them has not shipped
  */
-export function CatalogView({ hubName, products, truncated, categories }) {
+export function CatalogView({ hubName, products, truncated, inactive }) {
   const [pending, startTransition] = useTransition();
   const [filters, setFilters] = useQueryStates(
     {
@@ -39,12 +48,19 @@ export function CatalogView({ hubName, products, truncated, categories }) {
       kind: parseAsString.withDefault(""),
       inactive: parseAsBoolean.withDefault(false),
     },
-    { shallow: false, startTransition, clearOnDefault: true },
+    { startTransition, clearOnDefault: true },
   );
-  const activeTotal = categories.reduce((n, c) => n + c.product_count, 0);
+  const categories = categoriesOf(products);
+  const activeTotal = products.length;
   const filtered = !!(filters.q || filters.category || filters.kind);
+  const needle = fold(filters.q.trim());
+  // A missing `active` means active: the real list holds only active products.
+  const shown = [...products, ...(filters.inactive ? (inactive ?? []) : [])]
+    .filter((p) => !filters.category || p.category.slug === filters.category)
+    .filter((p) => !filters.kind || p.kind === filters.kind)
+    .filter((p) => !needle || matches(p, needle));
 
-  const rows = products.map((p) => ({
+  const rows = shown.map((p) => ({
     id: p.id,
     product: {
       text: p.names.en,
@@ -56,11 +72,15 @@ export function CatalogView({ hubName, products, truncated, categories }) {
     step: stepLabel(p.step),
     price: p.price ? { money: p.price.price_paise } : "—",
     mrp: p.price?.mrp_paise != null ? { money: p.price.mrp_paise } : "—",
-    shelf: { text: formatShelfLife(p.shelf_life_h), sort: p.shelf_life_h },
+    shelf:
+      p.shelf_life_h == null
+        ? "—"
+        : { text: formatShelfLife(p.shelf_life_h), sort: p.shelf_life_h },
     tags: p.tags.length ? { text: p.tags.join(", ") } : "—",
-    status: p.active
-      ? { badge: { tone: "primary", label: "Active" } }
-      : { badge: { tone: "outline", label: "Inactive" } },
+    status:
+      p.active === false
+        ? { badge: { tone: "outline", label: "Inactive" } }
+        : { badge: { tone: "primary", label: "Active" } },
   }));
 
   const hubShort = hubName.replace(/ hub$/i, "");
@@ -84,7 +104,7 @@ export function CatalogView({ hubName, products, truncated, categories }) {
         <TextField
           label="Search"
           type="search"
-          placeholder="Name in any language: bhindi, भेंडी, okra"
+          placeholder="Name in any language: okra, भेंडी"
           value={filters.q}
           onChange={(q) => setFilters({ q }, { limitUrlUpdates: debounce(300) })}
           className="min-w-[260px] flex-1 max-w-[360px]"
@@ -107,9 +127,15 @@ export function CatalogView({ hubName, products, truncated, categories }) {
         <Checkbox
           label="Show inactive"
           isSelected={filters.inactive}
-          onChange={(inactive) => setFilters({ inactive })}
+          onChange={(inactive) => setFilters({ inactive }, { shallow: false })}
         />
       </search>
+      {filters.inactive && inactive === null && (
+        <p role="status" className="text-sm leading-5 text-fg-secondary">
+          Inactive products can’t be listed yet. That needs an endpoint that has not shipped; the
+          table shows active products only.
+        </p>
+      )}
 
       <div className={pending ? "opacity-60 transition-opacity" : "transition-opacity"}>
         {rows.length === 0 ? (
@@ -118,7 +144,7 @@ export function CatalogView({ hubName, products, truncated, categories }) {
               title="No products match"
               body={
                 filtered
-                  ? "Try another spelling or clear the filters. Search reads English, Hindi, Marathi and typed Hinglish."
+                  ? "Try another spelling or clear the filters. Search reads the English, Hindi and Marathi names."
                   : "Add the first product to start the catalog."
               }
               action={filtered ? "Clear filters" : undefined}
@@ -136,7 +162,7 @@ export function CatalogView({ hubName, products, truncated, categories }) {
               defaultSort={{ key: "product", dir: "asc" }}
               footer={
                 truncated
-                  ? `Showing the first ${rows.length} products · sorted by English name`
+                  ? `Showing the first ${activeTotal} products · sorted by English name`
                   : `Showing ${rows.length}${filtered || filters.inactive ? "" : ` of ${activeTotal}`} · sorted by English name`
               }
             />
