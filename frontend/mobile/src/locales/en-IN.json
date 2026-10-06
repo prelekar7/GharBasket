@@ -388,6 +388,7 @@
     "done": {
       "title": "You’re all set. First box on {day}.",
       "titleSoon": "You’re all set.",
+      "deliverySoon": "We’ll confirm the day soon",
       "sub": "We’ll message you on Saturday evening when your box is ready to check.",
       "delivery": "Delivery",
       "address": "Address",

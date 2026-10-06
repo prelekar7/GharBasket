@@ -4,9 +4,8 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { useSociety } from "@/features/community/queries.js";
+import { useSociety, useSocietyUnlock } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
-import { useUnlock } from "@/features/onboarding/unlock.js";
 
 /** Tower and flat in the chosen society, and who its captain is (design Hf06). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -22,11 +21,8 @@ function FlatStep() {
   const navigate = useNavigate();
   const { societyId, towerId, flat, update } = useOnboardingDraft();
   const { data: society, isPending, isError, refetch } = useSociety(societyId ?? undefined);
-  // SocietyOut.captain is { display_name, photo_url } | null (M9); the Society typedef follows.
-  const captain = /** @type {{ display_name: string } | null | undefined} */ (
-    /** @type {unknown} */ (society?.captain)
-  );
-  const { data: unlock } = useUnlock(society && !captain ? society.id : undefined);
+  const captain = society?.captain;
+  const { data: unlock } = useSocietyUnlock(society && !captain ? society.id : undefined);
   const valid = !!towerId && /^[A-Za-z0-9-]{1,8}$/.test(flat.trim());
 
   return (

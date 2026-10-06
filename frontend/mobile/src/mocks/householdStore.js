@@ -54,7 +54,7 @@ export const demoAccount = () => ({
   household: {
     id: demoId(100),
     version: 1,
-    society_id: "sunrise-towers",
+    society_id: "0199a000-0000-7000-8000-00000000b001",
     hub_id: null,
     size: 4,
     diet: "veg",
@@ -86,7 +86,7 @@ export const demoAccount = () => ({
     address: {
       id: demoId(105),
       household_id: demoId(100),
-      society_id: "sunrise-towers",
+      society_id: "0199a000-0000-7000-8000-00000000b001",
       tower_id: "b",
       flat: "B-402",
       location: null,

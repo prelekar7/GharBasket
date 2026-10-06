@@ -8,7 +8,7 @@ import { shareInvite } from "@/features/community/invite.js";
 import { useSociety } from "@/features/community/queries.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { shortDate, timeRange, weekdayName, weekdayOf } from "@/features/subscriptions/format.js";
-import { useCurrentCycle } from "@/features/subscriptions/queries.js";
+import { useCurrentCycle, usePreviewCycle } from "@/features/subscriptions/queries.js";
 
 /** The brand "parchi with a tick" on kraft paper. */
 function DoneMark() {
@@ -42,7 +42,12 @@ function Done() {
   const navigate = useNavigate();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { societyId, towerId, flat, reset } = useOnboardingDraft();
-  const { data: cycle } = useCurrentCycle(lang);
+  const current = useCurrentCycle(lang);
+  // A new household has no planned week until the weekly job runs (404 → null); the preview says
+  // which day and slot the first box comes, so the summary never waits on a week that isn't there.
+  const preview = usePreviewCycle(lang);
+  const cycle = current.data ?? preview.data;
+  const settled = !current.isPending && !preview.isPending;
   const { data: society } = useSociety(societyId ?? undefined);
   const { data: wallet } = useWallet();
   const tower = society?.towers.find((tw) => tw.id === towerId);
@@ -50,6 +55,7 @@ function Done() {
   const invite = () =>
     shareInvite({
       societyId: societyId ?? "",
+      slug: society?.slug,
       text: t("onboarding.done.shareText", { society: society?.name ?? "" }),
       copied: t("onboarding.done.copied"),
     });
@@ -87,6 +93,8 @@ function Done() {
           <dd className="font-semibold">
             {cycle ? (
               `${weekdayName(cycle.delivery_date, lang)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.slot, lang)}`
+            ) : settled ? (
+              t("onboarding.done.deliverySoon")
             ) : (
               <Skeleton className="h-5 w-32" />
             )}
