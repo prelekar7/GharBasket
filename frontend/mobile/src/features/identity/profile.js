@@ -1,4 +1,6 @@
+import { formatPaise } from "@gharbasket/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 
@@ -121,4 +123,43 @@ export function useChangeAddress(addressId) {
       request(`/v1/addresses/${addressId}`, { method: "PATCH", body: v }),
     onSuccess: () => client.invalidateQueries({ queryKey: ["household", "me"] }),
   });
+}
+
+/** Household parts that can change, each on its onboarding screen in edit mode; Budget Lock has its own screen. */
+export const HOUSEHOLD_STEPS_EDIT = [
+  { key: "family", to: "/onboarding/family" },
+  { key: "food", to: "/onboarding/food" },
+  { key: "health", to: "/onboarding/health" },
+  { key: "cooking", to: "/onboarding/cooking" },
+  { key: "budget", to: "/budget" },
+];
+
+/**
+ * The current setting of one household part, in words (design HcHousehold). Food rules are the
+ * diet plus Jain, and no onion-garlic on fast days or some days.
+ * @param {(key: string, options?: Record<string, unknown>) => string} t
+ * @param {string} key one of HOUSEHOLD_STEPS_EDIT
+ * @param {Household} h
+ */
+export function householdValue(t, key, h) {
+  if (key === "family") return t("profile.edit.familyOf", { n: h.size });
+  if (key === "food")
+    return [
+      t(`onboarding.food.diets.${h.diet}`),
+      h.rules.jain && t("onboarding.food.jain"),
+      h.fasting.length > 0 && t("profile.edit.noOnionFast"),
+      h.rules.no_onion_some_days && !h.fasting.length && t("profile.edit.noOnionSome"),
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  if (key === "health") return t(h.health_consent ? "profile.edit.on" : "profile.edit.off");
+  if (key === "cooking") return t("profile.edit.minutes", { n: h.weekday_cook_minutes });
+  return h.budget_paise ? formatPaise(h.budget_paise) : t("profile.edit.off");
+}
+
+/** "YYYY-MM-DD", `weeks` weeks from today in India. @param {string | number} weeks */
+export function addWeeks(weeks) {
+  const d = new Date(`${todayIst()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7 * Number(weeks));
+  return d.toISOString().slice(0, 10);
 }

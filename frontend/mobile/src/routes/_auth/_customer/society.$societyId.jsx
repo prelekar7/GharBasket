@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   IconButton,
   MoneyText,
@@ -105,15 +106,21 @@ function Society() {
           <ArrowLeftIcon size={24} />
         </IconButton>
         <h1 className="font-display text-[28px] leading-[34px] font-semibold">
-          {live ? s.name : t("society.title")}
+          {t("society.title")}
         </h1>
       </header>
       <div className="-mt-2 flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-fg-secondary">{live ? t("society.free") : s.area}</p>
-          <StatusPill status={live ? "delivered" : "preparing"}>
-            {t(live ? "society.live" : "society.unlocking")}
-          </StatusPill>
+          {live ? (
+            <h2 className="text-lg leading-[26px] font-bold">{s.name}</h2>
+          ) : (
+            <p className="text-sm text-fg-secondary">{s.area}</p>
+          )}
+          {live ? (
+            <Badge tone="primary">{t("society.live")}</Badge>
+          ) : (
+            <StatusPill status="preparing">{t("society.unlocking")}</StatusPill>
+          )}
         </div>
         {live && days && (
           <p className="text-sm leading-5 text-fg-secondary">

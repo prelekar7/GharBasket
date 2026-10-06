@@ -1,4 +1,4 @@
-import { Button, MoneyText, Sheet, TextField } from "@gharbasket/ui";
+import { Badge, Button, MoneyText, Sheet, TextField } from "@gharbasket/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useProductSearch } from "./queries.js";
@@ -30,7 +30,12 @@ export function AddItemSheet({ open, onClose, inBox, onAdd, busyId }) {
           type="search"
           autoComplete="off"
         />
-        <ul aria-busy={isFetching} aria-label={t("box.add.results")}>
+        {shown.length > 0 && (
+          <span className="text-xs leading-[18px] font-semibold tracking-[0.04em] text-fg-secondary uppercase">
+            {t("box.add.results")}
+          </span>
+        )}
+        <ul aria-busy={isFetching} aria-label={t("box.add.results")} className="-mt-2">
           {shown.map((p) => (
             <li
               key={p.product_id}
@@ -43,7 +48,7 @@ export function AddItemSheet({ open, onClose, inBox, onAdd, busyId }) {
                 </span>
               </span>
               {inBox.has(p.product_id) ? (
-                <span className="text-sm text-fg-secondary">{t("box.add.inBox")}</span>
+                <Badge tone="outline">{t("box.add.inBox")}</Badge>
               ) : (
                 <Button
                   variant="secondary"

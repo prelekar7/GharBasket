@@ -22,7 +22,7 @@ const toApi = (h) => ({
 
 /**
  * The main button of a household step (Hf07–Hf11). During onboarding it is Next; when Profile is
- * editing a saved household it is Save, which sends the change and goes back to Profile.
+ * editing a saved household it is Save, which sends the change and goes back to Household and food.
  * @param {string} path this step's route, for the onboarding order
  */
 export function useStepGo(path) {
@@ -44,7 +44,7 @@ export function useStepGo(path) {
       client.invalidateQueries({ queryKey: ["household", "me"] });
       client.invalidateQueries({ queryKey: ["cycle", "current"] });
       toast(t("profile.edit.saved"));
-      navigate({ to: "/profile" });
+      navigate({ to: "/household" });
     },
     onError: (e) =>
       toast(
