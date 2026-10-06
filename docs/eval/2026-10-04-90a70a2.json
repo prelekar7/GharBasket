@@ -1,0 +1,666 @@
+{
+  "generated_at": "2026-10-04T22:02:06+00:00",
+  "commit": "90a70a2",
+  "args": {
+    "weeks": 5,
+    "start": "2026-10-05",
+    "planners": [
+      "cpsat",
+      "greedy",
+      "random",
+      "rules"
+    ],
+    "adoption": null,
+    "shocks": true,
+    "smoke": false
+  },
+  "seeds": [
+    7,
+    11,
+    13,
+    17,
+    19
+  ],
+  "planner": {
+    "cpsat": {
+      "acceptance": {
+        "mean": 0.7978,
+        "ci95": 0.0143,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 2.0763,
+        "ci95": 0.1021,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 3.7315,
+        "ci95": 0.4292,
+        "n": 5
+      },
+      "variety": {
+        "mean": 20.32,
+        "ci95": 0.2367,
+        "n": 5
+      },
+      "preference": {
+        "mean": 15.7706,
+        "ci95": 0.8885,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 84019.0745,
+        "ci95": 6814.1372,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "greedy": {
+      "acceptance": {
+        "mean": 0.8297,
+        "ci95": 0.0193,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 2.0391,
+        "ci95": 0.0293,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 6.2386,
+        "ci95": 0.053,
+        "n": 5
+      },
+      "variety": {
+        "mean": 9.2239,
+        "ci95": 0.1135,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.4478,
+        "ci95": 0.8719,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 62998.5057,
+        "ci95": 5398.5686,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "random": {
+      "acceptance": {
+        "mean": 0.7062,
+        "ci95": 0.0118,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 2.0722,
+        "ci95": 0.0432,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 11.3085,
+        "ci95": 0.3925,
+        "n": 5
+      },
+      "variety": {
+        "mean": 18.4736,
+        "ci95": 0.2422,
+        "n": 5
+      },
+      "preference": {
+        "mean": 7.6984,
+        "ci95": 0.5973,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0115,
+        "ci95": 0.0175,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 92218.0795,
+        "ci95": 6946.0339,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    },
+    "rules": {
+      "acceptance": {
+        "mean": 0.8275,
+        "ci95": 0.0174,
+        "n": 5
+      },
+      "edits_per_box": {
+        "mean": 2.0166,
+        "ci95": 0.0465,
+        "n": 5
+      },
+      "distinct_perishables": {
+        "mean": 5.8271,
+        "ci95": 0.0898,
+        "n": 5
+      },
+      "variety": {
+        "mean": 8.0566,
+        "ci95": 0.0883,
+        "n": 5
+      },
+      "preference": {
+        "mean": 18.4386,
+        "ci95": 0.8709,
+        "n": 5
+      },
+      "relaxed_share": {
+        "mean": 0.0069,
+        "ci95": 0.0078,
+        "n": 5
+      },
+      "infeasible_share": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      },
+      "cost_paise": {
+        "mean": 61351.5867,
+        "ci95": 4982.4241,
+        "n": 5
+      },
+      "hard_rule_violations": {
+        "mean": 0.0,
+        "ci95": 0.0,
+        "n": 5
+      }
+    }
+  },
+  "planner_targets": {
+    "hard_rules_100pct": {
+      "value": 0.0,
+      "holds": true
+    },
+    "acceptance_ge_70pct": {
+      "value": 0.7977944210942851,
+      "holds": true
+    },
+    "perishables_25pct_fewer_than_greedy": {
+      "value": 0.4018719139214386,
+      "holds": true
+    },
+    "score_30pct_over_greedy": {
+      "value": 0.7512529596288593,
+      "holds": true
+    }
+  },
+  "pantry": {
+    "rule_table_mae": {
+      "mean": 0.2914,
+      "ci95": 0.0035,
+      "n": 5
+    },
+    "cold_start_mae": [
+      {
+        "mean": 0.1284,
+        "ci95": 0.0048,
+        "n": 5
+      },
+      {
+        "mean": 0.0995,
+        "ci95": 0.0027,
+        "n": 5
+      },
+      {
+        "mean": 0.0914,
+        "ci95": 0.0047,
+        "n": 5
+      },
+      {
+        "mean": 0.0874,
+        "ci95": 0.004,
+        "n": 5
+      }
+    ],
+    "target_mae_le_15pct_after_4_weeks": {
+      "value": 0.08740501696690542,
+      "holds": true
+    }
+  },
+  "runs": {
+    "planner": [
+      {
+        "planner": "cpsat",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8056657223796034,
+          "edits_per_box": 2.025287356321839,
+          "distinct_perishables": 3.7701149425287355,
+          "variety": 20.089655172413792,
+          "preference": 15.425287356321839,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 79742.50344827586,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.812283640424344,
+          "edits_per_box": 2.0827586206896553,
+          "distinct_perishables": 4.204597701149425,
+          "variety": 20.326436781609196,
+          "preference": 16.80229885057471,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 77927.26206896552,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7977715877437326,
+          "edits_per_box": 2.0160919540229885,
+          "distinct_perishables": 3.4873563218390804,
+          "variety": 20.57471264367816,
+          "preference": 16.108045977011493,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 86339.76091954023,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7887829500841279,
+          "edits_per_box": 2.2160919540229886,
+          "distinct_perishables": 3.317241379310345,
+          "variety": 20.420689655172414,
+          "preference": 15.595402298850574,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 91740.19310344827,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "cpsat",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7844682048396173,
+          "edits_per_box": 2.0413793103448277,
+          "distinct_perishables": 3.87816091954023,
+          "variety": 20.188505747126438,
+          "preference": 14.92183908045977,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 84345.65287356322,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8428328611898017,
+          "edits_per_box": 2.0367816091954025,
+          "distinct_perishables": 6.23448275862069,
+          "variety": 9.206896551724139,
+          "preference": 18.41609195402299,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 60104.28735632184,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8462311557788945,
+          "edits_per_box": 2.0367816091954025,
+          "distinct_perishables": 6.289655172413793,
+          "variety": 9.133333333333333,
+          "preference": 19.47816091954023,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58273.910344827586,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8212813370473537,
+          "edits_per_box": 2.0022988505747126,
+          "distinct_perishables": 6.271264367816092,
+          "variety": 9.291954022988506,
+          "preference": 18.55862068965517,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 63339.64137931034,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8296130117779024,
+          "edits_per_box": 2.0620689655172413,
+          "distinct_perishables": 6.183908045977011,
+          "variety": 9.342528735632184,
+          "preference": 18.26896551724138,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 69665.74942528736,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "greedy",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8084411930219471,
+          "edits_per_box": 2.057471264367816,
+          "distinct_perishables": 6.213793103448276,
+          "variety": 9.144827586206896,
+          "preference": 17.517241379310345,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 63608.940229885055,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7126345609065156,
+          "edits_per_box": 2.108045977011494,
+          "distinct_perishables": 11.572413793103449,
+          "variety": 18.317241379310346,
+          "preference": 7.675862068965517,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 88686.2459770115,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7105527638190955,
+          "edits_per_box": 2.0344827586206895,
+          "distinct_perishables": 11.639080459770115,
+          "variety": 18.45057471264368,
+          "preference": 8.425287356321839,
+          "relaxed_share": 0.034482758620689655,
+          "infeasible_share": 0.0,
+          "cost_paise": 86381.86436781609,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.7156545961002786,
+          "edits_per_box": 2.0436781609195402,
+          "distinct_perishables": 10.949425287356322,
+          "variety": 18.604597701149427,
+          "preference": 7.834482758620689,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 94138.65747126436,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6946719012899607,
+          "edits_per_box": 2.108045977011494,
+          "distinct_perishables": 11.370114942528735,
+          "variety": 18.73103448275862,
+          "preference": 7.390804597701149,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 100802.94482758621,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "random",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.6974676420934158,
+          "edits_per_box": 2.066666666666667,
+          "distinct_perishables": 11.011494252873563,
+          "variety": 18.264367816091955,
+          "preference": 7.165517241379311,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 91080.68505747126,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 7,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8402266288951842,
+          "edits_per_box": 2.0,
+          "distinct_perishables": 5.8068965517241375,
+          "variety": 7.979310344827586,
+          "preference": 18.411494252873563,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 58701.510344827584,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 11,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8425460636515912,
+          "edits_per_box": 2.032183908045977,
+          "distinct_perishables": 5.903448275862069,
+          "variety": 8.04367816091954,
+          "preference": 19.50344827586207,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 56836.02528735632,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 13,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8248467966573816,
+          "edits_per_box": 1.9586206896551723,
+          "distinct_perishables": 5.903448275862069,
+          "variety": 8.022988505747126,
+          "preference": 18.581609195402297,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 61783.05287356322,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 17,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8213123948401571,
+          "edits_per_box": 2.0482758620689654,
+          "distinct_perishables": 5.7540229885057474,
+          "variety": 8.170114942528736,
+          "preference": 18.089655172413792,
+          "relaxed_share": 0.0,
+          "infeasible_share": 0.0,
+          "cost_paise": 67378.91494252873,
+          "hard_rule_violations": 0.0
+        }
+      },
+      {
+        "planner": "rules",
+        "seed": 19,
+        "households": 87,
+        "weeks": 5,
+        "metrics": {
+          "acceptance": 0.8086662915025323,
+          "edits_per_box": 2.0436781609195402,
+          "distinct_perishables": 5.767816091954023,
+          "variety": 8.066666666666666,
+          "preference": 17.606896551724137,
+          "relaxed_share": 0.011494252873563218,
+          "infeasible_share": 0.0,
+          "cost_paise": 62058.42988505747,
+          "hard_rule_violations": 0.0
+        }
+      }
+    ],
+    "pantry": [
+      {
+        "seed": 7,
+        "households": 87,
+        "rule_table_mae": 0.2887447088337009,
+        "cold_start": [
+          0.12818332807509789,
+          0.09679185815652822,
+          0.09051077987147416,
+          0.08391508381482482
+        ]
+      },
+      {
+        "seed": 11,
+        "households": 87,
+        "rule_table_mae": 0.2924588385498154,
+        "cold_start": [
+          0.12210645656960087,
+          0.09761096143803505,
+          0.08905291590474722,
+          0.08935707070408919
+        ]
+      },
+      {
+        "seed": 13,
+        "households": 87,
+        "rule_table_mae": 0.2913163850105447,
+        "cold_start": [
+          0.12916900722801317,
+          0.10148167761151265,
+          0.08697139573344856,
+          0.0915138989985915
+        ]
+      },
+      {
+        "seed": 17,
+        "households": 87,
+        "rule_table_mae": 0.295560654946312,
+        "cold_start": [
+          0.1324781681912246,
+          0.10088371286784446,
+          0.096531666884207,
+          0.08462660120409837
+        ]
+      },
+      {
+        "seed": 19,
+        "households": 87,
+        "rule_table_mae": 0.288867244245794,
+        "cold_start": [
+          0.12992921524687587,
+          0.10075705088185573,
+          0.0938163203653538,
+          0.08761243011292323
+        ]
+      }
+    ]
+  }
+}
