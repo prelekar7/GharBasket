@@ -37,7 +37,7 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
     <Sheet
       open={!!line}
       onOpenChange={(open) => !open && onClose()}
-      title={line?.name ?? ""}
+      title={line ? t("box.qty.change", { name: line.name }) : ""}
       description={otherNames}
       footer={
         <Button
@@ -54,14 +54,11 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
     >
       {line && step && (
         <div className="flex flex-col gap-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-sm leading-5 text-fg-secondary">
-              {qty === line.qty ? line.qty_label : `${qty} × ${step.label}`}
-              {p &&
-                ` · ${t("product.per", { price: formatPaise(p.unit_price.price_paise), unit: p.unit_price.unit })}`}
-            </span>
-            <MoneyText paise={qty * step.price_paise} size="lg" />
-          </div>
+          <p className="text-sm leading-5 text-fg-secondary">
+            {t("box.qty.each", { price: formatPaise(step.price_paise), step: step.label })}
+            {p &&
+              ` · ${t("product.per", { price: formatPaise(p.unit_price.price_paise), unit: p.unit_price.unit })}`}
+          </p>
           {product.isPending && <Skeleton className="h-6 w-40" />}
           {p?.tags.includes("in_season") && (
             <div>
@@ -122,6 +119,10 @@ export function ProductSheet({ line, onClose, onSave, onRemove, onSwap, busy }) 
               unit={`× ${step.label}`}
               labels={{ decrease: t("box.qty.less"), increase: t("box.qty.more") }}
             />
+          </div>
+          <div className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
+            <span className="text-sm leading-5 text-fg-secondary">{t("box.qty.thisLine")}</span>
+            <MoneyText paise={qty * step.price_paise} size="lg" />
           </div>
           <Button variant="danger" onPress={onRemove} isDisabled={busy}>
             {t("box.qty.remove", { price: formatPaise(line.price_paise) })}

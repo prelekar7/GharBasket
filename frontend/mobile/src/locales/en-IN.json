@@ -459,7 +459,8 @@
       "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off."
     },
     "pauseLead": "Away for longer?",
-    "pauseLink": "Pause Autopilot in Profile"
+    "pauseLink": "Pause Autopilot in Profile",
+    "thisBox": "This week’s box: "
   },
   "reasons": {
     "in_season": "{item} is in season",
@@ -511,7 +512,8 @@
       "remove": "Remove from box · {price}",
       "save": "Save",
       "saved": "{name} updated",
-      "removed": "{name} removed from your box"
+      "removed": "{name} removed from your box",
+      "thisLine": "This line"
     },
     "add": {
       "cta": "Add item",
@@ -1433,7 +1435,8 @@
     "already": "A tiffin is already booked for that meal.",
     "goneTitle": "This tiffin can’t be booked now",
     "goneBody": "It may be booked already, or this week’s orders have closed.",
-    "backToWeek": "Back to the week"
+    "backToWeek": "Back to the week",
+    "since": "cooking with us since {since}"
   },
   "rate": {
     "when": "{day} · delivered",

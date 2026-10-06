@@ -75,6 +75,7 @@ export const partnerHandlers = [
       kitchen: k.kitchen[i],
       area: k.area[i],
       specialty: k.specialty[i],
+      since: "2024",
       fssai_registered: true,
       hygiene_trained: true,
     });
