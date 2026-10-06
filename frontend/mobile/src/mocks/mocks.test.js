@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { productUuid } from "./catalog.js";
 import { isNewUser } from "./handlers.js";
 import { mockFetch } from "./index.js";
 import { uid } from "./subscriptions.js";
@@ -283,9 +284,20 @@ describe("add-ons (M2 search, lines on the box)", () => {
     ).items;
 
   it("finds a product by its Hinglish or Hindi name", async () => {
-    expect((await search("anda"))[0]).toMatchObject({ product_id: "eggs", name: "Eggs" });
-    expect((await search("दूध", "hi-IN"))[0]).toMatchObject({ product_id: "milk", name: "दूध" });
-    expect(await search("x")).toEqual([]);
+    expect((await search("anda"))[0]).toEqual({
+      product_id: productUuid("eggs"),
+      slug: "eggs",
+      name: "Eggs",
+      matched: "anda",
+      step: { qty: 6, unit: "piece", label: "6 pc" },
+      price_paise: 4200,
+    });
+    expect((await search("दूध", "hi-IN"))[0]).toMatchObject({
+      slug: "milk",
+      name: "दूध",
+      step: { qty: 500, unit: "ml", label: "500 मि.ली." },
+    });
+    expect(await search("zzz")).toEqual([]);
   });
 
   it("adds a catalog item as a box line, priced into the total, and Undo keeps its amount", async () => {
@@ -299,19 +311,19 @@ describe("add-ons (M2 search, lines on the box)", () => {
           }),
         )
       ).json();
-    let c = await patch({ ops: [{ op: "add", product_id: "eggs", qty: 1 }] }, 1);
+    let c = await patch({ ops: [{ op: "add", product_id: productUuid("eggs"), qty: 1 }] }, 1);
     expect(c.lines.at(-1)).toMatchObject({
-      product_id: "eggs",
+      product_id: productUuid("eggs"),
       qty: 1,
       step: { qty: 6, unit: "piece" },
       reason_code: "added_by_you",
       source: "customer",
     });
     expect(c.total_paise).toBe(69000 + 4200);
-    c = await patch({ ops: [{ op: "qty", product_id: "eggs", qty: 2 }] }, 2);
-    c = await patch({ ops: [{ op: "remove", product_id: "eggs" }] }, 3);
+    c = await patch({ ops: [{ op: "qty", product_id: productUuid("eggs"), qty: 2 }] }, 2);
+    c = await patch({ ops: [{ op: "remove", product_id: productUuid("eggs") }] }, 3);
     expect(c.total_paise).toBe(69000);
-    c = await patch({ ops: [{ op: "add", product_id: "eggs", qty: 2 }] }, 4);
+    c = await patch({ ops: [{ op: "add", product_id: productUuid("eggs"), qty: 2 }] }, 4);
     expect(c.lines.at(-1)).toMatchObject({ qty: 2, total_paise: 8400 });
   });
 });
@@ -482,23 +494,68 @@ describe("wallet statement (M5)", () => {
 describe("society invites and unlock (M9, Core-S1/S4)", () => {
   const society = async (/** @type {string} */ id) =>
     (await mockFetch(new Request(`http://localhost/v1/societies/${id}`))).json();
+  const unlock = async (/** @type {string} */ id) =>
+    (await mockFetch(new Request(`http://localhost/v1/societies/${id}/unlock`))).json();
 
   it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
-    expect(await society("green-valley")).toMatchObject({
-      status: "prospect",
-      unlock: { joined: 19, threshold: 25 },
-    });
+    expect(await society("green-valley")).toMatchObject({ status: "unlocking", captain: null });
+    expect(await unlock("green-valley")).toMatchObject({ joined: 19, threshold: 25 });
     for (let i = 0; i < 6; i++)
       await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
     // The same key again changes nothing.
     await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, "ref-0");
     const s = await society("green-valley");
+    // Only a display name: no flat, no phone number (DPDP).
     expect(s).toMatchObject({
       status: "live",
-      unlock: { joined: 25 },
-      captain: { name: "Asha tai" },
+      captain: { display_name: "Asha tai", photo_url: null },
     });
-    expect(s.unlocked_at).toBeTruthy();
+    expect(Object.keys(s.captain)).toEqual(["display_name", "photo_url"]);
+    expect(await unlock("green-valley")).toMatchObject({ status: "live", joined: 25 });
+  });
+
+  it("lists societies without captain or unlock data, and gives them per society", async () => {
+    const list = await (await mockFetch(new Request("http://localhost/v1/societies"))).json();
+    expect(Object.keys(list.items[0]).sort()).toEqual(
+      ["area", "distance_m", "id", "name", "slug", "status"].sort(),
+    );
+    const id = list.items[0].id;
+    expect(await unlock(id)).toEqual({ society_id: id, status: "live", joined: 20, threshold: 20 });
+    const days = await (
+      await mockFetch(new Request(`http://localhost/v1/societies/${id}/delivery-days`))
+    ).json();
+    expect(days.items.map((/** @type {any} */ d) => d.weekday)).toEqual([1, 4, 6]);
+    expect(days.items[0].slot).toMatchObject({ start: "08:00:00", end: "10:00:00" });
+    const missing = await mockFetch(new Request("http://localhost/v1/societies/nope/unlock"));
+    expect(missing.status).toBe(404);
+    expect((await missing.json()).code).toBe("community.society_not_found");
+  });
+
+  it("takes a society request once per key, with null for what was not given", async () => {
+    const body = { name: "Panvel Heights", area: null, location: null };
+    const first = await post("/v1/society-requests", body, "req-1");
+    expect(first.status).toBe(201);
+    const made = await first.json();
+    expect(made).toMatchObject({ status: "received" });
+    expect((await (await post("/v1/society-requests", body, "req-1")).json()).id).toBe(made.id);
+    const changed = await post("/v1/society-requests", { ...body, name: "Other" }, "req-1");
+    expect((await changed.json()).code).toBe("request.idempotency_mismatch");
+    const bad = await post("/v1/society-requests", { name: "x", extra: 1 }, "req-2");
+    const problem = await bad.json();
+    expect(bad.status).toBe(422);
+    expect(problem.errors.map((/** @type {any} */ e) => e.loc.at(-1))).toEqual(["extra", "name"]);
+    const keyless = await mockFetch(
+      new Request("http://localhost/v1/society-requests", { method: "POST", body: "{}" }),
+    );
+    expect((await keyless.json()).code).toBe("request.idempotency_key_required");
+  });
+
+  it("stops at five requests a day", async () => {
+    for (let i = 0; i < 5; i++)
+      await post("/v1/society-requests", { name: `Society ${i}` }, `r-${i}`);
+    const sixth = await post("/v1/society-requests", { name: "One more" }, "r-last");
+    expect(sixth.status).toBe(429);
+    expect((await sixth.json()).code).toBe("community.request_rate_limited");
   });
 
   it("reports a live society's impact this month", async () => {
@@ -698,20 +755,32 @@ describe("notifications inbox and preferences (M11)", () => {
 
 describe("product detail (HcProduct)", () => {
   it("gives names in every language, the list price per unit and the season", async () => {
-    const res = await mockFetch(
-      new Request("http://localhost/v1/products/bhindi", {
-        headers: { "accept-language": "hi-IN" },
-      }),
-    );
-    expect(await res.json()).toMatchObject({
+    const get = (/** @type {string} */ id) =>
+      mockFetch(
+        new Request(`http://localhost/v1/products/${id}`, {
+          headers: { "accept-language": "hi-IN" },
+        }),
+      );
+    const res = await get(productUuid("bhindi"));
+    const p = await res.json();
+    expect(p).toMatchObject({
+      id: productUuid("bhindi"),
+      slug: "bhindi",
       name: "भिंडी",
       names: { en: "Bhindi", hi: "भिंडी", mr: "भेंडी" },
-      also_called: ["Okra"],
-      unit_price: { price_paise: 8000, unit: "kg" },
+      step: { qty: 500, unit: "g", label: "500 ग्रा" },
+      price: { price_paise: 4000, mrp_paise: null },
       tags: ["in_season"],
     });
-    const missing = await mockFetch(new Request("http://localhost/v1/products/nope"));
+    // Exactly the ProductOut fields: nothing the contract does not have.
+    expect(Object.keys(p).sort()).toEqual(
+      "category id image_url kind name names price shelf_life_h slug step tags".split(" "),
+    );
+    // Box lines in other mocks still carry slugs.
+    expect((await (await get("bhindi")).json()).id).toBe(productUuid("bhindi"));
+    const missing = await get("00000000-0000-0000-0000-000000000000");
     expect(missing.status).toBe(404);
+    expect((await missing.json()).code).toBe("catalog.product_not_found");
   });
 });
 

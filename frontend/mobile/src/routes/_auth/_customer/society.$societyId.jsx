@@ -8,16 +8,24 @@ import {
   StatusPill,
   toast,
 } from "@gharbasket/ui";
-import { ArrowLeftIcon, CopyIcon, MedalIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, CopyIcon, MedalIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { inviteLink, whatsappChat } from "@/features/community/invite.js";
-import { useImpact, useRecordInvite, useSociety } from "@/features/community/queries.js";
+import { deliveryText, nextDeliveryDate } from "@/features/community/delivery.js";
+import { inviteLink } from "@/features/community/invite.js";
+import {
+  sawUnlocking,
+  useDeliveryDays,
+  useImpact,
+  useRecordInvite,
+  useSociety,
+  useSocietyUnlock,
+} from "@/features/community/queries.js";
 import { ShareSheet } from "@/features/community/ShareSheet.jsx";
 import { UnlockCelebration } from "@/features/community/UnlockCelebration.jsx";
-import { shortDate, timeRange, weekdayName } from "@/features/subscriptions/format.js";
+import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
 
 /**
  * Your society: unlock progress or, once live, delivery days, the captain, the invite link and
@@ -27,8 +35,6 @@ import { shortDate, timeRange, weekdayName } from "@/features/subscriptions/form
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/society/$societyId")({ component: Society });
 
-/** A society counts as "just unlocked" for a week after it goes live. */
-const CELEBRATE_FOR_MS = 7 * 86_400_000;
 const seenKey = (/** @type {string} */ id) => `gb-unlock-seen-${id}`;
 
 function Society() {
@@ -38,6 +44,8 @@ function Society() {
   const navigate = useNavigate();
   const { societyId } = Route.useParams();
   const { data: s, isPending, isError, refetch } = useSociety(societyId);
+  const unlockQuery = useSocietyUnlock(s?.id);
+  const deliveryQuery = useDeliveryDays(s?.id);
   const impact = useImpact(s?.status === "live" ? s.id : undefined);
   const record = useRecordInvite();
   const [sharing, setSharing] = useState(false);
@@ -49,17 +57,16 @@ function Society() {
     }
   });
 
-  if (isPending) return <Skeleton lines={6} />;
+  if (isPending || unlockQuery.isPending || deliveryQuery.isPending) return <Skeleton lines={6} />;
   if (isError || !s) return <ScreenError onRetry={() => refetch()} />;
   const live = s.status === "live";
-  const list = new Intl.ListFormat(lang, { type: "conjunction" });
-  // Weekday names from a known Monday (5 Oct 2026), so they come out in the person's language.
-  const days = s.delivery
-    ? `${list.format(s.delivery.days.map((d) => weekdayName(`2026-10-${String(5 + d).padStart(2, "0")}`, lang)))}, ${timeRange(s.delivery, lang)}`
-    : null;
-  const link = inviteLink(s.id);
-  const justUnlocked =
-    live && !seen && !!s.unlocked_at && Date.now() - Date.parse(s.unlocked_at) < CELEBRATE_FOR_MS;
+  const unlock = unlockQuery.data ?? null;
+  const delivery = deliveryQuery.data ?? [];
+  const days = deliveryText(delivery, lang);
+  const firstDate = nextDeliveryDate(delivery);
+  const link = inviteLink(s.slug);
+  // The API has no `unlocked_at`: celebrate once, on the visit after this phone saw it unlocking.
+  const justUnlocked = live && !seen && !!unlock && sawUnlocking(s.id);
 
   const copyLink = async () => {
     try {
@@ -75,14 +82,10 @@ function Society() {
     return (
       <UnlockCelebration
         society={s.name}
-        homes={s.unlock.joined}
-        start={
-          s.delivery?.first_date
-            ? `${weekdayName(s.delivery.first_date, lang)} ${shortDate(s.delivery.first_date, lang)}`
-            : ""
-        }
+        homes={unlock?.joined ?? 0}
+        start={firstDate ? `${weekdayName(firstDate, lang)} ${shortDate(firstDate, lang)}` : ""}
         days={days ?? ""}
-        captain={s.captain ? `${s.captain.name}, ${s.captain.flat}` : null}
+        captain={s.captain?.display_name ?? null}
         onDone={() => {
           try {
             localStorage.setItem(seenKey(s.id), "1");
@@ -124,65 +127,54 @@ function Society() {
         </div>
         {live && days && (
           <p className="text-sm leading-5 text-fg-secondary">
-            {t("society.delivery", { area: s.area, days })}
+            {t("society.delivery", { area: s.area ?? s.name, days })}
           </p>
         )}
       </div>
-      {!live && (
+      {!live && unlock && (
         <SocietyUnlockBar
           society={s.name}
-          joined={s.unlock.joined}
-          target={s.unlock.threshold}
-          captain={s.captain?.name}
+          joined={unlock.joined}
+          target={unlock.threshold}
+          captain={s.captain?.display_name}
           onInvite={() => setSharing(true)}
           labels={{
             count: t("onboarding.unlock.count", {
-              joined: s.unlock.joined,
-              target: s.unlock.threshold,
+              joined: unlock.joined,
+              target: unlock.threshold,
             }),
-            remaining: t("society.remaining", { n: s.unlock.threshold - s.unlock.joined }),
+            remaining: t("society.remaining", { n: unlock.threshold - unlock.joined }),
             invite: t("onboarding.unlock.invite"),
             unlocked: t("society.unlocked"),
-            started: t("society.started", { captain: s.captain?.name ?? "" }),
+            started: t("society.started", { captain: s.captain?.display_name ?? "" }),
             progress: t("society.progress"),
           }}
         />
       )}
       <section className="flex gap-3.5 rounded-md bg-surface p-4">
         <div className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft font-semibold text-accent-fg">
-          {s.captain ? initials(s.captain.name) : <MedalIcon aria-hidden size={24} />}
+          {s.captain ? initials(s.captain.display_name) : <MedalIcon aria-hidden size={24} />}
         </div>
         <div className="flex flex-col gap-0.5">
           <strong>
-            {s.captain ? t("society.captainIs", { name: s.captain.name }) : t("society.noCaptain")}
+            {s.captain
+              ? t("society.captainIs", { name: s.captain.display_name })
+              : t("society.noCaptain")}
           </strong>
           <p className="text-sm leading-5 text-fg-secondary">
-            {s.captain
-              ? t("society.captainDoes", { flat: s.captain.flat })
-              : t("society.captainBody", { society: s.name })}
+            {s.captain ? t("society.captainDoes") : t("society.captainBody", { society: s.name })}
           </p>
-          <div>
-            {s.captain?.phone_e164 ? (
+          {!s.captain && (
+            <div>
               <Button
                 variant="quiet"
                 className="-ml-4"
-                onPress={() => s.captain?.phone_e164 && whatsappChat(s.captain.phone_e164)}
+                onPress={() => navigate({ to: "/partner", search: { role: "captain" } })}
               >
-                <WhatsappLogoIcon aria-hidden size={20} weight="fill" />
-                {t("society.whatsapp")}
+                {t("society.becomeCaptain")}
               </Button>
-            ) : (
-              !s.captain && (
-                <Button
-                  variant="quiet"
-                  className="-ml-4"
-                  onPress={() => navigate({ to: "/partner", search: { role: "captain" } })}
-                >
-                  {t("society.becomeCaptain")}
-                </Button>
-              )
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
       {live ? (
@@ -226,7 +218,7 @@ function Society() {
           <p className="text-sm leading-[22px] text-fg-secondary">{t("society.planBody")}</p>
         </section>
       )}
-      <ShareSheet open={sharing} onClose={() => setSharing(false)} society={s} />
+      <ShareSheet open={sharing} onClose={() => setSharing(false)} society={s} unlock={unlock} />
     </div>
   );
 }

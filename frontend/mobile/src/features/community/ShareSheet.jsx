@@ -8,21 +8,23 @@ import { useRecordInvite } from "./queries.js";
  * Invite neighbours: the message they'll get, the reward rule, then WhatsApp or Copy link
  * (design Core-S3, M9 referrals). Every invite is recorded, so rewards can be matched later.
  * `message` replaces the invite text, e.g. with this month's impact (HcImpact); the link stays.
- * @param {{ open: boolean, onClose: () => void, society: { id: string, name: string, captain: { name: string } | null, unlock: { joined: number, threshold: number }, status: string }, message?: (link: string) => string }} props
+ * @param {{ open: boolean, onClose: () => void, society: Pick<import("./queries.js").Society, "id" | "slug" | "name" | "captain">, unlock?: import("./queries.js").Unlock | null, message?: (link: string) => string }} props
  */
-export function ShareSheet({ open, onClose, society: s, message: custom }) {
+export function ShareSheet({ open, onClose, society: s, unlock, message: custom }) {
   const { t } = useTranslation();
   const record = useRecordInvite();
-  const link = inviteLink(s.id);
+  const link = inviteLink(s.slug);
   const message = custom
     ? custom(link)
     : s.captain
-      ? t("society.share.message", { captain: s.captain.name, link })
-      : t("society.share.messageUnlocking", {
-          n: Math.max(0, s.unlock.threshold - s.unlock.joined),
-          society: s.name,
-          link,
-        });
+      ? t("society.share.message", { captain: s.captain.display_name, link })
+      : unlock
+        ? t("society.share.messageUnlocking", {
+            n: Math.max(0, unlock.threshold - unlock.joined),
+            society: s.name,
+            link,
+          })
+        : t("society.share.messageGeneric", { society: s.name, link });
 
   return (
     <Sheet
