@@ -15,6 +15,7 @@ import sys
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 HERE = Path(__file__).parent
 RAW = HERE / "ifct2017_compositions.csv"
@@ -66,7 +67,7 @@ def fetch() -> None:
         RAW.write_bytes(answer.read())
 
 
-def load_ifct() -> dict[str, dict[str, float]]:
+def load_ifct() -> dict[str, dict[str, Any]]:
     with RAW.open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     columns = {
@@ -75,7 +76,7 @@ def load_ifct() -> dict[str, dict[str, float]]:
     }
     code_col = next(k for k in rows[0] if k.endswith("; code"))
     name_col = next(k for k in rows[0] if k.endswith("; name"))
-    foods: dict[str, dict[str, float]] = {}
+    foods: dict[str, dict[str, Any]] = {}
     for row in rows:
         values = {key: float(row[col] or 0) for key, col in columns.items()}
         # Pure fats and a few others have no energy column: the Atwater factors fill it.
