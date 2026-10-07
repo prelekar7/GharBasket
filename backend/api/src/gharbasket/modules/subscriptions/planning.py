@@ -146,23 +146,23 @@ def perishable(product: PlanProduct) -> bool:
     return product.shelf_life_h is not None and product.shelf_life_h <= PERISHABLE_H
 
 
-def lines_from_plan(
-    profile: HouseholdPlanProfile,
-    catalog: PlanCatalog,
-    plan: list[dict[str, Any]] | None,
-    *,
-    fallback: bool,
-    carried: dict[uuid.UUID, float] | None = None,
-    quantities: dict[uuid.UUID, tuple[float, dict[str, Any]]] | None = None,
-) -> list[DraftLine]:
-    """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
-    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
-    `carried`: base units of staples the household bought in the last weeks (M3 §3.1 step 2):
-    what is still in the cupboard is not ordered again; perishables always are.
-    `quantities`: the pantry twin's weekly use per product (base units, with its params): it
-    replaces the rule table's quantity for daily-use items (`reason_code: pantry_low`)."""
+def plan_of(meal_plan: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """A stored week (`meal_plan_days`) back as the planner's meals, for `recipe_need`."""
+    return [
+        {"day": d, "slot": meal["slot"], "recipe": meal["recipe_slug"]}
+        for d, day in enumerate(meal_plan or [])
+        for meal in day.get("meals", [])
+        if meal.get("recipe_slug")
+    ]
+
+
+def recipe_need(
+    profile: HouseholdPlanProfile, catalog: PlanCatalog, plan: list[dict[str, Any]] | None
+) -> tuple[dict[uuid.UUID, float], dict[uuid.UUID, set[str]]]:
+    """Base units of each product the planned recipes (and their sides) need for the household:
+    ingredients x size ÷ servings, optional ones left out; and which dishes need it."""
     by_slug = {r.slug: r for r in catalog.recipes}
-    needed: dict[uuid.UUID, float] = defaultdict(float)  # base units
+    needed: dict[uuid.UUID, float] = defaultdict(float)
     recipes_for: dict[uuid.UUID, set[str]] = defaultdict(set)
     for meal in plan or []:
         slug = meal.get("recipe")
@@ -178,6 +178,34 @@ def lines_from_plan(
                     continue
                 needed[ingredient.product_id] += ingredient.qty_per_serving * factor
                 recipes_for[ingredient.product_id].add(slug)
+    return needed, recipes_for
+
+
+def twin_product(product: PlanProduct) -> bool:
+    """The pantry twin v0 drafts only perishable daily-use items (milk, curd): what a box
+    delivers of them is used or wasted within the week, so the delivered daily-use share and
+    the tap say how much the household goes through. Staples carry over in the cupboard and
+    stay on the rule table until v1 models stock (M10 §3.3)."""
+    return product.slug in rules.DAILY_USE_PER_ADULT_WEEK and perishable(product)
+
+
+def lines_from_plan(
+    profile: HouseholdPlanProfile,
+    catalog: PlanCatalog,
+    plan: list[dict[str, Any]] | None,
+    *,
+    fallback: bool,
+    carried: dict[uuid.UUID, float] | None = None,
+    quantities: dict[uuid.UUID, tuple[float, dict[str, Any]]] | None = None,
+) -> list[DraftLine]:
+    """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
+    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
+    `carried`: base units of staples the household bought in the last weeks (M3 §3.1 step 2):
+    what is still in the cupboard is not ordered again; perishables always are.
+    `quantities`: the pantry twin's weekly daily use per product (base units, with its params):
+    it replaces the rule table's daily-use quantity, and the recipes' need still comes on top
+    (`reason_code: pantry_low`)."""
+    needed, recipes_for = recipe_need(profile, catalog, plan)
 
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
     daily = rules.daily_use_plan(equivalents)
@@ -257,5 +285,8 @@ __all__ = [
     "highlights_for",
     "lines_from_plan",
     "meal_plan_days",
+    "plan_of",
     "plan_request",
+    "recipe_need",
+    "twin_product",
 ]
