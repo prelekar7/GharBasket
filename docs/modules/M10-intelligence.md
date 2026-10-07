@@ -104,12 +104,13 @@ Every new field is optional; a request without them is a v0 request and gets a v
 - **Fallback:** the rule-based planner gains sides pairing and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
-### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
+### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**
   - the seed world from `just seed` (hub, societies, catalog, prices, festival calendar), read through the catalog services;
   - the cohorts in `data/simulator/cohorts.json` (assumptions for Rhythm and Manish to review);
-  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026), `--planner cpsat|rules` and `--adoption` (share of flats, default 0.1).
+  - the price episodes in `data/simulator/shocks.json` (also assumptions);
+  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026; prices are the hub's list on that day), `--planner cpsat|rules`, `--adoption` (share of flats, default 0.1) and `--no-shocks`.
 - **Households:**
   - sampled per seed society with a hub, using cohort size, diet, Jain, cuisines, fasts, a diabetic elder (with health consent), cook time, no-cook Sunday and Budget Lock;
   - onboarded through M1's `create_household` with `data_source='synthetic'`;
@@ -120,9 +121,15 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
   - **Accept or edit:** each planned dish is accepted with probability sigmoid(accept bias + taste). Otherwise it is swapped for the household's favourite dish allowed under the same hard rules, and a fasting dish is only swapped for another fasting dish.
   - **Skip:** a skipped week means no box; the family still cooks.
   - **Consumption:** the cooked dishes' ingredients × adult equivalents, plus latent daily-use items (milk, atta, oil, salt, curd, fruit) with weekly noise.
+  - **Box (v1a):** drafted like M3's `lines_from_plan` (planned dishes' non-optional ingredients plus the rule table plus two fruits, summed per product, in steps at the week's prices). The household then edits it, each edit with a reason:
+    - `taste`: lines follow the dishes it cooks (keeping the rule share), and sometimes a liked fruit is added;
+    - `stock`: the most over-stocked staples are removed or reduced;
+    - `price`: a spiked item is swapped for a same-category, same-unit product that is cheaper per unit and in total, or halved. The substitute is cooked in place of the original.
+  - **Pantry (v1a):** the box is delivered into a pantry and the cooking draws it down. Shortfalls are bought elsewhere. Perishables left at the end of the week are waste, and staples are waste once past their shelf life. On some items the household taps *ran out*, *wasted* or *just right* (cohort `feedback_rate`).
 - **Output:** Parquet ground truth in `data/sim_truth/seed-<n>/` (git-ignored):
   - `households`, `daily_use` and `taste` (the latent truth);
-  - `weeks`, `meals` and `consumption` (behaviour), with columns as in `gharbasket_sim/truth.py`;
+  - `weeks`, `meals` and `consumption` (behaviour);
+  - `boxes`, `box_lines`, `edits`, `pantry` and `prices` (v1a), with columns as in `gharbasket_sim/truth.py`;
   - `manifest.json`.
   The weeks reach the database through M3/M4 once those exist.
 - **Guarantees (tested):**

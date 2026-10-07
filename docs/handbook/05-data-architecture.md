@@ -916,13 +916,14 @@ It generates:
 
 It writes **through the module services**, so ledger and state-machine rules hold, with `data_source='synthetic'`. Ground truth is saved to `data/sim_truth/*.parquet` for evaluation.
 
-**Status (v0, Oct 2026):**
-- **Done:** items 2–4, through `just sim`.
+**Status (v1a, Oct 2026):**
+- **Done:** items 2–4 (v0) and item 5's price shocks (v1a), through `just sim`.
   - Households from `data/simulator/cohorts.json` are onboarded through M1 in the seed societies.
   - The truth files hold latent daily-use rates and tastes, weekly CP-SAT plans with accept/edit/skip, and consumption.
+  - v1a: each week's box is drafted as M3 drafts it, edited by the household with a reason per edit (`taste`, `stock`, `price`), delivered into a pantry the cooking draws down, with *ran out* / *wasted* / *just right* taps; prices follow the episodes in `data/simulator/shocks.json`.
 - **Next:**
-  - item 1 (real society polygons) and items 5–6;
-  - writing the weeks through M3/M4 once they exist.
+  - item 1 (real society polygons), mandi-replayed prices and item 6;
+  - writing the weeks through M3/M4 (v1b).
 - See M10 §3.2 and `data/simulator/README.md`.
 
 *Figure 5.14 — Simulator data flow*
