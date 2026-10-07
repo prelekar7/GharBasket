@@ -1,7 +1,8 @@
 """Scheduled jobs of M3 (spec §6), registered with the platform's jobs runner (ADR-0021).
 
 `generate_weekly_plans` runs at T-3 18:00 IST for delivery day T: `scheduled_for` decides the
-delivery date (three days later, IST), never the clock.
+delivery date (three days later, IST), never the clock. `apply_auto_approve` runs at T-1 20:55
+IST, five minutes before M4's cut-off, for the next day's deliveries.
 """
 
 from datetime import timedelta
@@ -33,3 +34,14 @@ async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
                 totals[key] += value
     totals["delivery_date"] = delivery_date.isoformat()  # type: ignore[assignment]
     return totals
+
+
+@job(
+    "apply_auto_approve",
+    "Approve tomorrow's boxes for households that asked for it (notice sent 24 h before)",
+)
+async def apply_auto_approve(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=1)
+    counts: dict[str, Any] = await service.auto_approve_due(ctx.session, delivery_date)
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts

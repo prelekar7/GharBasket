@@ -57,9 +57,10 @@ stateDiagram-v2
 | — → DRAFT | Autopilot job (T-3 18:00) | Active subscription, not paused | `subscriptions.cycle_generated` | — |
 | DRAFT → AWAITING_APPROVAL | System | Box-ready notification and pre-debit notice sent | — | — |
 | AWAITING_APPROVAL → AWAITING_APPROVAL | Customer edit | `If-Match` version equals current version | — (feedback signals stored for ML) | — |
-| AWAITING_APPROVAL → APPROVED | Customer | Before cut-off | `subscriptions.box_approved` | — |
+| AWAITING_APPROVAL → APPROVED | Customer | Before cut-off; the M4 order is created in the same transaction (`orders.api.create_from_cycle`) | `subscriptions.box_approved` | — |
+| APPROVED → APPROVED | Customer edit | Before cut-off; M4 replaces the order's box lines | `subscriptions.box_approved` (again) | — |
 | AWAITING_APPROVAL → APPROVED (auto) | Cut-off job | `auto_approve = true` and pre-debit notice sent ≥ 24 h earlier | `subscriptions.box_approved` | — |
-| AWAITING_APPROVAL → SKIPPED | Customer | Before cut-off | `subscriptions.box_skipped` | — |
+| AWAITING_APPROVAL or APPROVED → SKIPPED | Customer | Before cut-off; an existing order is cancelled (`orders.cancelled`, reason `skipped`) | `subscriptions.box_skipped` | — |
 | APPROVED → LOCKED | Cut-off job (T-1 21:00) | Wallet balance sufficient or Autopay capture succeeded | `orders.locked` | wallet → unearned_revenue |
 | APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance (`orders.payment_failed`) or an Autopay capture failed (`billing.payment_failed`, pilot) | `orders.payment_failed` | — |
 | PAYMENT_FAILED → CANCELLED | System timer | 2 h grace expired | `orders.cancelled` | — |
