@@ -126,8 +126,16 @@ def meal_plan_days(
     return days
 
 
-PERISHABLE_H = 96  # bought fresh every week; anything longer-lived carries over
-CARRY_WEEKS = 3  # how far back the cupboard is assumed to hold a staple
+# Carry-over (M3 §3.1 step 2). Only a dry staple is counted as still in the cupboard: one that
+# lasts well past the CARRY_WEEKS window. The seed catalog has a clear gap here: fresh produce
+# and dairy go up to 720 h (tomato, green chilli, bottle gourd 120 h, lemon 168 h, ginger and
+# eggs 336 h, onion, potato and garlic 720 h) and the dry pantry starts at 2160 h (atta; then
+# besan, dals, rice, oil, spices, salt). Produce is bought for the week, so it never carries.
+# (A different line from catalog.api.PERISHABLE_H, 96 h: what spoils within the week.)
+CARRY_MIN_SHELF_H = 720
+# How far back the cupboard is counted (v0): a purchase older than this is assumed used up, so
+# a slow staple (salt, spices) is bought again once its last purchase leaves the window.
+CARRY_WEEKS = 3
 
 
 DEFAULT_UNIT_G = 100  # a piece or bunch without a known weight
@@ -136,14 +144,32 @@ DEFAULT_UNIT_G = 100  # a piece or bunch without a known weight
 def in_base_units(product: PlanProduct, grams: float) -> float:
     """Grams in the product's base unit: as they are for g and ml, divided by the weight of one
     piece or bunch (`unit_g` from the IFCT mapping) otherwise."""
-    if BASE_FACTOR[product.step_unit] and product.step_unit in ("g", "kg", "ml", "l"):
+    if product.step_unit in ("g", "kg", "ml", "l"):
         return grams
     unit_g = (product.nutrition or {}).get("unit_g") or DEFAULT_UNIT_G
     return grams / unit_g
 
 
-def perishable(product: PlanProduct) -> bool:
-    return product.shelf_life_h is not None and product.shelf_life_h <= PERISHABLE_H
+def carries_over(product: PlanProduct) -> bool:
+    """A dry staple, whose leftovers count against the next weeks' lines."""
+    return product.shelf_life_h is not None and product.shelf_life_h > CARRY_MIN_SHELF_H
+
+
+def left_over(bought: list[tuple[float, float]], weekly_need: float) -> float:
+    """Base units still in the cupboard now: `bought` holds (weeks ago, base units) per delivery;
+    each delivery adds to the cupboard and every week in between uses `weekly_need` of it,
+    never below zero. Nothing is assumed from before the oldest delivery.
+
+    v0 approximation: the caller passes this week's need as the rate for every past week. Exact
+    for the rule table (the same every week); for a staple the recipes also use (atta for
+    chapati, a dal) last weeks' plans may have needed more or less, until the pantry twin
+    (M10 F13) tracks the cupboard itself."""
+    stock, last = 0.0, None
+    for weeks_ago, qty in sorted(bought, reverse=True):  # oldest first
+        if last is not None:
+            stock = max(0.0, stock - weekly_need * (last - weeks_ago))
+        stock, last = stock + qty, weeks_ago
+    return 0.0 if last is None else max(0.0, stock - weekly_need * last)
 
 
 def lines_from_plan(
@@ -152,12 +178,13 @@ def lines_from_plan(
     plan: list[dict[str, Any]] | None,
     *,
     fallback: bool,
-    carried: dict[uuid.UUID, float] | None = None,
+    bought: dict[uuid.UUID, list[tuple[float, float]]] | None = None,
 ) -> list[DraftLine]:
     """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
     rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
-    `carried`: base units of staples the household bought in the last weeks (M3 §3.1 step 2):
-    what is still in the cupboard is not ordered again; perishables always are."""
+    `bought`: per dry staple, (weeks ago, base units) of the household's recent boxes (M3 §3.1
+    step 2). This week's need stands for each week since: what is left is subtracted, so the
+    line asks for the need minus the leftover, and none when enough is left."""
     by_slug = {r.slug: r for r in catalog.recipes}
     needed: dict[uuid.UUID, float] = defaultdict(float)  # base units
     recipes_for: dict[uuid.UUID, set[str]] = defaultdict(set)
@@ -195,10 +222,10 @@ def lines_from_plan(
         product = catalog.products.get(product_id)
         if product is None or product.price_paise is None:
             continue  # no price at this hub: the hub manager's problem, not the customer's
-        if carried and not perishable(product):
-            base_units -= carried.get(product_id, 0.0)
+        if bought and product_id in bought and carries_over(product):
+            base_units -= left_over(bought[product_id], base_units)
             if base_units <= 0:
-                continue  # still in the cupboard
+                continue  # enough still in the cupboard
         qty = rules.steps_needed(base_units, product.step_qty, BASE_FACTOR[product.step_unit])
         if product.slug in daily or product.kind == "fruit":
             reason, params, source = "daily_use", None, "rule"
