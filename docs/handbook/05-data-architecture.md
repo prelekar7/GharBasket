@@ -916,13 +916,13 @@ It generates:
 
 It writes **through the module services**, so ledger and state-machine rules hold, with `data_source='synthetic'`. Ground truth is saved to `data/sim_truth/*.parquet` for evaluation.
 
-**Status (v0, Oct 2026):**
+**Status (v1b, Oct 2026):**
 - **Done:** items 2–4, through `just sim`.
   - Households from `data/simulator/cohorts.json` are onboarded through M1 in the seed societies.
   - The truth files hold latent daily-use rates and tastes, weekly CP-SAT plans with accept/edit/skip, and consumption.
+  - `just sim --write-db` sends the weeks through M3, M4 and M5, one week at a time: M3 drafts the cycle at T-3 18:00 (after the week before was replayed, so its carry-over counts what was delivered), the household's edits become line ops, it approves or skips, the cut-off debits the wallet and locks or cancels, and the outbox relay lets M3's own consumers mirror the order on the cycle. Each step runs at its simulated instant.
 - **Next:**
-  - item 1 (real society polygons) and items 5–6;
-  - writing the weeks through M3/M4 once they exist.
+  - item 1 (real society polygons) and items 5–6.
 - See M10 §3.2 and `data/simulator/README.md`.
 
 *Figure 5.14 — Simulator data flow*
