@@ -73,7 +73,7 @@ class PlanRequest(BaseModel):
     household: HouseholdRules
     fasting_days: list[FastingDay] = Field(default_factory=list)
     recipes: list[PlanRecipe] = Field(min_length=1)
-    time_limit_s: float = 2.0
+    time_limit_s: float = 1.0  # the solver's budget for the whole request (M10 §3.2)
     weights: PlanWeights | None = None
 
 

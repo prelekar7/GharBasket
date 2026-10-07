@@ -145,6 +145,16 @@ async def _call[T](
         return fallback_to()
 
 
+# The solver gets at most this share of the HTTP timeout; the rest covers the network, the
+# model build and the JSON both ways, so a slow solve still answers before the gateway gives up.
+SOLVER_SHARE_OF_TIMEOUT = 0.5
+
+
+def _solver_budget(settings: Settings, request: PlanRequest) -> float:
+    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
+    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))
+
+
 async def _plan_week(
     http: httpx2.AsyncClient, settings: Settings, request: PlanRequest
 ) -> WeekPlan:
@@ -159,7 +169,8 @@ async def _plan_week(
     try:
         response = await http.post(
             f"{settings.ml_service_url.rstrip('/')}/plan/week",
-            json=request.model_dump(mode="json"),
+            json=request.model_dump(mode="json")
+            | {"time_limit_s": _solver_budget(settings, request)},
             headers=headers,
             timeout=settings.ml_timeout_s,
         )
