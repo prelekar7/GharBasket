@@ -74,7 +74,9 @@ Tap = Literal["ran_out", "wasted", "just_right"]
 class PantryObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    qty: float = Field(ge=0, description="What the week's box carried, in base units")
+    qty: float = Field(
+        ge=0, description="The week's daily-use share: delivered minus the planned recipes' need"
+    )
     signal: Tap | None = None
 
 

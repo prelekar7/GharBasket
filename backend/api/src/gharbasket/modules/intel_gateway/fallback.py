@@ -114,14 +114,16 @@ def plan_week(req: PlanRequest) -> WeekPlan:
 # --- the pantry twin's closed form, without SciPy (M10 §3.3) -----------------------------------
 
 TAP_FACTOR = {"ran_out": 1.3, "wasted": 0.7, "just_right": 1.0, None: 1.0}
-Z80 = 1.2816  # the 80 % interval of a normal approximation to the Gamma posterior
+Z80 = 1.2816  # the 80 % interval of a normal approximation to the predictive
 
 
 def pantry_quantities(req: PantryRequest) -> PantryQuantities:
     """Gamma-Poisson update per item: the prior carries the cohort's weekly use with the weight
-    of `prior_weeks`, each observed week adds the box's quantity (corrected by the tap) in steps.
-    The ML service gives the same mean with exact Gamma percentiles; this is the same mean with
-    a normal interval, so a customer never waits on the ML service."""
+    of `prior_weeks`, each observed week adds the box's daily-use share (corrected by the tap)
+    in steps. The interval is for next week's use: the posterior predictive is Negative Binomial
+    (mean alpha/beta, variance alpha(beta+1)/beta^2 in steps); the ML service gives its exact
+    percentiles, this gives the same mean with a normal interval, so a customer never waits on
+    the ML service."""
     items = []
     for item in req.items:
         step = max(item.step, 1e-9)
@@ -130,7 +132,7 @@ def pantry_quantities(req: PantryRequest) -> PantryQuantities:
         alpha += sum(o.qty * TAP_FACTOR[o.signal] / step for o in item.observations)
         beta += len(item.observations)
         mean = alpha / beta * step
-        sd = math.sqrt(alpha) / beta * step
+        sd = math.sqrt(alpha * (beta + 1)) / beta * step
         items.append(
             PantryQuantity(
                 product=item.product,

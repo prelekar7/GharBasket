@@ -85,7 +85,11 @@ Tap = Literal["ran_out", "wasted", "just_right"]
 class PantryObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    qty: float = Field(ge=0, description="What the week's box carried, in base units")
+    qty: float = Field(
+        ge=0,
+        description="The week's daily-use share in base units: what the box delivered minus "
+        "what that week's planned recipes needed",
+    )
     signal: Tap | None = Field(default=None, description="The household's tap for that week")
 
 
@@ -108,8 +112,8 @@ class PantryRequest(BaseModel):
 class PantryItemOut(BaseModel):
     product: str
     mean: float = Field(description="Weekly use to plan for, in base units")
-    p10: float
-    p90: float
+    p10: float = Field(description="Next week's use, 10th percentile (posterior predictive)")
+    p90: float = Field(description="Next week's use, 90th percentile (posterior predictive)")
     weeks_observed: int
     alpha: float
     beta: float
