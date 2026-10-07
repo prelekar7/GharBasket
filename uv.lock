@@ -615,6 +615,7 @@ version = "0.1.0"
 source = { editable = "backend/training" }
 dependencies = [
     { name = "boto3" },
+    { name = "gharbasket-sim" },
     { name = "httpx2" },
     { name = "pyarrow" },
     { name = "pydantic-settings" },
@@ -623,6 +624,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.43.108" },
+    { name = "gharbasket-sim", editable = "data/simulator" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "pyarrow", specifier = ">=25.0.1" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },

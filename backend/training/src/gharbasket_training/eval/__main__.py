@@ -80,6 +80,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"variety {metrics['variety']['mean']:.1f}  "
             f"violations {metrics['hard_rule_violations']['mean']:.2f}"
         )
+    for arm, against in built["planner_paired"].items():
+        print(
+            f"{arm:7} acceptance vs "
+            + ", ".join(
+                f"{base} {d['acceptance']['mean']:+.3f} ± {d['acceptance']['ci95']:.3f}"
+                for base, d in against.items()
+            )
+        )
+    if "verdict" in built["planner_targets"]:
+        holds = built["planner_targets"]["verdict"]["holds"]
+        print(f"M-C on acceptance (>= 0.70, above greedy and random): {'holds' if holds else 'no'}")
     print(
         f"pantry  rule table MAE {built['pantry']['rule_table_mae']['mean']:.3f}; running mean "
         + ", ".join(
