@@ -72,22 +72,38 @@ def plan_request(
         },
         "fasting_days": fasting_days(profile, monday, festivals),
         "recipes": [
-            {**r.as_plan_recipe(), "price_spike": price_spike(r, price_index or {})}
+            {
+                **r.as_plan_recipe(),
+                "price_spike": price_spike(r, catalog.products, price_index or {}),
+            }
             for r in catalog.recipes
         ],
-        "time_limit_s": 2.0,
+        "time_limit_s": 1.0,
     }
 
 
-def price_spike(recipe: PlanRecipe, price_index: dict[uuid.UUID, float]) -> float | None:
-    """(price - 4-week index) / index of the recipe's costliest spiked ingredient; None when
-    nothing in it is above its usual price (M10 §3.2)."""
-    spikes = [
-        price_index[i.product_id] - 1.0
+def price_spike(
+    recipe: PlanRecipe,
+    products: dict[uuid.UUID, PlanProduct],
+    price_index: dict[uuid.UUID, float],
+) -> float | None:
+    """(price - 4-week index) / index of the recipe's costliest ingredient, the one with the
+    largest qty x today's price per serving (M10 §3.2); None when that ingredient is not above
+    its usual price. A spiked garnish (2 g of coriander) never marks the dish."""
+    costs = [
+        (
+            i.qty_per_serving / (p.step_qty * BASE_FACTOR[p.step_unit]) * p.price_paise,
+            i.product_slug,
+            i,
+        )
         for i in recipe.ingredients
-        if i.product_id in price_index and price_index[i.product_id] > 1.0
+        if (p := products.get(i.product_id)) is not None and p.price_paise is not None
     ]
-    return round(max(spikes), 3) if spikes else None
+    if not costs:
+        return None
+    costliest = max(costs, key=lambda c: (c[0], c[1]))[2]
+    index = price_index.get(costliest.product_id)
+    return round(index - 1.0, 3) if index is not None and index > 1.0 else None
 
 
 @dataclass

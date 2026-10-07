@@ -1,6 +1,7 @@
 """The pure parts of cycle generation: fasting days, the rule table, plan → lines."""
 
 import uuid
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -159,6 +160,23 @@ def test_the_plan_request_carries_rules_recipes_and_a_weekly_budget() -> None:
         by_slug["tomato-sabzi"]["price_spike"] == 0.4
         and by_slug["dal-tadka"]["price_spike"] is None
     )
+
+
+def test_only_the_costliest_ingredient_marks_a_dish_not_a_spiked_garnish() -> None:
+    cat = catalog()
+    coriander = product("coriander", "veg", (250, "g"), 2000)
+    products = {**cat.products, coriander.id: coriander}
+    dal = cat.recipes[0]
+    toor = dal.ingredients[0].product_id
+    garnished = replace(
+        dal,
+        ingredients=(*dal.ingredients, PlanIngredient(coriander.id, "coriander", 2, True)),
+    )
+
+    # 2 g of coriander (16 paise a serving) up 50 %: the dal (560 paise of toor dal) is unmarked.
+    assert planning.price_spike(garnished, products, {coriander.id: 1.5}) is None
+    # Toor dal, the costliest ingredient, up 10 %: the dal carries that spike, not the garnish's.
+    assert planning.price_spike(garnished, products, {coriander.id: 1.5, toor: 1.1}) == 0.1
 
 
 def test_the_rule_table_scales_with_adult_equivalents() -> None:
