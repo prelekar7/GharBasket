@@ -168,6 +168,8 @@ class Rows:
     edits: list[dict[str, Any]] = field(default_factory=list)
     pantry: list[dict[str, Any]] = field(default_factory=list)
     outcomes: list[dict[str, Any]] = field(default_factory=list)  # --write-db only
+    # The daily-use share of each week's consumption (the pantry twin's target); not exported.
+    daily_use: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -225,7 +227,11 @@ def simulate(
                 if not i.optional or rng.random() < 0.5:
                     used[i.product] += i.qty * h.adult_equivalents
         for slug, weekly in h.daily_use.items():
-            used[slug] += weekly * math.exp(rng.gauss(0, 0.1))
+            daily = weekly * math.exp(rng.gauss(0, 0.1))
+            used[slug] += daily
+            rows.daily_use.append(
+                {"household": h.key, "week": w, "product": slug, "qty": round(daily, 1)}
+            )
         for slug in sorted(used):
             rows.consumption.append(
                 {

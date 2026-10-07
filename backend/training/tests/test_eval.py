@@ -43,6 +43,9 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     assert greedy.metrics["cost_paise"] <= random_.metrics["cost_paise"]  # it buys cheap
     assert 0 < pantry.rule_table_mae < 1 and len(pantry.cold_start) == 2  # weeks 2 and 3 predicted
     assert all(0 < e < 1 for e in pantry.cold_start) and len(pantry.twin) == 2
+    assert 0 < pantry.twin_rule_mae < 1 and len(pantry.twin_running_mean) == 2
+    assert all(0 < e < 1 for e in pantry.twin)  # milk and curd, their daily use
+    assert len(pantry.twin_coverage) == 2 and all(0 <= c <= 1 for c in pantry.twin_coverage)
 
     built = report.build(runs, [pantry], args={"weeks": 1, "smoke": True})
     html_path, json_path = report.write(built, tmp_path)
@@ -50,7 +53,15 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     saved = json.loads(json_path.read_text())
     assert set(saved["planner"]) == {"rules", "greedy", "random"} and saved["seeds"] == [7]
     rows = report.metrics_rows(built)
-    assert {r["model_name"] for r in rows} >= {"planner_greedy", "pantry_rule_table"}
+    assert {r["model_name"] for r in rows} >= {
+        "planner_greedy",
+        "pantry_rule_table",
+        "pantry_twin_v0",
+    }
+    assert {r["metric"] for r in rows if r["model_name"] == "pantry_twin_v0"} >= {
+        "mae_pct_week_2",
+        "coverage_80_week_2",
+    }
     assert all(r["split"] == "holdout" and r["data_source"] == "synthetic" for r in rows)
 
 
@@ -60,6 +71,7 @@ def test_the_cli_smoke_writes_the_report(
     assert cli.main(["--smoke", "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert "greedy" in out and "pantry" in out and "report:" in out
+    assert "pantry twin scope" in out and "pantry twin target" in out
     assert list(tmp_path.glob("*.html")) and list(tmp_path.glob("*.json"))
 
 

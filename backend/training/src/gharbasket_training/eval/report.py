@@ -37,8 +37,11 @@ def build(
     summary = summarise(planner_runs)
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
-    twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
     rule = estimate([r.rule_table_mae for r in pantry_runs])
+    twin_rule = estimate([r.twin_rule_mae for r in pantry_runs])
+    twin_mean = [estimate([r.twin_running_mean[k] for r in pantry_runs]) for k in range(weeks)]
+    twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
+    coverage = [estimate([r.twin_coverage[k] for r in pantry_runs]) for k in range(weeks)]
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": commit(),
@@ -51,8 +54,15 @@ def build(
         "pantry": {
             "rule_table_mae": rule.as_dict(),
             "cold_start_mae": [e.as_dict() for e in curve],
-            "twin_mae": [e.as_dict() for e in twin],
-            # The twin's target: after four observed weeks (predicting the fifth).
+            # The twin's scope: perishable daily-use items, their daily-use share (M10 §3.3).
+            "twin_scope": {
+                "rule_table_mae": twin_rule.as_dict(),
+                "running_mean_mae": [e.as_dict() for e in twin_mean],
+                "twin_mae": [e.as_dict() for e in twin],
+                "twin_coverage_80": [e.as_dict() for e in coverage],
+            },
+            # The twin's target: after four observed weeks (predicting the fifth). Until it
+            # holds, PANTRY_TWIN_ENABLED stays off and M3 drafts from the rule table.
             "target_mae_le_15pct_after_4_weeks": {
                 "value": twin[3].mean if len(twin) >= 4 else None,
                 "holds": len(twin) >= 4 and twin[3].mean <= 0.15,
@@ -92,18 +102,23 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             "details": details,
         }
     )
-    for k, e in enumerate(report["pantry"]["twin_mae"], start=1):
-        rows.append(
-            {
-                "model_name": "pantry_twin_v0",
-                "version": report["commit"],
-                "metric": f"mae_pct_week_{k}",
-                "value": e["mean"],
-                "split": "holdout",
-                "data_source": "synthetic",
-                "details": details,
-            }
-        )
+    scope = report["pantry"]["twin_scope"]
+    for metric, series in (
+        ("mae_pct", scope["twin_mae"]),
+        ("coverage_80", scope["twin_coverage_80"]),
+    ):
+        for k, e in enumerate(series, start=1):
+            rows.append(
+                {
+                    "model_name": "pantry_twin_v0",
+                    "version": report["commit"],
+                    "metric": f"{metric}_week_{k}",
+                    "value": e["mean"],
+                    "split": "holdout",
+                    "data_source": "synthetic",
+                    "details": details,
+                }
+            )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -160,15 +175,35 @@ def to_html(report: dict[str, Any]) -> str:
         ],
     )
     curve = report["pantry"]["cold_start_mae"]
-    twin = report["pantry"]["twin_mae"]
     pantry = _table(
-        "RQ1 — pantry: predicting next week's use of the daily-use items (MAE as a share)",
-        ["observed weeks", "rule table", "running mean", "pantry twin v0"],
+        "RQ1 baseline — next week's whole consumption of the daily-use items (MAE as a share)",
+        ["observed weeks", "rule table", "running mean"],
         [
-            ["0", _cell(report["pantry"]["rule_table_mae"]), "—", "—"],
+            ["0", _cell(report["pantry"]["rule_table_mae"]), "—"],
             *(
-                [str(k), _cell(report["pantry"]["rule_table_mae"]), _cell(e), _cell(t)]
-                for k, (e, t) in enumerate(zip(curve, twin, strict=True), start=1)
+                [str(k), _cell(report["pantry"]["rule_table_mae"]), _cell(e)]
+                for k, e in enumerate(curve, start=1)
+            ),
+        ],
+    )
+    scope = report["pantry"]["twin_scope"]
+    twin = _table(
+        "RQ1 — the pantry twin's scope: next week's daily use of milk and curd (MAE as a share; "
+        "coverage of the 80 % interval)",
+        ["observed weeks", "rule table", "running mean", "pantry twin v0", "80 % coverage"],
+        [
+            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—"],
+            *(
+                [str(k), _cell(scope["rule_table_mae"]), _cell(e), _cell(t), _cell(c)]
+                for k, (e, t, c) in enumerate(
+                    zip(
+                        scope["running_mean_mae"],
+                        scope["twin_mae"],
+                        scope["twin_coverage_80"],
+                        strict=True,
+                    ),
+                    start=1,
+                )
             ),
         ],
     )
@@ -191,9 +226,9 @@ def to_html(report: dict[str, Any]) -> str:
         '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
         f"<title>GharBasket evaluation {html.escape(report['commit'])}</title>"
         f"<style>{style}</style></head><body><h1>Evaluation report</h1>"
-        f'<p class="note">{intro}</p>{ab}{targets}{pantry}'
-        f'<p class="note">M-A target (MAE ≤ 15 % after 4 weeks): {value} → {verdict} '
-        "(the twin, M10 F13, is scored here when it exists).</p></body></html>\n"
+        f'<p class="note">{intro}</p>{ab}{targets}{pantry}{twin}'
+        f'<p class="note">M-A target (the twin\'s MAE ≤ 15 % after 4 weeks): {value} → {verdict}. '
+        "The twin drafts boxes (PANTRY_TWIN_ENABLED) only once it holds.</p></body></html>\n"
     )
 
 
