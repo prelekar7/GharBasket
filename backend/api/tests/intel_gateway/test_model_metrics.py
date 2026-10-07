@@ -68,8 +68,12 @@ async def test_feature_snapshots_are_stored_as_of_a_cut_off(
         json={**body, "items": [{**body["items"][0], "subject_type": "x"}]},
     )
 
+    naive = await api.post(
+        "/v1/internal/intel/feature-snapshots", json={**body, "as_of": "2026-10-09T00:00:00"}
+    )
+
     assert first.json() == {"accepted": 1} and again.json() == {"accepted": 1}
-    assert bad.status_code == 422
+    assert bad.status_code == 422 and naive.status_code == 422  # an instant needs its zone
     rows = (await db_session.execute(select(FeatureSnapshot))).scalars().all()
     assert len(rows) == 1 and rows[0].features == {"weeks": 2}  # the same as_of replaces
     assert rows[0].as_of == datetime(2026, 10, 9, tzinfo=UTC)
