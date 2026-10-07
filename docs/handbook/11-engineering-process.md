@@ -104,6 +104,7 @@ gitGraph
 | PR size | About 400 changed lines of hand-written code per PR, not counting tests and generated files (`openapi.json`, `uv.lock`, lockfiles, generated api-client); split larger work into PRs that each leave `main` working |
 | PR template | Module, what/why, screenshots (UI), migration note, test evidence, handbook chapter updated? |
 | Cross-review | Each owner reviews the other's contract changes: module specs §3 and the generated api-client (ADR-0023), which also keeps shared understanding for the viva. Rhythm and Manish review docs/tests and run the QA checklist on feature PRs. |
+| ML review | Every ML/AI PR (`backend/ml`, `backend/training`, `intel.*`, the simulator, the eval harness, M13 assistant, ML deploy) is reviewed and tested by a Claude Opus agent before merge: the diff against its module spec, ADR-0025 and the pre-registered evaluation protocol (`docs/research/eval-protocol.md`), plus pyright, ruff, import-linter, the touched pytest suites, the OpenAPI drift check and the PR's entry point in its smallest configuration. Findings are fixed, or accepted by the owner in the PR, before merge; green CI alone is not enough for an ML PR. The review runs locally, so it costs no Actions minutes |
 | Migrations | One Alembic migration per PR, named `YYYYMMDD_HHMM_<module>_<desc>`. CI fails if there is more than one head. Downgrade always written. |
 | Releases | Tag per sprint `v0.<sprint>.0`; changelog generated from commits |
 
@@ -132,7 +133,7 @@ flowchart TD
 | Workflow | Trigger | Steps |
 |---|---|---|
 | `ci.yml` | PR, push to main | Lint, secrets, Python, frontend build and JS editor hints jobs (above) |
-| `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR |
+| `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR (the Opus review of ML PRs above runs locally, not here) |
 | `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
 | `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
 

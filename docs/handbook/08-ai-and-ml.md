@@ -294,6 +294,7 @@ Data sources (all free; fetch dates recorded with every run): IFCT 2017 and ICMR
 | `backend/ml`, models M-A…M-J, eval harness, MLflow | Prathamesh Relekar |
 | Autopilot UX: reason chips, thali calendar, assistant UI | Yash Salunkhe |
 | Assistant eval set, translation review, paper writing support | Rhythm Thakur, Manish Raje |
+| Review and test of every ML/AI PR before merge (§11.3) | Claude Opus agent; findings settled by the PR owner |
 
 ---
 
