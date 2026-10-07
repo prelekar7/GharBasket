@@ -6,6 +6,7 @@
 set -uo pipefail
 
 port="${PORT:-7860}"
+echo "road network: OpenStreetMap data as of $(cat /data/mmr.osm-date 2>/dev/null || echo unknown)"
 
 osrm-routed --algorithm mld --max-table-size 500 --port 5000 --ip 127.0.0.1 /data/mmr.osrm &
 osrm_pid=$!
