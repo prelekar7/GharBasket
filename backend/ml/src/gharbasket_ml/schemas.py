@@ -85,7 +85,12 @@ class PlanRequest(BaseModel):
     household: HouseholdRules
     fasting_days: list[FastingDay] = Field(default_factory=list, max_length=7)
     recipes: list[RecipeIn] = Field(min_length=1, max_length=500)
-    time_limit_s: float = Field(default=2.0, ge=0.1, le=5.0)
+    time_limit_s: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=5.0,
+        description="Solver wall-clock budget for the whole request, every relaxation included",
+    )
     weights: Weights | None = Field(default=None, description="v1; evaluation ablations only")
 
 
@@ -105,7 +110,9 @@ class Score(BaseModel):
     variety: int
     perishables: int
     cost_paise: int
-    nutrition: float | None = Field(default=None, description="v1: share of days within ±20 %")
+    nutrition: float | None = Field(
+        default=None, description="v1: share of cooking days within ±20 % (no-cook days left out)"
+    )
     price_penalty: float | None = Field(default=None, description="v1: sum of chosen price spikes")
 
 
