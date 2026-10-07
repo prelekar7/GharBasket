@@ -243,8 +243,10 @@ def _week_of_box(
     for c in rows.consumption:
         if c["household"] == h.key and c["week"] == w:
             used[c["product"]] = c["qty"]
+    # A substitute the household swapped in is cooked in place of the original (pantry.py).
+    stand_ins = {line.replaces: line.product for line in final if line.replaces} if ordered else {}
     for row in pantry_sim.consume(
-        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate
+        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate, stand_ins=stand_ins
     ):
         rows.pantry.append({"household": h.key, "week": w, **row})
 
