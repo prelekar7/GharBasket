@@ -947,6 +947,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's wallet for one month (IST), from the ledger, with running balances */
+        get: operations["get_statement_v1_statements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/subscriptions": {
         parameters: {
             query?: never;
@@ -2951,6 +2968,86 @@ export interface components {
              * @enum {string}
              */
             status: "prospect" | "unlocking" | "live" | "paused";
+        };
+        /** StatementEntry */
+        StatementEntry: {
+            /**
+             * Amount Paise
+             * @description Into the wallet +, out of it -
+             * @example -69000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Balance After Paise
+             * @description The wallet's balance after this entry, in posting order
+             * @example 181000
+             */
+            balance_after_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            /** Ref */
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
+        };
+        /** StatementOut */
+        StatementOut: {
+            /**
+             * Closing Paise
+             * @description opening + credits + debits; for the current month, now
+             * @example 181000
+             */
+            closing_paise: number;
+            /**
+             * Credits Paise
+             * @description Σ positive entries in the month
+             * @example 200000
+             */
+            credits_paise: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Debits Paise
+             * @description Σ negative entries (signed, as on entries)
+             * @example -69000
+             */
+            debits_paise: number;
+            /**
+             * Entries
+             * @description Every entry of the month, newest first
+             */
+            entries: components["schemas"]["StatementEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Opening Paise
+             * @description The balance at 00:00 IST on the 1st
+             * @example 50000
+             */
+            opening_paise: number;
+            /**
+             * Period
+             * @example 2026-10
+             */
+            period: string;
         };
         /**
          * Step
@@ -6817,6 +6914,57 @@ export interface operations {
             };
             /** @description community.request_rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_statement_v1_statements_get: {
+        parameters: {
+            query: {
+                period: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.period_invalid: not YYYY-MM, or after the current month (IST) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

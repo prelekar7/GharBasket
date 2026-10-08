@@ -4601,6 +4601,156 @@
         "title": "SocietySummary",
         "type": "object"
       },
+      "StatementEntry": {
+        "properties": {
+          "amount_paise": {
+            "description": "Into the wallet +, out of it -",
+            "examples": [
+              -69000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "balance_after_paise": {
+            "description": "The wallet's balance after this entry, in posting order",
+            "examples": [
+              181000
+            ],
+            "title": "Balance After Paise",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Show a generic label for a kind the app doesn't know",
+            "enum": [
+              "topup",
+              "topup_bonus",
+              "box_debit",
+              "refund",
+              "adjustment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "order": "#/components/schemas/OrderRef",
+                    "topup": "#/components/schemas/TopUpRef"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TopUpRef"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OrderRef"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amount_paise",
+          "ref",
+          "at",
+          "balance_after_paise"
+        ],
+        "title": "StatementEntry",
+        "type": "object"
+      },
+      "StatementOut": {
+        "properties": {
+          "closing_paise": {
+            "description": "opening + credits + debits; for the current month, now",
+            "examples": [
+              181000
+            ],
+            "title": "Closing Paise",
+            "type": "integer"
+          },
+          "credits_paise": {
+            "description": "Σ positive entries in the month",
+            "examples": [
+              200000
+            ],
+            "title": "Credits Paise",
+            "type": "integer"
+          },
+          "currency": {
+            "const": "INR",
+            "title": "Currency",
+            "type": "string"
+          },
+          "debits_paise": {
+            "description": "Σ negative entries (signed, as on entries)",
+            "examples": [
+              -69000
+            ],
+            "title": "Debits Paise",
+            "type": "integer"
+          },
+          "entries": {
+            "description": "Every entry of the month, newest first",
+            "items": {
+              "$ref": "#/components/schemas/StatementEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "opening_paise": {
+            "description": "The balance at 00:00 IST on the 1st",
+            "examples": [
+              50000
+            ],
+            "title": "Opening Paise",
+            "type": "integer"
+          },
+          "period": {
+            "examples": [
+              "2026-10"
+            ],
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "currency",
+          "opening_paise",
+          "credits_paise",
+          "debits_paise",
+          "closing_paise",
+          "entries",
+          "generated_at"
+        ],
+        "title": "StatementOut",
+        "type": "object"
+      },
       "Step": {
         "description": "The unit a person adds or removes in the app; prices are per step.",
         "properties": {
@@ -11448,6 +11598,94 @@
         "summary": "Ask GharBasket to come to a society that isn't listed (Idempotency-Key required)",
         "tags": [
           "community"
+        ]
+      }
+    },
+    "/v1/statements": {
+      "get": {
+        "operationId": "get_statement_v1_statements_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "examples": [
+                "2026-10"
+              ],
+              "maxLength": 16,
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.period_invalid: not YYYY-MM, or after the current month (IST)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's wallet for one month (IST), from the ledger, with running balances",
+        "tags": [
+          "billing"
         ]
       }
     },
