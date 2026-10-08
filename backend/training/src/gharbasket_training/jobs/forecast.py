@@ -36,18 +36,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.intel_gateway.models import PriceIndex
-from gharbasket.modules.orders.models import STATUSES, Order, OrderLine
+from gharbasket.modules.orders.api import SOLD
+from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.db import create_engine
 from gharbasket_training import forecast
 from gharbasket_training.settings import Settings
 
 IST = ZoneInfo("Asia/Kolkata")
-# Demand that happened: every status that has passed `locked`, whether or not the delivery went
-# well (undelivered, redelivery and refunded orders were still bought for). Statuses before or
-# off the locked path are not demand. A new status in orders.models must be placed in one of the
-# two (a test checks they cover STATUSES exactly).
-NOT_SOLD = ("approved", "payment_failed", "cancelled")
-SOLD = tuple(s for s in STATUSES if s not in NOT_SOLD)
+# Demand that happened is orders.api.SOLD: every status past `locked`, delivered or not, the
+# same definition M10's monitor_drift scores the forecasts against.
 # The protocol's label → the orders table's `data_source` (the pilot's and later rows are "real").
 ORDER_SOURCE = {"synthetic": "synthetic", "pilot": "real", "live": "real"}
 

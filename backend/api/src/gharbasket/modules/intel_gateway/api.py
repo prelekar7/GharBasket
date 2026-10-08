@@ -16,6 +16,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
+from gharbasket.modules.intel_gateway.models import ModelMetric
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
     KitchenAssignment,
@@ -42,6 +43,7 @@ ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a c
 
 __all__ = [
     "AssignRequest",
+    "HubDrift",
     "KitchenAssignment",
     "MetricRow",
     "ModelHealth",
@@ -147,13 +149,29 @@ class MetricRow:
     data_source: str
     version: str
     computed_at: datetime
+    hub_id: str | None = None  # a row about one hub (`details.hub_id`)
+
+
+@dataclass(frozen=True)
+class HubDrift:
+    """monitor_drift's live rows of one hub and data source over the window."""
+
+    hub_id: str
+    data_source: str
+    drift: bool  # any live `drift` row of this hub and source in the window says 1
+    drifted_days: int
+    scored_days: int
+    for_date: str | None  # the newest scored delivery day
+    wape: float | None  # its realised WAPE
+    backtest_wape: float | None  # the same hub and source's backtest it was compared with
 
 
 @dataclass(frozen=True)
 class ModelHealth:
     model_name: str
     metrics: tuple[MetricRow, ...]
-    drift: bool  # the newest live `drift` row says 1
+    drift: bool  # any hub drifted in the window (`hubs`)
+    hubs: tuple[HubDrift, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -163,23 +181,63 @@ class PredictionCount:
     count: int
 
 
+def _detail(row: ModelMetric, key: str) -> Any:
+    return (row.details or {}).get(key)
+
+
+def _hub_drift(rows: list[ModelMetric]) -> list[HubDrift]:
+    """Group a model's live per-hub rows (newest first) by hub and data source."""
+    groups: dict[tuple[str, str], list[ModelMetric]] = {}
+    for row in rows:
+        groups.setdefault((service.hub_of(row) or "", row.data_source), []).append(row)
+    out = []
+    for (hub, source), part in sorted(groups.items()):
+        drifts = [r for r in part if r.metric == "drift"]
+        wapes = [r for r in part if r.metric == "wape"]
+        newest = wapes[0] if wapes else None
+        out.append(
+            HubDrift(
+                hub_id=hub,
+                data_source=source,
+                drift=any(r.value >= 1 for r in drifts),
+                drifted_days=len({_detail(r, "for_date") for r in drifts if r.value >= 1}),
+                scored_days=len({_detail(r, "for_date") for r in wapes}),
+                for_date=None if newest is None else _detail(newest, "for_date"),
+                wape=None if newest is None else newest.value,
+                backtest_wape=None if newest is None else _detail(newest, "backtest_wape"),
+            )
+        )
+    return out
+
+
 async def model_health(
     session: AsyncSession, *, since: datetime
 ) -> tuple[list[ModelHealth], list[PredictionCount]]:
     """What the console's AI health table shows (M12): every model's newest value per
-    (metric, split, data source) from `model_metrics`, its drift flag, and how often each kind
-    of prediction came from the ML service or the fallback since `since`."""
+    (metric, split, data source, hub) from `model_metrics`; per hub and data source, the live
+    rows of `monitor_drift` since `since` (the model drifts when any hub does); and how often
+    each kind of prediction came from the ML service or the fallback since `since`."""
     models = []
     for name in await service.model_names(session):
         rows = await service.latest_metrics(session, name)
+        hubs = _hub_drift(await service.live_hub_metrics(session, name, since))
         models.append(
             ModelHealth(
                 name,
                 tuple(
-                    MetricRow(m.metric, m.value, m.split, m.data_source, m.version, m.computed_at)
+                    MetricRow(
+                        m.metric,
+                        m.value,
+                        m.split,
+                        m.data_source,
+                        m.version,
+                        m.computed_at,
+                        service.hub_of(m),
+                    )
                     for m in rows
                 ),
-                any(m.metric == "drift" and m.split == "live" and m.value >= 1 for m in rows),
+                any(h.drift for h in hubs),
+                tuple(hubs),
             )
         )
     counts = [

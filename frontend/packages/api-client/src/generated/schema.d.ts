@@ -113,7 +113,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every model's newest metrics, live drift flags and the ML-or-fallback share */
+        /** Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
         get: operations["ai_health_v1_analytics_ai_health_get"];
         put?: never;
         post?: never;
@@ -1893,6 +1893,40 @@ export interface components {
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
         };
+        /** HubDriftOut */
+        HubDriftOut: {
+            /**
+             * Backtest Wape
+             * @description The same hub and data source's backtest WAPE it was compared with
+             */
+            backtest_wape: number | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Drift
+             * @description A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest
+             */
+            drift: boolean;
+            /** Drifted Days */
+            drifted_days: number;
+            /**
+             * For Date
+             * @description The newest scored delivery day
+             */
+            for_date: string | null;
+            /** Hub Id */
+            hub_id: string;
+            /** Scored Days */
+            scored_days: number;
+            /**
+             * Wape
+             * @description Its realised WAPE
+             */
+            wape: number | null;
+        };
         /** IngredientOut */
         IngredientOut: {
             /**
@@ -2217,6 +2251,11 @@ export interface components {
              * @enum {string}
              */
             data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Hub Id
+             * @description Set when the row is about one hub
+             */
+            hub_id?: string | null;
             /** Metric */
             metric: string;
             /**
@@ -2233,10 +2272,18 @@ export interface components {
         ModelHealthOut: {
             /**
              * Drift
-             * @description The newest live measurement is worse than the backtest
+             * @description Any hub drifted in the window (see `hubs`)
              */
             drift: boolean;
-            /** Metrics */
+            /**
+             * Hubs
+             * @description monitor_drift per hub and data source over the window
+             */
+            hubs?: components["schemas"]["HubDriftOut"][];
+            /**
+             * Metrics
+             * @description The newest value per (metric, split, data source, hub)
+             */
             metrics: components["schemas"]["MetricOut"][];
             /** Model Name */
             model_name: string;

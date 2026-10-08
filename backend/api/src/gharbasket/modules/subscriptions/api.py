@@ -72,20 +72,28 @@ async def skip_cycle(
 ACCEPTED = ("approved", "locked")
 
 
-async def acceptance_on(session: AsyncSession, delivery_date: date) -> dict[str, tuple[int, int]]:
-    """Per plan source (`ml`, `fallback`): (accepted, offered) weeks for a delivery day, where
-    offered is every cycle past draft and accepted means approved or locked (M10 monitoring)."""
+async def acceptance_on(
+    session: AsyncSession, delivery_date: date
+) -> dict[tuple[str, str], tuple[int, int]]:
+    """Per (plan source `ml` | `fallback`, cycle data source `real` | `synthetic`): (accepted,
+    offered) weeks for a delivery day, where offered is every cycle past draft and accepted means
+    approved or locked (M10 monitoring; sources are never pooled)."""
     rows = (
         await session.execute(
-            select(WeeklyCycle.plan_source, WeeklyCycle.status, func.count())
+            select(
+                WeeklyCycle.plan_source, WeeklyCycle.data_source, WeeklyCycle.status, func.count()
+            )
             .where(WeeklyCycle.delivery_date == delivery_date, WeeklyCycle.status != "draft")
-            .group_by(WeeklyCycle.plan_source, WeeklyCycle.status)
+            .group_by(WeeklyCycle.plan_source, WeeklyCycle.data_source, WeeklyCycle.status)
         )
     ).all()
-    out: dict[str, tuple[int, int]] = {}
-    for source, status, count in rows:
-        accepted, offered = out.get(source, (0, 0))
-        out[source] = (accepted + (count if status in ACCEPTED else 0), offered + count)
+    out: dict[tuple[str, str], tuple[int, int]] = {}
+    for plan_source, data_source, status, count in rows:
+        accepted, offered = out.get((plan_source, data_source), (0, 0))
+        out[plan_source, data_source] = (
+            accepted + (count if status in ACCEPTED else 0),
+            offered + count,
+        )
     return out
 
 

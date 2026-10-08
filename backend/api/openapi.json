@@ -1844,6 +1844,85 @@
         "title": "HouseholdUpdate",
         "type": "object"
       },
+      "HubDriftOut": {
+        "properties": {
+          "backtest_wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same hub and data source's backtest WAPE it was compared with",
+            "title": "Backtest Wape"
+          },
+          "data_source": {
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live",
+              "mixed"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "drift": {
+            "description": "A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest",
+            "title": "Drift",
+            "type": "boolean"
+          },
+          "drifted_days": {
+            "title": "Drifted Days",
+            "type": "integer"
+          },
+          "for_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest scored delivery day",
+            "title": "For Date"
+          },
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "scored_days": {
+            "title": "Scored Days",
+            "type": "integer"
+          },
+          "wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its realised WAPE",
+            "title": "Wape"
+          }
+        },
+        "required": [
+          "hub_id",
+          "data_source",
+          "drift",
+          "drifted_days",
+          "scored_days",
+          "for_date",
+          "wape",
+          "backtest_wape"
+        ],
+        "title": "HubDriftOut",
+        "type": "object"
+      },
       "IngredientOut": {
         "properties": {
           "label": {
@@ -2656,6 +2735,18 @@
             "title": "Data Source",
             "type": "string"
           },
+          "hub_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the row is about one hub",
+            "title": "Hub Id"
+          },
           "metric": {
             "title": "Metric",
             "type": "string"
@@ -2693,11 +2784,20 @@
       "ModelHealthOut": {
         "properties": {
           "drift": {
-            "description": "The newest live measurement is worse than the backtest",
+            "description": "Any hub drifted in the window (see `hubs`)",
             "title": "Drift",
             "type": "boolean"
           },
+          "hubs": {
+            "description": "monitor_drift per hub and data source over the window",
+            "items": {
+              "$ref": "#/components/schemas/HubDriftOut"
+            },
+            "title": "Hubs",
+            "type": "array"
+          },
           "metrics": {
+            "description": "The newest value per (metric, split, data source, hub)",
             "items": {
               "$ref": "#/components/schemas/MetricOut"
             },
@@ -6652,7 +6752,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Every model's newest metrics, live drift flags and the ML-or-fallback share",
+        "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
         "tags": [
           "analytics"
         ]

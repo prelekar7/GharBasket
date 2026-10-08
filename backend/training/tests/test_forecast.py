@@ -367,11 +367,12 @@ def test_short_series_get_the_naive_answer() -> None:
 
 
 def test_sold_statuses_are_every_status_past_locked() -> None:
+    from gharbasket.modules.orders.api import NOT_SOLD, SOLD
     from gharbasket.modules.orders.models import STATUSES
 
-    assert set(job.SOLD) | set(job.NOT_SOLD) == set(STATUSES)
-    assert not set(job.SOLD) & set(job.NOT_SOLD)
-    assert {"locked", "delivered", "undelivered", "redelivery", "refunded"} <= set(job.SOLD)
+    assert job.SOLD == SOLD  # one definition, shared with M10's monitor_drift
+    assert set(SOLD) | set(NOT_SOLD) == set(STATUSES) and not set(SOLD) & set(NOT_SOLD)
+    assert {"locked", "delivered", "undelivered", "redelivery", "refunded"} <= set(SOLD)
 
 
 @pytest.mark.anyio

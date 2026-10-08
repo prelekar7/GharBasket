@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.orders import service
 from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED
-from gharbasket.modules.orders.models import Order, OrderLine
+from gharbasket.modules.orders.models import STATUSES, Order, OrderLine
 from gharbasket.modules.orders.service import (
     ApprovedCycle,
     CycleLine,
@@ -27,12 +27,15 @@ __all__ = [
     "CANCELLED",
     "DELIVERED",
     "LOCKED",
+    "NOT_SOLD",
+    "SOLD",
     "ApprovedCycle",
     "CycleLine",
     "Order",
     "OrderLine",
     "OrderSummary",
     "SlotRef",
+    "SoldLine",
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
@@ -40,6 +43,7 @@ __all__ = [
     "mark_shortage",
     "orders_for_delivery",
     "slot_ref",
+    "sold_lines",
     "transition",
 ]
 
@@ -92,25 +96,35 @@ class SlotRef:
     active: bool
 
 
-SOLD = ("locked", "picking", "packed", "dispatched", "at_society", "delivered")
+# Demand that happened (M10 §3.6): every status that has passed `locked`, whether or not the
+# delivery went well (undelivered, redelivery and refunded orders were still bought for). A new
+# status in orders.models must be placed in one of the two (a test checks they cover STATUSES).
+NOT_SOLD = ("approved", "payment_failed", "cancelled")
+SOLD = tuple(s for s in STATUSES if s not in NOT_SOLD)
 
 
 @dataclass(frozen=True)
 class SoldLine:
     product_id: uuid.UUID
-    kind: str  # box | addon | tiffin
+    order_kind: str  # the order's kind (box | addon | tiffin): an add-on inside a box is committed
     qty: int  # steps
+    data_source: str  # real | synthetic
 
 
 async def sold_lines(
-    session: AsyncSession, hub_id: uuid.UUID, delivery_date: date
+    session: AsyncSession,
+    hub_id: uuid.UUID,
+    delivery_date: date,
+    data_source: str | None = None,
 ) -> list[SoldLine]:
-    """Every line of the hub's orders that reached the cut-off on a day (locked or later): what
-    was really sold, for scoring forecasts (M10 `monitor_drift`)."""
+    """Every line of the hub's orders past `locked` on a delivery day (`SOLD`), with the order's
+    kind, optionally of one data source (`real` | `synthetic`): what was really sold, for scoring
+    forecasts (M10 `monitor_drift`), counted as the forecast job counts it."""
     summaries = await service.orders_for_delivery(session, hub_id, delivery_date, statuses=SOLD)
     return [
-        SoldLine(line.product_id, line.kind, line.qty)
+        SoldLine(line.product_id, summary.order.kind, line.qty, summary.order.data_source)
         for summary in summaries
+        if data_source is None or summary.order.data_source == data_source
         for line in summary.lines
     ]
 
