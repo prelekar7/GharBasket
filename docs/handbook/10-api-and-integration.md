@@ -135,6 +135,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | ml |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
+| Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
 
 ## 10.5 Key endpoints per module (v1)
 

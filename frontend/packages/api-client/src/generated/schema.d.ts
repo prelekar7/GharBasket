@@ -573,6 +573,24 @@ export interface paths {
         patch: operations["update_me_v1_me_patch"];
         trace?: never;
     };
+    "/v1/me/data-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your latest data export, with a fresh 5-minute download link while it is ready */
+        get: operations["my_export_v1_me_data_export_get"];
+        put?: never;
+        /** Ask for a copy of your data (one per IST day; asking again answers that export) */
+        post: operations["ask_for_export_v1_me_data_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/devices": {
         parameters: {
             query?: never;
@@ -1350,6 +1368,59 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** DataExportDownload */
+        DataExportDownload: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Size Bytes
+             * @example 48211
+             */
+            size_bytes: number;
+            /**
+             * Url
+             * @description A signed GET link, valid 5 minutes; GET again for a fresh one
+             */
+            url: string;
+        };
+        /**
+         * DataExportOut
+         * @description A copy of your data: one JSON file, built within a day and kept 7 days.
+         */
+        DataExportOut: {
+            /** @description Only while ready */
+            download: components["schemas"]["DataExportDownload"] | null;
+            /**
+             * Expires At
+             * @description When the file is deleted (7 days after ready)
+             */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Ready Within Hours
+             * @example 24
+             */
+            ready_within_hours: number;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "building" | "ready" | "failed" | "expired";
         };
         /** DayOut */
         DayOut: {
@@ -5821,6 +5892,91 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_export_v1_me_data_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.export_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ask_for_export_v1_me_data_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.export_rate_limited (more than 5 a day; see Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

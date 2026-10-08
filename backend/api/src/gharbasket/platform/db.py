@@ -6,12 +6,12 @@ not outlive a transaction: the statement caches are off and every statement gets
 The same settings are used everywhere, so local runs behave like staging.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection
 from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import Depends, Request
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, inspect
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine as sa_create_async_engine
@@ -52,6 +52,11 @@ class Base(DeclarativeBase):
     """Base class for every module's tables."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+    def as_dict(self, *, exclude: Collection[str] = ()) -> dict[str, Any]:
+        """The row's columns by attribute name (each module's `export_for_user`, M1 §3.3)."""
+        attrs = inspect(self).mapper.column_attrs
+        return {attr.key: getattr(self, attr.key) for attr in attrs if attr.key not in exclude}
 
 
 def asyncpg_url(raw: str) -> tuple[URL, dict[str, Any]]:

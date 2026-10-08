@@ -243,7 +243,7 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
 | `identity.data_exports` | id, user_id, requested_on (IST date; unique with user_id), status (queued, building, ready, failed, expired), object_key (M0 `data_export`), size_bytes, attempts, error, requested_at, ready_at, expires_at |
 
 ## 5. Events
-**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`, `identity.data_export_requested` (`{export_id, user_id}`, consumed by M1's own build job; M11 later).
+**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`, `identity.data_export_requested` (`{export_id, user_id}`; M1's `build_data_export` job takes the queued row, and M11 consumes the event later).
 - `identity.household_created` `{household_id, owner_user_id, society_id, hub_id, size, budget_paise, data_source}`. M3 uses `budget_paise` to open the first Budget Lock; M9 recounts the society's unlock bar.
 - `identity.household_updated` `{household_id, version, changed: [field names]}`.
 - No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
@@ -252,8 +252,8 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
-| `build_data_export` | Outbox consumer of `identity.data_export_requested` | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; notifies the user once M11 exists |
-| `expire_data_exports` | Daily | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
+| `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; notifies the user once M11 exists. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage; the event stays for M11 |
+| `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
 | `purge_deleted_users` | Daily | Completes deletion after grace period |
 
 ## 7. Permissions
