@@ -1,6 +1,6 @@
 """Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
 
-from typing import Any, Literal, Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -455,20 +455,60 @@ class AssistantMessage(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class WeekLine(BaseModel):
+    """One line of the week as the assistant sees it: product facts and the API's prices."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    handle: str = Field(min_length=1, max_length=8, description="Opaque, this turn only (L1, L2)")
+    slug: str = Field(max_length=80)
+    name: str = Field(max_length=120, description="In the person's language")
+    qty: int = Field(ge=0, description="Steps")
+    unit: str = Field(max_length=40, description="One step, e.g. 250 g")
+    unit_price_paise: int = Field(ge=0)
+    line_total_paise: int = Field(ge=0)
+    reason_code: str = Field(max_length=40)
+
+
+class WeekMeal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str = Field(max_length=10)
+    slot: str = Field(max_length=20)
+    dishes: list[str] = Field(default_factory=list, max_length=10)
+
+
+class WeekContext(BaseModel):
+    """The trimmed week the API sends (M13 §3): no household, user, name or address."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_date: str = Field(max_length=10)
+    status: str = Field(max_length=20)
+    cutoff_at: str = Field(max_length=40)
+    can_edit: bool = Field(description="Still editable: an editable status, before the cut-off")
+    total_paise: int = Field(ge=0)
+    lines: list[WeekLine] = Field(default_factory=list, max_length=200)
+    meal_plan: list[WeekMeal] = Field(default_factory=list, max_length=21)
+
+
 class AssistantTurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    session_id: str = Field(min_length=1, max_length=80)
     locale: str = Field(default="en-IN", max_length=10)
     messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
-    api_base_url: str = Field(description="Where the tools call back, as the user")
-    user_token: str = Field(min_length=1, description="The user's access token, never logged")
+    week: WeekContext | None = Field(default=None, description="null: no week planned yet")
 
 
-class AssistantProposal(BaseModel):
+class AssistantIntent(BaseModel):
+    """A change the model asked for; the API resolves it into a proposal card (or says why not)."""
+
     action: Literal["edit_box_line", "skip_week"]
-    payload: dict[str, Any]
-    summary: str
+    op: Literal["remove", "add", "qty"] | None = None
+    line: str | None = Field(default=None, description="The line's handle, for remove and qty")
+    product: str | None = Field(default=None, description="The line's slug, or the name to add")
+    qty: int | None = Field(default=None, description="As the model gave it; the API checks it")
+    week: Literal["this", "next"] | None = Field(default=None, description="skip_week only")
 
 
 class AssistantUsage(BaseModel):
@@ -480,7 +520,7 @@ class AssistantUsage(BaseModel):
 
 class AssistantTurnResponse(BaseModel):
     reply: str
-    proposals: list[AssistantProposal]
+    intents: list[AssistantIntent]
     tool_calls: list[str]
     usage: AssistantUsage
     model: str

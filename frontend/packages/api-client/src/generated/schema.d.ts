@@ -4227,7 +4227,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description assistant.product_unknown, subscriptions.qty_invalid */
+            /** @description subscriptions.version_conflict (the week changed since the card) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.product_unknown, subscriptions.qty_invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

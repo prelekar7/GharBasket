@@ -6867,6 +6867,16 @@
             },
             "description": "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable"
           },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict (the week changed since the card)"
+          },
           "422": {
             "content": {
               "application/problem+json": {
@@ -6875,7 +6885,7 @@
                 }
               }
             },
-            "description": "assistant.product_unknown, subscriptions.qty_invalid"
+            "description": "subscriptions.product_unknown, subscriptions.qty_invalid"
           }
         },
         "security": [

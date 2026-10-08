@@ -21,13 +21,20 @@ What a report holds (v0, October 2026):
   shocks.json and every file in data/seeds/catalog, in the report and in each metric row's `details`
   (with the per-seed values).
 
-- **RQ4 — fair kitchen assignment:** the λ sweep (0, 0.25, 0.5, 1, 2, 4) on one evening of tiffin
-  orders per seed: the Gini of the kitchens' earnings against ₹ and km a portion, with greedy nearest
-  kitchen as the baseline and the M-G target (Gini ≤ 0.25 at ≤ +5 % cost) checked.
+- **RQ4 — fair kitchen assignment:** per seed one simulated week (7 evenings of tiffin orders, each
+  kitchen's earnings carried forward from 0) under greedy nearest kitchen and the CP-SAT model at
+  λ ∈ {0, 100, 200, 300, 500, 700, 1000, 2000} paise per portion of imbalance: the Gini of the week's
+  earnings (eligible kitchens; every kitchen beside it), the cost a portion in ₹ (distance + quality
+  penalty) and the rider's part, km a portion, and each λ's per-seed cost against greedy. Seeds are
+  pairs: a seed where any point did not solve is dropped for all and listed. The M-G target (Gini ≤
+  0.25 at ≤ +5 % cost) holds at a λ > 0 when both 95 % CI upper bounds are within it; no verdict
+  below 5 paired seeds.
 
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
-candidate model (intent accuracy, slot F1, no proposal on injection fixtures, cost a turn) and writes
+candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
+and writes priced apart) and writes
 `assistant-<date>.json` here; it needs `ANTHROPIC_API_KEY` and costs real tokens.
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
-check (one seed, one week, no CP-SAT, under a minute); the committed reports come from full runs.
+check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, under a
+minute); the committed reports come from full runs.
