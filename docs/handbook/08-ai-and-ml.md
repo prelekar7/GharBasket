@@ -174,7 +174,7 @@ sequenceDiagram
 - **Procurement:** `order_qty = committed + Q_τ(uncommitted)`, where τ = C<sub>u</sub> / (C<sub>u</sub> + C<sub>o</sub>).
   C<sub>o</sub> = cost − salvage value from the surplus cascade. Shelf life caps the buffer.
 - **Metrics:** WAPE, MASE, pinball loss; downstream waste kg per 100 kg sold, stock-out %. Baselines: seasonal naive, "buy last week".
-- **Status (5 Oct 2026, v0):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive, rolling-origin backtest, conformal q_tau, newsvendor `order_qty`) stores a hub's lines in `intel.predictions`; M6 reads them through `intel_gateway.api.hub_forecast`. The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
+- **Status (8 Oct 2026, v0):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
 
 ### M-F Routing (OR-Tools)
 - **Problem:** capacitated vehicle routing with time windows and pickups/deliveries.

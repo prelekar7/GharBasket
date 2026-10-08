@@ -51,3 +51,4 @@ Targets are **hypotheses** set before training. A model that misses its target i
 | Date | Change | Why |
 |---|---|---|
 | 2026-10-04 | Protocol registered. | Before any model training. |
+| 2026-10-08 | M-E backtest details fixed before any M-E result: at most the latest 8 weekly origins (at least 3, else no backtest); WAPE pooled over both steps of the 2-week horizon; the champion is chosen among the models and both baselines; q_τ by split conformal on per-series scaled residuals with nested windows (each window calibrated only on targets known at its origin), its coverage reported next to pinball and MASE (scaled by the in-sample week-on-week change); weekly series need 7 weeks (StatsForecast's AutoETS minimum). | §3 named the origins and horizon but not their number, the pooling or the interval evaluation; a v0 draft (5 Oct, never run on data) had silently used a 1-week horizon with 3 origins. |
