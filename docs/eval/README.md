@@ -9,10 +9,17 @@ What a report holds (v0, October 2026):
 - **RQ2 — meal planner A/B:** `cpsat` against the `rules` fallback and two baselines the simulator
   provides, `greedy` (the cheapest allowed dish per slot) and `random` (a random valid plan), over the
   protocol's five seeds: acceptance, edits per box, distinct perishables, variety, preference, relaxed
-  and infeasible weeks, cost and hard-rule violations (must be 0); the M-C hypotheses with a yes/no.
-- **RQ1 — pantry baseline:** predicting each daily-use item's consumption a week ahead: the family-size
+  and infeasible weeks, cost and hard-rule violations (`planner.check()`, must be 0); each arm against
+  each baseline as the per-seed paired difference (mean ± 95 % t-CI, acceptance first); the M-C
+  hypotheses with their intervals and a verdict on the primary metric, acceptance.
+- **RQ1 — pantry baseline:** predicting each daily-use item's consumption a week ahead, as quantity MAE
+  over the weekly quantity (Σ |error| / Σ actual per household item, zero weeks kept): the family-size
   rule table (static) and a running mean of the weeks observed so far (the cold-start curve, k observed
-  weeks → the error on week k + 1); the twin (M10 F13) is scored the same way when it exists.
+  weeks → the error on week k + 1). M-A's targets are shown on the running mean for reference only;
+  the twin (M10 F13) gets a verdict when it is scored the same way.
+- **Provenance:** the simulator version and source digest, and the sha256 of cohorts.json,
+  shocks.json and every file in data/seeds/catalog, in the report and in each metric row's `details`
+  (with the per-seed values).
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT, under a minute); the committed reports come from full runs.

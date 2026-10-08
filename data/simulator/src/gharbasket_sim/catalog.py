@@ -85,7 +85,7 @@ async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: dat
         found_products += [(row.product, row.category.slug) for row in rows]
         if cursor is None:
             break
-    prices = await prices_for(session, hub_id, [p.id for p, _ in found_products])
+    prices = await prices_for(session, hub_id, [p.id for p, _ in found_products], on=start)
     products: dict[str, Product] = {
         p.slug: Product(
             p.slug,

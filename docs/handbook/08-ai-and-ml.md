@@ -211,7 +211,7 @@ sequenceDiagram
 
 ---
 
-## 8.5 Evaluation protocol (`backend/ml/eval/`)
+## 8.5 Evaluation protocol (`backend/training/src/gharbasket_training/eval/`)
 
 | Algorithm | Protocol | Primary metric | Baselines |
 |---|---|---|---|
@@ -222,7 +222,7 @@ sequenceDiagram
 | Routing (M-F) | Fixed-seed benchmark set | ₹/order, km/order, on-time % | One trip per order, nearest-neighbour |
 | Fair assignment (M-G) | λ-sweep on simulated weeks | Gini vs cost Pareto curve | Greedy nearest kitchen |
 
-`just eval` runs every protocol and produces a marimo HTML report with paper-ready figures and tables. Figures are versioned with the model version that produced them.
+`just eval` runs every protocol and writes a report to `docs/eval/<date>-<commit>` (HTML and JSON) and rows to `intel.model_metrics`, each with the simulator version and the sha256 of the cohorts file and the seed catalog. v0 reports are HTML tables: the planner arms against each baseline as per-seed paired differences (mean ± 95 % t-CI, acceptance first) and hard rules re-checked with `planner.check()`; the paper-ready marimo figures come later. Figures are versioned with the model version that produced them.
 
 **Pre-registered targets (hypotheses, 4 Oct 2026; the full protocol, seeds, ablations and change log are in [`docs/research/eval-protocol.md`](../research/eval-protocol.md)):**
 

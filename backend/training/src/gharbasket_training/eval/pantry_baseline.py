@@ -11,7 +11,13 @@ Two views, both from the simulator's ground truth:
    sees: each box's daily-use share (delivered minus the planned recipes' need, the way M3
    computes it) and the household's taps. Its 80 % interval's coverage is the calibration metric.
 
-MAE% = mean over household x product x predicted week of |prediction - actual| / actual.
+The metric is the protocol's quantity MAE as a share of the weekly quantity, per item (a
+household's product): sum over its scored weeks of |prediction - actual| / sum of actual, zero
+weeks kept, then the mean over items. For the rule table every week is scored; for the cold-start
+curve at k observed weeks, week k + 1 is, scaled by the item's mean weekly quantity over the run.
+Actual is the simulator's consumption that week (dish ingredients plus daily use; in the twin's
+scope, the daily use alone); an item never used in the run has no weekly quantity to scale by and
+is left out. Coverage counts every week k + 1, zero weeks too.
 """
 
 from collections import defaultdict
@@ -32,7 +38,7 @@ from gharbasket.modules.subscriptions import rules
 class PantryRun:
     seed: int
     households: int
-    rule_table_mae: float  # the rule table predicting each week (as a share of the actual)
+    rule_table_mae: float  # the rule table predicting each week (MAE as a share of weekly qty)
     cold_start: list[float]  # the running mean of k observed weeks predicting week k + 1
     # The twin's scope: perishable daily-use items, their daily-use share.
     twin_rule_mae: float  # the rule table predicting each week's daily use
@@ -62,31 +68,29 @@ def run_pantry(
             if c["household"] == h.key and c["product"] in rule:
                 observed[c["product"]][c["week"]] = c["qty"]
         for slug, by_week in observed.items():
-            for w in range(weeks):
-                actual = by_week.get(w, 0.0)
-                if actual <= 0:
-                    continue
-                rule_errors.append(abs(rule[slug] - actual) / actual)
-                if w >= 1:
-                    seen = [by_week[k] for k in range(w) if k in by_week]
-                    guess = sum(seen) / len(seen) if seen else rule[slug]
-                    curve_errors[w - 1].append(abs(guess - actual) / actual)
+            actuals = [by_week.get(w, 0.0) for w in range(weeks)]
+            total = sum(actuals)
+            if total <= 0:
+                continue
+            rule_errors.append(sum(abs(rule[slug] - a) for a in actuals) / total)
+            for w in range(1, weeks):
+                guess = sum(actuals[:w]) / w  # the running mean of the weeks observed so far
+                curve_errors[w - 1].append(abs(guess - actuals[w]) / (total / weeks))
 
         scope = [s for s in rule if s in catalog.products and catalog.products[s].perishable]
         daily = {(d["week"], d["product"]): d["qty"] for d in rows.daily_use}
         boxes = _twin_observations(h, catalog, rows, scope)
         for slug in scope:
             step = catalog.products[slug].step
-            for w in range(weeks):
-                actual = daily.get((w, slug), 0.0)
-                if actual <= 0:
-                    continue
-                scope_rule.append(abs(rule[slug] - actual) / actual)
-                if w == 0:
-                    continue
-                seen = [daily[(k, slug)] for k in range(w) if (k, slug) in daily]
-                guess = sum(seen) / len(seen) if seen else rule[slug]
-                scope_mean[w - 1].append(abs(guess - actual) / actual)
+            actuals = [daily.get((w, slug), 0.0) for w in range(weeks)]
+            total = sum(actuals)
+            if total <= 0:
+                continue
+            scope_rule.append(sum(abs(rule[slug] - a) for a in actuals) / total)
+            for w in range(1, weeks):
+                actual, scale = actuals[w], total / weeks
+                guess = sum(actuals[:w]) / w
+                scope_mean[w - 1].append(abs(guess - actual) / scale)
                 item = PantryItemIn(
                     product=slug,
                     step=step,
@@ -98,7 +102,7 @@ def run_pantry(
                     ],
                 )
                 answer = quantities(PantryRequest(items=[item])).items[0]
-                twin_errors[w - 1].append(abs(answer.mean - actual) / actual)
+                twin_errors[w - 1].append(abs(answer.mean - actual) / scale)
                 twin_hits[w - 1].append(float(answer.p10 <= actual <= answer.p90))
     mean = lambda xs: sum(xs) / len(xs) if xs else 0.0  # noqa: E731
     return PantryRun(
@@ -118,28 +122,18 @@ def _twin_observations(
 ) -> dict[str, list[tuple[int, float, str | None]]]:
     """What the app would know, per product and delivered week: the box's daily-use share
     (delivered minus the planned dishes' non-optional ingredients x adult equivalents, M3's
-    `recipe_need`) and the tap. Only weeks whose box carried the product as a daily-use line
-    count: the simulator drafts the rule table's daily use only when no planned dish needs the
-    product (where M3 adds it on top), so the other weeks' boxes say nothing about daily use.
-    #109 (feat/M10-simulator-v1a) makes the simulator's draft sum the two as M3 does; once it is
-    merged forward, this filter can go and every delivered week counts."""
+    `recipe_need`) and the tap. The simulator's draft sums the recipes' need and the rule
+    table's daily use on one line, as M3 does, so every delivered week counts."""
     need: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     for m in rows.meals:
         if m["household"] == h.key and m["planned"]:
             for i in catalog.ingredients.get(m["planned"], ()):
                 if not i.optional:
                     need[m["week"]][i.product] += i.qty * h.adult_equivalents
-    daily_lines = {
-        (b["week"], b["product"])
-        for b in rows.box_lines
-        if b["household"] == h.key and b["reason"] == "daily_use"
-    }
     out: dict[str, list[tuple[int, float, str | None]]] = {slug: [] for slug in scope}
     for p in rows.pantry:
         slug, w = p["product"], p["week"]
         if p["household"] != h.key or slug not in out or p["delivered"] <= 0:
-            continue
-        if (w, slug) not in daily_lines:
             continue
         share = max(0.0, p["delivered"] - need[w][slug])
         out[slug].append((w, share, p["signal"]))
