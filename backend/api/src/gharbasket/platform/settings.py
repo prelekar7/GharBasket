@@ -85,11 +85,20 @@ class Settings(DatabaseSettings):
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
     # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
-    # solver call. Tokens (in + out) a user may spend a day; the public URL the ML service's
-    # tools call back as the user (unset: the request's own base URL).
+    # solver call (the service gives up after its own ASSISTANT_TURN_TIMEOUT_S, 25 s, first).
+    # Tokens (uncached in + out) a user may spend a day.
     assistant_timeout_s: float = Field(default=30.0, gt=0, le=120)
     assistant_daily_tokens: int = Field(default=60_000, gt=0)
-    api_public_url: str | None = None
+    # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
+    # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
+    ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)
+    # The pantry twin (M10 §3.3) drafts the perishable daily-use quantities only when this is on
+    # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
+    # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
+    pantry_twin_enabled: bool = False
+    # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
+    # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
+    real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

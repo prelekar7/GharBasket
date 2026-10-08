@@ -24,7 +24,6 @@ from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang
 from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.settings import Settings, get_settings
-from gharbasket.platform.web_session import ACCESS_COOKIE
 
 router = APIRouter(tags=["assistant"])
 
@@ -58,15 +57,6 @@ def _proposal_out(proposal: Proposal) -> ProposalOut:
     )
 
 
-def _user_token(request: Request) -> str:
-    """The caller's own access token, passed to the ML service so the tools act as them."""
-    header = request.headers.get("authorization", "")
-    scheme, _, token = header.partition(" ")
-    if scheme.lower() == "bearer" and token:
-        return token
-    return request.cookies.get(ACCESS_COOKIE, "")
-
-
 async def _household(session: DbSession, permit: Permit) -> identity_api.HouseholdRef:
     household = await identity_api.household_for_user(session, permit.principal.user_id)
     if household is None:
@@ -96,23 +86,19 @@ async def post_message(
         chat = await service.start_session(session, user_id, household.id, str(lang))
     else:
         chat = await service.get_session(session, user_id, body.session_id)
-    base_url = settings.api_public_url or str(request.base_url).rstrip("/")
+    prepared = await service.prepare_turn(
+        session, settings, chat, text=body.text, hub_id=household.hub_id, lang=lang
+    )
+    await session.commit()  # the reservation and the message; nothing stays locked meanwhile
     async with service.http_client(getattr(request.app.state, "http", None)) as http:
-        reply, proposals, source, usage = await service.turn(
-            session,
-            http,
-            settings,
-            chat,
-            text=body.text,
-            user_token=_user_token(request),
-            api_base_url=base_url,
-        )
+        answer = await service.ask(http, settings, prepared.body)
+    reply, proposals, source, tokens_today = await service.finish_turn(session, prepared, answer)
     out = TurnOut(
         session_id=chat.id,
         reply=_message_out(reply),
         proposals=[_proposal_out(p) for p in proposals],
         source=source,  # pyright: ignore[reportArgumentType]
-        tokens_today=usage.tokens_in + usage.tokens_out,
+        tokens_today=tokens_today,
         tokens_cap=settings.assistant_daily_tokens,
     )
     await session.commit()
@@ -145,13 +131,14 @@ async def get_session(session_id: uuid.UUID, permit: CanUse, session: DbSession)
             "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, "
             "subscriptions.cutoff_passed, subscriptions.not_editable"
         ),
-        422: _problem("assistant.product_unknown, subscriptions.qty_invalid"),
+        412: _problem("subscriptions.version_conflict (the week changed since the card)"),
+        422: _problem("subscriptions.product_unknown, subscriptions.qty_invalid"),
     },
 )
 async def confirm_proposal(
     proposal_id: uuid.UUID, permit: CanUse, session: DbSession, idem: Idempotent
 ) -> ConfirmOut:
-    proposal = await service.get_proposal(session, permit.principal.user_id, proposal_id)
+    proposal = await service.get_proposal(session, permit.principal.user_id, proposal_id, lock=True)
     await service.confirm(session, proposal, actor_user_id=permit.principal.user_id)
     out = ConfirmOut(proposal=_proposal_out(proposal))
     await idem.save(200, out)
@@ -171,7 +158,7 @@ async def confirm_proposal(
 async def reject_proposal(
     proposal_id: uuid.UUID, permit: CanUse, session: DbSession
 ) -> ProposalOut:
-    proposal = await service.get_proposal(session, permit.principal.user_id, proposal_id)
+    proposal = await service.get_proposal(session, permit.principal.user_id, proposal_id, lock=True)
     await service.reject(session, proposal)
     out = _proposal_out(proposal)
     await session.commit()

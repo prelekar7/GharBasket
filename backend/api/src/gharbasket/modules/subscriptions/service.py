@@ -243,13 +243,21 @@ async def draft(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    preview: bool = False,
 ) -> tuple[planning.Draft, str, uuid.UUID | None]:
-    """A box for the week of `delivery_date`: (draft, plan source, prediction id)."""
+    """A box for the week of `delivery_date`: (draft, plan source, prediction id).
+    `preview=True` (the customer-facing preview) skips the ranker (no learned liking) and keeps
+    the rule table for daily use (no pantry twin), so the preview waits on at most one ML call
+    (the planner's, bounded by `ml_timeout_s`)."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
     price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
-    preferences = await learned_preferences(
-        session, http, settings, profile, catalog, delivery_date, record_for=record_for
+    preferences = (
+        None
+        if preview
+        else await learned_preferences(
+            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+        )
     )
     request = planning.plan_request(
         profile, catalog, monday, festivals, price_index, preferences=preferences
@@ -263,12 +271,16 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    carried = await carried_over(session, profile.id, delivery_date, catalog)
-    quantities = await twin_quantities(
-        session, http, settings, profile, catalog, delivery_date, record_for=record_for
+    bought = await bought_recently(session, profile.id, delivery_date, catalog)
+    quantities = (
+        await twin_quantities(
+            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+        )
+        if not preview
+        else {}
     )
     lines = planning.lines_from_plan(
-        profile, catalog, meals, fallback=plan.plan is None, carried=carried, quantities=quantities
+        profile, catalog, meals, fallback=plan.plan is None, bought=bought, quantities=quantities
     )
     monthly_budget = profile.budget_paise
     budget_near = (
@@ -289,8 +301,11 @@ async def draft(
     return draft_box, plan.source, prediction
 
 
-RANKED_WEEKS = 12  # how far back the ranker's features look
 MIN_RANKED_WEEKS = 2  # cycles the household must have before its liking counts
+WEEKS_SINCE_NEVER = 52.0  # the training job's cap on weeks since last bought (M10 §3.7)
+RANK_TOP_K = 100  # the most products the ranker returns scores for
+MAX_CANDIDATES = 500  # the most candidates one ranker call takes
+FINAL = ("approved", "locked")  # a cycle with a final box (the ranker's baskets)
 
 
 async def ranker_candidates(
@@ -300,12 +315,13 @@ async def ranker_candidates(
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
 ) -> list[intel_api.RankCandidate]:
-    """The ranker's candidates and features from the household's past weeks (M10 §3.7, the
-    same definitions as the training job): every product it ever kept in a box, with weeks
-    since it was last kept, the share of past weeks it was kept, whether it removed it from its
-    last box, the share of the hub's households that kept it last week, and today's price.
-    Empty until the household has MIN_RANKED_WEEKS past cycles."""
-    since = delivery_date - timedelta(weeks=RANKED_WEEKS)
+    """The ranker's candidates and features from the household's past boxes, with the training
+    job's definitions (backend/training ranker.py, M10 §3.7): every product it ever kept in an
+    approved or locked box; weeks since it was last kept (capped at 52) and the share of those
+    boxes it was in, over the full history; removed last time (removed or swapped out of the
+    previous final box and not in it); the share of the hub's households with a final box in the
+    hub's latest earlier week that had it (popularity); and the hub's price valid at this
+    cycle's cut-off. Empty until the household has MIN_RANKED_WEEKS past final boxes."""
     past = list(
         (
             await session.execute(
@@ -313,8 +329,7 @@ async def ranker_candidates(
                 .where(
                     WeeklyCycle.household_id == household_id,
                     WeeklyCycle.delivery_date < delivery_date,
-                    WeeklyCycle.delivery_date >= since,
-                    WeeklyCycle.status.in_(("approved", "locked")),
+                    WeeklyCycle.status.in_(FINAL),
                 )
                 .order_by(WeeklyCycle.delivery_date)
             )
@@ -329,34 +344,25 @@ async def ranker_candidates(
     for cycle_id, product_id in lines.all():
         by_cycle[cycle_id].add(product_id)
     last = past[-1]
+    in_last_basket = by_cycle[last.id]
     removed = {
         product_id
         for (product_id,) in (
             await session.execute(
                 select(EditFeedback.product_id).where(
-                    EditFeedback.cycle_id == last.id, EditFeedback.action == "remove"
+                    EditFeedback.cycle_id == last.id,
+                    EditFeedback.action.in_(("removed", "swapped")),
                 )
             )
         ).all()
-    }
-    hub_last_week = (
-        await session.execute(
-            select(BoxLine.product_id, func.count(func.distinct(WeeklyCycle.household_id)))
-            .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
-            .where(
-                WeeklyCycle.hub_id == hub_id,
-                WeeklyCycle.delivery_date == last.delivery_date,
-                WeeklyCycle.status.in_(("approved", "locked")),
-            )
-            .group_by(BoxLine.product_id)
-        )
-    ).all()
-    households_last_week = max((n for _, n in hub_last_week), default=1)
-    popularity = {pid: n / households_last_week for pid, n in hub_last_week}
+    } - in_last_basket
+    popularity = await _hub_popularity(session, hub_id, delivery_date)
     kept_weeks: dict[uuid.UUID, list[date]] = {}
     for cycle in past:
         for product_id in by_cycle[cycle.id]:
             kept_weeks.setdefault(product_id, []).append(cycle.delivery_date)
+    cutoff_day = orders_api.cutoff_for(delivery_date).astimezone(IST).date()
+    prices = await catalog_api.latest_prices_on(session, hub_id, list(kept_weeks), cutoff_day)
     candidates = []
     for product_id, weeks in sorted(kept_weeks.items(), key=lambda kv: str(kv[0])):
         product = catalog.products.get(product_id)
@@ -365,14 +371,56 @@ async def ranker_candidates(
         candidates.append(
             intel_api.RankCandidate(
                 product=product.slug,
-                weeks_since=(delivery_date - weeks[-1]).days / 7,
+                weeks_since=min((delivery_date - weeks[-1]).days / 7, WEEKS_SINCE_NEVER),
                 frequency=len(weeks) / len(past),
                 removed_last=product_id in removed,
                 popularity=round(min(1.0, popularity.get(product_id, 0.0)), 4),
-                price_paise=product.price_paise or 0,
+                price_paise=prices.get(product_id, 0),
             )
         )
+    if len(candidates) > MAX_CANDIDATES:  # the most often kept, most recently kept first
+        candidates = sorted(candidates, key=lambda c: (-c.frequency, c.weeks_since, c.product))
+        candidates = candidates[:MAX_CANDIDATES]
     return candidates
+
+
+async def _hub_popularity(
+    session: AsyncSession, hub_id: uuid.UUID, delivery_date: date
+) -> dict[uuid.UUID, float]:
+    """Per product, the share of the hub's households with a final box in the hub's latest week
+    before `delivery_date`'s week that had it in that box."""
+    latest = (
+        await session.execute(
+            select(func.max(WeeklyCycle.delivery_date)).where(
+                WeeklyCycle.hub_id == hub_id,
+                WeeklyCycle.delivery_date < monday_of(delivery_date),
+                WeeklyCycle.status.in_(FINAL),
+            )
+        )
+    ).scalar_one_or_none()
+    if latest is None:
+        return {}
+    start = monday_of(latest)
+    in_week = (
+        WeeklyCycle.hub_id == hub_id,
+        WeeklyCycle.delivery_date >= start,
+        WeeklyCycle.delivery_date < start + timedelta(days=7),
+        WeeklyCycle.status.in_(FINAL),
+    )
+    households = (
+        await session.execute(
+            select(func.count(func.distinct(WeeklyCycle.household_id))).where(*in_week)
+        )
+    ).scalar_one()
+    counts = (
+        await session.execute(
+            select(BoxLine.product_id, func.count(func.distinct(WeeklyCycle.household_id)))
+            .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+            .where(*in_week)
+            .group_by(BoxLine.product_id)
+        )
+    ).all()
+    return {product_id: n / households for product_id, n in counts} if households else {}
 
 
 async def learned_preferences(
@@ -386,7 +434,9 @@ async def learned_preferences(
     record_for: uuid.UUID | None,
 ) -> dict[str, float] | None:
     """v2: the ranker's score per product the household has kept before, turned into a
-    liking per dish for the planner (`planning.recipe_preferences`). None for new households."""
+    liking per dish for the planner (`planning.recipe_preferences`). None for new households.
+    The ranker returns at most RANK_TOP_K scores; a candidate below them gets the lowest score
+    returned (it ranked no higher), so a dish is not liked more for missing its weaker items."""
     if profile.hub_id is None:
         return None
     candidates = await ranker_candidates(
@@ -397,13 +447,18 @@ async def learned_preferences(
     ranked = await intel_api.rank_basket(
         http,
         settings,
-        intel_api.RankRequest(candidates=candidates, top_k=len(candidates)),
+        intel_api.RankRequest(candidates=candidates, top_k=min(len(candidates), RANK_TOP_K)),
         session=session if record_for else None,
         household_id=record_for,
         week_monday=monday_of(delivery_date),
     )
     by_slug = {p.slug: p.id for p in catalog.products.values()}
     scores = {by_slug[r.product]: r.score for r in ranked.ranked if r.product in by_slug}
+    if scores:
+        floor = min(scores.values())
+        for c in candidates:
+            if c.product in by_slug:
+                scores.setdefault(by_slug[c.product], floor)
     return planning.recipe_preferences(scores, catalog)
 
 
@@ -411,31 +466,62 @@ OBSERVED_WEEKS = 12  # how far back the twin looks at boxes and taps
 
 
 async def pantry_observations(
-    session: AsyncSession, household_id: uuid.UUID, delivery_date: date
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
 ) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
-    """Per product: what each locked box of the last OBSERVED_WEEKS weeks carried (base units)
-    and the tap the household gave for it, oldest first — the twin's observations."""
+    """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
+    that carried it, oldest first, as (daily-use share in base units, the household's tap). The
+    share is what the box delivered minus what that week's planned recipes needed, computed the
+    way the draft computes it, so the twin learns daily use and never the recipes on top."""
     since = delivery_date - timedelta(weeks=OBSERVED_WEEKS)
-    rows = await session.execute(
-        select(BoxLine, WeeklyCycle.delivery_date, PantryFeedback.signal)
-        .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
-        .outerjoin(
-            PantryFeedback,
-            (PantryFeedback.cycle_id == BoxLine.cycle_id)
-            & (PantryFeedback.product_id == BoxLine.product_id),
-        )
-        .where(
-            WeeklyCycle.household_id == household_id,
-            WeeklyCycle.delivery_date >= since,
-            WeeklyCycle.delivery_date < delivery_date,
-            WeeklyCycle.status == "locked",
-        )
-        .order_by(WeeklyCycle.delivery_date)
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .where(
+                    WeeklyCycle.household_id == profile.id,
+                    WeeklyCycle.delivery_date >= since,
+                    WeeklyCycle.delivery_date < delivery_date,
+                    WeeklyCycle.status == "locked",
+                )
+                .order_by(WeeklyCycle.delivery_date)
+            )
+        ).scalars()
     )
+    products = [p for p in catalog.products.values() if planning.twin_product(p)]
+    if not cycles or not products:
+        return {}
+    ids = [c.id for c in cycles]
+    wanted = [p.id for p in products]
+    delivered: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
+    for line in (
+        await session.execute(
+            select(BoxLine).where(BoxLine.cycle_id.in_(ids), BoxLine.product_id.in_(wanted))
+        )
+    ).scalars():
+        key = (line.cycle_id, line.product_id)
+        delivered[key] = delivered.get(key, 0.0) + (
+            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        )
+    taps = {
+        (cycle_id, product_id): signal
+        for cycle_id, product_id, signal in await session.execute(
+            select(PantryFeedback.cycle_id, PantryFeedback.product_id, PantryFeedback.signal).where(
+                PantryFeedback.cycle_id.in_(ids), PantryFeedback.product_id.in_(wanted)
+            )
+        )
+    }
     out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
-    for line, _, signal in rows.all():
-        units = line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
-        out.setdefault(line.product_id, []).append((units, signal))
+    for cycle in cycles:
+        need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
+        for product in products:
+            units = delivered.get((cycle.id, product.id))
+            if not units:
+                continue  # not in that week's box: nothing observed
+            share = max(0.0, units - need.get(product.id, 0.0))
+            out.setdefault(product.id, []).append((share, taps.get((cycle.id, product.id))))
     return out
 
 
@@ -449,10 +535,13 @@ async def twin_quantities(
     *,
     record_for: uuid.UUID | None,
 ) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
-    """The pantry twin's weekly use for the daily-use items (M10 §3.3): the rule table is the
-    cohort prior, the household's locked boxes and taps are the observations. Empty when the
-    household has no observed week yet, so the rule table alone drafts the first boxes."""
-    observed = await pantry_observations(session, profile.id, delivery_date)
+    """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
+    rule table is the cohort prior, the daily-use share of the household's locked boxes and its
+    taps are the observations. Empty when the twin is switched off (`pantry_twin_enabled`) or
+    the household has no observed week yet, so the rule table drafts those boxes."""
+    if not settings.pantry_twin_enabled:
+        return {}
+    observed = await pantry_observations(session, profile, catalog, delivery_date)
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
     learned = await intel_api.pantry_priors(session, rules.cohort_of(equivalents))  # v1
     items = []
@@ -503,17 +592,17 @@ async def twin_quantities(
     }
 
 
-async def carried_over(
+async def bought_recently(
     session: AsyncSession,
     household_id: uuid.UUID,
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
-) -> dict[uuid.UUID, float]:
-    """Base units of each staple the household's approved or locked boxes of the last
-    CARRY_WEEKS weeks carried: the cupboard the next draft can count on."""
+) -> dict[uuid.UUID, list[tuple[float, float]]]:
+    """Per dry staple, (weeks before `delivery_date`, base units) of each approved or locked box
+    of the last CARRY_WEEKS weeks: the deliveries the next draft's cupboard is made of."""
     since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
     rows = await session.execute(
-        select(BoxLine)
+        select(BoxLine, WeeklyCycle.delivery_date)
         .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
         .where(
             WeeklyCycle.household_id == household_id,
@@ -522,15 +611,18 @@ async def carried_over(
             WeeklyCycle.status.in_(("approved", "locked")),
         )
     )
-    carried: dict[uuid.UUID, float] = {}
-    for line in rows.scalars():
+    bought: dict[uuid.UUID, list[tuple[float, float]]] = {}
+    for line, delivered in rows.all():
         product = catalog.products.get(line.product_id)
-        if product is None or planning.perishable(product):
+        if product is None or not planning.carries_over(product):
             continue
-        carried[line.product_id] = carried.get(line.product_id, 0.0) + (
-            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        bought.setdefault(line.product_id, []).append(
+            (
+                (delivery_date - delivered).days / 7,
+                line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit],
+            )
         )
-    return carried
+    return bought
 
 
 async def generate_cycle(
@@ -590,7 +682,7 @@ async def generate_cycle(
         meal_plan=box.meal_plan,
         highlights=box.highlights,
         status="awaiting_approval" if notice_now else "draft",
-        notice_sent_at=datetime.now(UTC) if notice_now else None,
+        notice_sent_at=now() if notice_now else None,
         data_source=profile.data_source,
     )
     try:

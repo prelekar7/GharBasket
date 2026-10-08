@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.analytics.schemas import (
     AiHealthOut,
+    HubDriftOut,
     MetricOut,
     ModelHealthOut,
     PredictionCountOut,
@@ -33,10 +34,24 @@ async def ai_health(session: AsyncSession) -> AiHealthOut:
                         data_source=r.data_source,  # pyright: ignore[reportArgumentType]
                         version=r.version,
                         computed_at=r.computed_at,
+                        hub_id=r.hub_id,
                     )
                     for r in m.metrics
                 ],
                 drift=m.drift,
+                hubs=[
+                    HubDriftOut(
+                        hub_id=h.hub_id,
+                        data_source=h.data_source,  # pyright: ignore[reportArgumentType]
+                        drift=h.drift,
+                        drifted_days=h.drifted_days,
+                        scored_days=h.scored_days,
+                        for_date=h.for_date,
+                        wape=h.wape,
+                        backtest_wape=h.backtest_wape,
+                    )
+                    for h in m.hubs
+                ],
             )
             for m in models
         ],

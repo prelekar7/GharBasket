@@ -33,7 +33,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--push", action="store_true", help="store the rows through the API")
     parser.add_argument("--no-assignment", action="store_true", help="skip the λ sweep (RQ4)")
     parser.add_argument(
-        "--smoke", action="store_true", help="seed 7, one week, 2 %% adoption, no CP-SAT (CI)"
+        "--smoke",
+        action="store_true",
+        help="CI: seed 7, one week, 2 %% adoption, no CP-SAT planner arm; the λ sweep still runs "
+        "(CP-SAT assignment, small) unless --no-assignment",
     )
     args = parser.parse_args(argv)
     if args.smoke:
@@ -79,6 +82,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "adoption": args.adoption,
             "shocks": not args.no_shocks,
             "smoke": args.smoke,
+            "no_assignment": args.no_assignment,
         },
     )
     html_path, json_path = report.write(built, args.out)
@@ -89,16 +93,72 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"variety {metrics['variety']['mean']:.1f}  "
             f"violations {metrics['hard_rule_violations']['mean']:.2f}"
         )
+    for arm, against in built["planner_paired"].items():
+        print(
+            f"{arm:7} acceptance vs "
+            + ", ".join(
+                f"{base} {d['acceptance']['mean']:+.3f} ± {d['acceptance']['ci95']:.3f}"
+                for base, d in against.items()
+            )
+        )
+    if "verdict" in built["planner_targets"]:
+        holds = built["planner_targets"]["verdict"]["holds"]
+        print(f"M-C on acceptance (>= 0.70, above greedy and random): {'holds' if holds else 'no'}")
+    if "v2_verdict" in built["planner_targets"]:
+        targets = built["planner_targets"]
+        lift = targets.get("v2_acceptance_over_v1")
+        holds = targets["v2_verdict"]["holds"]
+        first = built["planner_paired_later"]["from_week"]
+        if lift is None:
+            verdict = f"no verdict: the run has no week >= {first}"
+        elif holds is None:
+            verdict = "no verdict: fewer than 5 paired seeds"
+        else:
+            verdict = "holds" if holds else "does not hold"
+        print(
+            "v2 vs v1 acceptance"
+            + (f", weeks >= {first}: {lift['value']:+.3f} ± {lift['ci95']:.3f}" if lift else "")
+            + f" ({verdict})"
+        )
     print(
         f"pantry  rule table MAE {built['pantry']['rule_table_mae']['mean']:.3f}; running mean "
         + ", ".join(
             f"w{k + 1} {e['mean']:.3f}" for k, e in enumerate(built["pantry"]["cold_start_mae"])
         )
     )
+    scope = built["pantry"]["twin_scope"]
+    weeks = ", ".join(f"w{k + 1}" for k in range(len(scope["twin_mae"])))
+    series = lambda key: " ".join(f"{e['mean']:.3f}" for e in scope[key])  # noqa: E731
+    print(
+        f"pantry twin scope (milk, curd: daily use; {weeks}): "
+        f"rule table {scope['rule_table_mae']['mean']:.3f}; "
+        f"running mean {series('running_mean_mae')}; twin {series('twin_mae')}; "
+        f"twin 80 % coverage {series('twin_coverage_80')}"
+    )
+    target = built["pantry"]["target_mae_le_15pct_after_4_weeks"]
+    value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
+    verdict = {None: "no verdict: fewer than 5 weeks", True: "holds"}.get(
+        target["holds"], "does not hold: keep PANTRY_TWIN_ENABLED off"
+    )
+    print(f"pantry twin target MAE <= 0.15 after 4 weeks: {value} ({verdict})")
     for key, metrics in built.get("assignment", {}).items():
+        extra, gini = metrics.get("extra_cost"), metrics["gini"]
         print(
-            f"assign  λ={key:6} gini {metrics['gini']['mean']:.3f}  "
-            f"₹/portion {metrics['cost_paise_per_portion']['mean'] / 100:.2f}"
+            f"assign  λ={key:6} gini {gini['mean']:.3f} ± {gini['ci95']:.3f}  "
+            f"cost ₹/portion {metrics['cost_paise_per_portion']['mean'] / 100:.2f}"
+            + (f"  vs greedy {extra['mean']:+.3f} ± {extra['ci95']:.3f}" if extra else "")
+        )
+    sweep_target = built.get("assignment_targets", {}).get("gini_le_0_25_at_le_5pct_cost")
+    if sweep_target is not None:
+        holds = sweep_target["holds"]
+        if holds is None:
+            verdict = "no verdict: fewer than 5 paired seeds"
+        else:
+            verdict = f"holds from λ = {sweep_target['lambda']:g}" if holds else "does not hold"
+        dropped = sweep_target["dropped_seeds"]
+        print(
+            f"M-G Gini <= 0.25 at <= +5 % cost: {verdict}"
+            + (f" (dropped seeds {dropped})" if dropped else "")
         )
     print(f"report: {html_path} ({json_path.name})")
     if args.push:

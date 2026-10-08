@@ -1,20 +1,26 @@
-"""The pantry digital twin, v0 (handbook 08 M-A; M10 §3.3): how much of each item a household
-goes through in a week, with uncertainty, from a cohort prior and what its boxes and taps say.
+"""The pantry digital twin, v0 (handbook 08 M-A; M10 §3.3): how much of a perishable daily-use
+item a household goes through in a week, with uncertainty, from a cohort prior and what its
+boxes and taps say.
 
 Model (conjugate, so the online update is closed-form):
 - the weekly use lambda of a household for one item has a Gamma prior with the cohort's mean
   (the family-size rule table today) and the weight of `prior_weeks` observed weeks;
-- each observed week is the box's quantity corrected by the tap ("ran out" → they needed more,
-  "wasted" → less), measured in units of one step so the Poisson likelihood is on counts;
+- each observed week is the box's daily-use share (the delivered quantity minus what the week's
+  planned recipes needed) corrected by the tap ("ran out" → they needed more, "wasted" → less),
+  measured in units of one step so the Poisson likelihood is on counts;
 - the posterior is Gamma again: alpha = alpha0 + sum of counts, beta = beta0 + weeks. Its mean
-  is the quantity to put in the box; the 80 % interval is the Gamma's 10th and 90th percentiles.
+  is the quantity to put in the box;
+- the 80 % interval is for next week's use, not for lambda: the posterior predictive of a
+  Gamma-Poisson is Negative Binomial (r = alpha, p = beta / (beta + 1)) in step counts, so p10
+  and p90 are its 10th and 90th percentiles times the step.
 
-v1 (training, NumPyro) refits the cohort priors from every household; the formulas here stay.
+v1 (training, NumPyro) refits the cohort priors from every household and models stock, so
+staples can join; the formulas here stay.
 """
 
 from dataclasses import dataclass
 
-from scipy.stats import gamma
+from scipy.stats import nbinom
 
 from gharbasket_ml.schemas import PantryItemIn, PantryItemOut, PantryRequest, PantryResponse
 
@@ -31,10 +37,13 @@ class Posterior:
 
     @property
     def mean(self) -> float:
+        """The predictive mean of next week's use (equal to the posterior mean of lambda)."""
         return self.alpha / self.beta * self.step
 
-    def quantile(self, q: float) -> float:
-        return float(gamma.ppf(q, self.alpha, scale=1 / self.beta)) * self.step
+    def predictive_quantile(self, q: float) -> float:
+        """Next week's use at quantile `q`: the Negative Binomial posterior predictive."""
+        counts = nbinom.ppf(q, self.alpha, self.beta / (self.beta + 1))
+        return float(counts) * self.step
 
 
 def posterior(item: PantryItemIn) -> Posterior:
@@ -54,8 +63,8 @@ def quantities(request: PantryRequest) -> PantryResponse:
             PantryItemOut(
                 product=item.product,
                 mean=round(post.mean, 2),
-                p10=round(post.quantile(0.10), 2),
-                p90=round(post.quantile(0.90), 2),
+                p10=round(post.predictive_quantile(0.10), 2),
+                p90=round(post.predictive_quantile(0.90), 2),
                 weeks_observed=len(item.observations),
                 alpha=round(post.alpha, 4),
                 beta=round(post.beta, 4),

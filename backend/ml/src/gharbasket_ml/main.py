@@ -4,10 +4,10 @@
 Only the API calls it (through `intel_gateway.api`), with the shared service token.
 """
 
+import asyncio
 import hmac
 from typing import Annotated
 
-import httpx2
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -39,6 +39,10 @@ class Unauthorized(Exception):
 
 
 class AssistantUnavailable(Exception):
+    pass
+
+
+class AssistantTimeout(Exception):
     pass
 
 
@@ -92,6 +96,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             media_type="application/problem+json",
         )
 
+    @app.exception_handler(AssistantTimeout)
+    async def assistant_timeout(request: Request, _exc: AssistantTimeout) -> JSONResponse:
+        return JSONResponse(
+            {
+                "type": "about:blank",
+                "title": "Assistant timed out",
+                "status": 504,
+                "detail": "The turn took longer than ASSISTANT_TURN_TIMEOUT_S.",
+                "code": "ml.assistant_timeout",
+                "instance": request.url.path,
+            },
+            status_code=504,
+            media_type="application/problem+json",
+        )
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "gharbasket-ml", "version": __version__}
@@ -128,7 +147,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post(
         "/assistant/turn",
         dependencies=[Depends(require_service_token)],
-        summary="One turn of Ghar Saathi with the four tools (M13 §3); proposals, never changes",
+        summary="One turn of Ghar Saathi with the four tools (M13 §3); intents, never changes",
     )
     async def assistant_turn(
         body: AssistantTurnRequest,
@@ -137,14 +156,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> AssistantTurnResponse:
         if settings.anthropic_api_key is None:
             raise AssistantUnavailable()
-        factory = getattr(request.app.state, "assistant_client", assistant.anthropic_client)
-        async with httpx2.AsyncClient() as http:
-            return await assistant.turn(
-                body,
-                http,
-                factory(settings.anthropic_api_key.get_secret_value()),
-                settings.assistant_model,
-            )
+        factory = getattr(request.app.state, "assistant_client", None)
+        key = settings.anthropic_api_key.get_secret_value()
+        client = (
+            factory(key)
+            if factory is not None
+            else assistant.anthropic_client(key, settings.assistant_request_timeout_s)
+        )
+        try:
+            async with asyncio.timeout(settings.assistant_turn_timeout_s):
+                return await assistant.turn(body, client, settings.assistant_model)
+        except TimeoutError as exc:
+            raise AssistantTimeout() from exc
 
     @app.post(
         "/basket/rank",
@@ -154,7 +177,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def basket_rank(
         body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RankResponse:
-        return ranker.rank(body, settings.models_dir)
+        return ranker.rank(body, settings.models_dir, settings.models_reload_s)
 
     @app.post(
         "/assign/kitchens",
@@ -162,7 +185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Tomorrow's tiffin portions to home kitchens, fairly (CP-SAT, M10 §3.5)",
     )
     async def assign_kitchens(body: AssignRequest) -> AssignResponse:
-        return await run_in_threadpool(assignment.assign, body)
+        return await run_in_threadpool(assignment.assign, body, deterministic=False)
 
     @app.post(
         "/route/solve",
@@ -172,14 +195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def route_solve(
         body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RouteResponse:
-        nodes = routing.nodes_of(body)
-        points = [(n.lat, n.lng) for n in nodes]
-        matrix = await routing.osrm_matrix(settings.osrm_url, points) if settings.osrm_url else None
-        source = "osrm" if matrix is not None else "haversine"
-        if matrix is None:
-            matrix = routing.haversine_matrix(points)
-        inst = routing.Instance(nodes, matrix[0], matrix[1], body)
-        return await run_in_threadpool(routing.plan, inst, body.time_limit_s, source)
+        return await routing.solve(body, settings.osrm_url, settings.osrm_timeout_s)
 
     @app.post(
         "/plan/week",

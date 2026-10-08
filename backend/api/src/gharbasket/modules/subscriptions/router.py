@@ -382,8 +382,16 @@ async def preview_cycle(
     )
     catalog = await catalog_api.plan_catalog(session, household.hub_id)
     async with service.http_client(getattr(request.app.state, "http", None)) as http:
+        # No ranker and the rule table for daily use: one ML call at most while the customer waits.
         draft, source, _ = await service.draft(
-            session, http, settings, profile, catalog, delivery_date, record_for=None
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=None,
+            preview=True,
         )
     response.headers["Cache-Control"] = "no-store"
     return await _cycle_out(
