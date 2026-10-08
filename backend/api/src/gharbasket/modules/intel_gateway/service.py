@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -351,41 +351,36 @@ async def save_price_index(
 async def save_pantry_priors(
     session: AsyncSession, rows: list[dict[str, Any]], ids: dict[str, uuid.UUID], version: str
 ) -> int:
-    """Upsert (cohort, product) priors from the refit job; unknown slugs are skipped."""
+    """Replace every stored prior with one version's (`just promote pantry_priors` sends the
+    promoted version, a rollback the older one), so no (cohort, product) of another version
+    lingers; unknown slugs are skipped."""
+    await session.execute(delete(PantryPrior))
     kept = 0
     for row in rows:
         product_id = ids.get(row["product"])
         if product_id is None:
             continue
-        await session.execute(
-            insert(PantryPrior)
-            .values(
+        session.add(
+            PantryPrior(
                 cohort=row["cohort"],
                 product_id=product_id,
-                prior_mean=row["prior_mean"],
+                prior_mean_per_ae=row["prior_mean_per_ae"],
                 prior_weeks=row["prior_weeks"],
                 version=version,
             )
-            .on_conflict_do_update(
-                index_elements=[PantryPrior.cohort, PantryPrior.product_id],
-                set_={
-                    "prior_mean": row["prior_mean"],
-                    "prior_weeks": row["prior_weeks"],
-                    "version": version,
-                    "updated_at": func.now(),
-                },
-            )
         )
         kept += 1
+    await session.flush()
     return kept
 
 
 async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
-    """{product_id: (prior_mean, prior_weeks)} learned for a cohort; empty until the job ran."""
+    """{product_id: (prior_mean_per_ae, prior_weeks)} of the promoted version for a cohort;
+    empty until a version was promoted."""
     rows = await session.execute(
-        select(PantryPrior.product_id, PantryPrior.prior_mean, PantryPrior.prior_weeks).where(
-            PantryPrior.cohort == cohort
-        )
+        select(
+            PantryPrior.product_id, PantryPrior.prior_mean_per_ae, PantryPrior.prior_weeks
+        ).where(PantryPrior.cohort == cohort)
     )
     return {pid: (mean, weeks) for pid, mean, weeks in rows.all()}
 

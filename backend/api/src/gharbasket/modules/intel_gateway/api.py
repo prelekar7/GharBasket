@@ -118,8 +118,8 @@ async def plan_week(
 
 async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
     """The twin's learned priors for a household-size cohort (`small`, `medium`, `large`):
-    {product_id: (prior_mean in base units a week, prior_weeks)}; empty until the weekly refit
-    has run, so M3 keeps the rule table."""
+    {product_id: (prior mean in base units a week per adult equivalent, prior_weeks)}, the
+    promoted registry version's; empty until one is promoted, so M3 keeps the rule table."""
     return await service.pantry_priors(session, cohort)
 
 

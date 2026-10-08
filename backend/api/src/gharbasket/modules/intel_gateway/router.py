@@ -52,7 +52,9 @@ async def put_price_index(body: PriceIndexIn, session: DbSession) -> PriceIndexO
 class PantryPriorIn(BaseModel):
     cohort: Literal["small", "medium", "large"]
     product: str = Field(max_length=60, description="The product's slug")
-    prior_mean: float = Field(ge=0, description="Base units a week")
+    prior_mean_per_ae: float = Field(
+        ge=0, description="Base units a week per adult equivalent (M3 scales by the household)"
+    )
     prior_weeks: float = Field(gt=0, le=52)
 
 
@@ -68,7 +70,8 @@ class PantryPriorsOut(BaseModel):
 
 @router.post(
     "/internal/intel/pantry-priors",
-    summary="Store the pantry twin's refit cohort priors (the weekly refit job; operator token)",
+    summary="Replace the pantry twin's cohort priors with a promoted version's "
+    "(`just promote pantry_priors`; operator token)",
 )
 async def put_pantry_priors(body: PantryPriorsIn, session: DbSession) -> PantryPriorsOut:
     slugs = sorted({item.product for item in body.items})

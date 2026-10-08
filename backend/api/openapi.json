@@ -3548,10 +3548,10 @@
             "title": "Cohort",
             "type": "string"
           },
-          "prior_mean": {
-            "description": "Base units a week",
+          "prior_mean_per_ae": {
+            "description": "Base units a week per adult equivalent (M3 scales by the household)",
             "minimum": 0.0,
-            "title": "Prior Mean",
+            "title": "Prior Mean Per Ae",
             "type": "number"
           },
           "prior_weeks": {
@@ -3570,7 +3570,7 @@
         "required": [
           "cohort",
           "product",
-          "prior_mean",
+          "prior_mean_per_ae",
           "prior_weeks"
         ],
         "title": "PantryPriorIn",
@@ -10209,7 +10209,7 @@
             "OperatorToken": []
           }
         ],
-        "summary": "Store the pantry twin's refit cohort priors (the weekly refit job; operator token)",
+        "summary": "Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token)",
         "tags": [
           "intel_gateway"
         ]

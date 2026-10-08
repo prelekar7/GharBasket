@@ -620,7 +620,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Store the pantry twin's refit cohort priors (the weekly refit job; operator token) */
+        /** Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token) */
         post: operations["put_pantry_priors_v1_internal_intel_pantry_priors_post"];
         delete?: never;
         options?: never;
@@ -2604,10 +2604,10 @@ export interface components {
              */
             cohort: "small" | "medium" | "large";
             /**
-             * Prior Mean
-             * @description Base units a week
+             * Prior Mean Per Ae
+             * @description Base units a week per adult equivalent (M3 scales by the household)
              */
-            prior_mean: number;
+            prior_mean_per_ae: number;
             /** Prior Weeks */
             prior_weeks: number;
             /**

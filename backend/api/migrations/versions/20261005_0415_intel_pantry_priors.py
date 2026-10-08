@@ -22,7 +22,7 @@ def upgrade() -> None:
         "pantry_priors",
         sa.Column("cohort", sa.String(length=10), nullable=False),
         sa.Column("product_id", sa.Uuid(), nullable=False),
-        sa.Column("prior_mean", sa.Float(), nullable=False),
+        sa.Column("prior_mean_per_ae", sa.Float(), nullable=False),
         sa.Column("prior_weeks", sa.Float(), nullable=False),
         sa.Column("version", sa.String(length=40), nullable=False),
         sa.Column(
@@ -34,7 +34,9 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "cohort IN ('small', 'medium', 'large')", name=op.f("ck_pantry_priors_cohort")
         ),
-        sa.CheckConstraint("prior_mean >= 0", name=op.f("ck_pantry_priors_prior_mean")),
+        sa.CheckConstraint(
+            "prior_mean_per_ae >= 0", name=op.f("ck_pantry_priors_prior_mean_per_ae")
+        ),
         sa.CheckConstraint("prior_weeks > 0", name=op.f("ck_pantry_priors_prior_weeks")),
         sa.PrimaryKeyConstraint("cohort", "product_id", name=op.f("pk_pantry_priors")),
         schema="intel",
