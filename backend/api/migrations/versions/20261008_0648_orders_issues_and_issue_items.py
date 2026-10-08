@@ -53,7 +53,8 @@ def upgrade() -> None:
             name=op.f("ck_order_issues_kind"),
         ),
         sa.CheckConstraint(
-            "open_reason IN ('photo_needed', 'over_auto_credit_limit', 'wallet_limit', 'triage')",
+            "open_reason IN ('photo_needed', 'over_auto_credit_limit', 'over_order_total', "
+            "'wallet_limit', 'triage')",
             name=op.f("ck_order_issues_open_reason"),
         ),
         sa.CheckConstraint(

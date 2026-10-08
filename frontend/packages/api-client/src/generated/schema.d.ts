@@ -1812,7 +1812,7 @@ export interface components {
             /** Note */
             note: string | null;
             /** Open Reason */
-            open_reason: ("photo_needed" | "over_auto_credit_limit" | "wallet_limit" | "triage") | null;
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
             /**
              * Order Id
              * Format: uuid

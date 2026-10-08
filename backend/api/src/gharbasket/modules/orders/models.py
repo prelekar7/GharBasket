@@ -56,7 +56,13 @@ UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
 ISSUE_KINDS = ("missing", "damaged", "quality", "wrong_item", "late", "other")
 ISSUE_STATUSES = ("open", "credited", "rejected")
 ISSUE_RESOLVERS = ("auto", "hub")
-OPEN_REASONS = ("photo_needed", "over_auto_credit_limit", "wallet_limit", "triage")
+OPEN_REASONS = (
+    "photo_needed",
+    "over_auto_credit_limit",
+    "over_order_total",
+    "wallet_limit",
+    "triage",
+)
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:

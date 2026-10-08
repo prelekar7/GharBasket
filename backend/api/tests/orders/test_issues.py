@@ -413,8 +413,14 @@ async def test_the_hub_credits_or_rejects_open_issues_through_the_facade(
     credited = await orders_api.resolve_issue(
         db_session, uuid.UUID(quality["id"]), "credit", 3000, vikram_id, "Soft onions"
     )
+    with pytest.raises(ProblemError) as over_total:  # 3,000 of the order is already refunded
+        await orders_api.resolve_issue(
+            db_session, uuid.UUID(late["id"]), "credit", total, vikram_id
+        )
+    assert over_total.value.code == "orders.issue_credit_invalid"
+    assert over_total.value.extra == {"max_paise": total - 3000}
     late_credit = await orders_api.resolve_issue(
-        db_session, uuid.UUID(late["id"]), "credit", total, vikram_id
+        db_session, uuid.UUID(late["id"]), "credit", 9000, vikram_id
     )
     rejected = await orders_api.resolve_issue(
         db_session, uuid.UUID(other["id"]), "reject", 0, vikram_id, "Not our rider"
@@ -431,11 +437,11 @@ async def test_the_hub_credits_or_rejects_open_issues_through_the_facade(
         "hub",
     )
     assert credited.resolver_user_id == vikram_id and credited.refund_entry_id is not None
-    assert (late_credit.status, late_credit.credit_paise) == ("credited", total)
+    assert (late_credit.status, late_credit.credit_paise) == ("credited", 9000)
     assert (rejected.status, rejected.credit_paise, rejected.open_reason) == ("rejected", 0, None)
     assert again.value.code == "orders.issue_not_open"
     assert unknown.value.code == "orders.issue_not_found"
-    assert await billing_api.balance(db_session, priya_id) == before + 3000 + total
+    assert await billing_api.balance(db_session, priya_id) == before + 3000 + 9000
     await assert_ledger_balances(db_session)
     listed = (await api.get(f"/v1/orders/{order_id}/issues", headers=priya)).json()["items"]
     assert [(i["status"], i["resolution"] and i["resolution"]["by"]) for i in listed] == [
@@ -449,3 +455,66 @@ async def test_the_hub_credits_or_rejects_open_issues_through_the_facade(
         ("credited", "hub"),
         ("rejected", "hub"),
     ]
+
+
+SMALL_BOX = {"tomato": (2, 1_500)}  # paid 3,000
+
+
+async def credit_invalid(db: AsyncSession, issue: dict, paise: int, actor: uuid.UUID) -> object:
+    with pytest.raises(ProblemError) as refused:
+        await orders_api.resolve_issue(db, uuid.UUID(issue["id"]), "credit", paise, actor)
+    assert refused.value.code == "orders.issue_credit_invalid"
+    return (refused.value.extra or {}).get("max_paise")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_late_and_other_credits_together_never_exceed_what_was_paid(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    _, vikram_id = await as_user(api, google, VIKRAM)
+    order_id, ids = await placed_order(db_session, priya_id, box=SMALL_BOX)
+    late = (await report(api, priya, order_id, {"kind": "late"})).json()
+    other = (await report(api, priya, order_id, {"kind": "other"})).json()
+    before = await billing_api.balance(db_session, priya_id)
+
+    await orders_api.resolve_issue(db_session, uuid.UUID(late["id"]), "credit", 2000, vikram_id)
+    assert await credit_invalid(db_session, other, 1500, vikram_id) == 1000
+    await orders_api.resolve_issue(db_session, uuid.UUID(other["id"]), "credit", 1000, vikram_id)
+    await db_session.commit()
+    # Everything paid is back: even a small missing item is left for the hub.
+    missing = await report(api, priya, order_id, {"kind": "missing", "items": items(ids, tomato=1)})
+
+    assert (missing.json()["status"], missing.json()["open_reason"]) == ("open", "over_order_total")
+    assert await credit_invalid(db_session, missing.json(), 1, vikram_id) == 0
+    assert await billing_api.balance(db_session, priya_id) == before + 3000
+    await assert_ledger_balances(db_session)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_no_auto_credit_beyond_what_a_manual_credit_left_of_the_order(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    _, vikram_id = await as_user(api, google, VIKRAM)
+    order_id, ids = await placed_order(db_session, priya_id, box=SMALL_BOX)
+    late = (await report(api, priya, order_id, {"kind": "late"})).json()
+    await orders_api.resolve_issue(db_session, uuid.UUID(late["id"]), "credit", 2000, vikram_id)
+    await db_session.commit()
+    before = await billing_api.balance(db_session, priya_id)
+
+    missing = await report(api, priya, order_id, {"kind": "missing", "items": items(ids, tomato=1)})
+
+    # 1,500 is within the ₹50 allowance but only 1,000 of the order is left: none of it, at once.
+    assert (missing.json()["status"], missing.json()["open_reason"]) == ("open", "over_order_total")
+    assert missing.json()["credit_paise"] == 0
+    assert await billing_api.balance(db_session, priya_id) == before
+    assert await credit_invalid(db_session, missing.json(), 1500, vikram_id) == 1000
+    hub = await orders_api.resolve_issue(
+        db_session, uuid.UUID(missing.json()["id"]), "credit", 1000, vikram_id
+    )
+    assert (hub.status, hub.credit_paise) == ("credited", 1000)
+    assert await billing_api.balance(db_session, priya_id) == before + 1000
+    await assert_ledger_balances(db_session)

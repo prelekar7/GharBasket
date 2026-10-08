@@ -116,6 +116,8 @@ async def resolve_issue(
     note: str | None = None,
 ) -> OrderIssue:
     """The M12 console's triage of an open issue (§3.2): refund `credit_paise` to the wallet
-    (at most the issue's amount, or the order total for late/other) or reject it. The caller has
-    checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit` is raised as is."""
+    (at most the issue's amount, or the order total for late/other, and never more than is left
+    of what was paid for the order: `orders.issue_credit_invalid` carries `max_paise`) or reject
+    it. The caller has checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit`
+    is raised as is."""
     return await issues.resolve(session, issue_id, outcome, credit_paise, actor, note)

@@ -1869,6 +1869,7 @@
                 "enum": [
                   "photo_needed",
                   "over_auto_credit_limit",
+                  "over_order_total",
                   "wallet_limit",
                   "triage"
                 ],

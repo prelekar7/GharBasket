@@ -2,7 +2,8 @@
 auto-credit for small missing or damaged items, and the hub's triage of everything left open.
 
 Money only moves through M5's refund facade, keyed `refund:<order>:issue_<hex>`, inside the
-caller's transaction: an issue is credited and its refund posted together, or neither is.
+caller's transaction: an issue is credited and its refund posted together, or neither is. All the
+credits on one order, auto or by the hub, never add up to more than was paid for it.
 """
 
 import uuid
@@ -175,12 +176,28 @@ async def _publish_resolved(session: AsyncSession, issue: OrderIssue) -> None:
     )
 
 
+async def _creditable(session: AsyncSession, order: Order) -> int:
+    """What may still be refunded on a row-locked order: its paid total minus the issue credits
+    already made on it (M5 refunds nothing else per order yet, and billing.api has no per-order
+    refund total)."""
+    credited = (
+        await session.execute(
+            select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
+                OrderIssue.order_id == order.id, OrderIssue.status == "credited"
+            )
+        )
+    ).scalar_one()
+    return max(0, order.total_paise - int(credited))
+
+
 async def _auto_credit(session: AsyncSession, order: Order, issue: OrderIssue) -> str | None:
     """Credit the issue at once if the rule allows it; else why it stays open."""
     if issue.kind == "damaged" and not issue.photo_keys:
         return "photo_needed"
     if issue.kind not in AUTO_KINDS or issue.amount_paise <= 0:
         return "triage"
+    if issue.amount_paise > await _creditable(session, order):
+        return "over_order_total"
     # One household's reports are counted one after the other, so two at once share the cap.
     lock_key = func.hashtextextended(f"orders.issue_credit:{issue.household_id}", 0)
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
@@ -281,12 +298,18 @@ async def resolve(
     actor: uuid.UUID,
     note: str | None,
 ) -> OrderIssue:
-    """The hub's decision on an open issue: refund up to what the rule allows, or reject."""
+    """The hub's decision on an open issue: refund up to what the rule allows and what is left
+    of the order's paid total, or reject."""
+    order_id = (
+        await session.execute(select(OrderIssue.order_id).where(OrderIssue.id == issue_id))
+    ).scalar_one_or_none()
+    if order_id is None:
+        raise ProblemError(404, "orders.issue_not_found", "No such issue.")
+    # The order first, as a report does, so credits on one order are counted one at a time.
+    order = await service.get(session, order_id, for_update=True)
     issue = (
         await session.execute(select(OrderIssue).where(OrderIssue.id == issue_id).with_for_update())
-    ).scalar_one_or_none()
-    if issue is None:
-        raise ProblemError(404, "orders.issue_not_found", "No such issue.")
+    ).scalar_one()
     if issue.status != "open":
         raise ProblemError(409, "orders.issue_not_open", "This issue is already resolved.")
     if outcome == "reject":
@@ -297,8 +320,10 @@ async def resolve(
         return issue
     if outcome != "credit":
         raise ValueError("outcome is 'credit' or 'reject'")
-    order = await service.get(session, issue.order_id)
-    most = issue.amount_paise if issue.kind in LINE_KINDS else order.total_paise
+    most = min(
+        issue.amount_paise if issue.kind in LINE_KINDS else order.total_paise,
+        await _creditable(session, order),
+    )
     if not 0 < credit_paise <= most:
         raise ProblemError(
             422,

@@ -205,7 +205,12 @@ class IssueOut(BaseModel):
     photo_count: int
     resolution: IssueResolution | None
     callback_within_minutes: int | None = Field(description="While open: the hub calls back")
-    open_reason: Literal["photo_needed", "over_auto_credit_limit", "wallet_limit", "triage"] | None
+    open_reason: (
+        Literal[
+            "photo_needed", "over_auto_credit_limit", "over_order_total", "wallet_limit", "triage"
+        ]
+        | None
+    )
     created_at: datetime
 
 
