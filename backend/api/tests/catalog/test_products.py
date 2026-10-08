@@ -83,7 +83,9 @@ async def test_a_product_in_english_hindi_and_marathi(
         "shelf_life_h": 72,
         "image_url": None,
         "price": None,
+        "nutrition": english["nutrition"],  # IFCT 2017 ladies finger: tests/catalog/test_nutrition
     }
+    assert english["nutrition"]["fibre_g"] == 4.1 and english["nutrition"]["kcal"] > 0
     assert answers["hi"].json()["name"] == "भिंडी"
     assert answers["hi"].json()["category"]["name"] == "सब्ज़ियाँ"
     assert answers["mr"].json()["step"]["label"] == "250 ग्रॅम"

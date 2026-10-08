@@ -66,6 +66,8 @@ class ProductData:
     # Other spellings people use: English ("lady finger") and Hinglish ("bhendi", "pyaaz").
     synonyms: tuple[str, ...] = field(default=())
     data_source: str = "real"
+    # Per 100 g (IFCT 2017), plus `unit_g` for products whose step is a piece or a bunch.
+    nutrition: dict[str, Any] | None = None
 
 
 async def save_category(session: AsyncSession, data: CategoryData) -> Category:
@@ -101,6 +103,8 @@ async def save_product(session: AsyncSession, data: ProductData) -> tuple[Produc
     product.shelf_life_h = data.shelf_life_h
     product.tags = list(data.tags)
     product.data_source = data.data_source
+    if data.nutrition is not None:
+        product.nutrition = data.nutrition
     await session.flush()
     await _rebuild_terms(session, product, data.synonyms)
     return product, created
