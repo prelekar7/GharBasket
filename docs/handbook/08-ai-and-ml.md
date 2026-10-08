@@ -132,7 +132,7 @@ sequenceDiagram
 - **Cold start:** a new household starts at its cohort prior. We measure how many weeks until error drops below a threshold.
 - **Metrics:** quantity MAE (kg), calibration of 80% intervals, "ran out / wasted" rate. Baseline: a family-size rule table.
 - **Fallback:** rule table (family size → kg/week per category).
-- **Status (5 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` (SciPy percentiles) with the same closed form in the gateway's fallback; M3 drafts daily-use items from it after a household's first locked box; the eval harness scores it next to the rule table and a running mean (`just eval`). The NumPyro cohort refit is v1 (P4).
+- **Status (7 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` with Negative Binomial predictive intervals (SciPy) and the same closed form in the gateway's fallback. v0 covers the perishable daily-use items only (milk, curd) and learns their daily-use share (delivered minus the week's recipe need); staples stay on the rule table until v1 models stock. M3 drafts from it only with `PANTRY_TWIN_ENABLED` on, which stays off until the eval target holds; the eval harness scores it on that scope next to the rule table and a running mean, with 80 % interval coverage (`just eval`). The NumPyro cohort refit is v1 (P4).
 
 ### M-B Next-basket candidate ranker
 - **Candidates:** TIFU-KNN personal and neighbour repeat items ∪ meal-plan ingredients ∪ seasonal/festival items.
@@ -212,7 +212,7 @@ sequenceDiagram
 
 ---
 
-## 8.5 Evaluation protocol (`backend/ml/eval/`)
+## 8.5 Evaluation protocol (`backend/training/src/gharbasket_training/eval/`)
 
 | Algorithm | Protocol | Primary metric | Baselines |
 |---|---|---|---|
@@ -223,7 +223,7 @@ sequenceDiagram
 | Routing (M-F) | Fixed-seed benchmark set | ₹/order, km/order, on-time % | One trip per order, nearest-neighbour |
 | Fair assignment (M-G) | λ-sweep on simulated weeks | Gini vs cost Pareto curve | Greedy nearest kitchen |
 
-`just eval` runs every protocol and produces a marimo HTML report with paper-ready figures and tables. Figures are versioned with the model version that produced them.
+`just eval` runs every protocol and writes a report to `docs/eval/<date>-<commit>` (HTML and JSON) and rows to `intel.model_metrics`, each with the simulator version and the sha256 of the cohorts file and the seed catalog. v0 reports are HTML tables: the planner arms against each baseline as per-seed paired differences (mean ± 95 % t-CI, acceptance first) and hard rules re-checked with `planner.check()`; the paper-ready marimo figures come later. Figures are versioned with the model version that produced them.
 
 **Pre-registered targets (hypotheses, 4 Oct 2026; the full protocol, seeds, ablations and change log are in [`docs/research/eval-protocol.md`](../research/eval-protocol.md)):**
 

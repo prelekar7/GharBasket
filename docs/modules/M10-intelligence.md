@@ -112,28 +112,32 @@ Every new field is optional; a request without them is a v0 request and gets a v
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
 ### 3.3 `POST /pantry/quantities` (v0, the pantry twin; M-A)
-How much of each item a household goes through in a week, with an 80 % interval. Stateless: the gateway sends the cohort prior and the household's observations; `intel_gateway.fallback.pantry_quantities` computes the same mean with a normal interval when the service is unreachable.
+How much of a perishable daily-use item (milk, curd) a household goes through in a week, beyond what the week's recipes need, with an 80 % interval for next week's use. Stateless: the gateway sends the cohort prior and the household's observations; `intel_gateway.fallback.pantry_quantities` computes the same mean with a normal interval when the service is unreachable.
 
 ```
   request:
     "items": [ { "product": "milk", "step": 500,            base units in one step (the count unit)
-                 "prior_mean": 1400, "prior_weeks": 2,      the cohort's weekly use (the rule table today) and its weight
+                 "prior_mean": 1400, "prior_weeks": 2,      the cohort's weekly daily use (the rule table today) and its weight
                  "observations": [ { "qty": 1500, "signal": "ran_out" | "wasted" | "just_right" | null } ] } ]
-                                                            the last 12 locked boxes' quantities and taps, oldest first
+                                                            the last 12 locked boxes' daily-use shares and taps, oldest first
   200:
     "items": [ { "product", "mean", "p10", "p90", "weeks_observed", "alpha", "beta" } ],
     "model": "pantry-gamma-poisson-v0"
 ```
-- **Model:** Gamma prior on the weekly rate (mean `prior_mean`, weight `prior_weeks`); each observed week adds the box's quantity in steps, corrected by the tap (ran out ×1.3, wasted ×0.7); the posterior is Gamma(α₀ + Σ counts, β₀ + weeks); `mean` is what the box carries, `p10`/`p90` the interval (SciPy's Gamma percentiles in the service, a normal approximation in the fallback).
-- **Use (M3 §3.1 step 2):** for the daily-use items, once a household has one locked box, the twin's `mean` replaces the rule table's quantity (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`); the rule table alone drafts the first boxes. Recorded in `intel.predictions` (kind `pantry`).
-- **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training`; the formulas here stay.
+- **Observation:** a locked box's daily-use share: the delivered quantity minus that week's planned recipes' need for the product (computed as the draft computes it, from the cycle's `meal_plan`), never below 0. The twin learns daily use only; the recipes come on top in the draft, so it cannot feed back on itself.
+- **Model:** Gamma prior on the weekly rate (mean `prior_mean`, weight `prior_weeks`); each observed week adds its share in steps, corrected by the tap (ran out ×1.3, wasted ×0.7); the posterior is Gamma(α₀ + Σ counts, β₀ + weeks). `mean` = α/β × step. `p10`/`p90` are for next week's use: the posterior predictive is Negative Binomial (r = α, p = β/(β+1)) in steps, scaled by the step (SciPy percentiles in the service; in the fallback a normal approximation with mean α/β and variance α(β+1)/β²).
+- **Scope (v0):** perishable daily-use items only (shelf life ≤ 96 h, the catalog's perishability line: milk and curd today). A staple carries over in the cupboard, so what a box delivers says little about a week's use; staples stay on the rule table until v1 models stock.
+- **Use (M3 §3.1 step 2):** only with `PANTRY_TWIN_ENABLED=true` (default off). Then, once a household has one locked box, the twin's `mean` replaces the rule table's daily-use quantity of milk and curd, and that week's recipe need is added on top (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`). Recorded in `intel.predictions` (kind `pantry`). The weekly job uses it; the customer-facing preview (`GET /v1/cycles/preview`) does not, so it waits on one ML call at most. It is switched on only once the eval harness shows the pre-registered target holds (MAE ≤ 15 % after 4 weeks, `just eval` prints it).
+- **Eval:** scored on the same scope (milk and curd, their daily-use share) next to the rule table and a running mean of the actual daily use, with the 80 % interval's coverage.
+- **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training` and models stock, so staples can join; the formulas here stay.
 
-### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
+### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**
   - the seed world from `just seed` (hub, societies, catalog, prices, festival calendar), read through the catalog services;
   - the cohorts in `data/simulator/cohorts.json` (assumptions for Rhythm and Manish to review);
-  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026), `--planner cpsat|rules` and `--adoption` (share of flats, default 0.1).
+  - the price episodes in `data/simulator/shocks.json` (also assumptions);
+  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026; prices are the hub's list on that day), `--planner cpsat|rules`, `--adoption` (share of flats, default 0.1) and `--no-shocks`.
 - **Households:**
   - sampled per seed society with a hub, using cohort size, diet, Jain, cuisines, fasts, a diabetic elder (with health consent), cook time, no-cook Sunday and Budget Lock;
   - onboarded through M1's `create_household` with `data_source='synthetic'`;
@@ -144,9 +148,15 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
   - **Accept or edit:** each planned dish is accepted with probability sigmoid(accept bias + taste). Otherwise it is swapped for the household's favourite dish allowed under the same hard rules, and a fasting dish is only swapped for another fasting dish.
   - **Skip:** a skipped week means no box; the family still cooks.
   - **Consumption:** the cooked dishes' ingredients × adult equivalents, plus latent daily-use items (milk, atta, oil, salt, curd, fruit) with weekly noise.
+  - **Box (v1a):** drafted like M3's `lines_from_plan` (planned dishes' non-optional ingredients plus the rule table plus two fruits, summed per product, less the staples the pantry still holds, in steps at the week's prices). The household then edits it, each edit with a reason:
+    - `taste`: lines follow the dishes it cooks (keeping the rule share), and sometimes a liked fruit is added;
+    - `stock`: the most over-stocked staples are removed or reduced;
+    - `price`: a spiked item is swapped for a same-category, same-unit product that is cheaper per unit and in total, or halved. The substitute is cooked in place of the original.
+  - **Pantry (v1a):** the box is delivered into a pantry and the cooking draws it down. Shortfalls are bought elsewhere. Perishables left at the end of the week are waste, and staples are waste once past their shelf life. On some items the household taps *ran out*, *wasted* or *just right* (cohort `feedback_rate`).
 - **Output:** Parquet ground truth in `data/sim_truth/seed-<n>/` (git-ignored):
   - `households`, `daily_use` and `taste` (the latent truth);
-  - `weeks`, `meals` and `consumption` (behaviour), with columns as in `gharbasket_sim/truth.py`;
+  - `weeks`, `meals` and `consumption` (behaviour);
+  - `boxes`, `box_lines`, `edits`, `pantry` and `prices` (v1a), with columns as in `gharbasket_sim/truth.py`;
   - `manifest.json`.
   The weeks reach the database through M3/M4 once those exist.
 - **Guarantees (tested):**

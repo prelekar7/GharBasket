@@ -9,6 +9,8 @@ from gharbasket_sim import config, pantry
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.weeks import cpsat_planner, simulate
 
+from gharbasket.modules.subscriptions import rules
+
 from .test_weeks import households, pick
 
 MONDAY = date(2026, 10, 5)
@@ -137,3 +139,142 @@ def test_a_week_writes_boxes_lines_edits_and_pantry_rows(catalog: Catalog) -> No
     }
     delivered_weeks = {row["week"] for row in rows.pantry if row["delivered"] > 0}
     assert delivered_weeks == {b["week"] for b in rows.boxes if b["ordered"]}
+
+
+def test_a_swap_is_same_unit_cheaper_in_total_and_is_cooked(catalog: Catalog) -> None:
+    h = households(catalog)[0]
+    onion = pantry.weekly_prices(catalog, shocks(onion=1.5), 0)
+    line = next(
+        line
+        for line in pantry.draft_box(h, catalog, ["dal-tadka"] * 7, onion)
+        if line.product == "onion"
+    )
+    # ginger is dearer per gram than onion even at 1.5x: no 2 kg of ginger for the onion
+    found = pantry.cheaper_substitute(catalog, line, onion)
+    assert found is None or found[0].slug != "ginger"
+
+    for slug, product in sorted(catalog.products.items()):
+        spiked = pantry.weekly_prices(catalog, shocks(**{slug: 2.0}), 0)
+        price = pantry.price_of(product, spiked)
+        if price is None:
+            continue
+        original = pantry.Line(slug, 3, product.step, price, "meal_plan", "ai")
+        found = pantry.cheaper_substitute(catalog, original, spiked)
+        if found is None:
+            continue
+        other, swapped = found
+        assert other.unit == product.unit and other.category == product.category
+        assert swapped.unit_price_paise / swapped.step < price / product.step
+        assert swapped.total_paise < original.total_paise
+        assert swapped.base_units >= original.base_units and swapped.replaces == slug
+
+    cupboard = pantry.Pantry()
+    leaves = catalog.products["curry-leaves"]
+    pantry.deliver(
+        cupboard,
+        [
+            pantry.Line(
+                "curry-leaves",
+                3,
+                leaves.step,
+                1000,
+                "swapped_by_you",
+                "customer",
+                replaces="coriander",
+            )
+        ],
+    )
+    rows = pantry.consume(
+        random.Random(1),
+        cupboard,
+        catalog,
+        {"coriander": 2.0},
+        {"curry-leaves": 3.0},
+        feedback_rate=1.0,
+        stand_ins={"coriander": "curry-leaves"},
+    )
+    by_product = {row["product"]: row for row in rows}
+    assert "coriander" not in by_product  # none bought elsewhere: the substitute was cooked
+    assert by_product["curry-leaves"]["used"] == 2.0
+    assert by_product["curry-leaves"]["wasted"] == 1.0  # perishable: the spare bunch
+
+
+def test_a_daily_use_ingredient_gets_the_recipe_and_the_daily_quantity(catalog: Catalog) -> None:
+    h = households(catalog)[0]
+    flat = pantry.weekly_prices(catalog, None, 0)
+    curd = catalog.products["curd"]
+    daily = rules.daily_use_plan(h.adult_equivalents)["curd"]
+    recipe = 7 * 100 * h.adult_equivalents  # gujarati kadhi every day: 100 g a serving
+
+    drafted = pantry.draft_box(h, catalog, ["gujarati-kadhi"] * 7, flat)
+
+    line = next(line for line in drafted if line.product == "curd")
+    assert line.qty == pantry.steps(curd, recipe + daily)
+    assert line.reason == "daily_use" and line.source == "rule"  # as M3's lines_from_plan
+    assert len({line.product for line in drafted}) == len(drafted)  # one line a product
+
+    final, edits = pantry.edit_box(
+        random.Random(1),
+        h,
+        catalog,
+        drafted,
+        planned=["gujarati-kadhi"] * 7,
+        cooked=["dal-tadka"] * 7,  # every kadhi swapped away: only the daily curd is left
+        pantry=pantry.Pantry(),
+        factor=flat,
+        price_sensitivity=0.0,
+    )
+    kept = next(line for line in final if line.product == "curd")
+    assert kept.qty == pantry.steps(curd, daily)
+    assert not any(e["product"] == "curd" for e in edits)
+
+
+def test_a_stock_edit_is_recorded_only_when_the_quantity_changes(catalog: Catalog) -> None:
+    h = households(catalog)[0]
+    flat = pantry.weekly_prices(catalog, None, 0)
+    sugar = catalog.products["sugar"]
+    for seed in range(40):
+        cupboard = pantry.Pantry()
+        cupboard.stock["sugar"] = 1.5 * sugar.step  # one spare step: keep at least one
+        line = pantry.Line("sugar", 1, sugar.step, 5000, "daily_use", "rule")
+        final, edits = pantry.edit_box(
+            random.Random(seed),
+            h,
+            catalog,
+            [line],
+            planned=[],
+            cooked=[],
+            pantry=cupboard,
+            factor=flat,
+            price_sensitivity=0.0,
+        )
+        sugar_edits = [e for e in edits if e["product"] == "sugar"]
+        assert all(e["action"] == "removed" for e in sugar_edits)
+        if not sugar_edits:
+            assert any(f.product == "sugar" and f.qty == 1 for f in final)
+
+
+def test_staples_carry_over_within_their_shelf_life(catalog: Catalog) -> None:
+    salt, tomato = catalog.products["salt"], catalog.products["tomato"]
+    assert not tomato.perishable and (tomato.shelf_life_h or 0) < pantry.WEEK_H
+    cupboard = pantry.Pantry()
+    pantry.deliver(
+        cupboard,
+        [
+            pantry.Line("salt", 1, salt.step, 2500, "daily_use", "rule"),
+            pantry.Line("tomato", 1, tomato.step, 4000, "meal_plan", "ai"),
+        ],
+    )
+    first = pantry.consume(
+        random.Random(1),
+        cupboard,
+        catalog,
+        {},
+        {"salt": salt.step, "tomato": tomato.step},
+        feedback_rate=0.0,
+    )
+    assert {row["product"]: row["wasted"] for row in first} == {"salt": 0, "tomato": tomato.step}
+    for _ in range(6):  # salt keeps for two years, not three weeks
+        rows = pantry.consume(random.Random(1), cupboard, catalog, {}, {}, feedback_rate=0.0)
+        assert all(row["wasted"] == 0 for row in rows)
+    assert cupboard.stock["salt"] == salt.step
