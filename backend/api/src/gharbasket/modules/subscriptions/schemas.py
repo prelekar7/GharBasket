@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import date, datetime, time
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -137,6 +137,74 @@ class BudgetLockOut(BaseModel):
     budget_paise: int
     spent_paise: int
     remaining_paise: int
+
+
+class BudgetLockIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", examples=["2026-10"])
+    budget_paise: int | None = Field(
+        default=None, ge=50_000, description="At least ₹500; null switches the lock off"
+    )
+
+
+class LineRemoveOp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["remove"]
+    product_id: uuid.UUID
+
+
+class LineAddOp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["add"]
+    product_id: uuid.UUID
+    qty: int = Field(ge=1, le=20, description="Steps")
+
+
+class LineQtyOp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["qty"]
+    product_id: uuid.UUID
+    qty: int = Field(ge=1, le=20, description="Steps")
+
+
+class LineSubstituteOp(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    op: Literal["substitute"]
+    product_id: uuid.UUID
+    substitute_id: uuid.UUID = Field(description="From GET /v1/products/{id}/substitutes")
+
+
+LineOp = Annotated[
+    LineRemoveOp | LineAddOp | LineQtyOp | LineSubstituteOp, Field(discriminator="op")
+]
+
+
+class LinesPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ops: list[LineOp] = Field(min_length=1, max_length=20, description="Applied in order")
+
+
+class FeedbackItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: uuid.UUID
+    signal: Literal["ran_out", "wasted", "just_right"]
+
+
+class FeedbackIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[FeedbackItem] = Field(min_length=1, max_length=50)
+
+
+class FeedbackOut(BaseModel):
+    recorded: int
 
 
 class CaptainOut(BaseModel):
