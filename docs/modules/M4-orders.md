@@ -226,7 +226,7 @@ A `damaged` issue without a photo is still accepted (201) and is never rejected 
 | `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
-| `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
+| `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
 | `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
 
 ## 5. Events

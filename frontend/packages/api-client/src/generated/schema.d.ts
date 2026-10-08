@@ -675,6 +675,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orders/{order_id}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Problems reported on an order, newest first (the owner, or hub staff) */
+        get: operations["list_issues_v1_orders__order_id__issues_get"];
+        put?: never;
+        /** Report a problem with a delivery (Idempotency-Key); auto-credit or triage */
+        post: operations["report_issue_v1_orders__order_id__issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/payments/webhook/razorpay": {
         parameters: {
             query?: never;
@@ -1697,6 +1715,137 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** IssueIn */
+        IssueIn: {
+            /**
+             * Items
+             * @description Required for missing, damaged, quality and wrong_item; lines of this order
+             */
+            items?: components["schemas"]["IssueItemIn"][] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /** Note */
+            note?: string | null;
+            /**
+             * Photo Keys
+             * @description Keys from POST /v1/files/presign (purpose order_issue_photo)
+             */
+            photo_keys?: string[];
+        };
+        /** IssueItemIn */
+        IssueItemIn: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps, at most what was delivered
+             * @example 1
+             */
+            qty: number;
+        };
+        /** IssueItemOut */
+        IssueItemOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit Price Paise
+             * @description The line's paid price per step
+             */
+            unit_price_paise: number;
+        };
+        /** IssueOut */
+        IssueOut: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Photo Count */
+            photo_count: number;
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssueResolution */
+        IssueResolution: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "auto" | "hub";
+            /** Note */
+            note: string | null;
+        };
+        /** IssuesOut */
+        IssuesOut: {
+            /** Items */
+            items: components["schemas"]["IssueOut"][];
         };
         /** JobOut */
         JobOut: {
@@ -5988,6 +6137,160 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_issues_v1_orders__order_id__issues_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    report_issue_v1_orders__order_id__issues_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_window_closed, orders.too_many_issues */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_kind_invalid, orders.issue_items_required, orders.issue_item_unknown (with product_ids), orders.issue_qty_invalid, orders.photo_key_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable (only when photo_keys are sent) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

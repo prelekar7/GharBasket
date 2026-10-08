@@ -1,19 +1,21 @@
-"""Facade of M4 Orders & Checkout: the only module other modules may import (spec §3.1).
+"""Facade of M4 Orders & Checkout: the only module other modules may import (spec §3.1, §3.2).
 
 - M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip.
 - The cut-off job and M6/M7 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
+- The M12 console resolves open issues with `resolve_issue`.
 """
 
 import uuid
 from dataclasses import dataclass
 from datetime import time
+from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.orders import service
+from gharbasket.modules.orders import issues, service
 from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED
-from gharbasket.modules.orders.models import Order, OrderLine
+from gharbasket.modules.orders.models import Order, OrderIssue, OrderLine
 from gharbasket.modules.orders.service import (
     ApprovedCycle,
     CycleLine,
@@ -30,6 +32,7 @@ __all__ = [
     "ApprovedCycle",
     "CycleLine",
     "Order",
+    "OrderIssue",
     "OrderLine",
     "OrderSummary",
     "SlotRef",
@@ -39,6 +42,7 @@ __all__ = [
     "get",
     "mark_shortage",
     "orders_for_delivery",
+    "resolve_issue",
     "slot_ref",
     "transition",
 ]
@@ -101,3 +105,17 @@ async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
     return SlotRef(
         slot.id, slot.hub_id, slot.label, slot.kind, slot.start_time, slot.end_time, slot.active
     )
+
+
+async def resolve_issue(
+    session: AsyncSession,
+    issue_id: uuid.UUID,
+    outcome: Literal["credit", "reject"],
+    credit_paise: int,
+    actor: uuid.UUID,
+    note: str | None = None,
+) -> OrderIssue:
+    """The M12 console's triage of an open issue (§3.2): refund `credit_paise` to the wallet
+    (at most the issue's amount, or the order total for late/other) or reject it. The caller has
+    checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit` is raised as is."""
+    return await issues.resolve(session, issue_id, outcome, credit_paise, actor, note)
