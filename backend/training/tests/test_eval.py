@@ -240,6 +240,48 @@ def test_the_pantry_metric_is_mae_over_weekly_quantity_with_zero_weeks_kept(
     assert run.cold_start == pytest.approx([(1.0 + 0) / 2, (1.5 + 0) / 2])
 
 
+def test_the_learned_priors_reference_arm_learns_on_another_seed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from gharbasket_training import pantry_priors
+
+    monkeypatch.setattr(pantry_priors, "WARMUP", 100)
+    monkeypatch.setattr(pantry_priors, "SAMPLES", 100)
+    catalog, start = from_seed_files(), date(2026, 10, 5)
+    assert cli.learned_from(7, None) == 11 and cli.learned_from(19, None) == 7
+    assert cli.learned_from(5, None) == 6 and cli.learned_from(7, 7) == 11  # never itself
+    assert cli.learned_from(7, 13) == 13
+
+    priors = pantry_baseline.learned_priors(11, catalog, weeks=3, start=start, adoption=0.02)
+
+    assert priors and {product for _, product in priors} <= {"milk", "curd"}
+    assert all(p.prior_mean_per_ae > 0 for p in priors.values())
+    with pytest.raises(ValueError, match="another seed"):
+        pantry_baseline.run_pantry(
+            11, catalog, weeks=3, start=start, adoption=0.02, priors=priors, learned_from=11
+        )
+    run = pantry_baseline.run_pantry(
+        7, catalog, weeks=3, start=start, adoption=0.02, priors=priors, learned_from=11
+    )
+    assert run.learned_from == 11 and len(run.twin_learned) == 2
+    assert all(0 < e < 1 for e in run.twin_learned)
+
+    built = report.build([], [run], args={"weeks": 3})
+    scope = built["pantry"]["twin_scope"]
+    assert len(scope["twin_learned_mae"]) == 2 and scope["learned_from"] == {7: 11}
+    # Reference only: the M-A target stays on the twin v0 with the rule prior.
+    assert built["pantry"]["target_mae_le_15pct_after_4_weeks"]["estimator"].startswith(
+        "pantry_twin_v0"
+    )
+    rows = [
+        r for r in report.metrics_rows(built) if r["model_name"] == "pantry_twin_learned_priors"
+    ]
+    assert [r["metric"] for r in rows] == ["mae_pct_week_1", "mae_pct_week_2"]
+    assert all(r["details"]["reference_only"] for r in rows)
+    html_path, _ = report.write(built, tmp_path)
+    assert "learned priors (reference)" in html_path.read_text()
+
+
 @pytest.mark.anyio
 async def test_metrics_are_pushed_through_the_api() -> None:
     received: dict = {}
