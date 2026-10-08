@@ -251,15 +251,22 @@ async def test_learned_cohort_priors_replace_the_rule_table_in_the_twin(
     assert household is not None
     profile = await identity_api.household_plan_profile(db_session, household.id)
     assert profile is not None
-    cohort = rules.cohort_of(rules.adult_equivalents([Member(m) for m in profile.member_age_bands]))
-    # A prior far above what the box carried, with a heavy weight: the mean must move up.
-    huge = milk["qty"] * 500.0 * 3
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    cohort = rules.cohort_of(equivalents)
+    # A prior far above what the box carried, with a heavy weight: the mean must move up. The
+    # stored prior is per adult equivalent; M3 multiplies it by the household's equivalents.
+    huge = milk["qty"] * 500.0 * 3 / equivalents
     stored = await api.post(
         "/v1/internal/intel/pantry-priors",
         json={
             "version": "2026-10-05",
             "items": [
-                {"cohort": cohort, "product": "milk", "prior_mean": huge, "prior_weeks": 20.0}
+                {
+                    "cohort": cohort,
+                    "product": "milk",
+                    "prior_mean_per_ae": huge,
+                    "prior_weeks": 20.0,
+                }
             ],
         },
     )
@@ -283,4 +290,6 @@ async def test_learned_cohort_priors_replace_the_rule_table_in_the_twin(
     assert (
         milk_line.reason_params["prior"] == "learned" and curd_line.reason_params["prior"] == "rule"
     )
-    assert milk_line.reason_params["mean"] > milk["qty"] * 500.0 * 2
+    # (20 weeks x 3 boxes + one week's share) / 21 weeks >= 2.85 boxes: only when the prior
+    # was scaled back up by the household's equivalents.
+    assert milk_line.reason_params["mean"] >= milk["qty"] * 500.0 * 2.85
