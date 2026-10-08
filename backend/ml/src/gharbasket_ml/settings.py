@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # until the S8 evaluation); unset key: /assistant/turn answers 503 and the API says so.
     anthropic_api_key: SecretStr | None = None
     assistant_model: str = "claude-opus-5-5"
+    # One Anthropic request may take this long (one retry); the whole turn (up to four rounds)
+    # this long, below the API's ASSISTANT_TIMEOUT_S (30 s), so the API never waits on a turn
+    # this service has already given up on.
+    assistant_request_timeout_s: float = Field(default=12.0, gt=0, le=60)
+    assistant_turn_timeout_s: float = Field(default=25.0, gt=0, le=110)
     # How long /route/solve waits for OSRM's table before it prices with haversine instead. The
     # API's gateway allows time_limit_s plus ML_ROUTE_OVERHEAD_S (6 s), which must cover this.
     osrm_timeout_s: float = Field(default=2.5, gt=0, le=5)

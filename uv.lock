@@ -699,7 +699,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.80" },
+    { name = "anthropic", specifier = ">=1" },
     { name = "fastapi", specifier = ">=0.142.2" },
     { name = "httpx2", specifier = ">=2.13.1" },
     { name = "lightgbm", specifier = ">=4.5" },
