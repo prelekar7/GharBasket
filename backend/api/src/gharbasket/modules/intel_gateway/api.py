@@ -63,7 +63,15 @@ async def plan_week(
     With `session`, `household_id` and `week_monday` the answer is also kept in
     `intel.predictions` (kind `weekly_plan`, source `ml` or `fallback`); the caller commits.
     """
-    plan = await _plan_week(http, settings, request)
+    plan = await _call(
+        http,
+        settings,
+        "/plan/week",
+        request.model_dump(mode="json") | {"time_limit_s": _solver_budget(settings, request)},
+        parse=lambda body: WeekPlan.model_validate({**body, "source": "ml"}),
+        fallback_to=lambda: fallback.plan_week(request),
+        call="plan_week",
+    )
     if session is not None and household_id is not None and week_monday is not None:
         await service.record_prediction(
             session,
@@ -123,6 +131,8 @@ async def _call[T](
     fallback_to: Callable[[], T],
     call: str,
 ) -> T:
+    """POST `body` to the ML service at `path` within `ml_timeout_s` and `parse` the answer; on
+    no service, a timeout, an HTTP error or a malformed body, `fallback_to()` answers instead."""
     if not settings.ml_service_url:
         return fallback_to()
     headers = {}
@@ -140,32 +150,16 @@ async def _call[T](
         )
         response.raise_for_status()
         return parse(response.json())
-    except (httpx2.HTTPError, ValueError) as exc:
+    except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
         log.warning("ml_fallback", call=call, reason=type(exc).__name__)
         return fallback_to()
 
 
-async def _plan_week(
-    http: httpx2.AsyncClient, settings: Settings, request: PlanRequest
-) -> WeekPlan:
-    if not settings.ml_service_url:
-        return fallback.plan_week(request)
-    headers = {}
-    if settings.ml_service_token is not None:
-        headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
-    request_id = structlog.contextvars.get_contextvars().get("request_id")
-    if request_id:
-        headers["X-Request-ID"] = str(request_id)
-    try:
-        response = await http.post(
-            f"{settings.ml_service_url.rstrip('/')}/plan/week",
-            json=request.model_dump(mode="json"),
-            headers=headers,
-            timeout=settings.ml_timeout_s,
-        )
-        response.raise_for_status()
-        answer = response.json()
-        return WeekPlan.model_validate({**answer, "source": "ml"})
-    except (httpx2.HTTPError, ValueError) as exc:
-        log.warning("ml_fallback", call="plan_week", reason=type(exc).__name__)
-        return fallback.plan_week(request)
+# The solver gets at most this share of the HTTP timeout; the rest covers the network, the
+# model build and the JSON both ways, so a slow solve still answers before the gateway gives up.
+SOLVER_SHARE_OF_TIMEOUT = 0.5
+
+
+def _solver_budget(settings: Settings, request: PlanRequest) -> float:
+    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
+    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))

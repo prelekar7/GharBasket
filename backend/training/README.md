@@ -12,7 +12,7 @@ uv run --directory backend/training pytest --cov
 | Job | Schedule | What it does |
 |---|---|---|
 | `eval` | by hand (`workflow_dispatch` job `eval`) and `just eval` locally | The evaluation harness (docs/research/eval-protocol.md): planner A/B and the pantry baseline over five simulator seeds, an HTML + JSON report in `docs/eval`, rows to `POST /v1/internal/intel/model-metrics` |
-| `export_snapshots` | daily 02:03 IST (Actions) | The module tables to `snapshots/date=<day>/` in the lake (no personal data, typed columns) and the point-in-time household features as of the run to `intel.feature_snapshots` (`--push-features`); reads the database with `DATABASE_URL_RO` |
+| `export_snapshots` | daily 02:03 IST (Actions) | The module tables to `snapshots/date=<day>/` in the lake (`<day>`: the IST day; rows created before its end; no personal data; one fixed schema per table; `--day` backfills a past day) and the point-in-time household features as of the latest order cut-off (21:00 IST the evening before the run) to `intel.feature_snapshots` (`--push-features`); reads the database with `DATABASE_URL_RO` in one read-only transaction |
 | `collect_mandi` | daily 18:33 IST (Actions) | Pulls today's wholesale prices for Maharashtra markets from data.gov.in (Agmarknet), maps commodities to our product slugs, writes `external/mandi/date=<day>/maharashtra.parquet` to the lake, and pushes a 4-week price index per product to `POST /v1/internal/intel/price-index` |
 
 The data.gov.in resource keeps no history, so this collector is the history: it has run every day since 4 Oct 2026. The 2019–2025 bulk history (India Data Portal) is imported separately in January (forecast v0).

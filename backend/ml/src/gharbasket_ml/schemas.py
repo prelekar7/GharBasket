@@ -85,7 +85,12 @@ class PlanRequest(BaseModel):
     household: HouseholdRules
     fasting_days: list[FastingDay] = Field(default_factory=list, max_length=7)
     recipes: list[RecipeIn] = Field(min_length=1, max_length=500)
-    time_limit_s: float = Field(default=2.0, ge=0.1, le=5.0)
+    time_limit_s: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=5.0,
+        description="Solver wall-clock budget for the whole request, every relaxation included",
+    )
     weights: Weights | None = Field(default=None, description="v1; evaluation ablations only")
 
 
@@ -105,7 +110,9 @@ class Score(BaseModel):
     variety: int
     perishables: int
     cost_paise: int
-    nutrition: float | None = Field(default=None, description="v1: share of days within ±20 %")
+    nutrition: float | None = Field(
+        default=None, description="v1: share of cooking days within ±20 % (no-cook days left out)"
+    )
     price_penalty: float | None = Field(default=None, description="v1: sum of chosen price spikes")
 
 
@@ -126,7 +133,11 @@ Tap = Literal["ran_out", "wasted", "just_right"]
 class PantryObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    qty: float = Field(ge=0, description="What the week's box carried, in base units")
+    qty: float = Field(
+        ge=0,
+        description="The week's daily-use share in base units: what the box delivered minus "
+        "what that week's planned recipes needed",
+    )
     signal: Tap | None = Field(default=None, description="The household's tap for that week")
 
 
@@ -149,8 +160,8 @@ class PantryRequest(BaseModel):
 class PantryItemOut(BaseModel):
     product: str
     mean: float = Field(description="Weekly use to plan for, in base units")
-    p10: float
-    p90: float
+    p10: float = Field(description="Next week's use, 10th percentile (posterior predictive)")
+    p90: float = Field(description="Next week's use, 90th percentile (posterior predictive)")
     weeks_observed: int
     alpha: float
     beta: float
