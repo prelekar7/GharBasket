@@ -1,7 +1,7 @@
 """identity: data_exports, one "download my data" request per user per IST day (M1 §3.3, §4)
 
 Revision ID: 369ca2cead7f
-Revises: 467e2558d5bf
+Revises: 5b0e8d3c71a4
 Create Date: 2026-10-08 06:50:54.337238+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "369ca2cead7f"
-down_revision: str | Sequence[str] | None = "467e2558d5bf"
+down_revision: str | Sequence[str] | None = "5b0e8d3c71a4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
