@@ -8,3 +8,6 @@ for role in ("packer", "rider", "hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "orders:read")
 PERMISSIONS.allow("hub_manager", "slots:write")
 PERMISSIONS.allow("admin", "slots:write")
+# Triage of open issues (§3.2) in the M12 console, through orders.api.resolve_issue.
+PERMISSIONS.allow("hub_manager", "order_issues:resolve")
+PERMISSIONS.allow("admin", "order_issues:resolve")

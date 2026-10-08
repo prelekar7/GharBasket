@@ -26,7 +26,7 @@ from gharbasket.modules.notifications.router import router as notifications_rout
 from gharbasket.modules.orders.router import router as orders_router
 from gharbasket.modules.partners.router import router as partners_router
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
-from gharbasket.platform import health, jobs, openapi, outbox
+from gharbasket.platform import files, health, jobs, openapi, outbox
 from gharbasket.platform.db import create_engine, create_sessionmaker
 from gharbasket.platform.errors import register_error_handlers
 from gharbasket.platform.idempotency import REPLAY_HEADER, register_idempotency
@@ -69,6 +69,7 @@ def _lifespan(settings: Settings):
         app.state.engine = engine
         app.state.sessionmaker = create_sessionmaker(engine) if engine else None
         app.state.valkey = valkey
+        app.state.storage = files.create_store(settings)
         # Outbound HTTP (Google's Firebase keys now; Razorpay later): short timeouts.
         http = httpx2.AsyncClient(timeout=httpx2.Timeout(5.0))
         app.state.http = http
@@ -123,6 +124,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     v1 = APIRouter(prefix=API_PREFIX)
     v1.include_router(health.router)
     v1.include_router(jobs.router)
+    v1.include_router(files.router)
     for module_router in MODULE_ROUTERS:
         v1.include_router(module_router)
     app.include_router(v1)
