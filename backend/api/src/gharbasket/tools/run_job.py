@@ -14,6 +14,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.platform.db import create_engine, is_local_database
+from gharbasket.platform.files import create_store
 from gharbasket.platform.jobs import JOBS, run_job
 from gharbasket.platform.settings import DatabaseSettings, Settings
 
@@ -25,7 +26,13 @@ async def run(database_url: str, name: str, scheduled_for: datetime | None) -> i
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            result = await run_job(session, name, settings=settings, scheduled_for=scheduled_for)
+            result = await run_job(
+                session,
+                name,
+                settings=settings,
+                scheduled_for=scheduled_for,
+                storage=create_store(settings),
+            )
     finally:
         await engine.dispose()
     print(json.dumps({"status": result.status, "summary": result.summary, "error": result.error}))

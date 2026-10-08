@@ -11,8 +11,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 
+from gharbasket.modules.identity import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.identity import service
+from gharbasket.modules.identity.exports import router as exports_router
 from gharbasket.modules.identity.firebase import FirebaseTokenVerifier
 from gharbasket.modules.identity.household_router import router as household_router
 from gharbasket.modules.identity.models import LoginSession, User, UserRole
@@ -246,6 +248,7 @@ async def _signed_in_user(principal: CurrentPrincipal, session: DbSession) -> Us
 
 
 SignedInUser = Annotated[User, Depends(_signed_in_user)]
+router.include_router(exports_router, dependencies=[Depends(_signed_in_user)])
 
 
 async def _roles(session: DbSession, user_id: uuid.UUID) -> list[RoleOut]:
