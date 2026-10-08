@@ -29,6 +29,7 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | GET / PATCH | `/v1/me` | Authenticated | — | Name, locale, senior mode |
 | GET | `/v1/me/roles` | Authenticated | — | Roles with scope and status |
 | GET / DELETE | `/v1/me/devices`, `/v1/me/devices/{id}` | Authenticated | — | |
+| PUT | `/v1/me/push-token` | Authenticated | — | `{push_token: string \| null}` → 204: sets or clears the FCM token of the calling session; contract in M11 §3.1 |
 | POST | `/v1/households` | customer | Required | Onboarding in one call: household, members, address and consents in one transaction (§3.2). One per owner (v1) |
 | GET | `/v1/households/me` | customer | — | The caller's household, or 404 `identity.household_not_found` |
 | GET / PATCH | `/v1/households/{id}` | owner, hub_manager (read) | — | `ETag` / `If-Match` on `version` |
@@ -162,7 +163,7 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 - **Jain.** A Jain member (`fasting_rules.jain`) requires `diet = "veg"`.
 - **Consent purposes.** These follow handbook 13 §DPDP:
   - `service_delivery` and `personalisation` are required for Autopilot; onboarding must grant both.
-  - `health_personalisation`, `marketing` and `research_anonymised` are optional opt-ins.
+  - `health_personalisation`, `marketing`, `research_anonymised` and `whatsapp` (updates on WhatsApp, M11 §3.1; added 2026-10-09) are optional opt-ins.
   - The current notice version is `v1` for every purpose. A version other than the current one is refused, so the app has to show the new notice.
 - **Granting and revoking.**
   - Granting inserts a row. Revoking sets `revoked_at` on the active row.
@@ -215,10 +216,11 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
 - `subscriptions`: the subscription, every cycle with its meal plan and lines, Budget Locks, edit and pantry feedback.
 - `orders`: orders with lines and timelines, and issues (the photos are counted, not included).
 - `billing`: wallet entries and top-ups (Razorpay ids only; no card or UPI details ever reach us).
-- Added by each module when it ships: notifications (M11), assistant conversations (M13), donations and referrals (M9), the partner application with masked KYC references (M8).
+- `notifications` (M11): inbox messages with event type, category, English text, dates and delivery status per channel (no push tokens).
+- Added by each module when it ships: assistant conversations (M13), donations and referrals (M9), the partner application with masked KYC references (M8).
 - Not included: tokens and secrets, uploaded files, the audit log, other people's data (captains, riders), and derived ML data (`intel.predictions`).
 
-**Delivery.** Until M11 ships, polling `GET` is the only path. After M11 the build job also sends a "your data is ready" notification that opens this screen; the notification never carries the link. Every request and every download link minted is audit-logged. `DELETE /v1/me` deletes pending exports and their files.
+**Delivery.** Until M11 ships, polling `GET` is the only path. After M11 the build job also publishes `identity.data_export_ready { export_id, user_id }`, which M11 turns into a "your data is ready" notification that opens Profile; the notification never carries the link. Every request and every download link minted is audit-logged. `DELETE /v1/me` deletes pending exports and their files.
 
 | Status | Code | When |
 |---|---|---|
@@ -243,7 +245,7 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
 | `identity.data_exports` | id, user_id, requested_on (IST date; unique with user_id), status (queued, building, ready, failed, expired), object_key (M0 `data_export`), size_bytes, attempts, error, requested_at, ready_at, expires_at |
 
 ## 5. Events
-**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`, `identity.data_export_requested` (`{export_id, user_id}`; M1's `build_data_export` job takes the queued row, and M11 consumes the event later).
+**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`, `identity.data_export_requested` (`{export_id, user_id}`; M1's `build_data_export` job takes the queued row), `identity.data_export_ready` (`{export_id, user_id}`, published by `build_data_export` when the file is written; M11 notifies).
 - `identity.household_created` `{household_id, owner_user_id, society_id, hub_id, size, budget_paise, data_source}`. M3 uses `budget_paise` to open the first Budget Lock; M9 recounts the society's unlock bar.
 - `identity.household_updated` `{household_id, version, changed: [field names]}`.
 - No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
@@ -252,7 +254,7 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
-| `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; notifies the user once M11 exists. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage; the event stays for M11 |
+| `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
 | `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
 | `purge_deleted_users` | Daily | Completes deletion after grace period |
 

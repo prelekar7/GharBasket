@@ -122,8 +122,9 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | When | Job | Module |
 |---|---|---|
 | T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_and_pre_debit_notices` | notify / billing |
-| T-1 19:00 | `remind_unapproved` | notify |
+| T-3 18:30 | `send_box_ready_notices` (publishes `subscriptions.box_ready`; M11 notifies) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder`) | subscriptions → notify |
+| every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
 | T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
@@ -151,7 +152,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact` |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
-| M11 notify | `/notifications` (inbox), `/preferences`, `/devices` |
+| M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
 | M12 analytics | `/analytics/*` (KPIs, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (SSE stream), `/assistant/confirm/{proposal}` |
 
@@ -183,7 +184,7 @@ flowchart LR
 | Integration | Purpose | Prototype mode | Notes |
 |---|---|---|---|
 | Firebase Auth | Phone OTP | Free tier (test numbers) | Avoids TRAI DLT SMS registration in the prototype; ID tokens verified with PyJWT; real OTPs need the Blaze plan at the pilot |
-| FCM | Push notifications | Free | Device tokens in `notify` |
+| FCM | Push notifications | Free | HTTP v1 API with a service-account key; tokens on M1's `identity.sessions` |
 | WhatsApp Cloud API | Order/box notifications | Test number | Template messages only |
 | Razorpay | Top-ups, UPI Autopay, partner payouts (Route) | Test mode | Our own thin async client on httpx2 (not the official SDK); webhook signatures verified; hourly reconciliation; UPI Autopay from the pilot phase |
 | OSRM | Road distance/time matrix | Self-hosted (MMR extract) | No Google Maps bills |

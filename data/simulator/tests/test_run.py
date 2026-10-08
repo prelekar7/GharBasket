@@ -34,7 +34,15 @@ async def test_the_catalog_from_the_database_matches_the_seed_files(
     expected = json_catalog()
     assert loaded.products == expected.products
     assert loaded.ingredients == expected.ingredients
-    assert [f.code for f in loaded.festivals] == ["navratri"] * 9
+    # October 2026 in the generated calendar: Indira Ekadashi, nine days of Navratri, Dussehra,
+    # Papankusha Ekadashi, Sankashti (data/external/festivals).
+    assert [f.code for f in loaded.festivals] == [
+        "ekadashi",
+        *(["navratri"] * 9),
+        "dussehra",
+        "ekadashi",
+        "sankashti",
+    ]
 
     def without_cost(recipes: list[dict]) -> list[dict]:
         return [{k: v for k, v in r.items() if k != "cost_per_serving_paise"} for r in recipes]
