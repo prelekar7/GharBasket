@@ -124,7 +124,9 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
 | T-3 18:30 | `send_box_ready_and_pre_debit_notices` | notify / billing |
 | T-1 19:00 | `remind_unapproved` | notify |
-| **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent) | orders / billing |
+| T-1 20:55 | `apply_auto_approve` | subscriptions |
+| **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
+| T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops |
 | T-1 21:30 | `assign_kitchens` (tiffin for day T) | intel → partners |
 | T 05:00 | `build_packing_tasks` | ops |
