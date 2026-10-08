@@ -15,7 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing.models import Payment
 from gharbasket.modules.billing.wallet import credit_topup
 from gharbasket.modules.identity.models import Consent, DataExport, Household, User
-from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot
+from gharbasket.modules.orders.models import (
+    Order,
+    OrderEvent,
+    OrderIssue,
+    OrderIssueItem,
+    OrderLine,
+    Slot,
+)
 from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription, WeeklyCycle
 from gharbasket.platform.files import ObjectStore, create_store
 from gharbasket.platform.jobs import run_job
@@ -96,7 +103,8 @@ async def signed_in(
 
 
 async def activity(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
-    """A subscription with one cycle, one delivered order and a top-up; returns the order id."""
+    """A subscription with one cycle, one delivered order with a credited issue and a top-up;
+    returns the order id."""
     household = (
         await db.execute(select(Household).where(Household.owner_user_id == user_id))
     ).scalar_one()
@@ -165,6 +173,22 @@ async def activity(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
             ),
         ]
     )
+    issue = OrderIssue(
+        order_id=order.id,
+        household_id=household.id,
+        hub_id=hub_id,
+        kind="missing",
+        status="credited",
+        photo_keys=[f"order_issue/{user_id}/{uuid.uuid4()}.jpg"],
+        amount_paise=3_000,
+        credit_paise=3_000,
+        resolved_by="auto",
+        resolved_at=cutoff + timedelta(days=1),
+        created_by=user_id,
+    )
+    db.add(issue)
+    await db.flush()
+    db.add(OrderIssueItem(issue_id=issue.id, product_id=product, qty=1, unit_price_paise=3_000))
     await credit_topup(db, user_id, 50_000, payment_ref=f"pay_{user_id.hex}", topup_id=uuid.uuid4())
     await db.flush()
     return order.id
@@ -291,7 +315,11 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     (order,) = sections["orders"]["orders"]
     assert order["id"] == str(order_id) and len(order["lines"]) == 1
     assert [event["to_status"] for event in order["timeline"]] == ["delivered"]
-    assert sections["orders"]["issues"] == []
+    (issue,) = sections["orders"]["issues"]
+    assert issue["order_id"] == str(order_id) and issue["kind"] == "missing"
+    assert issue["photo_count"] == 1 and "photo_keys" not in issue  # counted, never included
+    assert "resolver_user_id" not in issue
+    assert [(item["qty"], item["unit_price_paise"]) for item in issue["items"]] == [(1, 3_000)]
     billing = sections["billing"]
     assert billing["wallet_balance_paise"] == 50_000
     assert [entry["amount_paise"] for entry in billing["wallet_entries"]] == [50_000]

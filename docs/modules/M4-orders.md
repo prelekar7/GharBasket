@@ -169,7 +169,7 @@ IssueOut : {
   "note", "photo_count": 1,
   "resolution": { "by": "auto" | "hub", "note": "…" | null, "at" } | null,
   "callback_within_minutes": 120 | null,               while open: the hub calls back
-  "open_reason": "photo_needed" | "over_auto_credit_limit" | "wallet_limit" | "triage" | null,
+  "open_reason": "photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage" | null,
                                                        why it was not auto-credited; null unless open
   "created_at" }
 
@@ -184,7 +184,7 @@ GET  /v1/orders/{id}/issues     200 { "items": [ IssueOut ] }   newest first; ow
 - its kind is `missing`, or `damaged` **with at least one photo** (a valid, claimed `photo_keys` entry); `missing` needs no photo; and
 - its `amount_paise`, plus everything auto-credited to the household in the **last 7 days**, stays within **₹50 (5,000 paise)**.
 
-A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; other kinds are `triage`. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
+A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; over what is left of the order's paid total after earlier issue credits on it, `over_order_total`; other kinds are `triage`. All credits on one order, automatic or by the hub, never add up to more than was paid for it. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total, and never more than is left of the order's paid total; above that, `orders.issue_credit_invalid` with `max_paise`) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
 
 **Photos.** Private; a hub reviewer or the owner sees them through 5-minute signed links that M4 mints on demand (the console endpoint comes with M12). Deleted 90 days after the issue is resolved (M0 §3.1).
 
@@ -226,7 +226,7 @@ A `damaged` issue without a photo is still accepted (201) and is never rejected 
 | `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
-| `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
+| `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
 | `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
 
 ## 5. Events
