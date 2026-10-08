@@ -1,91 +1,271 @@
-# The pandas stubs are too loose for these frames; the tests hold the shapes to account.
-# pyright: reportAttributeAccessIssue=false, reportReturnType=false, reportCallIssue=false
-# pyright: reportArgumentType=false, reportGeneralTypeIssues=false
-"""Forecast v0: weekly series, the rolling-origin backtest against the baselines, the conformal
-quantile and the newsvendor order quantity; the job on a simulated world."""
+"""Forecast v0: weekly series of complete weeks, the rolling-origin backtest (2-week horizon,
+nested conformal calibration) against the baselines, the split over delivery days and the
+newsvendor order quantity; the push; the job on a simulated world, read back by M6's call."""
 
+import json
 import random
 from datetime import date, timedelta
+from typing import Any, cast
 
+import httpx2
+import numpy as np
 import pandas as pd
 import pytest
 from gharbasket_training import forecast
 from gharbasket_training.jobs import forecast as job
+from gharbasket_training.settings import Settings
+from pydantic import SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
+
+TODAY = date(2026, 12, 30)  # a Wednesday; the last complete week starts on 21 Dec
+
+
+def where(frame: pd.DataFrame, mask: Any) -> pd.DataFrame:
+    return cast(pd.DataFrame, frame[mask])  # the pandas stubs widen `frame[mask]`
 
 
 def lines(weeks: int = 12, products: int = 3, seed: int = 7) -> pd.DataFrame:
-    """Twelve Tuesdays of one hub: steady boxes, a few add-ons with a weekly rhythm."""
+    """Twelve Tuesdays of one hub: steady boxes, a few add-on orders with a weekly rhythm."""
     rng = random.Random(seed)
     rows = []
     first = date(2026, 10, 6)
     for w in range(weeks):
         day = first + timedelta(weeks=w)
         for p in range(products):
-            rows.append(("hub-1", f"product-{p}", day, "box", 20 + p * 5 + rng.randint(-2, 2)))
+            box = 20 + p * 5 + rng.randint(-2, 2)
+            rows.append(("hub-1", f"product-{p}", f"box-{w}", day, "box", box))
             addons = 3 + (w % 4) + p + rng.randint(-1, 1)  # a 4-week pattern
-            rows.append(("hub-1", f"product-{p}", day, "addon", max(0, addons)))
-    return pd.DataFrame(rows, columns=["hub_id", "product_id", "delivery_date", "kind", "qty"])
+            rows.append(("hub-1", f"product-{p}", f"addon-{w}", day, "addon", max(0, addons)))
+    return pd.DataFrame(rows, columns=forecast.LINE_COLUMNS)
 
 
-def test_weekly_series_bucket_committed_and_uncommitted_with_no_gaps() -> None:
+def test_weekly_series_buckets_by_order_kind_and_complete_weeks_only() -> None:
     frame = lines(weeks=3)
-    frame = frame[
-        ~((frame["product_id"] == "product-0") & (frame["delivery_date"] == date(2026, 10, 13)))
-    ]
+    frame = where(
+        frame,
+        ~((frame["product_id"] == "product-0") & (frame["delivery_date"] == date(2026, 10, 13))),
+    )
+    extra = pd.DataFrame(
+        [
+            # an add-on line inside a box order is committed: the order locked with the box
+            ("hub-1", "product-1", "box-0", date(2026, 10, 6), "box", 4),
+            # the run's current week is still filling: left out
+            ("hub-1", "product-1", "box-9", date(2026, 10, 27), "box", 99),
+        ],
+        columns=forecast.LINE_COLUMNS,
+    )
+    frame = pd.concat([frame, extra], ignore_index=True)
 
-    series = forecast.weekly_series(frame)
+    series = forecast.weekly_series(frame, forecast.last_complete_week(date(2026, 10, 28)))
 
-    p0 = series[series["product_id"] == "product-0"].sort_values("ds")
+    p0 = where(series, series["product_id"] == "product-0").sort_values("ds")
     assert len(p0) == 3 and p0["ds"].iloc[0] == pd.Timestamp("2026-10-05")  # the Monday
     assert p0["committed"].iloc[1] == 0 and p0["uncommitted"].iloc[1] == 0  # the gap is a zero
+    p1 = where(series, series["product_id"] == "product-1").sort_values("ds")
+    assert p1["ds"].max() == pd.Timestamp("2026-10-19") and 99 not in set(p1["committed"])
+    assert p1["committed"].iloc[0] == frame.iloc[2]["qty"] + 4
     assert (series["committed"] > 0).sum() == 8 and set(series["hub_id"]) == {"hub-1"}
-    assert forecast.weekly_series(frame.iloc[0:0]).empty
+    assert forecast.weekly_series(frame.iloc[0:0], date(2026, 10, 19)).empty
 
 
-def test_the_backtest_scores_every_model_and_picks_a_champion() -> None:
-    series = forecast.weekly_series(lines())
+def test_every_series_runs_to_the_last_complete_week_and_stopped_products_drop() -> None:
+    frame = lines(weeks=12)
+    # product-1 stops after week 6, product-2 after week 2: no sale in the last 8 weeks
+    week = frame["delivery_date"].map(lambda d: (d - date(2026, 10, 6)).days // 7)
+    frame = where(
+        frame,
+        ~((frame["product_id"] == "product-1") & (week > 6))
+        & ~((frame["product_id"] == "product-2") & (week > 2)),
+    )
 
-    test, residuals = forecast.backtest(series, "hub-1")
+    series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))
 
-    assert set(test.wape) == {"AutoETS", "CrostonOptimized", "SeasonalNaive", "Naive"}
-    assert test.windows == 3 and test.series == 3
-    assert test.champion in forecast.MODELS
-    assert all(0 <= w <= 2 for w in test.wape.values())
-    assert test.champion in residuals and residuals[test.champion].shape == (9,)
+    assert set(series["product_id"]) == {"product-0", "product-1"}
+    p1 = where(series, series["product_id"] == "product-1").sort_values("ds")
+    assert p1["ds"].max() == pd.Timestamp("2026-12-21")  # zeros after it stopped
+    assert (p1.tail(5)[["committed", "uncommitted"]].to_numpy() == 0).all()
 
 
-def test_forecast_lines_carry_the_newsvendor_quantity() -> None:
-    series = forecast.weekly_series(lines())
+def test_the_conformal_quantile_has_the_finite_sample_correction() -> None:
+    scores = np.arange(1.0, 10.0)  # n = 9
+    assert forecast.conformal_quantile(scores, 0.5) == 5  # ⌈10 · 0.5⌉ = 5th
+    assert forecast.conformal_quantile(scores, 0.75) == 8  # ⌈7.5⌉ = 8th, not np.quantile's 7
+    assert forecast.conformal_quantile(scores, 0.95) == 9  # beyond the sample: the largest
+    assert forecast.conformal_quantile(scores, 0.1) == 1
+    assert forecast.conformal_quantile(np.zeros(0), 0.5) == 0
+
+
+def test_the_backtest_uses_weekly_origins_a_two_week_horizon_and_nested_windows() -> None:
+    series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
+
+    test = forecast.backtest(series, "hub-1", 0.375)
+
+    assert set(test.wape) == set(forecast.MODELS) and test.champion in forecast.MODELS
+    # 12 weeks, 7 to train, 2 ahead: origins on weeks 7..10 of 12 → 4 windows
+    assert test.windows == 4 and test.series == 3
+    # step 1 is calibrated from window 2 on, step 2 from window 3 (its target known) → 3 + 2
+    assert test.eval_points == 3 * (3 + 2)
+    for m in forecast.MODELS:
+        assert 0 <= test.wape[m] <= 2 and 0 <= test.coverage[m] <= 1
+        assert test.pinball_q50[m] >= 0 and test.pinball_qtau[m] >= 0 and test.mase[m] > 0
+        assert set(test.calibration[m]) == {1, 2}
+    assert test.gap_to_seasonal_naive == round(
+        test.wape["SeasonalNaive"] - test.wape[test.champion], 4
+    )
+    gap = test.gap_to_seasonal_naive
+    assert gap is not None and test.meets_protocol_gap is (gap >= forecast.PROTOCOL_GAP)
+
+
+def test_origins_are_capped_and_a_baseline_can_be_champion() -> None:
+    rows = []
+    for w in range(30):  # a step change late on: "buy last week" follows it best
+        day = date(2026, 1, 6) + timedelta(weeks=w)
+        rows.append(("hub-1", "product-0", f"addon-{w}", day, "addon", 2 if w < 25 else 40))
+    frame = pd.DataFrame(rows, columns=forecast.LINE_COLUMNS)
+    series = forecast.weekly_series(frame, date(2026, 7, 27))
+
+    test = forecast.backtest(series, "hub-1")
+
+    assert test.windows == forecast.MAX_ORIGINS
+    assert test.champion in forecast.BASELINES and test.wape[test.champion] == min(
+        test.wape.values()
+    )
+
+
+def test_forecast_lines_are_per_delivery_day_with_the_newsvendor_quantity() -> None:
+    frame = lines()
+    series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))
     costs = forecast.Costs(underage=0.3, overage=0.5)
     assert abs(costs.tau - 0.375) < 1e-9
 
-    planned, test = forecast.forecast_hub(series, "hub-1", costs)
+    planned, test = forecast.forecast_hub(series, frame, "hub-1", TODAY, costs)
 
-    assert len(planned) == 3 and all(line.for_date == date(2026, 12, 28) for line in planned)
+    # Tuesdays only; the next 7 days after Wednesday 30 Dec hold one: 5 Jan (next week, step 2)
+    assert len(planned) == 3 and all(line.for_date == date(2027, 1, 5) for line in planned)
+    last_tuesday = frame[frame["delivery_date"] == date(2026, 12, 22)]
     for line in planned:
-        assert line.uncommitted_qtau >= line.uncommitted_q50 >= 0
+        box = last_tuesday[
+            (last_tuesday["product_id"] == line.product_id) & (last_tuesday["order_kind"] == "box")
+        ]["qty"].sum()
+        assert line.committed == box  # the same weekday of the last complete week
+        assert line.uncommitted_qtau >= 0 and line.uncommitted_q50 >= 0
         assert line.order_qty == round(line.committed + line.uncommitted_qtau, 2)
         assert line.model == test.champion
     rows = forecast.as_rows(planned)
-    assert rows[0]["for_date"] == "2026-12-28" and set(rows[0]) >= {"order_qty", "model"}
+    assert rows[0]["for_date"] == "2027-01-05" and set(rows[0]) >= {"order_qty", "model"}
+
+
+def test_a_low_tau_puts_q_tau_below_the_median() -> None:
+    series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
+
+    planned, _ = forecast.forecast_hub(
+        series, lines(), "hub-1", TODAY, forecast.Costs(underage=0.1, overage=0.9)
+    )
+
+    assert planned and all(line.uncommitted_qtau < line.uncommitted_q50 for line in planned)
+
+
+def test_weekly_forecasts_are_split_over_the_hubs_delivery_days() -> None:
+    rows = []
+    for w in range(12):
+        tuesday = date(2026, 10, 6) + timedelta(weeks=w)
+        friday = tuesday + timedelta(days=3)
+        rows += [
+            ("hub-1", "milk", f"t{w}", tuesday, "addon", 1),
+            ("hub-1", "milk", f"f{w}", friday, "addon", 3),
+            ("hub-1", "ghee", f"f{w}", friday, "box", 2),
+        ]
+        if w < 6:  # sold 6+ weeks ago, nothing in the last 4: falls back to the hub's orders
+            rows.append(("hub-1", "jaggery", f"t{w}", tuesday, "addon", 5))
+    frame = pd.DataFrame(rows, columns=forecast.LINE_COLUMNS)
+    series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))
+
+    planned, _ = forecast.forecast_hub(series, frame, "hub-1", TODAY)
+
+    by = {(line.product_id, line.for_date): line for line in planned}
+    friday, tuesday = date(2027, 1, 1), date(2027, 1, 5)
+    assert {d for _, d in by} == {friday, tuesday}  # delivery days only
+    assert by["milk", friday].uncommitted_q50 == pytest.approx(
+        3 * by["milk", tuesday].uncommitted_q50, abs=0.02
+    )  # 3 : 1 by units (the weekly forecast is flat)
+    assert ("ghee", tuesday) not in by and by["ghee", friday].committed == 2
+    jaggery = {d for p, d in by if p == "jaggery"}
+    assert jaggery == {friday, tuesday}  # half the hub's orders on each day
 
 
 def test_short_series_get_the_naive_answer() -> None:
-    series = forecast.weekly_series(lines(weeks=2))
-    planned, test = forecast.forecast_hub(series, "hub-1")
+    frame = lines(weeks=2)
+    series = forecast.weekly_series(frame, date(2026, 10, 12))
+    planned, test = forecast.forecast_hub(series, frame, "hub-1", date(2026, 10, 21))
     assert test.windows == 0 and all(line.model == "Naive" for line in planned)
     assert planned and all(line.uncommitted_q50 == line.uncommitted_qtau for line in planned)
-    assert forecast.forecast_hub(series, "hub-9")[0] == []
+    assert forecast.forecast_hub(series, frame, "hub-9", date(2026, 10, 21))[0] == []
+
+
+def test_sold_statuses_are_every_status_past_locked() -> None:
+    from gharbasket.modules.orders.models import STATUSES
+
+    assert set(job.SOLD) | set(job.NOT_SOLD) == set(STATUSES)
+    assert not set(job.SOLD) & set(job.NOT_SOLD)
+    assert {"locked", "delivered", "undelivered", "redelivery", "refunded"} <= set(job.SOLD)
+
+
+@pytest.mark.anyio
+async def test_push_sends_the_lines_and_the_metrics_with_the_data_source() -> None:
+    frame = lines()
+    series = forecast.weekly_series(frame, forecast.last_complete_week(TODAY))
+    planned, test = forecast.forecast_hub(series, frame, "hub-1", TODAY)
+    sent: dict[str, dict] = {}
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.headers["Authorization"] == "Bearer t0ken"
+        sent[request.url.path] = json.loads(request.content)
+        if request.url.path.endswith("/forecasts"):
+            return httpx2.Response(200, json={"accepted": len(planned)})
+        return httpx2.Response(200, json={"accepted": 1})
+
+    settings = Settings(api_url="http://api.test/", jobs_token=SecretStr("t0ken"))
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        accepted = await job.push(http, settings, "hub-1", planned, test, "abc123", "pilot")
+        with pytest.raises(RuntimeError, match="API_URL"):
+            await job.push(http, Settings(), "hub-1", planned, test, "abc123", "pilot")
+
+    assert accepted == len(planned)
+    stored = sent["/v1/internal/intel/forecasts"]
+    assert stored["data_source"] == "pilot" and stored["hub_id"] == "hub-1"
+    assert stored["model"] == f"forecast-{test.champion.lower()}-v0"
+    assert len(stored["items"]) == len(planned)
+    metrics = sent["/v1/internal/intel/model-metrics"]["items"]
+    assert {m["data_source"] for m in metrics} == {"pilot"}
+    assert {m["split"] for m in metrics} == {"backtest"}
+    names = {(m["model_name"], m["metric"]) for m in metrics}
+    for model in forecast.MODELS:
+        for metric in ("wape", "coverage_qtau", "pinball_q50", "pinball_qtau", "mase"):
+            assert (f"forecast_{model.lower()}", metric) in names
+    gap = next(m for m in metrics if m["metric"] == "wape_gap_seasonal_naive")
+    assert gap["details"]["meets_protocol_gap"] == test.meets_protocol_gap
+    assert gap["details"]["horizon_weeks"] == 2
+
+
+def test_the_cli_documents_its_flags(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        job.main(["--help"])
+    usage = capsys.readouterr().out
+    assert "--data-source" in usage and "--today" in usage and "--push" in usage
 
 
 @pytest.mark.anyio
 @pytest.mark.services
-async def test_the_job_reads_sold_order_lines(db_session: AsyncSession) -> None:
-    from datetime import date as _date
-
+async def test_the_job_reads_sold_lines_by_order_kind_and_m6_reads_a_delivery_day(
+    db_session: AsyncSession,
+) -> None:
     from gharbasket_sim.run import simulate_world
+    from sqlalchemy import select
 
+    from gharbasket.modules.intel_gateway import api as gateway
+    from gharbasket.modules.intel_gateway.router import ForecastsIn, put_forecasts
+    from gharbasket.modules.orders.models import Order, OrderLine
+    from gharbasket.platform.models import OutboxEvent
     from gharbasket.tools.seed import seed_catalog, seed_delivery, seed_households, seed_societies
 
     await seed_societies(db_session)
@@ -96,15 +276,94 @@ async def test_the_job_reads_sold_order_lines(db_session: AsyncSession) -> None:
         db_session,
         seed=7,
         weeks=1,
-        start=_date(2026, 10, 5),
+        start=date(2026, 10, 5),
         planner="rules",
         adoption=0.02,
         write_db=True,
     )
+    box = (
+        await db_session.execute(
+            select(Order).where(Order.kind == "box", Order.status.in_(job.SOLD)).limit(1)
+        )
+    ).scalar_one()
+    line = (
+        await db_session.execute(select(OrderLine).where(OrderLine.order_id == box.id).limit(1))
+    ).scalar_one()
 
-    frame = await job.order_lines(db_session)
+    def order(kind: str, status: str, source: str = "synthetic") -> Order:
+        return Order(
+            household_id=box.household_id,
+            hub_id=box.hub_id,
+            society_id=box.society_id,
+            kind=kind,
+            delivery_date=box.delivery_date,
+            slot_id=box.slot_id,
+            cutoff_at=box.cutoff_at,
+            status=status,
+            subtotal_paise=0,
+            total_paise=0,
+            data_source=source,
+        )
 
-    assert not frame.empty and set(frame["kind"]) <= {"box", "addon", "tiffin"}
-    series = forecast.weekly_series(frame)
-    planned, test = forecast.forecast_hub(series, str(frame["hub_id"].iloc[0]))
+    addon, refunded = order("addon", "delivered"), order("tiffin", "refunded")
+    cancelled, real = order("addon", "cancelled"), order("addon", "delivered", "real")
+    db_session.add_all([addon, refunded, cancelled, real])
+    await db_session.flush()
+    for o in (addon, refunded, cancelled, real):
+        db_session.add(
+            OrderLine(
+                order_id=o.id,
+                product_id=line.product_id,
+                kind="addon",  # the line kind of an add-on order and of a box order's add-on
+                qty=3,
+                step_qty=line.step_qty,
+                step_unit=line.step_unit,
+                unit_price_paise=0,
+            )
+        )
+    await db_session.flush()
+
+    frame = await job.order_lines(db_session, "synthetic")
+
+    kinds = dict(zip(frame["order_id"], frame["order_kind"], strict=True))
+    assert kinds[str(addon.id)] == "addon" and kinds[str(refunded.id)] == "tiffin"
+    assert kinds[str(box.id)] == "box"  # classified by the order, not the line
+    assert str(cancelled.id) not in kinds and str(real.id) not in kinds
+    assert (await job.order_lines(db_session, "pilot"))["order_id"].tolist() == [str(real.id)]
+
+    today = forecast.monday_of(box.delivery_date) + timedelta(weeks=1)  # the next Monday
+    series = forecast.weekly_series(frame, forecast.last_complete_week(today))
+    hub = str(box.hub_id)
+    planned, test = forecast.forecast_hub(series, frame, hub, today)
     assert planned and test.windows == 0  # one week of history: naive, no backtest yet
+    days = {line.for_date for line in planned}
+    assert all(today < d <= today + timedelta(days=7) for d in days)
+    delivery_weekdays = {d.weekday() for d in frame[frame["hub_id"] == hub]["delivery_date"]}
+    assert {d.weekday() for d in days} <= delivery_weekdays
+
+    stored = await put_forecasts(
+        ForecastsIn.model_validate(
+            {
+                "hub_id": hub,
+                "model": f"forecast-{test.champion.lower()}-v0",
+                "data_source": "synthetic",
+                "items": forecast.as_rows(planned),
+            }
+        ),
+        db_session,
+    )
+    assert stored.accepted == len(planned) and set(stored.delivery_dates) == days
+    for day in days:  # M6 asks per delivery day, whatever the weekday
+        kept = await gateway.hub_forecast(db_session, box.hub_id, day)
+        assert kept is not None and kept["data_source"] == "synthetic"
+        assert {item["for_date"] for item in kept["items"]} == {day.isoformat()}
+    tuesday = today + timedelta(days=1)  # the simulator delivers on Tuesdays
+    assert tuesday in days
+    assert await gateway.hub_forecast(db_session, box.hub_id, tuesday) is not None
+    event = (
+        await db_session.execute(
+            select(OutboxEvent).where(OutboxEvent.event_type == "intel.forecast_ready")
+        )
+    ).scalar_one()
+    assert event.payload["hub_id"] == hub
+    assert event.payload["delivery_dates"] == sorted(d.isoformat() for d in days)
