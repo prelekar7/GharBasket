@@ -1,6 +1,6 @@
 # M5 — Billing & Ledger
 
-**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2
+**Status:** Draft v1; §3.1 (wallet and top-ups) frozen for S2; §3.2 (customer statements) frozen on 2026-10-08
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (wallet); UPI Autopay in the pilot phase (P6)
 **Postgres schema:** `billing` · **Python package:** `gharbasket.modules.billing`
@@ -33,7 +33,7 @@ All money and points: the closed-loop prepaid wallet, Razorpay top-ups, UPI Auto
 | GET / DELETE | `/v1/mandates/{id}` | customer | — | Cancel mandate |
 | POST | `/v1/payments/webhook/razorpay` | Razorpay (signature) | Event id dedupe | Stores raw, processes async |
 | GET | `/v1/kindness/balance` | customer | — | Points + expiry schedule |
-| GET | `/v1/statements?period=` | customer, partner | — | PDF/JSON |
+| GET | `/v1/statements?period=YYYY-MM` | customer | — | The wallet's month from the ledger, JSON (§3.2); PDF later; partners' earnings statements come with M8 |
 | GET | `/v1/admin/reconciliation` | admin | — | Mismatch report |
 
 UPI Autopay mandates (US-3, `/v1/mandates`) are built in the pilot phase; for MS-A the box is paid from the prepaid wallet, topped up through Razorpay Checkout in test mode and debited at the 21:00 cut-off.
@@ -138,7 +138,36 @@ POST /v1/dev/razorpay/pay             only with APP_ENV=dev or test (404 otherwi
 **For other modules** (`billing/api.py`, no HTTP). M4's cut-off and refunds call these inside their own transaction:
 - `balance(session, user_id) -> int`
 - `debit_for_order(session, user_id, order_id, amount_paise, delivery_date)` → one `box_debit` entry (wallet → unearned_revenue), keyed by the order id, so a retried cut-off never debits twice. It raises `InsufficientBalance` (code `billing.insufficient_balance`), which M4 turns into `PAYMENT_FAILED`.
-- `refund_to_wallet(session, user_id, order_id, amount_paise, reason)` → one `refund` entry (unearned_revenue → wallet), keyed by order id and reason.
+- `refund_to_wallet(session, user_id, order_id, amount_paise, reason)` → one `refund` entry (unearned_revenue → wallet), keyed by order id and reason. Order issues pass `reason="issue_<issue id hex>"` (M4 §3.2), so each issue is refunded at most once.
+- `export_for_user(session, user_id) -> dict` → the user's wallet entries and top-ups for the data export (M1 §3.3).
+
+### 3.2 Customer statement contract (frozen on 2026-10-08)
+The wallet statement screen and the backend build against this. Same sign-in, money, time and review rules as §3.1; a customer only ever sees their own wallet.
+
+```
+GET /v1/statements?period=2026-10        Cache-Control: no-store
+  200 : {
+    "period": "2026-10", "currency": "INR",
+    "opening_paise": 50000,               the balance at 00:00 IST on the 1st
+    "credits_paise": 200000,              Σ positive entries in the month
+    "debits_paise": -69000,               Σ negative entries (signed, as on entries)
+    "closing_paise": 181000,              opening + credits + debits; for the current month, now
+    "entries": [ Entry & { "balance_after_paise": 181000 } ],   §3.1 Entry, newest first, every
+                                          entry of the month (no pagination: a household's month
+                                          is a few dozen entries)
+    "generated_at": "…" }
+  422 "billing.period_invalid"           not YYYY-MM, or a month after the current one (IST)
+```
+
+- **From the ledger only.** Balances are sums of postings to `wallet:<user>`; `balance_after_paise` is the running balance after that entry, in posting order. A month falls by the entry's `at` in IST. A month before the wallet existed answers zeros and `[]`.
+- **Not in it:** Kindness points (a separate currency, M9) and anything that did not post to the wallet (an unpaid or expired top-up).
+- **Later:** a PDF of the same data (`format=pdf`) after MS-B. **Partners' earnings and payout statements** are M8's (Phase 5) and will add their own account to this endpoint; until then a partner gets their customer wallet only.
+
+| Mock today (`mocks/billing.js`) | Contract |
+|---|---|
+| Same top-level fields | Same, plus `currency` and `generated_at` |
+| Entries without a running balance | `balance_after_paise` on each entry |
+| A month chosen by `ref` (the delivery date) or `at` | By `at` in IST only; `ref` is the §3.1 object |
 
 ## 4. Tables owned
 | Table | Key columns |
@@ -178,7 +207,7 @@ Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) c
 | Permission | Roles (scope) |
 |---|---|
 | `wallet:read/write` | customer (own) |
-| `statements:read` | customer, partner (own); franchise_owner (hub aggregates) |
+| `statements:read` | customer (own wallet, §3.2); partner (own earnings, with M8); franchise_owner (hub aggregates, later) |
 | `reconciliation:read` | admin |
 
 ## 8. Screens
