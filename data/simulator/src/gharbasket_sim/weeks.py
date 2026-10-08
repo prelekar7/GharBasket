@@ -62,41 +62,79 @@ def rules_planner(request: dict[str, Any]) -> Planned:
 
 
 def _slot_by_slot(request: dict[str, Any], choose: Callable[..., str | None], name: str) -> Planned:
-    """A baseline that fills the week one slot at a time under the same hard rules as the CP-SAT
-    model (no dish twice in its window), relaxing the comfort rules in the same order only when a
-    slot has no allowed dish at all."""
+    """A baseline that fills the week one slot at a time under every hard rule the CP-SAT model
+    keeps (and `cpsat.check` verifies): an allowed dish, no dish twice in its window, a fasting
+    dish on each fasting day and the weekly budget. On a fasting day without a fasting dish yet,
+    the last slot that can hold one must; a dish is affordable only if the cheapest allowed dishes
+    for the slots still open fit in what is left of the budget. When no dish keeps the rules, the
+    comfort rules are relaxed in the model's order (repeat, cook time, budget; then pairs) and the
+    plan records the relaxation; diet, Jain, diabetic and fasting are never relaxed."""
     week = cpsat.Week.of(PlanRequest.model_validate(request))
+    size = week.household.size
+    cells = [(day, slot) for day in range(7) for slot in SLOTS]
     for relax in cpsat.relaxations():
+        allowed = {
+            (day, slot): [
+                r
+                for r in week.recipes.values()
+                if cpsat.allowed(week, r, day, slot, relax)  # pyright: ignore[reportArgumentType]
+            ]
+            for day, slot in cells
+            if not cpsat.is_tiffin(week, day, slot)  # pyright: ignore[reportArgumentType]
+        }
+        budget = None if "budget" in relax else week.household.weekly_budget_paise
+        floor = {
+            cell: min((r.cost_per_serving_paise * size for r in options), default=0)
+            for cell, options in allowed.items()
+        }
+        fasting_slot = {
+            day: max(
+                (
+                    i
+                    for i, slot in enumerate(SLOTS)
+                    if any(r.fasting_ok for r in allowed.get((day, slot), []))
+                ),
+                default=None,
+            )
+            for day in week.fasting
+        }
+        if any(i is None for i in fasting_slot.values()):
+            continue
         meals: dict[tuple[int, str], str | None] = {}
-        recent: dict[str, list[tuple[int, str]]] = {}
+        recent: dict[str, list[int]] = {}
+        spent = 0
         feasible = True
-        for day in range(7):
-            for slot in SLOTS:
-                if cpsat.is_tiffin(week, day, slot):
-                    meals[(day, slot)] = None
-                    continue
-                window = cpsat.WINDOWS["breakfast" if slot == "breakfast" else "main"]
-                if "repeat" in relax:
-                    window = 1
-                options = [
-                    r
-                    for r in week.recipes.values()
-                    if cpsat.allowed(week, r, day, slot, relax)  # pyright: ignore[reportArgumentType]
-                    and all(
-                        day - d >= window or (d == day and s != slot and False)
-                        for d, s in recent.get(r.slug, [])
-                    )
-                ]
-                chosen = choose(week, options, day, slot)
-                if chosen is None:
-                    feasible = False
-                    break
-                meals[(day, slot)] = chosen
-                recent.setdefault(chosen, []).append((day, slot))
-            if not feasible:
+        for n, (day, slot) in enumerate(cells):
+            if (day, slot) not in allowed:
+                meals[(day, slot)] = None  # a tiffin on a no-cook day
+                continue
+            window = (
+                1
+                if "repeat" in relax
+                else cpsat.WINDOWS["breakfast" if slot == "breakfast" else "main"]
+            )
+            fasted = any(
+                (dish := meals.get((day, s))) and week.recipes[dish].fasting_ok for s in SLOTS
+            )
+            must_fast = fasting_slot.get(day) == SLOTS.index(slot) and not fasted
+            ahead = sum(floor[c] for c in cells[n + 1 :] if c in floor)
+            options = [
+                r
+                for r in allowed[(day, slot)]
+                if all(day - d >= window for d in recent.get(r.slug, []))
+                and (r.fasting_ok or not must_fast)
+                and (budget is None or spent + r.cost_per_serving_paise * size + ahead <= budget)
+            ]
+            chosen = choose(week, options, day, slot)
+            if chosen is None:
+                feasible = False
                 break
+            meals[(day, slot)] = chosen
+            spent += week.recipes[chosen].cost_per_serving_paise * size
+            recent.setdefault(chosen, []).append(day)
         if feasible:
-            return Planned("feasible", tuple(sorted(relax)), meals, name)
+            relaxed = tuple(rule for rule in cpsat.FALLBACK if rule in relax)
+            return Planned("feasible", relaxed, meals, name)
     return Planned("infeasible", (), {}, name)
 
 
@@ -168,33 +206,40 @@ class Rows:
     edits: list[dict[str, Any]] = field(default_factory=list)
     pantry: list[dict[str, Any]] = field(default_factory=list)
     outcomes: list[dict[str, Any]] = field(default_factory=list)  # --write-db only
+    # The daily-use share of each week's consumption (the pantry twin's target); not exported.
+    daily_use: list[dict[str, Any]] = field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class Provided:
-    """Plans and drafted boxes that came from M3 (`--write-db`), one per week, in place of the
-    in-process planner and the simulator's own draft."""
+@dataclass
+class Simulation:
+    """One household's weeks, run one at a time. `simulate` runs them all with the in-process
+    planner; `--write-db` runs each week right after M3 has drafted it (through_modules.py), so
+    the next week's draft counts what the last one delivered."""
 
-    plans: list[Planned]
-    drafts: list[list[pantry_sim.Line]]
+    seed: int
+    h: SimHousehold
+    catalog: Catalog
+    first_monday: date
+    planner: Planner
+    shocks: Shocks | None = None
+    price_sensitivity: float = 0.5
+    feedback_rate: float = 0.4
+    rows: Rows = field(default_factory=lambda: Rows([], [], []))
 
+    def __post_init__(self) -> None:
+        rng = random.Random(f"gharbasket-sim:{self.seed}:{self.h.key}")
+        self.pantry = pantry_sim.initial_stock(rng, self.h, self.catalog)
 
-def simulate(
-    seed: int,
-    h: SimHousehold,
-    catalog: Catalog,
-    first_monday: date,
-    weeks: int,
-    planner: Planner,
-    shocks: Shocks | None = None,
-    *,
-    price_sensitivity: float = 0.5,
-    feedback_rate: float = 0.4,
-    provided: Provided | None = None,
-) -> Rows:
-    rows = Rows([], [], [])
-    pantry = pantry_sim.initial_stock(random.Random(f"gharbasket-sim:{seed}:{h.key}"), h, catalog)
-    for w in range(weeks):
+    def week(
+        self,
+        w: int,
+        planned: Planned | None = None,
+        drafted: list[pantry_sim.Line] | None = None,
+    ) -> None:
+        """Week `w`: the planner's plan and the simulator's own draft, unless M3 gave them."""
+        seed, h, catalog, rows, pantry = self.seed, self.h, self.catalog, self.rows, self.pantry
+        shocks, first_monday = self.shocks, self.first_monday
+        price_sensitivity, feedback_rate = self.price_sensitivity, self.feedback_rate
         rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}")
         monday = first_monday + timedelta(weeks=w)
         factor = pantry_sim.weekly_prices(catalog, shocks, w)
@@ -204,7 +249,8 @@ def simulate(
             "recipes": catalog.recipes,
             "time_limit_s": TIME_LIMIT_S,
         }
-        planned = provided.plans[w] if provided is not None else planner(request)
+        if planned is None:
+            planned = self.planner(request)
         ordered = rng.random() >= h.skip_week
         rows.weeks.append(
             {
@@ -225,7 +271,11 @@ def simulate(
                 if not i.optional or rng.random() < 0.5:
                     used[i.product] += i.qty * h.adult_equivalents
         for slug, weekly in h.daily_use.items():
-            used[slug] += weekly * math.exp(rng.gauss(0, 0.1))
+            daily = weekly * math.exp(rng.gauss(0, 0.1))
+            used[slug] += daily
+            rows.daily_use.append(
+                {"household": h.key, "week": w, "product": slug, "qty": round(daily, 1)}
+            )
         for slug in sorted(used):
             rows.consumption.append(
                 {
@@ -249,9 +299,28 @@ def simulate(
             rows,
             price_sensitivity=price_sensitivity,
             feedback_rate=feedback_rate,
-            drafted=provided.drafts[w] if provided is not None else None,
+            drafted=drafted,
         )
-    return rows
+
+
+def simulate(
+    seed: int,
+    h: SimHousehold,
+    catalog: Catalog,
+    first_monday: date,
+    weeks: int,
+    planner: Planner,
+    shocks: Shocks | None = None,
+    *,
+    price_sensitivity: float = 0.5,
+    feedback_rate: float = 0.4,
+) -> Rows:
+    sim = Simulation(
+        seed, h, catalog, first_monday, planner, shocks, price_sensitivity, feedback_rate
+    )
+    for w in range(weeks):
+        sim.week(w)
+    return sim.rows
 
 
 def _week_of_box(
@@ -325,8 +394,10 @@ def _week_of_box(
     for c in rows.consumption:
         if c["household"] == h.key and c["week"] == w:
             used[c["product"]] = c["qty"]
+    # A substitute the household swapped in is cooked in place of the original (pantry.py).
+    stand_ins = {line.replaces: line.product for line in final if line.replaces} if ordered else {}
     for row in pantry_sim.consume(
-        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate
+        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate, stand_ins=stand_ins
     ):
         rows.pantry.append({"household": h.key, "week": w, **row})
 

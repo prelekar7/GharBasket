@@ -1,7 +1,8 @@
 """The lake (ADR-0025): Parquet files under `s3://gb-lake/...`, or a local folder for tests.
 
 Paths look like `external/mandi/date=2026-10-04/maharashtra.parquet`. A `Lake` reads and writes
-whole objects; jobs keep their data small enough for that.
+whole objects; jobs keep their data small enough for that. The model registry
+(`s3://gb-mlflow/models/...`) is a `Registry` over the same interface.
 """
 
 import io
@@ -87,10 +88,7 @@ class S3Lake:
                     yield item["Key"]
 
 
-def open_lake(settings: Settings, local: Path | None) -> Lake:
-    """A local folder when given (laptops, tests), else the S3 bucket from the settings."""
-    if local is not None:
-        return LocalLake(local)
+def _s3(settings: Settings, bucket: str) -> S3Lake:
     if not (settings.s3_endpoint_url and settings.s3_access_key and settings.s3_secret_key):
         raise RuntimeError("set S3_ENDPOINT_URL, S3_ACCESS_KEY and S3_SECRET_KEY, or pass --out")
     import boto3  # heavy; only when the bucket is used
@@ -102,4 +100,31 @@ def open_lake(settings: Settings, local: Path | None) -> Lake:
         aws_secret_access_key=settings.s3_secret_key.get_secret_value(),
         region_name=settings.s3_region,
     )
-    return S3Lake(client, settings.s3_bucket_lake)
+    return S3Lake(client, bucket)
+
+
+def open_lake(settings: Settings, local: Path | None) -> Lake:
+    """A local folder when given (laptops, tests), else the S3 bucket from the settings."""
+    if local is not None:
+        return LocalLake(local)
+    return _s3(settings, settings.s3_bucket_lake)
+
+
+@dataclass(frozen=True)
+class Registry:
+    """The model registry (ADR-0025): `s3://gb-mlflow/models/<name>/<version>/` with a
+    `<name>/latest.json` pointer, or a local folder with the layout the Space's `MODELS_DIR`
+    expects (`<name>/latest.json`, `<name>/<version>/model.txt`)."""
+
+    lake: Lake
+    prefix: str  # "models/" in the bucket, "" in a local MODELS_DIR
+
+    def key(self, name: str, *parts: str) -> str:
+        return "/".join((f"{self.prefix}{name}", *parts))
+
+
+def open_registry(settings: Settings, local: Path | None) -> Registry:
+    """A local `MODELS_DIR` when given, else `models/` in the registry bucket (`gb-mlflow`)."""
+    if local is not None:
+        return Registry(LocalLake(local), "")
+    return Registry(_s3(settings, settings.s3_bucket_mlflow), "models/")

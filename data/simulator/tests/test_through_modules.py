@@ -17,6 +17,7 @@ from gharbasket.modules.subscriptions.models import (
     Subscription,
     WeeklyCycle,
 )
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import seed_catalog, seed_delivery, seed_households, seed_societies
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
@@ -84,3 +85,13 @@ async def test_a_week_goes_through_subscriptions_orders_and_billing(
     taps = (await db_session.execute(select(func.count()).select_from(PantryFeedback))).scalar_one()
     assert taps == sum(o["feedback"] for o in run.rows.outcomes)
     assert not any("subscriptions.version_conflict" in o["refused"] for o in run.rows.outcomes)
+    # The cycles followed their orders through M3's outbox consumers, not by hand.
+    unsent = await db_session.execute(
+        select(func.count())
+        .select_from(OutboxEvent)
+        .where(
+            OutboxEvent.event_type.in_(("orders.locked", "orders.cancelled")),
+            OutboxEvent.sent_at.is_(None),
+        )
+    )
+    assert unsent.scalar_one() == 0
