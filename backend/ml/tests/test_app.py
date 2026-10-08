@@ -109,3 +109,61 @@ async def test_health_ai_reports_the_road_network() -> None:
     lines = await smoke.check("http://ml", TOKEN, transport=httpx2.ASGITransport(app=app))
     assert len(lines) == 5 and all(" 200 " in line for line in lines), lines
     assert "osrm=not_configured" in lines[1] and "/plan/week 200" in lines[3]
+
+
+def test_smoke_main_prints_a_line_per_endpoint_and_exits_0_when_all_answer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from gharbasket_ml import smoke
+
+    app = create_app(Settings(app_env="test", ml_service_token=SecretStr(TOKEN)))
+
+    code = smoke.main(["http://ml/", TOKEN], transport=httpx2.ASGITransport(app=app))
+
+    out = capsys.readouterr().out.splitlines()
+    assert code == 0
+    assert [line.split()[0] for line in out] == [
+        "/health",
+        "/health/ai",
+        "/models",
+        "/plan/week",
+        "/pantry/quantities",
+    ]
+    assert out[0] == "/health 200 0.1.0" and out[4].startswith("/pantry/quantities 200 mean=")
+
+
+def test_smoke_main_reports_errors_per_call_instead_of_crashing(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from gharbasket_ml import smoke
+
+    def flaky(request: httpx2.Request) -> httpx2.Response:
+        match request.url.path:
+            case "/health":
+                return httpx2.Response(200, text="<html>cold start</html>")
+            case "/health/ai":
+                raise httpx2.ReadTimeout("timed out", request=request)
+            case "/models":
+                return httpx2.Response(200, json=[{"name": "planner"}, "junk"])
+            case "/plan/week":
+                return httpx2.Response(503, text="building")
+            case _:
+                return httpx2.Response(200, json={"items": []})
+
+    code = smoke.main(["http://ml"], transport=httpx2.MockTransport(flaky))
+
+    out = capsys.readouterr().out.splitlines()
+    assert code == 1
+    assert out[0].startswith("/health ERR not JSON")
+    assert out[1] == "/health/ai ERR ReadTimeout timed out"
+    assert out[2] == "/models 200 ['planner']"
+    assert out[3] == "/plan/week 503 None in None s"
+    assert out[4] == "/pantry/quantities 200 mean=None"
+
+
+def test_smoke_main_needs_a_url(capsys: pytest.CaptureFixture[str]) -> None:
+    from gharbasket_ml import smoke
+
+    assert smoke.main([]) == 2
+    assert "usage" in capsys.readouterr().err
+    assert not smoke.passed("/health ERR ConnectError") and smoke.passed("/health 200 0.1.0")

@@ -87,6 +87,10 @@ class Settings(DatabaseSettings):
     # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
     # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
     ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)
+    # The pantry twin (M10 §3.3) drafts the perishable daily-use quantities only when this is on
+    # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
+    # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
+    pantry_twin_enabled: bool = False
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

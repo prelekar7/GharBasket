@@ -132,7 +132,7 @@ sequenceDiagram
 - **Cold start:** a new household starts at its cohort prior. We measure how many weeks until error drops below a threshold.
 - **Metrics:** quantity MAE (kg), calibration of 80% intervals, "ran out / wasted" rate. Baseline: a family-size rule table.
 - **Fallback:** rule table (family size → kg/week per category).
-- **Status (5 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` (SciPy percentiles) with the same closed form in the gateway's fallback; M3 drafts daily-use items from it after a household's first locked box; the eval harness scores it next to the rule table and a running mean (`just eval`). The NumPyro cohort refit is v1 (P4).
+- **Status (7 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` with Negative Binomial predictive intervals (SciPy) and the same closed form in the gateway's fallback. v0 covers the perishable daily-use items only (milk, curd) and learns their daily-use share (delivered minus the week's recipe need); staples stay on the rule table until v1 models stock. M3 drafts from it only with `PANTRY_TWIN_ENABLED` on, which stays off until the eval target holds; the eval harness scores it on that scope next to the rule table and a running mean, with 80 % interval coverage (`just eval`). The NumPyro cohort refit is v1 (P4).
 
 ### M-B Next-basket candidate ranker
 - **Candidates:** TIFU-KNN personal and neighbour repeat items ∪ meal-plan ingredients ∪ seasonal/festival items.
@@ -155,7 +155,7 @@ sequenceDiagram
   - variety bonus;
   - penalty on price-spiked items.
 - **Output:** plan → aggregated ingredients × M-A quantities → `subscriptions.box_lines` with `reason_code`. Busy days → kit suggestions.
-- **Performance:** 5 s solver limit per household; the weekly batch runs in parallel across CPU cores.
+- **Performance:** at most 5 s per household (`time_limit_s`, 1 s by default for the whole request; the gateway caps it at half its 3 s timeout); v1 warm-starts from a v0 plan (M10 §3.2); the weekly batch runs in parallel across CPU cores.
 - **Spike S-4 (4 Oct 2026, passed):** optimal week plans in 10 to 50 ms for the seed households, and 0.07 s with 126 recipes. When strict households (e.g. diabetic with 20-minute meals, or Jain during Navratri) leave too few dishes, the planner relaxes comfort rules only (repeats, then cook time, then budget), never diet, Jain, diabetic or fasting rules. See [S-4 note](../spikes/S-4-meal-plan.md).
 - **Metrics:** constraint satisfaction 100%, nutrition adherence, variety index, ingredient-reuse ratio, plan acceptance. Baselines: random valid plan, greedy.
 - **Status (5 Oct 2026, v1):** the nutrition term (ICMR-NIN targets per member, days within ±20 % of kcal and protein), the price-spike penalty from `intel.price_index`, sides paired per meal and reason codes are served; M3 sends members, nutrition and spikes. First five-seed numbers (eval harness v0, v0 objective): acceptance 0.80, 3.7 distinct perishables a week against 6.2 greedy and 11.3 random, no hard-rule violation.
@@ -213,7 +213,7 @@ sequenceDiagram
 
 ---
 
-## 8.5 Evaluation protocol (`backend/ml/eval/`)
+## 8.5 Evaluation protocol (`backend/training/src/gharbasket_training/eval/`)
 
 | Algorithm | Protocol | Primary metric | Baselines |
 |---|---|---|---|
@@ -224,7 +224,7 @@ sequenceDiagram
 | Routing (M-F) | Fixed-seed benchmark set | ₹/order, km/order, on-time % | One trip per order, nearest-neighbour |
 | Fair assignment (M-G) | λ-sweep on simulated weeks | Gini vs cost Pareto curve | Greedy nearest kitchen |
 
-`just eval` runs every protocol and produces a marimo HTML report with paper-ready figures and tables. Figures are versioned with the model version that produced them.
+`just eval` runs every protocol and writes a report to `docs/eval/<date>-<commit>` (HTML and JSON) and rows to `intel.model_metrics`, each with the simulator version and the sha256 of the cohorts file and the seed catalog. v0 reports are HTML tables: the planner arms against each baseline as per-seed paired differences (mean ± 95 % t-CI, acceptance first) and hard rules re-checked with `planner.check()`; the paper-ready marimo figures come later. Figures are versioned with the model version that produced them.
 
 **Pre-registered targets (hypotheses, 4 Oct 2026; the full protocol, seeds, ablations and change log are in [`docs/research/eval-protocol.md`](../research/eval-protocol.md)):**
 

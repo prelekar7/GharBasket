@@ -74,6 +74,35 @@ async def test_without_the_service_the_fallback_answers() -> None:
     assert answer.source == "fallback"
 
 
+@pytest.mark.parametrize("failure", ["timeout", "server_error", "malformed", "not_an_object"])
+async def test_any_ml_failure_falls_back_to_the_closed_form(failure: str) -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if failure == "timeout":
+            raise httpx2.ReadTimeout("slow", request=request)
+        if failure == "server_error":
+            return httpx2.Response(500, json={})
+        if failure == "malformed":
+            return httpx2.Response(200, json={"items": [{"product": "milk"}], "model": "x"})
+        return httpx2.Response(200, json=[1, 2, 3])
+
+    settings = make_settings(ml_service_url="http://ml.test", ml_service_token=TOKEN)
+    req = request((2000, "ran_out"))
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        answer = await api.pantry_quantities(http, settings, req)
+
+    assert answer == fallback.pantry_quantities(req)
+
+
+def test_the_fallback_interval_is_for_next_weeks_use() -> None:
+    """A normal approximation to the Negative Binomial predictive: wider than the posterior of
+    the rate alone, and close to the service's exact percentiles."""
+    item = fallback.pantry_quantities(request(*[(1500, None)] * 10)).items[0]
+    # alpha = 5.6 + 30 = 35.6, beta = 12: predictive sd = sqrt(35.6 * 13) / 12 steps
+    sd = (35.6 * 13) ** 0.5 / 12 * 500
+    assert item.p90 - item.mean == pytest.approx(1.2816 * sd, abs=0.02)
+    assert item.p90 - item.p10 > 2 * 1.2816 * (35.6**0.5 / 12 * 500)  # not the rate's interval
+
+
 # --- /route/solve through the gateway (M10 §3.4) ------------------------------------------------
 
 
