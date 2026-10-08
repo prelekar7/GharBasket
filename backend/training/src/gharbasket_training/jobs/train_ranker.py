@@ -51,13 +51,14 @@ class Trained:
 
 
 async def rows(session: AsyncSession) -> dict[str, list[dict[str, Any]]]:
-    """The snapshot tables the ranker reads, as rows."""
+    """The snapshot tables the ranker reads, as rows (everything created before now)."""
     by_name = {t.name: t for t in snapshots.TABLES}
+    until = datetime.now(UTC)
     out: dict[str, list[dict[str, Any]]] = {}
     for name in INPUTS:
         table = by_name[name]
-        records = (await session.execute(table.query())).all()
-        out[name] = [dict(zip(table.columns, r, strict=True)) for r in records]
+        records = (await session.execute(table.query(until))).all()
+        out[name] = [dict(zip(table.column_names, r, strict=True)) for r in records]
     return out
 
 
