@@ -37,6 +37,23 @@ MANUAL = {
     "salt": {"kcal": 0, "protein_g": 0, "fat_g": 0, "carb_g": 0, "fibre_g": 0},
     "sugar": {"kcal": 398, "protein_g": 0.1, "fat_g": 0, "carb_g": 99.4, "fibre_g": 0},
     "curd": {"kcal": 60, "protein_g": 3.1, "fat_g": 4.0, "carb_g": 3.0, "fibre_g": 0},
+    "oats": {"kcal": 374, "protein_g": 13.6, "fat_g": 7.6, "carb_g": 62.8, "fibre_g": 10.1},
+    # Spice blends: the average of their seeds (coriander, cumin, chilli, pepper), NIN NVIF.
+    "garam-masala": {
+        "kcal": 330,
+        "protein_g": 12.0,
+        "fat_g": 12.0,
+        "carb_g": 38.0,
+        "fibre_g": 25.0,
+    },
+    "sambar-masala": {
+        "kcal": 320,
+        "protein_g": 12.0,
+        "fat_g": 10.0,
+        "carb_g": 40.0,
+        "fibre_g": 28.0,
+    },
+    "rock-salt": {"kcal": 0, "protein_g": 0, "fat_g": 0, "carb_g": 0, "fibre_g": 0},
 }
 
 

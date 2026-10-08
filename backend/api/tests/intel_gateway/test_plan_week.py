@@ -121,7 +121,7 @@ def ml_transport() -> httpx2.ASGITransport:
                 "no_cook_days": [],
                 "weekly_budget_paise": 92379,
             },
-            ["repeat"],
+            [],  # recipe batch 1 added enough quick diabetic mains: no relaxation needed
         ),
         (
             [{"day": d, "no_onion_garlic": True} for d in range(7)],
@@ -133,7 +133,7 @@ def ml_transport() -> httpx2.ASGITransport:
                 "no_cook_days": [],
                 "weekly_budget_paise": 115473,
             },
-            ["repeat"],
+            [],  # and enough Jain fasting dishes
         ),
     ],
     ids=["family", "tuesday-fast", "diabetic-quick", "jain-navratri"],
