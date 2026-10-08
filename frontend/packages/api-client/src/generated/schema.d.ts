@@ -583,8 +583,9 @@ export interface paths {
         put?: never;
         /**
          * Store a hub's demand forecast and order quantities (the forecast job; operator token)
-         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with
-         *     every product's lines in the payload; M6 reads it through `intel_gateway.api`.
+         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`
+         *     the delivery day) with every product's lines in the payload, and `intel.forecast_ready`;
+         *     M6 reads it through `intel_gateway.api.hub_forecast`.
          */
         post: operations["put_forecasts_v1_internal_intel_forecasts_post"];
         delete?: never;
@@ -1733,6 +1734,12 @@ export interface components {
         /** ForecastsIn */
         ForecastsIn: {
             /**
+             * Data Source
+             * @description Whose orders the forecast was trained on; sources are never pooled
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live";
+            /**
              * Hub Id
              * Format: uuid
              */
@@ -1746,6 +1753,8 @@ export interface components {
         ForecastsOut: {
             /** Accepted */
             accepted: number;
+            /** Delivery Dates */
+            delivery_dates: string[];
         };
         /** Health */
         Health: {

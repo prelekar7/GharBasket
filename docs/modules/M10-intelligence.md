@@ -53,7 +53,8 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
                    "jain_ok": false, "no_onion_garlic": false, "fasting_ok": false,
                    "diabetic_ok": false, "no_cook": false,
                    "cost_per_serving_paise": 1268, "perishables": ["coriander"] } ],  1 to 500
-    "time_limit_s": 2.0 }                                                0.1 to 5
+    "time_limit_s": 1.0 }        0.1 to 5; the solver's wall-clock budget for the whole request,
+                                 every relaxation included (the gateway caps it at half its timeout)
   200 : { "status": "optimal" | "feasible" | "infeasible",
           "relaxed": ["repeat"],          comfort rules relaxed to find a plan (see below)
           "plan": [ { "day": 0, "slot": "breakfast", "recipe": "kanda-poha" | null } ] | null,
@@ -96,30 +97,39 @@ Every new field is optional; a request without them is a v0 request and gets a v
                                          defaults as given; only evaluation ablations override them
   200 additions:
     "plan": [ { …v0…, "sides": ["chapati"], "reasons": ["FESTIVAL", "BUDGET"] } ]
-                                         reason codes per meal (handbook 08 §8.4), params in "reason_params"
-    "score": { …v0…, "nutrition": 0.82, "price_penalty": 3 }   nutrition = share of member-days
-                                         within ±20 % of the RDA targets for kcal and protein
+                                         reason codes per meal (handbook 08 §8.4); "reason_params"
+                                         (the codes' parameters) is not implemented in v1
+    "score": { …v0…, "nutrition": 0.83, "price_penalty": 0.62 }
+                                         nutrition = share of cooking days (no-cook days left out)
+                                         whose kcal and protein per person are within ±20 % of the
+                                         household's average RDA target; price_penalty = Σ
+                                         price_spike of the chosen dishes
 ```
-- **Soft objective v1:** v0 terms + `nutrition` × adherent days − `price` × Σ price_spike of chosen dishes (a dish whose costliest ingredient is 62 % above its 4-week index costs 0.62 × the weight). A day is adherent when its three meals' kcal and protein per person (mains plus their sides) fall within ±20 % of the household's average ICMR-NIN target (`gharbasket_ml/nutrition.py`, from `data/external/nutrition/rda.json`); CP-SAT linearises it with one indicator per day. Hard rules are unchanged; the relaxation order is unchanged. Reason codes: `FESTIVAL` on fasting days, `TIFFIN` on no-cook slots, `BUDGET` when the budget rule was relaxed, `FALLBACK` from the rules planner.
+- **Soft objective v1:** v0 terms + `nutrition` × adherent days − `price` × Σ price_spike of chosen dishes (a dish whose costliest ingredient is 62 % above its 4-week index costs 0.62 × the weight). Every term is on one integer scale (hundredths of a weight point), so one cuisine match is worth `preference`, one adherent day `nutrition`, and a 3 % spike only 0.03 × `price`. The costliest ingredient is the one with the largest quantity × today's price per serving (M3 `planning.price_spike`), so a spiked garnish never marks a dish. A day is adherent when its three meals' kcal and protein per person (mains plus their sides) fall within ±20 % of the household's average ICMR-NIN target (`gharbasket_ml/nutrition.py`, from `data/external/nutrition/rda.json`); CP-SAT models it with one indicator per day that enforces the four bounds when set. No-cook days are left out of the term and of `score.nutrition`: their tiffins carry no nutrition data, so they could never be adherent. Hard rules are unchanged; the relaxation order is unchanged.
+- **Solve time v1:** the indicators make optimality slow to prove (1.5 to 3 s for a seed week), so the planner first solves the v0 objective with 30 % of the limit and passes that plan to the v1 search as a hint (`add_hint`); the v1 search then has the rest of `time_limit_s`. The default limit is 1 s and covers every relaxation, and the gateway sends at most half of `ml_timeout_s` (3 s), so the answer arrives in about 1 s with room for the network; a plan that is not proven optimal comes back as `"feasible"`.
+- **Reason codes:** `FESTIVAL` on fasting days, `TIFFIN` on no-cook slots, `BUDGET` when the budget rule was relaxed, `FALLBACK` from the rules planner.
 - **Fallback:** the rule-based planner pairs sides, never plans a side as a meal, and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
 ### 3.3 `POST /pantry/quantities` (v0, the pantry twin; M-A)
-How much of each item a household goes through in a week, with an 80 % interval. Stateless: the gateway sends the cohort prior and the household's observations; `intel_gateway.fallback.pantry_quantities` computes the same mean with a normal interval when the service is unreachable.
+How much of a perishable daily-use item (milk, curd) a household goes through in a week, beyond what the week's recipes need, with an 80 % interval for next week's use. Stateless: the gateway sends the cohort prior and the household's observations; `intel_gateway.fallback.pantry_quantities` computes the same mean with a normal interval when the service is unreachable.
 
 ```
   request:
     "items": [ { "product": "milk", "step": 500,            base units in one step (the count unit)
-                 "prior_mean": 1400, "prior_weeks": 2,      the cohort's weekly use (the rule table today) and its weight
+                 "prior_mean": 1400, "prior_weeks": 2,      the cohort's weekly daily use (the rule table today) and its weight
                  "observations": [ { "qty": 1500, "signal": "ran_out" | "wasted" | "just_right" | null } ] } ]
-                                                            the last 12 locked boxes' quantities and taps, oldest first
+                                                            the last 12 locked boxes' daily-use shares and taps, oldest first
   200:
     "items": [ { "product", "mean", "p10", "p90", "weeks_observed", "alpha", "beta" } ],
     "model": "pantry-gamma-poisson-v0"
 ```
-- **Model:** Gamma prior on the weekly rate (mean `prior_mean`, weight `prior_weeks`); each observed week adds the box's quantity in steps, corrected by the tap (ran out ×1.3, wasted ×0.7); the posterior is Gamma(α₀ + Σ counts, β₀ + weeks); `mean` is what the box carries, `p10`/`p90` the interval (SciPy's Gamma percentiles in the service, a normal approximation in the fallback).
-- **Use (M3 §3.1 step 2):** for the daily-use items, once a household has one locked box, the twin's `mean` replaces the rule table's quantity (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`); the rule table alone drafts the first boxes. Recorded in `intel.predictions` (kind `pantry`).
-- **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training`; the formulas here stay.
+- **Observation:** a locked box's daily-use share: the delivered quantity minus that week's planned recipes' need for the product (computed as the draft computes it, from the cycle's `meal_plan`), never below 0. The twin learns daily use only; the recipes come on top in the draft, so it cannot feed back on itself.
+- **Model:** Gamma prior on the weekly rate (mean `prior_mean`, weight `prior_weeks`); each observed week adds its share in steps, corrected by the tap (ran out ×1.3, wasted ×0.7); the posterior is Gamma(α₀ + Σ counts, β₀ + weeks). `mean` = α/β × step. `p10`/`p90` are for next week's use: the posterior predictive is Negative Binomial (r = α, p = β/(β+1)) in steps, scaled by the step (SciPy percentiles in the service; in the fallback a normal approximation with mean α/β and variance α(β+1)/β²).
+- **Scope (v0):** perishable daily-use items only (shelf life ≤ 96 h, the catalog's perishability line: milk and curd today). A staple carries over in the cupboard, so what a box delivers says little about a week's use; staples stay on the rule table until v1 models stock.
+- **Use (M3 §3.1 step 2):** only with `PANTRY_TWIN_ENABLED=true` (default off). Then, once a household has one locked box, the twin's `mean` replaces the rule table's daily-use quantity of milk and curd, and that week's recipe need is added on top (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`). Recorded in `intel.predictions` (kind `pantry`). The weekly job uses it; the customer-facing preview (`GET /v1/cycles/preview`) does not, so it waits on one ML call at most. It is switched on only once the eval harness shows the pre-registered target holds (MAE ≤ 15 % after 4 weeks, `just eval` prints it).
+- **Eval:** scored on the same scope (milk and curd, their daily-use share) next to the rule table and a running mean of the actual daily use, with the 80 % interval's coverage.
+- **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training` and models stock, so staples can join; the formulas here stay.
 
 ### 3.4 `POST /route/solve` (v0, M-F; from spike S-3)
 One delivery slot's van routes for a hub: a stop is a society (the captain does the last 50 metres). Stateless; the API (M7 through `intel_gateway.api.solve_routes`) sends the day's societies with their loads and windows and gets routes with ETAs back, recorded in `intel.predictions` (kind `route`, subject the hub).
@@ -132,67 +142,90 @@ One delivery slot's van routes for a hub: a stop is a society (the captain does 
     "food_bank": { "lat", "lng", "window_start_s", "window_end_s" } | null,
     "vans": { "count", "capacity_kg": 400, "capacity_crates": 24, "traffic_factor": 1.5, "reload_s": 1200 },
     "service": { "drop_s": 240, "per_crate_s": 30 }, "cost": { "fixed_paise_per_van": 25000, "paise_per_km": 60,
-                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10
+                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10, "max_late_s": 1800
+  422:
+    a window that starts after it ends, depart_s not before return_by_s, or donations without a food_bank
+    (the gateway's RouteRequest refuses the same, so M7 sees a ValidationError, not a missing route)
   200:
     "status": "solved" | "fallback",                 fallback = nearest neighbour, when the solver found no plan
-    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down
+    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down or slow
     "routes": [ { "van", "start_s", "end_s", "stops": [ { "id", "kind": "drop" | "bank", "eta_s", "late_s" } ] } ],
     "summary": { "vans", "km", "cost_paise", "on_time", "late_min", "problems": [] },   the checker's findings
     "seconds", "model": "cvrptw-waves-v0"
 ```
-- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, new vans only where needed. Each wave gets half the time limit.
-- **Checker:** every answer is replayed on the matrix (windows with waiting, loads at every stop, pairing, return time, reload gaps); `summary.problems` lists what fails, so M7 never publishes a route the checker rejects.
-- **Fallbacks:** OSRM down → haversine distances; no plan → nearest neighbour; the service down → the gateway returns `None` and M7 keeps the previous day's sequence (M7 §6).
+- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, plus only the vans of `vans.count` the first wave left at the hub. The plan never uses more vans than the fleet. Each wave gets half the time limit.
+- **Checker:** every answer is replayed on the matrix; `summary.problems` lists every rule that fails, and **M7 publishes a route only when `problems` is empty**. The rules:
+  - no trip leaves before `depart_s`, and a van's next trip leaves only after it is back plus `reload_s`;
+  - kg and crates within capacity leaving the hub and after every stop (crates out, empties and donation crates in);
+  - each donation on the same van before its food-bank drop, and the food bank reached before its window ends;
+  - a drop more than `max_late_s` (default 30 min) after its window's end; lateness below that only lowers `on_time` and adds to `late_min`;
+  - every society and food-bank drop exactly once (`not served: …` names the ones left out, `visited twice: …` the repeats);
+  - every van back by `return_by_s`, and no more vans than `vans.count`.
+- **Fallbacks:** OSRM down, slow (over `OSRM_TIMEOUT_S`, 2.5 s) or wrong-shaped → haversine distances; a pair OSRM cannot route (`null`) → that pair's haversine estimate, logged. No plan → nearest neighbour within the fleet: each trip goes to the van free first, a van goes out again only if it is back by `return_by_s`, and the societies left over are reported in `problems`. The service down → the gateway returns `None` after `time_limit_s + ML_ROUTE_OVERHEAD_S` (6 s, covering OSRM's 2.5 s) and M7 keeps the previous day's sequence (M7 §6).
 
 ### 3.5 `POST /assign/kitchens` (v0, M-G; greedy baseline inside)
 Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` at T-1 21:30, through `intel_gateway.api.assign_kitchens`, recorded in `intel.predictions` kind `assignment`).
 
 ```
   request:
-    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],
+    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],   ≤ 2000
     "kitchens": [ { "id": "<partner id>", "lat", "lng", "max_portions", "skills": [...], "rating": 4.5,
-                    "earnings_paise": 120000 } ],                      rolling earnings before tonight
-    "fairness_lambda": 0.5,            0 = cost only; the eval harness sweeps it for the Pareto curve
+                    "earnings_paise": 120000 } ],         ≤ 300; rolling earnings before tonight, ≤ 10^12
+    "fairness_lambda": 300,            paise of cost per portion of earnings imbalance; 0 = cost only
     "rating_floor": 3.8, "max_km": 5, "paise_per_portion": 6000, "quality_paise_per_star": 500,
-    "time_limit_s": 5
+    "max_kitchens_per_order": 15,      only the nearest this many eligible kitchens are candidates
+    "time_limit_s": 5                  wall clock, building the model included
   200:
-    "status": "solved" | "fallback" | "infeasible",   fallback = greedy nearest kitchen
+    "status": "solved" | "partial" | "fallback" | "infeasible",
     "assignments": [ { "order_id", "kitchen_id", "portions", "km" } ],
+    "unassigned": [ { "order_id", "reason": "below_rating_floor" | "no_skills" | "too_many_portions"
+                                          | "out_of_reach" | "no_room" } ],
     "summary": { "portions", "kitchens_used", "km_per_portion", "cost_paise_per_portion",
-                 "gini", "earnings_paise": [...] } | null,
-    "seconds", "model": "assignment-cpsat-v0"
+                 "gini", "gini_eligible",
+                 "earnings_paise": [ { "kitchen_id", "earnings_paise" } ] } | null,
+    "seconds", "model": "assignment-cpsat-v0" | "greedy-v0"
 ```
-- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × the largest deviation of any kitchen's earnings (rolling + tonight) from the fair share — the linear proxy for the Gini in handbook 08 M-G.
-- **Fallbacks:** no plan or too many orders → greedy nearest kitchen with room (`status: fallback`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
+- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × (the largest deviation of an eligible kitchen's earnings from the fair share + the mean absolute deviation). Earnings are rolling + tonight and counted **in portions** (÷ `paise_per_portion`), so λ trades like for like with the cost per portion; the max is the linear proxy for the Gini in handbook 08 M-G, the mean keeps the objective from going flat when one kitchen pins the max. *Eligible* = a candidate for at least one order tonight: a kitchen with no room, below the floor, without the skills or out of reach is left out of the share and the deviations.
+- **λ default 300:** the knee of a sweep on the test instance (12 orders, 4 kitchens, three seeds: knees at 200-300); on a 60-order, 8-kitchen hub the knee is at 600-700. The eval harness's sweep settles the production value.
+- **Partial plans:** every order has a skip with a penalty per portion larger than any order's cost and fairness effect, so one order no kitchen can take never fails the hub. Skipped orders are listed in `unassigned` with the first reason that rules every kitchen out, or `no_room` when kitchens could cook it but are full; `status` is then `partial` (`infeasible` only when nothing is assigned). `summary` per-portion figures count the assigned portions.
+- **Summary:** `gini` is over every kitchen in the request (the paper metric), `gini_eligible` over the eligible kitchens (what λ balances).
+- **Time:** candidates are the nearest `max_kitchens_per_order` kitchens per order, the variables are grouped by order and kitchen in one pass, and building counts against `time_limit_s` (the solver gets the rest; under 0.05 s left → greedy). Above `max_orders_for_solver` (default 500: a 500-order, 60-kitchen hub ends within ~2 % of optimal in 5 s) greedy answers; so do instances whose objective would not fit in int64. The gateway waits `max(ml_timeout_s, time_limit_s + 5 s)`.
+- **Deterministic mode:** `assign(req, deterministic=True)` (the default for in-process callers such as the eval harness) solves with one worker and a deterministic-time limit, so repeated runs give the same plan; the endpoint passes `False` (eight workers, wall-clock limit).
+- **Fallbacks:** no plan in time, too many orders or numbers too large → greedy nearest kitchen with room (`status: fallback`, or `partial`; `model: greedy-v0`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
 
 ### 3.6 The forecast job (v0, M-E; `backend/training`, not an endpoint)
-`python -m gharbasket_training.jobs.forecast --push` at T-1 21:10 IST (M6 §6): next week's **uncommitted** demand per hub × product with newsvendor order quantities, from the module tables with the read-only role, handed to `POST /v1/internal/intel/forecasts` (one `intel.predictions` row per hub and delivery day, kind `forecast`, payload `items[{product_id, committed, uncommitted_q50, uncommitted_qtau, order_qty, model}]`); M6 reads it through `intel_gateway.api.hub_forecast(hub_id, for_date)`. The backtest's WAPE per model goes to `model_metrics` (split `backtest`).
-- **Series:** weekly buckets per hub × product from orders that reached `locked` or later; `committed` = box lines, `uncommitted` = add-on and tiffin lines.
-- **Models:** StatsForecast AutoETS, CrostonOptimized, SeasonalNaive(4); baselines SeasonalNaive and Naive ("buy last week"). Rolling-origin backtest (horizon one week, up to three windows); the champion per hub has the lowest WAPE; a series shorter than four weeks gets the naive answer.
-- **Intervals and quantities:** conformal — q_tau = point + the tau-quantile of the champion's backtest residuals; `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`).
-- **v1 (built 5 Oct 2026, F25):** a global LightGBM per hub joins the backtest (`LightGBM`, the native booster; lags 1–3, the 4-week mean, the week of the year on the circle, and what is known in advance: festival and fast days of the target week from M2's calendar, the product's mandi price index from `intel.price_index`); it is scored only when every backtest window could fit it (8 training rows) and wins the champion slot like any other model. Predictions are stored as `forecast-<champion>-v1`. Weather and MinT reconciliation stay open.
+`python -m gharbasket_training.jobs.forecast --push` at T-1 21:10 IST (M6 §6): the **uncommitted** demand per hub × product × delivery day for the 7 days after the run, with newsvendor order quantities, from the module tables with the read-only role, handed to `POST /v1/internal/intel/forecasts`. The API stores one `intel.predictions` row per hub and delivery day (kind `forecast`, `for_date` = the delivery day, payload `items[{product_id, for_date, committed, uncommitted_q50, uncommitted_qtau, order_qty, model}]` and `data_source`) and publishes `intel.forecast_ready` (hub_id, delivery_dates, model, data_source) in the same transaction; M6 reads each day through `intel_gateway.api.hub_forecast(hub_id, delivery_date)`. The backtest's metrics per model go to `model_metrics` (split `backtest`).
+- **Data:** one source per run (`--data-source`, `synthetic` until the pilot; `pilot`/`live` read the orders marked `real`); every row pushed carries the label and sources are never pooled (eval protocol §2).
+- **Series:** weekly buckets per hub × product from orders past `locked` (locked, picking, packed, dispatched, at_society, delivered, undelivered, redelivery, refunded); `committed` = the lines of box orders, `uncommitted` = the lines of add-on and tiffin orders (by `Order.kind`, so an add-on inside a box is committed). Only complete weeks: the run's current week is left out of training and of `committed`. Every series runs from its first sale to the run's last complete week, zeros filled; a product with no sale in the last 8 weeks is dropped (stopped).
+- **Models:** StatsForecast AutoETS, CrostonOptimized, SeasonalNaive(4) and Naive ("buy last week"); a series needs 7 weeks (AutoETS's minimum) or gets the naive answer.
+- **Backtest (eval protocol §3):** rolling origin, an origin every week, a 2-week horizon, as many origins as the history allows (at least 3, at most the latest 8; fewer than 3 → no backtest, the naive answer). WAPE per model over both steps of every window; the champion per hub is the model with the lowest WAPE, the baselines included (a tie goes to the simpler model). The champion's WAPE gap to SeasonalNaive and the protocol's "≥ 10 points better" check are reported as results, never a gate.
+- **Intervals:** split conformal on residuals divided by each series' mean weekly uncommitted quantity (then rescaled), per horizon step, with the (n+1) finite-sample quantile: q_tau = max(0, q50 + scale × Q_tau). In the backtest each window is calibrated only on residuals whose target week was known at its origin; the empirical coverage of q_tau, the pinball loss of q50 and q_tau and MASE (scaled by the in-sample mean week-on-week change) are reported on those windows. In production all backtest residuals calibrate.
+- **Delivery days:** the model is weekly; a product's weekly q50 and q_tau are split over the hub's delivery days by each weekday's share of the product's units over the last 4 complete weeks (the hub's share of orders per weekday when the product sold nothing then). Days in the run's week use the 1-week-ahead forecast, days in the next week the 2-week-ahead one. Splitting a quantile by a share is the v0 approximation (v1 reconciles).
+- **Quantities:** `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`); `committed` here is the same weekday's boxes in the last complete week, which M6 replaces with the cut-off's exact count.
+- **v1 (LightGBM, F25):** a global LightGBM per hub (the native booster, one model over every series of the hub; the series id is not a feature) joins the backtest as `LightGBM` and competes for champion like the others (it is the most complex, so it loses a WAPE tie). **Direct multi-step strategy: one booster per horizon step h ∈ {1, 2}.** The features of step h for a target week are counted from the origin, the week h before it: lags 1–3 (y shifted by h, h+1, h+2), the 4-week mean up to the origin, the target week of the year on the circle, the festival and fast days of the target week from M2's calendar (known in advance), and the product's mandi price index from `intel.price_index`. It takes part in a backtest window only when that window has at least 8 training rows for every step, and its scaled residuals enter the same per-step conformal calibration as the other models. All models are scored on the same windows, those where every scored model could forecast; a model that would leave fewer than 3 such windows (LightGBM short of history, AutoETS refusing a window) is left out of the comparison instead. Predictions are stored as `forecast-<champion>-v1`. Weather and MinT reconciliation stay open.
 
 ### 3.7 `POST /basket/rank` and the ranker job (v0, M-B)
 The next-basket ranker: which candidates belong in a household's box this week. The training job (`backend/training`, `train_ranker`, weekly) learns from every household's boxes and edits; the Space serves the model from the registry.
 
 ```
-  request:  "candidates": [ { "product", "weeks_since", "frequency", "drafted", "drafted_rule", "removed_last",
+  request:  "candidates": [ { "product", "weeks_since", "frequency", "drafted", "removed_last",
                               "popularity", "price_paise" } ], "top_k": 10
   200:      "source": "ml" | "fallback", "model", "ranked": [ { "product", "score", "rank" } ]
 ```
-- **Baskets and labels:** one basket per household x week; a candidate's label is 1 when it is in the final box (kept or added), 0 when drafted and removed or never taken.
-- **Candidates:** the household's own past items, the frequent items of its 5 nearest households (Jaccard on past baskets; TIFU-KNN simplified), and the week's drafted lines.
-- **Features** (computed from earlier weeks only): weeks since last bought, share of past weeks bought, drafted this week and by the rule table, removed last time, share of households buying it last week, unit price.
-- **Model:** LightGBM LambdaRank grouped by basket; **leave-last-basket-out** NDCG@10 and Recall@10 against "repeat last week" and "top frequency" (eval protocol §4), in the model card and in `model_metrics`.
-- **Registry (ADR-0025):** `models/basket_ranker/<version>/{model.txt, card.json}` and `models/basket_ranker/latest.json` on R2, the same layout under the Space's `MODELS_DIR`; `/models` lists it. Without a model the fallback ranks by frequency then popularity (`source: "fallback"`).
-- v1 (P4): SHAP explanations, price delta and festival features, the ranker's preference term in planner v2.
+- **Baskets and labels:** one basket per household x week whose cycle is `approved` or `locked` (draft, skipped and cancelled cycles are not final boxes; a skipped week is a gap); a candidate's label is 1 when it is in the final box (kept or added), 0 when drafted and removed or never taken.
+- **Candidates:** the household's own past items, the frequent items of its 5 nearest households (Jaccard on their baskets dated before this week; ties broken by product id, so the data never depends on the hash seed), and the week's drafted lines.
+- **Features** (as of the cut-off, from earlier weeks only, never from the final box): weeks since last bought (capped at 52, and 52 when never bought, in training and serving), share of past baskets bought, drafted this week, removed last time, share of households buying it last week, unit price from the hub's price list valid at the cut-off (else the newest earlier list holding it, else 0). `drafted_rule` was dropped in v0: removed lines lose their reason code, so it leaked the label; it returns once a draft snapshot exists.
+- **Model:** LightGBM LambdaRank grouped by basket, one model per `data_source` (never pooled); **leave-last-basket-out** NDCG@10, Recall@10 and Recall@|basket| (eval protocol §4 and §7) against "repeat last week" (the household's previous approved or locked basket, however many weeks ago) and "top frequency", with the candidates' coverage of the final box, in the model card and in `model_metrics`.
+- **Registry (ADR-0025):** `s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/{model.txt, card.json}` and `models/basket_ranker/latest.json`; `--out X` writes the same layout without the `models/` prefix, which is what the Space's `MODELS_DIR` holds. The job never moves `latest.json`: promotion is manual (`just promote`, or `train_ranker --promote <data_source>` until it exists). The Space re-reads the pointer every `MODELS_RELOAD_S` (600 s); a malformed pointer, a corrupt model or a model with other features is logged and listed as `unreadable` on `/models`, and the last good model or the fallback answers. Without a model the fallback ranks by frequency then popularity (`source: "fallback"`).
+- v1 (P4): SHAP explanations, price delta and festival features, `drafted_rule` from a draft snapshot, the ranker's preference term in planner v2.
 
-### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
+### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**
   - the seed world from `just seed` (hub, societies, catalog, prices, festival calendar), read through the catalog services;
   - the cohorts in `data/simulator/cohorts.json` (assumptions for Rhythm and Manish to review);
-  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026), `--planner cpsat|rules` and `--adoption` (share of flats, default 0.1).
+  - the price episodes in `data/simulator/shocks.json` (also assumptions);
+  - the arguments `--seed` (default 7), `--weeks` (8), `--start` (Mon 5 Oct 2026; prices are the hub's list on that day), `--planner cpsat|rules`, `--adoption` (share of flats, default 0.1) and `--no-shocks`.
 - **Households:**
   - sampled per seed society with a hub, using cohort size, diet, Jain, cuisines, fasts, a diabetic elder (with health consent), cook time, no-cook Sunday and Budget Lock;
   - onboarded through M1's `create_household` with `data_source='synthetic'`;
@@ -203,9 +236,15 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
   - **Accept or edit:** each planned dish is accepted with probability sigmoid(accept bias + taste). Otherwise it is swapped for the household's favourite dish allowed under the same hard rules, and a fasting dish is only swapped for another fasting dish.
   - **Skip:** a skipped week means no box; the family still cooks.
   - **Consumption:** the cooked dishes' ingredients × adult equivalents, plus latent daily-use items (milk, atta, oil, salt, curd, fruit) with weekly noise.
+  - **Box (v1a):** drafted like M3's `lines_from_plan` (planned dishes' non-optional ingredients plus the rule table plus two fruits, summed per product, less the staples the pantry still holds, in steps at the week's prices). The household then edits it, each edit with a reason:
+    - `taste`: lines follow the dishes it cooks (keeping the rule share), and sometimes a liked fruit is added;
+    - `stock`: the most over-stocked staples are removed or reduced;
+    - `price`: a spiked item is swapped for a same-category, same-unit product that is cheaper per unit and in total, or halved. The substitute is cooked in place of the original.
+  - **Pantry (v1a):** the box is delivered into a pantry and the cooking draws it down. Shortfalls are bought elsewhere. Perishables left at the end of the week are waste, and staples are waste once past their shelf life. On some items the household taps *ran out*, *wasted* or *just right* (cohort `feedback_rate`).
 - **Output:** Parquet ground truth in `data/sim_truth/seed-<n>/` (git-ignored):
   - `households`, `daily_use` and `taste` (the latent truth);
-  - `weeks`, `meals` and `consumption` (behaviour), with columns as in `gharbasket_sim/truth.py`;
+  - `weeks`, `meals` and `consumption` (behaviour);
+  - `boxes`, `box_lines`, `edits`, `pantry` and `prices` (v1a), with columns as in `gharbasket_sim/truth.py`;
   - `manifest.json`.
   The weeks reach the database through M3/M4 once those exist.
 - **Guarantees (tested):**
@@ -238,7 +277,7 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 | Job | Schedule | Notes |
 |---|---|---|
 | `collect_mandi` | Daily 18:33 IST (`training-jobs.yml`, `backend/training`) | data.gov.in (Agmarknet) prices for Maharashtra markets → `s3://gb-lake/external/mandi/date=…/`; pushes the 4-week price index per product to `POST /v1/internal/intel/price-index` (operator token) → `intel.price_index`, read by `intel_gateway.api.price_spikes` |
-| `export_snapshots` | Daily 02:03 IST (Actions, `DATABASE_URL_RO`) | The module tables through the API's SQLAlchemy models with a read-only role → `snapshots/date=<day>/<table>.parquet` in the lake (no personal data: households without owner, members or address; every table with `data_source`), typed-column checks; then the point-in-time household features as of the run → `intel.feature_snapshots` (`POST /v1/internal/intel/feature-snapshots`) |
+| `export_snapshots` | Daily 02:03 IST (Actions, `DATABASE_URL_RO`) | The module tables through the API's SQLAlchemy models with a read-only role, in one `REPEATABLE READ, READ ONLY` transaction → `snapshots/date=<day>/<table>.parquet` in the lake. `<day>` is the IST day of the run; a partition holds only rows created (or, for events, happened) before the end of that IST day, so `--day` backfills never see later rows. One fixed Arrow schema per table. No personal data: households without owner, members or address; no society anywhere (the hub is the only geography); the monthly budget as a band (`budget_band`); every table with `data_source`. Then the point-in-time household features → `intel.feature_snapshots` (`POST /v1/internal/intel/feature-snapshots`, timezone-aware `as_of`) as of the latest order cut-off at or before the run: 21:00 IST of the previous evening for the 02:03 IST run (`orders.api.cutoff_for`). **Retention and erasure:** snapshot partitions are deleted after 180 days (a lifecycle rule on `snapshots/` in the bucket, proposed); an erased household (`DELETE /v1/me`, handbook 13) is left out of every later partition and feature run, and its random id leaves the older partitions as they age out |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast` (`backend/training`) | T-1 21:10 IST (Actions, cron-job.org for the minute) | StatsForecast v0 (§3.6); MLForecast and reconciliation in v1 |
 | `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |

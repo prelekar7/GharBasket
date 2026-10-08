@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.intel_gateway.events import FORECAST_READY
 from gharbasket.modules.intel_gateway.models import (
     Experiment,
     FeatureSnapshot,
@@ -20,6 +21,7 @@ from gharbasket.modules.intel_gateway.models import (
     Prediction,
     PriceIndex,
 )
+from gharbasket.platform.outbox import publish
 
 
 async def record_prediction(
@@ -67,6 +69,45 @@ async def latest_prediction(
             .limit(1)
         )
     ).scalar_one_or_none()
+
+
+async def record_forecasts(
+    session: AsyncSession,
+    *,
+    hub_id: uuid.UUID,
+    model_name: str,
+    data_source: str,
+    items: list[dict[str, Any]],
+) -> list[date]:
+    """A hub's forecast lines (`items`, each with its `for_date`, the delivery day): one
+    `forecast` prediction per delivery day with every product's lines, then `intel.forecast_ready`
+    in the same transaction. Flushes; the caller commits. Returns the delivery days."""
+    by_date: dict[date, list[dict[str, Any]]] = {}
+    for item in items:
+        by_date.setdefault(date.fromisoformat(str(item["for_date"])), []).append(item)
+    for for_date, lines in sorted(by_date.items()):
+        await record_prediction(
+            session,
+            kind="forecast",
+            subject_type="hub",
+            subject_id=hub_id,
+            for_date=for_date,
+            source="ml",
+            payload={"items": lines, "data_source": data_source},
+            model_name=model_name,
+        )
+    days = sorted(by_date)
+    await publish(
+        session,
+        FORECAST_READY,
+        {
+            "hub_id": str(hub_id),
+            "delivery_dates": [d.isoformat() for d in days],
+            "model": model_name,
+            "data_source": data_source,
+        },
+    )
+    return days
 
 
 async def record_metrics(

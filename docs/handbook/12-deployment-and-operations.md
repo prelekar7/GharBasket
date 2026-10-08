@@ -85,7 +85,7 @@ flowchart TB
 | postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
 | files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
 | PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
-| ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` uploads `backend/ml` after CI on `main`; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
+| ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` mirrors `backend/ml` with dependencies exported from `uv.lock` after CI on `main` (no commit, so no rebuild, when nothing changed); `start.sh` exits when either process dies, so the Space restarts; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
 | MLflow | Local Docker only (ADR-0025) | Experiment tracking | The registry is a `latest.json` pointer on R2 |
 | worker | None until the pilot | — | No broker for now (D21): the outbox relay and the job endpoints do the work. Taskiq returns when a paid worker exists |
 

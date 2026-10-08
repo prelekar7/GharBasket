@@ -57,6 +57,7 @@ async def test_drift_is_scored_once_and_shown_on_the_health_table(
         json={
             "hub_id": str(SEED_HUB_ID),
             "model": "forecast-lightgbm-v1",
+            "data_source": "synthetic",
             "items": [
                 {
                     "product_id": str(uuid.uuid4()),
