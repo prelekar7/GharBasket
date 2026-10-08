@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
@@ -32,7 +32,8 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | PATCH | `/v1/cycles/{id}/lines` | owner | `If-Match` | `ops`: remove, add, qty, substitute; records feedback |
 | PUT | `/v1/cycles/{id}/meals` | owner | `If-Match` | Set one meal: the next dish, a chosen recipe, a tiffin, no-cook, or back to the plan; redraws its lines (§3.2) |
 | POST | `/v1/cycles/{id}/approve` | owner | Required + `If-Match` | → M4 order |
-| POST | `/v1/cycles/{id}/skip` | owner | Required | Before the cut-off |
+| POST | `/v1/cycles/{id}/skip` | owner | Required | Before the cut-off (a `payment_failed` week until its grace period ends, §3.3) |
+| POST | `/v1/cycles/{id}/unskip` | owner | Required + `If-Match` | A skipped week back to approval, before the cut-off (§3.3) |
 | POST | `/v1/cycles/{id}/feedback` | owner | Required | After delivery: ran out, wasted, just right (the pantry twin's signals) |
 | GET / PUT | `/v1/budget-lock` | owner | Required (PUT) | Month budget and what the month's boxes spent |
 | GET | `/v1/societies/{id}/delivery-days` | Authenticated | — | |
@@ -218,6 +219,47 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 | meal `reason_code: "swapped_by_you"` | meal `source: "customer"`; planner meal reasons (`in_season`, `quick_cook`) are not in the contract, the reasons stay on lines |
 | tiffin flag set only by a booked kitchen tiffin | `set: "tiffin"` marks the meal; booking a kitchen's tiffin stays mocked until M8 |
 
+### 3.3 Un-skip and a week that failed to pay (drafted 2026-10-09, frozen on approval)
+The Week screen's "undo" after a skip and its `payment_failed` state build against this. `mocks/subscriptions.js` on `feat/mobile-week-states` already calls `POST /v1/cycles/{id}/unskip` and `/pay`. Un-skip is a cycle action, so it stays in M3. Paying moves money for an order, so it is M4's `POST /v1/orders/{id}/pay` (M4 §3.4); M3 only shows what is due. Same sign-in, `If-Match` and review rules as §3.1.
+
+```
+POST /v1/cycles/{id}/unskip       Idempotency-Key + If-Match; only a skipped cycle, before its cut-off
+  200 CycleOut (version + 1): status back to awaiting_approval (draft if the box-ready notice was
+      never sent); the lines are the ones the cycle had when it was skipped; the Budget Lock
+      counts it again once approved; publishes subscriptions.box_unskipped
+      { cycle_id, household_id, delivery_date }
+      approving it again creates a new order (the skip cancelled the old one; M4 §3.7 keeps
+      cycle_id unique only among orders that are not cancelled)
+  409 "subscriptions.not_skipped" · 409 "subscriptions.cutoff_passed"
+  409 "subscriptions.paused"        the subscription is paused over that delivery date: resume first
+
+CycleOut  status gains "payment_failed" (mirrored from orders.payment_failed, like "locked"),
+          and gains "payment_due":
+            { "order_id", "total_paise", "wallet_paise", "shortfall_paise", "due_at" } | null
+          only while payment_failed; wallet_paise is read live through billing.api.balance;
+          due_at is the order's grace_until (T-1 23:00 IST)
+
+POST /v1/cycles/{id}/skip   (§3.1) also accepts a payment_failed cycle until due_at: M3 cancels
+          the order through orders.api (M4 §3.4) and the cycle becomes skipped
+```
+
+**Consumers added.**
+- `orders.payment_failed` sets the cycle `payment_failed` and keeps `payment_due`.
+- `orders.locked`, which exists already, moves it on to `locked` after a successful `pay` or top-up.
+- `orders.cancelled` with reason `payment`, which also exists, sets `cancelled`.
+- `orders.tiffin_booked` and `orders.cancelled` with `kind: tiffin` set that meal to `tiffin` or back to `planned` while the cycle can still be edited (M4 §3.5).
+
+**For account deletion** (M1 §3.5):
+- **On `identity.deletion_requested`**, M3 ends the subscription. It skips every cycle that is still before its cut-off, which cancels its order, and every `payment_failed` cycle.
+- **`delete_for_user(session, user_id, household_id)`** deletes the subscription, cycles, lines, Budget Locks and both feedback tables at the purge.
+
+| Mock today | Contract |
+|---|---|
+| `POST /v1/cycles/{id}/unskip` → status `ready` | Same path, `If-Match` and key; status `awaiting_approval`; 409 `subscriptions.not_skipped` instead of `orders.invalid_transition` |
+| `POST /v1/cycles/{id}/pay` | `POST /v1/orders/{payment_due.order_id}/pay` (M4 §3.4), then refetch the cycle |
+| `payment_due { wallet_paise, shortfall_paise, due_at }` with `+05:30` | Same fields plus `order_id` and `total_paise`; `due_at` in UTC |
+| skip allowed from `payment_failed` | Same, until `due_at` |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -233,7 +275,7 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 ## 5. Events
 **Published:** `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped`, `subscriptions.subscription_paused` (payloads in §3.1).
 - Added for M11 (2026-10-09): `subscriptions.box_ready` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}` and `subscriptions.cutoff_reminder` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}`; `subscriptions.box_approved` gains `auto_approved: bool`.
-**Consumed:** `orders.locked`, `orders.cancelled`, `orders.delivered`, `identity.household_updated`. (Plans are requested synchronously through `intel_gateway.api` inside the generation job, so `intel.plans_ready` is not needed in S3.)
+**Consumed:** `orders.locked`, `orders.cancelled`, `orders.delivered`, `identity.household_updated`; added by §3.3: `orders.payment_failed`, `orders.tiffin_booked`, `identity.deletion_requested`. **Published** (added by §3.3): `subscriptions.box_unskipped`. (Plans are requested synchronously through `intel_gateway.api` inside the generation job, so `intel.plans_ready` is not needed in S3.)
 
 ## 6. Jobs
 | Job | Schedule | Notes |

@@ -112,7 +112,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | Purpose limitation | Purposes: `service_delivery`, `personalisation`, `health_personalisation` (separate opt-in), `marketing` (opt-in), `research_anonymised`, `whatsapp` (opt-in to WhatsApp updates) |
 | Data minimisation | Age bands, not birth dates. No Aadhaar. Health tags optional |
 | Right to access / correction | `POST /v1/me/data-export`, then `GET` for a 5-minute download link to one JSON file kept 7 days (M1 §3.3); editable profile |
-| Right to erasure | `DELETE /v1/me` → personal data hard-deleted; ledger rows kept with the owner anonymised (legal record keeping) |
+| Right to erasure | `DELETE /v1/me` → every device signed out at once and the wallet refunded to its source; signing in again within 30 days cancels; after 30 days `purge_deleted_users` hard-deletes personal data module by module, and keeps orders and the append-only ledger under ids that no longer lead to a person (legal record keeping; M1 §3.5) |
 | Children | No direct collection from children; only age bands entered by the adult account holder |
 | Breach handling | Runbook: contain, assess, notify the Data Protection Board and affected users as required |
 | Academic data | Per the accepted proposal, demonstrations use **synthetic** or **consented** pilot data only (`data_source` tag) |
