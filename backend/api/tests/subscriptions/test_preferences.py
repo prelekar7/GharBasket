@@ -49,9 +49,13 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
     await subscribe(api, priya)
     household = await identity_api.household_for_user(db_session, user_id)
     assert household is not None
-    for scheduled_for, delivery in (
-        ("2026-10-10T12:30:00Z", date(2026, 10, 13)),
-        ("2026-10-17T12:30:00Z", date(2026, 10, 20)),
+    removed: str | None = None
+    approved_ids: list[uuid.UUID] = []
+    for week, (scheduled_for, delivery) in enumerate(
+        (
+            ("2026-10-10T12:30:00Z", date(2026, 10, 13)),
+            ("2026-10-17T12:30:00Z", date(2026, 10, 20)),
+        )
     ):
         ran = await api.post(
             "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": scheduled_for}
@@ -59,15 +63,28 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
         assert ran.status_code == 200, ran.text
         cycle = await service.cycle_for(db_session, household.id, delivery)
         assert cycle is not None
+        version = cycle.version
+        if week == 1:  # Priya removes a line in week 2: the ranker's removed_last next week
+            kept = {line.product_id for line in await service.lines_of(db_session, approved_ids[0])}
+            lines = await service.lines_of(db_session, cycle.id)
+            removed = str(next(line.product_id for line in lines if line.product_id in kept))
+            edited = await api.patch(
+                f"/v1/cycles/{cycle.id}/lines",
+                json={"ops": [{"op": "remove", "product_id": removed}]},
+                headers={**priya, "If-Match": f'"{version}"'},
+            )
+            assert edited.status_code == 200, edited.text
+            version = edited.json()["version"]
         approved = await api.post(
             f"/v1/cycles/{cycle.id}/approve",
             headers={
                 **priya,
                 "Idempotency-Key": str(uuid.uuid4()),
-                "If-Match": f'"{cycle.version}"',
+                "If-Match": f'"{version}"',
             },
         )
         assert approved.status_code == 200, approved.text
+        approved_ids.append(cycle.id)
     catalog = await catalog_api.plan_catalog(db_session, SEED_HUB_ID)
     next_delivery = date(2026, 10, 27)
 
@@ -75,8 +92,16 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
         db_session, household.id, SEED_HUB_ID, next_delivery, catalog
     )
     assert candidates and all(0 < c.frequency <= 1 for c in candidates)
-    assert all(c.weeks_since >= 1 and c.price_paise > 0 for c in candidates)
-    assert any(c.popularity > 0 for c in candidates)
+    assert all(1 <= c.weeks_since <= 2 and c.price_paise > 0 for c in candidates)
+    # Priya is the hub's only household with a box last week: popularity is 1 or 0.
+    assert {c.popularity for c in candidates} <= {0.0, 1.0} and any(
+        c.popularity for c in candidates
+    )
+    by_product = {c.product: c for c in candidates}
+    gone = next(p for p in catalog.products.values() if str(p.id) == removed)
+    assert by_product[gone.slug].removed_last and by_product[gone.slug].popularity == 0.0
+    assert by_product[gone.slug].weeks_since == 2 and by_product[gone.slug].frequency == 0.5
+    assert sum(c.removed_last for c in candidates) == 1
     # One week of history is not enough.
     assert (
         await service.ranker_candidates(
@@ -97,3 +122,29 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
     )
     assert any(r["preference"] is not None for r in request["recipes"])
     assert all(r["preference"] is None for r in request["recipes"] if r["is_side"])
+
+    # The customer's preview waits on one ML call at most: the planner's, never the ranker's.
+    called: list[str] = []
+
+    def down(request: httpx2.Request) -> httpx2.Response:
+        called.append(request.url.path)
+        return httpx2.Response(503)
+
+    settings = make_settings(ml_service_url="http://ml.test", ml_service_token="t")
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(down)) as http:
+        await service.draft(
+            db_session,
+            http,
+            settings,
+            profile,
+            catalog,
+            next_delivery,
+            record_for=None,
+            preview=True,
+        )
+        assert called == ["/plan/week"]
+        called.clear()
+        await service.draft(
+            db_session, http, settings, profile, catalog, next_delivery, record_for=None
+        )
+        assert "/basket/rank" in called
