@@ -1,7 +1,7 @@
 """orders: order issues and the lines they claim, with photo keys and the refund (M4 §3.2, §4)
 
 Revision ID: a8e9dd07f72c
-Revises: 467e2558d5bf
+Revises: 369ca2cead7f
 Create Date: 2026-10-08 06:48:41.150627+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "a8e9dd07f72c"
-down_revision: str | Sequence[str] | None = "467e2558d5bf"
+down_revision: str | Sequence[str] | None = "369ca2cead7f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

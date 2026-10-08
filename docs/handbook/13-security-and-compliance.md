@@ -111,7 +111,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | Notice and consent | Plain-language notice in English, Hindi and Marathi. Consent is recorded per purpose and version in `identity.consents` |
 | Purpose limitation | Purposes: `service_delivery`, `personalisation`, `health_personalisation` (separate opt-in), `marketing` (opt-in), `research_anonymised` |
 | Data minimisation | Age bands, not birth dates. No Aadhaar. Health tags optional |
-| Right to access / correction | `GET /v1/me/data-export` (JSON), editable profile |
+| Right to access / correction | `POST /v1/me/data-export`, then `GET` for a 5-minute download link to one JSON file kept 7 days (M1 §3.3); editable profile |
 | Right to erasure | `DELETE /v1/me` → personal data hard-deleted; ledger rows kept with the owner anonymised (legal record keeping) |
 | Children | No direct collection from children; only age bands entered by the adult account holder |
 | Breach handling | Runbook: contain, assess, notify the Data Protection Board and affected users as required |
