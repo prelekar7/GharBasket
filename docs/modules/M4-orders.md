@@ -1,6 +1,6 @@
 # M4 — Orders & Checkout
 
-**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2
+**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (cut-off in S3)
 **Postgres schema:** `orders` · **Python package:** `gharbasket.modules.orders`
@@ -28,6 +28,8 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 | POST | `/v1/orders` | customer | Required | Direct order (tiffin, add-on only); P3 |
 | POST | `/v1/orders/{id}/addons` | owner | Required + `If-Match` | Add, change or remove add-on lines before cut-off |
 | POST | `/v1/orders/{id}/cancel` | owner | Required | Before `locked` |
+| POST | `/v1/orders/{id}/issues` | owner | Required | Report a problem with a delivery; auto-credit or triage (§3.2) |
+| GET | `/v1/orders/{id}/issues` | owner, hub staff | — | The order's issues |
 | GET | `/v1/slots?hub_id=&date=` | Authenticated | — | Availability |
 | POST | `/v1/admin/slots` | hub_manager (hub), admin | Required | Define a slot |
 | PATCH | `/v1/admin/slots/{id}` | hub_manager (hub), admin | — | Capacity, active |
@@ -146,6 +148,76 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 | no status timeline | `timeline[]` with `actor`; `status` values above |
 | cut-off implicit | `cutoff_at` on every order; show a countdown and disable edits after it |
 
+### 3.2 Order issues contract (frozen on 2026-10-08)
+"Report a problem" on the Orders screen, the M12 triage queue and the backend build against this. Same sign-in and review rules as §3.1. M4 records the issue; money only moves through M5's existing refund facade.
+
+```
+IssueIn : {
+  "kind": "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other",
+  "items": [ { "product_id": "<uuid>", "qty": 1 } ],   required for missing, damaged, quality,
+                                                       wrong_item; 1 to 20 lines of this order;
+                                                       qty in steps, at most what was delivered
+                                                       (qty − shortage_qty) minus earlier claims
+  "note": "…" | null,                                  up to 500 characters
+  "photo_keys": [ "order_issue_photo/<user_id>/<uuid>.jpg" ] }   0 to 3, from POST /v1/files/presign
+                                                       (M0 §3.1); M4 claims them via platform.files
+IssueOut : {
+  "id", "order_id", "kind", "status": "open" | "credited" | "rejected",
+  "items": [ { "product_id", "slug", "name", "qty", "unit_price_paise", "amount_paise" } ],
+  "amount_paise": 4000,                                Σ qty × the line's paid unit price
+  "credit_paise": 4000,                                0 until credited
+  "note", "photo_count": 1,
+  "resolution": { "by": "auto" | "hub", "note": "…" | null, "at" } | null,
+  "callback_within_minutes": 120 | null,               while open: the hub calls back
+  "open_reason": "photo_needed" | "over_auto_credit_limit" | "wallet_limit" | "triage" | null,
+                                                       why it was not auto-credited; null unless open
+  "created_at" }
+
+POST /v1/orders/{id}/issues     Idempotency-Key required (one per report); 201 IssueOut
+                                the same key replays the same answer
+GET  /v1/orders/{id}/issues     200 { "items": [ IssueOut ] }   newest first; owner or hub staff
+```
+
+**When** (48 h confirmed by the owner on 2026-10-08). Line kinds (`missing`, `damaged`, `quality`, `wrong_item`) from `delivered` until **48 hours** after the `delivered` timeline row. `late` and `other` from `dispatched` until the same 48 hours. At most 3 issues per order.
+
+**Auto-credit** (in the POST's transaction; the ₹50 rolling 7-day rule and the photo rule confirmed by the owner on 2026-10-08): an issue is credited at once when
+- its kind is `missing`, or `damaged` **with at least one photo** (a valid, claimed `photo_keys` entry); `missing` needs no photo; and
+- its `amount_paise`, plus everything auto-credited to the household in the **last 7 days**, stays within **₹50 (5,000 paise)**.
+
+A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; other kinds are `triage`. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
+
+**Photos.** Private; a hub reviewer or the owner sees them through 5-minute signed links that M4 mints on demand (the console endpoint comes with M12). Deleted 90 days after the issue is resolved (M0 §3.1).
+
+**Events** (no note, no photo keys, no names):
+- `orders.issue_reported { issue_id, order_id, household_id, hub_id, kind, amount_paise, status }` (M11 acknowledges, M12 queues the open ones)
+- `orders.issue_resolved { issue_id, order_id, household_id, status, credit_paise, by }`
+
+**Error codes** (in addition to §3.1)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `orders.not_found` | Unknown order, or someone else's |
+| 409 | `orders.issue_window_closed` | Before the order reached the status the kind needs, or more than 48 h after delivery |
+| 409 | `orders.too_many_issues` | A fourth issue on the order |
+| 422 | `orders.issue_kind_invalid` | Unknown `kind` |
+| 422 | `orders.issue_items_required` | A line kind without `items` |
+| 422 | `orders.issue_item_unknown` | A product that is not on the order (`product_ids`) |
+| 422 | `orders.issue_qty_invalid` | More than was delivered, counting earlier claims |
+| 422 | `orders.photo_key_invalid` | Not the caller's `order_issue_photo` upload, or nothing uploaded at that key |
+| 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
+
+**For the mobile mocks** (`mocks/orders.js` → contract)
+
+| Mock today | Contract |
+|---|---|
+| `{ kind, note? }` with `missing`, `damaged`, `late`, `other` | Same field; plus `quality`, `wrong_item`; `items` required for the line kinds; optional `photo_keys` |
+| 400 `platform.idempotency_key_required` | `request.idempotency_key_required` |
+| 422 `orders.invalid_issue` | `orders.issue_kind_invalid` (and the other codes above) |
+| "Report a problem" on any current order | Only from `dispatched` (`late`, `other`) or `delivered` (line kinds), for 48 h |
+| reply `{ id, order_id, kind, status, callback_within_minutes }` | `IssueOut`: same fields plus `items`, `amount_paise`, `credit_paise`, `resolution`, `open_reason`; `status` may already be `credited` |
+| no photo step | Ask for a photo on `damaged` claims: without one the claim waits for the hub (`open_reason: "photo_needed"`) instead of being credited at once |
+| no list | `GET /v1/orders/{id}/issues` |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -154,9 +226,11 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 | `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
+| `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
+| `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
 
 ## 5. Events
-**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
+**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
 **Consumed:** `subscriptions.box_approved` (→ `create_from_cycle`), `subscriptions.box_skipped` (→ `cancel_from_cycle`), `billing.wallet_topped_up` (retry a failed debit in the grace period); `billing.payment_failed` (Autopay captures, pilot phase).
 
 ## 6. Jobs
@@ -172,7 +246,8 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 | Permission | Roles (scope) |
 |---|---|
 | `orders:read` | customer (own), packer/rider/hub_manager/franchise_owner (hub, with `X-Active-Role` and `hub_id`), admin; captains read through M7's handover endpoints |
-| `orders:write` | customer (own, before lock) |
+| `orders:write` | customer (own, before lock; issues after delivery) |
+| `order_issues:resolve` | hub_manager (hub), admin (M12 console, through `orders.api.resolve_issue`) |
 | `orders:transition` | Internal (M6/M7 via api.py), admin |
 | `slots:write` | hub_manager (hub), admin |
 
@@ -187,7 +262,7 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 - E2E: approve → lock → status stream to delivered.
 
 ## 10. Dependencies
-M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture via `billing.api`), M6/M7 call `orders.api` for fulfilment transitions.
+M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7 call `orders.api` for fulfilment transitions.
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
