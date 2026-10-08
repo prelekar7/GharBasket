@@ -1,15 +1,16 @@
-"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1)."""
+"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), and
+the customer statement (§3.2)."""
 
 import json
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.billing import topups, wallet
+from gharbasket.modules.billing import statements, topups, wallet
 from gharbasket.modules.billing.models import Payment, PaymentWebhook
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
@@ -21,6 +22,8 @@ from gharbasket.modules.billing.schemas import (
     DevPayOut,
     Entry,
     OrderRef,
+    StatementEntry,
+    StatementOut,
     TopUpIn,
     TopUpOut,
     TopUpRef,
@@ -41,6 +44,7 @@ router = APIRouter(tags=["billing"])
 
 CanRead = Annotated[Permit, require("wallet:read")]
 CanWrite = Annotated[Permit, require("wallet:write")]
+CanReadStatements = Annotated[Permit, require("statements:read")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
@@ -99,6 +103,41 @@ async def list_entries(
     rows, next_cursor = await wallet.entries(session, permit.principal.user_id, cursor, limit)
     response.headers["Cache-Control"] = "no-store"
     return Page(items=[_entry(row) for row in rows], next_cursor=next_cursor)
+
+
+@router.get(
+    "/statements",
+    summary="The caller's wallet for one month (IST), from the ledger, with running balances",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden"),
+        422: _problem("billing.period_invalid: not YYYY-MM, or after the current month (IST)"),
+    },
+)
+async def get_statement(
+    permit: CanReadStatements,
+    session: DbSession,
+    response: Response,
+    period: Annotated[str, Query(max_length=16, examples=["2026-10"])],
+) -> StatementOut:
+    month = statements.parse_period(period)
+    found = await statements.statement(session, permit.principal.user_id, month)
+    response.headers["Cache-Control"] = "no-store"
+    return StatementOut(
+        period=month.period,
+        currency="INR",
+        opening_paise=found.opening_paise,
+        credits_paise=found.credits_paise,
+        debits_paise=found.debits_paise,
+        closing_paise=found.closing_paise,
+        entries=[
+            StatementEntry(
+                **_entry(line.row).model_dump(), balance_after_paise=line.balance_after_paise
+            )
+            for line in found.lines
+        ],
+        generated_at=datetime.now(UTC),
+    )
 
 
 def _topup(payment: Payment, key_id: str) -> TopUpOut:

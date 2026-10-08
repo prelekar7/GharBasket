@@ -6,7 +6,7 @@ owner's consents.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from geoalchemy2 import Geography, WKBElement, WKTElement
@@ -14,6 +14,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -295,3 +296,35 @@ class Consent(Base):
     version: Mapped[str] = mapped_column(String(10))
     granted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+EXPORT_STATUSES = ("queued", "building", "ready", "failed", "expired")
+
+
+class DataExport(Base):
+    """One "download my data" request (spec §3.3): at most one per user per IST day."""
+
+    __tablename__ = "data_exports"
+    __table_args__ = (
+        UniqueConstraint("user_id", "requested_on"),
+        CheckConstraint(_one_of("status", EXPORT_STATUSES), name="status"),
+        CheckConstraint("attempts >= 0", name="attempts"),
+        # build_data_export takes queued rows oldest first.
+        Index("ix_data_exports_queued", "requested_at", postgresql_where=text("status = 'queued'")),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.users.id", ondelete="CASCADE"))
+    requested_on: Mapped[date] = mapped_column(Date)  # the IST day: the request's natural key
+    status: Mapped[str] = mapped_column(String(8), server_default="queued")
+    # The JSON file in the private bucket (M0 purpose `data_export`), once built.
+    object_key: Mapped[str | None] = mapped_column(String(200))
+    size_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(String(500))
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

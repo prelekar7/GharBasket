@@ -1,20 +1,25 @@
-"""HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1)."""
+"""HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1), and
+problems reported on an order (§3.2)."""
 
 import uuid
 from datetime import date, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.orders import issues, service
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.orders import service
-from gharbasket.modules.orders.models import Order, Slot
+from gharbasket.modules.orders.models import Order, OrderIssue, Slot
 from gharbasket.modules.orders.schemas import (
     AddonsIn,
+    IssueIn,
+    IssueItemOut,
+    IssueOut,
+    IssuesOut,
     OrderLineOut,
     OrderOut,
     OrderStep,
@@ -364,3 +369,89 @@ async def cancel_order(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+# --- issues (§3.2) ------------------------------------------------------------------------------
+
+
+async def _issues_out(
+    session: DbSession, found: list[OrderIssue], lang: Language
+) -> list[IssueOut]:
+    items = await issues.items_of(session, [issue.id for issue in found])
+    ids = list({item.product_id for lines in items.values() for item in lines})
+    products = await catalog_api.line_products(session, ids)
+    out = []
+    for issue in found:
+        lines = []
+        for item in items[issue.id]:
+            product = products.get(item.product_id)
+            lines.append(
+                IssueItemOut(
+                    product_id=item.product_id,
+                    slug=product.slug if product else "",
+                    name=localised(product.names, lang) if product else "",
+                    qty=item.qty,
+                    unit_price_paise=item.unit_price_paise,
+                    amount_paise=item.qty * item.unit_price_paise,
+                )
+            )
+        out.append(IssueOut(**issues.summary(issue), items=lines))
+    return out
+
+
+@router.post(
+    "/orders/{order_id}/issues",
+    status_code=status.HTTP_201_CREATED,
+    summary="Report a problem with a delivery (Idempotency-Key); auto-credit or triage",
+    responses={
+        404: _problem("orders.not_found"),
+        409: _problem("orders.issue_window_closed, orders.too_many_issues"),
+        422: _problem(
+            "orders.issue_kind_invalid, orders.issue_items_required, orders.issue_item_unknown "
+            "(with product_ids), orders.issue_qty_invalid, orders.photo_key_invalid"
+        ),
+        503: _problem("platform.storage_unavailable (only when photo_keys are sent)"),
+    },
+)
+async def report_issue(
+    order_id: uuid.UUID,
+    body: IssueIn,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    request: Request,
+) -> IssueOut:
+    order = await _owned(session, permit, order_id, for_update=True)
+    wanted: dict[uuid.UUID, int] = {}
+    for item in body.items or []:
+        wanted[item.product_id] = wanted.get(item.product_id, 0) + item.qty
+    issue = await issues.report(
+        session,
+        order,
+        kind=body.kind,
+        items=wanted,
+        note=body.note,
+        photo_keys=body.photo_keys,
+        user_id=permit.principal.user_id,
+        store=getattr(request.app.state, "storage", None),
+    )
+    out = (await _issues_out(session, [issue], lang))[0]
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/orders/{order_id}/issues",
+    summary="Problems reported on an order, newest first (the owner, or hub staff)",
+    responses={404: _problem("orders.not_found")},
+)
+async def list_issues(
+    order_id: uuid.UUID, permit: CanRead, session: DbSession, lang: Lang, response: Response
+) -> IssuesOut:
+    order = await _owned(session, permit, order_id)
+    response.headers["Cache-Control"] = "no-store"
+    return IssuesOut(
+        items=await _issues_out(session, await issues.of_order(session, order.id), lang)
+    )

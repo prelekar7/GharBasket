@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
@@ -30,6 +30,7 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | GET | `/v1/cycles/preview` | owner | — | The first week, from the cohort prior (W1 step 6); not saved |
 | GET | `/v1/cycles/{id}` | owner | — | Any cycle (history) |
 | PATCH | `/v1/cycles/{id}/lines` | owner | `If-Match` | `ops`: remove, add, qty, substitute; records feedback |
+| PUT | `/v1/cycles/{id}/meals` | owner | `If-Match` | Set one meal: the next dish, a chosen recipe, a tiffin, no-cook, or back to the plan; redraws its lines (§3.2) |
 | POST | `/v1/cycles/{id}/approve` | owner | Required + `If-Match` | → M4 order |
 | POST | `/v1/cycles/{id}/skip` | owner | Required | Before the cut-off |
 | POST | `/v1/cycles/{id}/feedback` | owner | Required | After delivery: ran out, wasted, just right (the pantry twin's signals) |
@@ -124,7 +125,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 1. For every active subscription not paused for that delivery date: the household's rules (M1) and the hub's active recipes with today's prices (M2) go to `intel_gateway.api.plan_week` (recorded in `intel.predictions`, `source` ml or fallback).
 2. The plan becomes lines: each recipe's ingredients × household size ÷ servings, summed over the week, rounded up to steps (`source: ai`, `reason_code: meal_plan`, `reason_params.recipes`); plus the **family-size rule table** for daily-use items (milk, atta, oil, salt, curd, fruit per adult equivalent per week; `source: rule`, `reason_code: daily_use`) until the pantry twin (M10 F13) replaces the quantities with its own and `pantry_low` reasons. **Carry-over:** for a dry staple (shelf life over 720 h: atta, dals, rice, oil, spices, salt; never produce, milk, curd or eggs), each approved or locked box of the last 3 weeks adds its quantity to the cupboard and every week since uses the week's need (rule table plus this week's recipes), never below zero; the line asks for the need minus what is left, and none when enough is left. Everything else is bought fresh every week. v0 approximation: this week's need stands for past weeks' (exact for the rule table), and purchases older than 3 weeks count as used up.
 3. With the Budget Lock on, the cheapest substitutes bring the box under the month's remaining budget (`price_swap`), never below the hard rules; if it still does not fit, the box is generated anyway and `highlights` carries `budget_near`.
-4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30, M11) marks `notice_sent_at`; S3 sets it in the same job until M11 exists.
+4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30) marks `notice_sent_at` and publishes `subscriptions.box_ready`, which M11 turns into the box-ready message (M11 §3.1). Until that job ships, the generation job sets `notice_sent_at` itself.
 5. A planner failure gives last week's lines, or the rule table for a new household (`reason_code: fallback_rules`, `meal_plan.source: fallback`).
 6. `apply_auto_approve` (T-1 20:55 IST): `awaiting_approval` cycles whose subscription has `auto_approve` and whose `notice_sent_at` is at least 24 h before the cut-off are approved by the system.
 
@@ -167,6 +168,56 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | `captain` always set | `null` until M9 captains |
 | no preview endpoint | `GET /v1/cycles/preview` for onboarding's first-week screen |
 
+### 3.2 Meal swap contract (frozen on 2026-10-08)
+The Week day sheet ("Swap meal") and the backend build against this. Same sign-in, cut-off, `If-Match` and review rules as §3.1. One call sets **one meal** of the cycle's week and redraws that meal's ingredient lines in the same transaction.
+
+```
+PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotency-Key (no money moves)
+  request : { "date": "2026-10-06", "slot": "breakfast" | "lunch" | "dinner",
+              "set": "next" | "recipe" | "tiffin" | "no_cook" | "planned",    default "next"
+              "recipe_id": "<uuid>" }                                            only with "recipe"
+    next     the cheapest allowed recipe for that slot that is not already in the week and fits
+             the day's cook minutes (weekday or weekend, M1); the one-tap "Swap meal"
+    recipe   a recipe the customer picked (e.g. from GET /v1/recipes?slot=, M2)
+    tiffin   the household eats a tiffin at that meal: the slot gets no ingredients
+             (booking a kitchen's tiffin is a separate M4/M8 order, P3)
+    no_cook  eating out or skipping that meal: no ingredients
+    planned  back to the planner's original dish for that meal
+  200 : CycleOut (version + 1)       the meal now has "source": "customer" (§3.1 Meal gains
+                                     "source": "plan" | "customer"); lines and total_paise redrawn
+```
+
+**Allowed recipes.** Active at the cycle's hub with a price for every non-optional ingredient, not a side (`is_side`), the slot is one of its `slots`, and the household's hard rules (M1, read through `identity.api` like generation): diet (a `veg` household gets `veg` recipes, `egg` gets `veg` or `egg`, `nonveg` any), `jain_ok` when a member is Jain, `fasting_ok` (and `no_onion_garlic` when strict) on the household's fasting days that week, `diabetic_ok` when a member has the consented `diabetes` tag. A recipe that breaks a rule gets 422 `subscriptions.recipe_not_allowed` with `"rules": ["jain", "fasting"]`.
+
+**Redrawing the lines.** M3 runs `planning.lines_from_plan` (the generation function) on the week's plan before and after the change, with the same household and today's catalog, and applies the per-product difference in steps to the box:
+- A product whose steps rise gains them; a new line gets `reason_code: "meal_plan"`, `reason_params.recipes`, `source: "customer"` and today's hub price. Existing lines keep their price.
+- A product whose steps fall loses them; at 0 the line is removed. Lines the customer added (`added_by_you`) and the daily-use lines are never reduced by a swap. A product the customer substituted counts as its substitute.
+- With the Budget Lock on, a swap that **raises** the total above the month's remaining budget is refused: 422 `subscriptions.budget_exceeded` with `over_paise`. `tiffin`, `no_cook` and swaps that lower the total are always allowed, even when the generated box was already over (`budget_near`).
+- On an `approved` cycle (before the cut-off) the redrawn lines go to M4 exactly as a line edit does (§3.1: `create_from_cycle` replaces the box lines, `subscriptions.box_approved` goes again).
+
+**Feedback.** One `edit_feedback` row per call, at meal level: `meal_swapped` (`next` or `recipe`), `meal_tiffin`, `meal_no_cook`, `meal_restored` (`planned`), with `meal_date`, `slot`, `recipe_id` (before) and `substitute_recipe_id` (after). The ingredient changes a swap causes write **no** product rows: they are not the customer's product choices, so they stay out of the ranker's labels.
+
+**Error codes** (in addition to §3.1)
+
+| Status | Code | When |
+|---|---|---|
+| 409 | `subscriptions.cutoff_passed`, `subscriptions.not_editable` | As for line edits |
+| 412 / 428 | `subscriptions.version_conflict`, `request.precondition_required` | Stale or missing `If-Match` |
+| 422 | `subscriptions.meal_unknown` | `date` is not in the cycle's week, or `slot` is not one of the three |
+| 422 | `subscriptions.recipe_unknown` | Not active at the hub, a side, missing prices, or the wrong slot |
+| 422 | `subscriptions.recipe_not_allowed` | Breaks a household rule; `rules` lists which |
+| 422 | `subscriptions.no_alternative` | `next` finds no other allowed recipe |
+| 422 | `subscriptions.budget_exceeded` | The swap raises the box over the Budget Lock (`over_paise`) |
+
+**For the mobile mocks** (`mocks/subscriptions.js` → contract)
+
+| Mock today | Contract |
+|---|---|
+| `PATCH /v1/cycles/{id}/meals` | `PUT`; the body `{ date, slot }` still works (`set` defaults to `next`) |
+| 409 `orders.cutoff_passed` | `subscriptions.cutoff_passed` |
+| meal `reason_code: "swapped_by_you"` | meal `source: "customer"`; planner meal reasons (`in_season`, `quick_cook`) are not in the contract, the reasons stay on lines |
+| tiffin flag set only by a booked kitchen tiffin | `set: "tiffin"` marks the meal; booking a kitchen's tiffin stays mocked until M8 |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -174,21 +225,22 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | `subscriptions.subscriptions` | id, household_id, plan_id, status, started_at, paused_until, payment_mode (wallet, autopay) |
 | `subscriptions.society_delivery_days` | society_id, weekday, slot_id |
 | `subscriptions.budget_locks` | id, household_id, month, budget_paise, spent_paise |
-| `subscriptions.weekly_cycles` | id, household_id, hub_id, society_id, subscription_id, week_start, delivery_date, slot_id, cutoff_at, plan_prediction_id (intel.predictions), plan_source (ml, fallback), status, generated_at, notice_sent_at, approved_at, auto_approved, order_id, version, highlights jsonb, data_source |
+| `subscriptions.weekly_cycles` | id, household_id, hub_id, society_id, subscription_id, week_start, delivery_date, slot_id, cutoff_at, plan_prediction_id (intel.predictions), plan_source (ml, fallback), status, generated_at, notice_sent_at, approved_at, auto_approved, order_id, version, meal_plan jsonb (each meal keeps the planner's original recipe for `set: planned`), highlights jsonb, data_source |
 | `subscriptions.box_lines` | cycle_id, product_id, qty (steps), step_qty, step_unit, unit_price_paise, reason_code, reason_params jsonb, source (ai, rule, customer), replaces_product_id |
-| `subscriptions.edit_feedback` | id, cycle_id, product_id, action (removed, added, qty_up, qty_down, swapped), substitute_product_id, at |
+| `subscriptions.edit_feedback` | id, cycle_id, product_id (null for meal rows), action (removed, added, qty_up, qty_down, swapped, meal_swapped, meal_tiffin, meal_no_cook, meal_restored), substitute_product_id, meal_date, slot, recipe_id, substitute_recipe_id, at |
 | `subscriptions.pantry_feedback` | id, cycle_id, household_id, product_id, signal (ran_out, wasted, just_right), at — the pantry twin's observations |
 
 ## 5. Events
 **Published:** `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped`, `subscriptions.subscription_paused` (payloads in §3.1).
+- Added for M11 (2026-10-09): `subscriptions.box_ready` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}` and `subscriptions.cutoff_reminder` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}`; `subscriptions.box_approved` gains `auto_approved: bool`.
 **Consumed:** `orders.locked`, `orders.cancelled`, `orders.delivered`, `identity.household_updated`. (Plans are requested synchronously through `intel_gateway.api` inside the generation job, so `intel.plans_ready` is not needed in S3.)
 
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
 | `generate_weekly_plans` | T-3 18:00 IST per hub (cron-job.org → `POST /v1/internal/jobs/generate_weekly_plans`) | Plans via `intel_gateway.api.plan_week`; rule-table fallback; §3.1 |
-| `send_box_ready_notices` | T-3 18:30 | Via M11 (S3: the generation job sets `notice_sent_at`); pre-debit notice via M5 at the pilot |
-| `remind_unapproved` | T-1 19:00 | M11 |
+| `send_box_ready_notices` | T-3 18:30 IST (cron-job.org) | `draft` cycles of the delivery day: sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle. The pre-debit notice for Autopay comes via M5 at the pilot |
+| `remind_unapproved` | T-1 19:00 IST (cron-job.org) | Cycles still `awaiting_approval` whose subscription doesn't auto-approve: publishes `subscriptions.cutoff_reminder` once per cycle |
 | `apply_auto_approve` | T-1 20:55 IST | Only where `notice_sent_at` ≤ cut-off − 24 h |
 
 Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-0021) triggered by cron-job.org for minute-level timing (ADR-0025); event-triggered work runs in outbox consumers. Rules use `scheduled_for`, so a late start never lets an edit through after the cut-off.

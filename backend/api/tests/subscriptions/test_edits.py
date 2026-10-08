@@ -54,7 +54,8 @@ async def test_edit_approve_hand_over_and_skip(
     cycle_id, lines = box["id"], box["lines"]
     patch = f"/v1/cycles/{cycle_id}/lines"
     assert box["version"] == 1 and len(lines) >= 4 and box["total_paise"] > 50_000
-    # Something the hub sells that is not in the box yet, and a line with a substitute.
+    # Something the hub sells that is not in the box yet, and a line with a substitute that is
+    # neither in the box (it would merge into that line) nor the product added below.
     catalog = await catalog_api.plan_catalog(db_session, SEED_HUB_ID)
     on_box = {line["product_id"] for line in lines}
     extra = next(p for p in catalog.products.values() if p.price_paise and str(p.id) not in on_box)
@@ -63,11 +64,11 @@ async def test_edit_approve_hand_over_and_skip(
         offered = (
             await api.get(f"/v1/products/{line['product_id']}/substitutes", headers=priya)
         ).json()["items"]
-        fresh = [o for o in offered if o["product_id"] not in on_box]  # not on the box already
+        fresh = [s for s in offered if s["product_id"] not in on_box | {str(extra.id)}]
         if fresh:
             swap = (line, fresh[0])
             break
-    assert swap is not None
+    assert swap is not None, "no box line has a substitute outside the box"
     await db_session.commit()
 
     # Refusals leave the box alone.
@@ -130,9 +131,8 @@ async def test_edit_approve_hand_over_and_skip(
     assert bad_month.json()["code"] == "subscriptions.budget_invalid"
 
     # Four ops in one go: add, more of one, drop one, swap one.
-    line_a, line_b, (line_c, substitute) = lines[0], lines[1], swap
-    if line_c["product_id"] in (line_a["product_id"], line_b["product_id"]):
-        line_a, line_b = lines[2], lines[3]
+    line_c, substitute = swap
+    line_a, line_b = [line for line in lines if line is not line_c][:2]
     edited = await api.patch(
         patch,
         json={
@@ -166,7 +166,13 @@ async def test_edit_approve_hand_over_and_skip(
     feedback = (
         await db_session.execute(select(EditFeedback).where(EditFeedback.cycle_id == cycle_id))
     ).scalars()
+    feedback = feedback.all()
     assert sorted(row.action for row in feedback) == ["added", "qty_up", "removed", "swapped"]
+    # Stamped from the service clock, not Postgres now(), so simulated time reaches them.
+    assert {row.at for row in feedback} == {NOW}
+    cycle_row = await db_session.get(WeeklyCycle, uuid.UUID(cycle_id))
+    assert cycle_row is not None
+    assert (cycle_row.generated_at, cycle_row.notice_sent_at) == (NOW, NOW)
 
     # Approval hands the box to M4 in the same transaction: the answer carries the order.
     approved = await api.post(
@@ -308,6 +314,7 @@ async def test_auto_approve_the_cutoff_and_the_feedback_window(
             (product, "just_right"),
             (another, "wasted"),
         }
+        assert {r.at for r in rows} == {datetime(2026, 10, 14, 8, 0, tzinfo=UTC)}
         await db_session.commit()
         stranger = await api.post(
             f"/v1/cycles/{priya_cycle['id']}/feedback",
