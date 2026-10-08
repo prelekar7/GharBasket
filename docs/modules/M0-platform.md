@@ -43,6 +43,8 @@ POST /v1/files/presign             signed in; no Idempotency-Key (it changes not
   The app then PUTs the bytes to "url" and sends only "key" to the module that uses it.
 ```
 
+Purposes, limits and retention below were confirmed by the owner on 2026-10-08.
+
 | Purpose | Types | Max size | Used by | Kept until (`delete_after`) |
 |---|---|---|---|---|
 | `order_issue_photo` | `image/jpeg`, `image/png`, `image/webp` | 5 MB | M4 issues | 90 days after the issue is resolved |

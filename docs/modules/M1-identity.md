@@ -210,7 +210,7 @@ GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_no
                            the app polls this (every 10 s while the screen is open)
 ```
 
-**What the file holds.** One JSON document, `{ "format": "gharbasket-export/v1", "generated_at", "user_id", "sections": { … } }`. Each module returns its own section from `export_for_user(session, user_id) -> dict` in its `api.py`, read-only; M1 only puts them together and stores the file (M0 purpose `data_export`, private bucket):
+**What the file holds** (contents, including leaving out ML predictions, confirmed by the owner on 2026-10-08). One JSON document, `{ "format": "gharbasket-export/v1", "generated_at", "user_id", "sections": { … } }`. Each module returns its own section from `export_for_user(session, user_id) -> dict` in its `api.py`, read-only; M1 only puts them together and stores the file (M0 purpose `data_export`, private bucket):
 - `identity`: the user, roles, devices (platform and dates, no tokens), the household with members (diet, fasting rules, consented health tags), the address with its pin, the consent history.
 - `subscriptions`: the subscription, every cycle with its meal plan and lines, Budget Locks, edit and pantry feedback.
 - `orders`: orders with lines and timelines, and issues (the photos are counted, not included).

@@ -169,6 +169,8 @@ IssueOut : {
   "note", "photo_count": 1,
   "resolution": { "by": "auto" | "hub", "note": "…" | null, "at" } | null,
   "callback_within_minutes": 120 | null,               while open: the hub calls back
+  "open_reason": "photo_needed" | "over_auto_credit_limit" | "wallet_limit" | "triage" | null,
+                                                       why it was not auto-credited; null unless open
   "created_at" }
 
 POST /v1/orders/{id}/issues     Idempotency-Key required (one per report); 201 IssueOut
@@ -176,9 +178,13 @@ POST /v1/orders/{id}/issues     Idempotency-Key required (one per report); 201 I
 GET  /v1/orders/{id}/issues     200 { "items": [ IssueOut ] }   newest first; owner or hub staff
 ```
 
-**When.** Line kinds (`missing`, `damaged`, `quality`, `wrong_item`) from `delivered` until **48 hours** after the `delivered` timeline row. `late` and `other` from `dispatched` until the same 48 hours. At most 3 issues per order.
+**When** (48 h confirmed by the owner on 2026-10-08). Line kinds (`missing`, `damaged`, `quality`, `wrong_item`) from `delivered` until **48 hours** after the `delivered` timeline row. `late` and `other` from `dispatched` until the same 48 hours. At most 3 issues per order.
 
-**Auto-credit** (in the POST's transaction): an issue of kind `missing` or `damaged` is credited at once when its `amount_paise`, plus everything auto-credited to the household in the **last 7 days**, stays within **₹50 (5,000 paise)**. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open. Everything else stays `open` for triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
+**Auto-credit** (in the POST's transaction; the ₹50 rolling 7-day rule and the photo rule confirmed by the owner on 2026-10-08): an issue is credited at once when
+- its kind is `missing`, or `damaged` **with at least one photo** (a valid, claimed `photo_keys` entry); `missing` needs no photo; and
+- its `amount_paise`, plus everything auto-credited to the household in the **last 7 days**, stays within **₹50 (5,000 paise)**.
+
+A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; other kinds are `triage`. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
 
 **Photos.** Private; a hub reviewer or the owner sees them through 5-minute signed links that M4 mints on demand (the console endpoint comes with M12). Deleted 90 days after the issue is resolved (M0 §3.1).
 
@@ -208,7 +214,8 @@ GET  /v1/orders/{id}/issues     200 { "items": [ IssueOut ] }   newest first; ow
 | 400 `platform.idempotency_key_required` | `request.idempotency_key_required` |
 | 422 `orders.invalid_issue` | `orders.issue_kind_invalid` (and the other codes above) |
 | "Report a problem" on any current order | Only from `dispatched` (`late`, `other`) or `delivered` (line kinds), for 48 h |
-| reply `{ id, order_id, kind, status, callback_within_minutes }` | `IssueOut`: same fields plus `items`, `amount_paise`, `credit_paise`, `resolution`; `status` may already be `credited` |
+| reply `{ id, order_id, kind, status, callback_within_minutes }` | `IssueOut`: same fields plus `items`, `amount_paise`, `credit_paise`, `resolution`, `open_reason`; `status` may already be `credited` |
+| no photo step | Ask for a photo on `damaged` claims: without one the claim waits for the hub (`open_reason: "photo_needed"`) instead of being credited at once |
 | no list | `GET /v1/orders/{id}/issues` |
 
 ## 4. Tables owned
