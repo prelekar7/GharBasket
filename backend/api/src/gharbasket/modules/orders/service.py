@@ -167,6 +167,7 @@ class ApprovedCycle:
     slot_id: uuid.UUID
     lines: tuple[CycleLine, ...]
     data_source: str = "real"
+    version: int = 1  # the cycle's version; an edit after approval hands the box over again
 
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
@@ -180,11 +181,9 @@ async def by_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
     ).scalar_one_or_none()
 
 
-async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Order:
-    """An `approved` box order with the cycle's lines and frozen prices; once per cycle."""
-    existing = await by_cycle(session, cycle.cycle_id)
-    if existing is not None:
-        return existing
+async def _box_products(
+    session: AsyncSession, cycle: ApprovedCycle
+) -> dict[uuid.UUID, catalog_api.LineProduct]:
     if not cycle.lines:
         raise ValueError("a box needs at least one line")
     products = await catalog_api.line_products(session, [line.product_id for line in cycle.lines])
@@ -196,6 +195,77 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             "A line names an unknown product.",
             extra={"product_ids": unknown},
         )
+    return products
+
+
+def _box_lines(
+    order: Order, cycle: ApprovedCycle, products: dict[uuid.UUID, catalog_api.LineProduct]
+) -> list[OrderLine]:
+    return [
+        OrderLine(
+            order_id=order.id,
+            product_id=line.product_id,
+            kind="box",
+            qty=line.qty,
+            step_qty=products[line.product_id].step_qty,
+            step_unit=products[line.product_id].step_unit,
+            unit_price_paise=line.unit_price_paise,
+            reason_code=line.reason_code,
+            reason_params=line.reason_params,
+        )
+        for line in cycle.lines
+    ]
+
+
+async def _replace_box_lines(session: AsyncSession, order: Order, cycle: ApprovedCycle) -> None:
+    """Swap the box lines for the cycle's; the same lines again (a redelivered event) change
+    nothing."""
+    current = await lines_of(session, order.id)
+    wanted = {
+        (line.product_id, line.qty, line.unit_price_paise, line.reason_code) for line in cycle.lines
+    }
+    if {
+        (line.product_id, line.qty, line.unit_price_paise, line.reason_code)
+        for line in current
+        if line.kind == "box"
+    } == wanted:
+        return
+    products = await _box_products(session, cycle)
+    kept = []
+    for line in current:
+        if line.kind == "box":
+            await session.delete(line)
+        else:
+            kept.append(line)
+    await session.flush()
+    lines = _box_lines(order, cycle, products)
+    session.add_all(lines)
+    _totals(order, [*lines, *kept])
+    order.version += 1
+    session.add(
+        OrderEvent(
+            order_id=order.id,
+            from_status="approved",
+            to_status="approved",
+            actor="customer",
+            payload={"cycle_version": cycle.version},
+        )
+    )
+    await session.flush()
+
+
+async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Order:
+    """An `approved` box order with the cycle's lines and frozen prices; once per cycle.
+
+    Called again for the same cycle (an edit after approval) while the order is still
+    `approved`, it replaces the box lines and totals; add-ons are kept (M4 §3.1).
+    """
+    existing = await by_cycle(session, cycle.cycle_id)
+    if existing is not None:
+        if existing.status == "approved":
+            await _replace_box_lines(session, existing, cycle)
+        return existing
+    products = await _box_products(session, cycle)
     order = Order(
         household_id=cycle.household_id,
         hub_id=cycle.hub_id,
@@ -216,20 +286,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         async with session.begin_nested():  # all or nothing: a full slot leaves no order behind
             session.add(order)
             await session.flush()
-            lines = [
-                OrderLine(
-                    order_id=order.id,
-                    product_id=line.product_id,
-                    kind="box",
-                    qty=line.qty,
-                    step_qty=products[line.product_id].step_qty,
-                    step_unit=products[line.product_id].step_unit,
-                    unit_price_paise=line.unit_price_paise,
-                    reason_code=line.reason_code,
-                    reason_params=line.reason_params,
-                )
-                for line in cycle.lines
-            ]
+            lines = _box_lines(order, cycle, products)
             session.add_all(lines)
             _totals(order, lines)
             await book_slot(session, cycle.slot_id, cycle.delivery_date, order.id)
