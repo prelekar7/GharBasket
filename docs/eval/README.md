@@ -26,7 +26,8 @@ What a report holds (v0, October 2026):
   kitchen as the baseline and the M-G target (Gini ≤ 0.25 at ≤ +5 % cost) checked.
 
 `just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
-candidate model (intent accuracy, slot F1, no proposal on injection fixtures, cost a turn) and writes
+candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
+and writes priced apart) and writes
 `assistant-<date>.json` here; it needs `ANTHROPIC_API_KEY` and costs real tokens.
 
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
