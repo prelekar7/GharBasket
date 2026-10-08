@@ -13,7 +13,7 @@ from datetime import date
 from typing import Any
 
 from gharbasket_ml import planner as cpsat
-from gharbasket_ml.schemas import PlanRequest
+from gharbasket_ml.schemas import PlanRequest, Weights
 from gharbasket_sim import config
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold, sample
@@ -150,11 +150,11 @@ PAIRED = (PRIMARY, *(m for m in METRICS if m != PRIMARY), "perishables_fewer", "
 
 def objective(metrics: dict[str, float]) -> float:
     """The planner's objective on a run's means: 3 x preference + 5 x variety - 4 x perishables."""
-    w = cpsat.WEIGHTS
+    w = Weights()  # the planner's default weights (a request may override them)
     return (
-        w["preference"] * metrics["preference"]
-        + w["variety"] * metrics["variety"]
-        - w["perishables"] * metrics["distinct_perishables"]
+        w.preference * metrics["preference"]
+        + w.variety * metrics["variety"]
+        - w.perishables * metrics["distinct_perishables"]
     )
 
 
