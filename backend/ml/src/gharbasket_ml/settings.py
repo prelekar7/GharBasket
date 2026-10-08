@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # The learned models' folder (`<name>/latest.json`, `<name>/<version>/model.txt`), what the
     # training job writes to R2 and the image or a mount makes local; unset: fallbacks only.
     models_dir: Path | None = None
+    # How often the learned models are re-read from MODELS_DIR (ADR-0025: the Space polls
+    # latest.json every 10 minutes), so a promotion after startup is served without a restart.
+    models_reload_s: float = Field(default=600.0, gt=0)
     # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
     # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
     osrm_url: str | None = None

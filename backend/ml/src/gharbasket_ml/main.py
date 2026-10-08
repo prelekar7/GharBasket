@@ -111,7 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def basket_rank(
         body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RankResponse:
-        return ranker.rank(body, settings.models_dir)
+        return ranker.rank(body, settings.models_dir, settings.models_reload_s)
 
     @app.post(
         "/assign/kitchens",

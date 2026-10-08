@@ -339,10 +339,15 @@ class RankCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     product: str = Field(min_length=1, max_length=80)
-    weeks_since: float = Field(ge=0, description="Weeks since last bought; large when never")
+    weeks_since: float = Field(
+        ge=0,
+        description=(
+            "Weeks since last bought, capped at 52; 52 when never bought (the training job's "
+            "value). Larger values are served as 52."
+        ),
+    )
     frequency: float = Field(ge=0, le=1, description="Share of past weeks it was bought")
     drafted: bool = False
-    drafted_rule: bool = False
     removed_last: bool = False
     popularity: float = Field(default=0, ge=0, le=1, description="Share of households last week")
     price_paise: int = Field(default=0, ge=0)
