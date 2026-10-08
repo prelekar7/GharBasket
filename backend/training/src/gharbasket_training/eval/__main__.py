@@ -80,12 +80,38 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"variety {metrics['variety']['mean']:.1f}  "
             f"violations {metrics['hard_rule_violations']['mean']:.2f}"
         )
+    for arm, against in built["planner_paired"].items():
+        print(
+            f"{arm:7} acceptance vs "
+            + ", ".join(
+                f"{base} {d['acceptance']['mean']:+.3f} ± {d['acceptance']['ci95']:.3f}"
+                for base, d in against.items()
+            )
+        )
+    if "verdict" in built["planner_targets"]:
+        holds = built["planner_targets"]["verdict"]["holds"]
+        print(f"M-C on acceptance (>= 0.70, above greedy and random): {'holds' if holds else 'no'}")
     print(
         f"pantry  rule table MAE {built['pantry']['rule_table_mae']['mean']:.3f}; running mean "
         + ", ".join(
             f"w{k + 1} {e['mean']:.3f}" for k, e in enumerate(built["pantry"]["cold_start_mae"])
         )
     )
+    scope = built["pantry"]["twin_scope"]
+    weeks = ", ".join(f"w{k + 1}" for k in range(len(scope["twin_mae"])))
+    series = lambda key: " ".join(f"{e['mean']:.3f}" for e in scope[key])  # noqa: E731
+    print(
+        f"pantry twin scope (milk, curd: daily use; {weeks}): "
+        f"rule table {scope['rule_table_mae']['mean']:.3f}; "
+        f"running mean {series('running_mean_mae')}; twin {series('twin_mae')}; "
+        f"twin 80 % coverage {series('twin_coverage_80')}"
+    )
+    target = built["pantry"]["target_mae_le_15pct_after_4_weeks"]
+    value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
+    verdict = {None: "no verdict: fewer than 5 weeks", True: "holds"}.get(
+        target["holds"], "does not hold: keep PANTRY_TWIN_ENABLED off"
+    )
+    print(f"pantry twin target MAE <= 0.15 after 4 weeks: {value} ({verdict})")
     print(f"report: {html_path} ({json_path.name})")
     if args.push:
         settings = Settings()

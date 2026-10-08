@@ -3,11 +3,11 @@ token (ADR-0025). Customers never call these.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.intel_gateway import service
@@ -94,7 +94,7 @@ class FeatureSnapshotIn(BaseModel):
 
 
 class FeatureSnapshotsIn(BaseModel):
-    as_of: datetime
+    as_of: AwareDatetime  # an instant: a naive time would be read in the server's zone
     items: list[FeatureSnapshotIn] = Field(min_length=1, max_length=5000)
 
 

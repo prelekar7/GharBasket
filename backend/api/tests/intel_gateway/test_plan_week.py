@@ -227,6 +227,26 @@ async def test_the_request_id_and_token_are_sent() -> None:
     assert seen[0].headers["x-request-id"] == "req-123"
 
 
+@pytest.mark.parametrize(("asked", "ml_timeout_s", "sent"), [(1.0, 3.0, 1.0), (5.0, 3.0, 1.5)])
+async def test_the_solver_budget_stays_inside_the_http_timeout(
+    asked: float, ml_timeout_s: float, sent: float
+) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(json.loads(request.content))
+        return httpx2.Response(500)
+
+    settings = make_settings(
+        ml_service_url="http://ml.test", ml_service_token=TOKEN, ml_timeout_s=ml_timeout_s
+    )
+    req = plan_request().model_copy(update={"time_limit_s": asked})
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        await api.plan_week(http, settings, req)
+
+    assert seen[0]["time_limit_s"] == sent
+
+
 def test_the_fallback_pairs_sides_and_never_plans_one_as_a_meal() -> None:
     req = PlanRequest.model_validate(
         {
