@@ -1,8 +1,8 @@
 """Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Slot = Literal["breakfast", "lunch", "dinner"]
 Rule = Literal["repeat", "cook_time", "budget"]
@@ -175,6 +175,12 @@ class FoodBankIn(Point):
     window_start_s: int = Field(ge=0)
     window_end_s: int = Field(ge=0)
 
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError("food_bank: window_start_s is after window_end_s")
+        return self
+
 
 class StopIn(BaseModel):
     """A society stop: what the van drops and picks up, inside the captain's window.
@@ -192,6 +198,12 @@ class StopIn(BaseModel):
     donation_kg_tenths: int = Field(default=0, ge=0)
     window_start_s: int = Field(ge=0)
     window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError(f"stop {self.id}: window_start_s is after window_end_s")
+        return self
 
 
 class VansIn(BaseModel):
@@ -232,6 +244,19 @@ class RouteRequest(BaseModel):
     service: ServiceIn = Field(default_factory=ServiceIn)
     cost: CostIn = Field(default_factory=CostIn)
     time_limit_s: float = Field(default=10.0, ge=0.5, le=20.0, description="Both waves together")
+    max_late_s: int = Field(
+        default=1800,
+        ge=0,
+        description="A drop later than this past its window's end is a checker problem",
+    )
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.depart_s >= self.return_by_s:
+            raise ValueError("depart_s must be before return_by_s")
+        if self.food_bank is None and any(s.donation_kg_tenths for s in self.stops):
+            raise ValueError("donations need a food_bank to take them to")
+        return self
 
 
 class RouteStopOut(BaseModel):
