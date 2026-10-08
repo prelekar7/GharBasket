@@ -132,17 +132,26 @@ One delivery slot's van routes for a hub: a stop is a society (the captain does 
     "food_bank": { "lat", "lng", "window_start_s", "window_end_s" } | null,
     "vans": { "count", "capacity_kg": 400, "capacity_crates": 24, "traffic_factor": 1.5, "reload_s": 1200 },
     "service": { "drop_s": 240, "per_crate_s": 30 }, "cost": { "fixed_paise_per_van": 25000, "paise_per_km": 60,
-                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10
+                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10, "max_late_s": 1800
+  422:
+    a window that starts after it ends, depart_s not before return_by_s, or donations without a food_bank
+    (the gateway's RouteRequest refuses the same, so M7 sees a ValidationError, not a missing route)
   200:
     "status": "solved" | "fallback",                 fallback = nearest neighbour, when the solver found no plan
-    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down
+    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down or slow
     "routes": [ { "van", "start_s", "end_s", "stops": [ { "id", "kind": "drop" | "bank", "eta_s", "late_s" } ] } ],
     "summary": { "vans", "km", "cost_paise", "on_time", "late_min", "problems": [] },   the checker's findings
     "seconds", "model": "cvrptw-waves-v0"
 ```
-- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, new vans only where needed. Each wave gets half the time limit.
-- **Checker:** every answer is replayed on the matrix (windows with waiting, loads at every stop, pairing, return time, reload gaps); `summary.problems` lists what fails, so M7 never publishes a route the checker rejects.
-- **Fallbacks:** OSRM down → haversine distances; no plan → nearest neighbour; the service down → the gateway returns `None` and M7 keeps the previous day's sequence (M7 §6).
+- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, plus only the vans of `vans.count` the first wave left at the hub. The plan never uses more vans than the fleet. Each wave gets half the time limit.
+- **Checker:** every answer is replayed on the matrix; `summary.problems` lists every rule that fails, and **M7 publishes a route only when `problems` is empty**. The rules:
+  - no trip leaves before `depart_s`, and a van's next trip leaves only after it is back plus `reload_s`;
+  - kg and crates within capacity leaving the hub and after every stop (crates out, empties and donation crates in);
+  - each donation on the same van before its food-bank drop, and the food bank reached before its window ends;
+  - a drop more than `max_late_s` (default 30 min) after its window's end; lateness below that only lowers `on_time` and adds to `late_min`;
+  - every society and food-bank drop exactly once (`not served: …` names the ones left out, `visited twice: …` the repeats);
+  - every van back by `return_by_s`, and no more vans than `vans.count`.
+- **Fallbacks:** OSRM down, slow (over `OSRM_TIMEOUT_S`, 2.5 s) or wrong-shaped → haversine distances; a pair OSRM cannot route (`null`) → that pair's haversine estimate, logged. No plan → nearest neighbour within the fleet: each trip goes to the van free first, a van goes out again only if it is back by `return_by_s`, and the societies left over are reported in `problems`. The service down → the gateway returns `None` after `time_limit_s + ML_ROUTE_OVERHEAD_S` (6 s, covering OSRM's 2.5 s) and M7 keeps the previous day's sequence (M7 §6).
 
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.

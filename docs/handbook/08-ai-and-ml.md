@@ -180,9 +180,9 @@ sequenceDiagram
   - Capacity in kg and crates; society time windows; service time per stop.
   - Donation and crate pickups on the return leg (same-vehicle constraint).
 - **Data:** distance/time matrix from self-hosted **OSRM** (Mumbai Metropolitan Region extract).
-- **Solver:** 30 s limit with guided local search.
+- **Solver:** guided local search within the request's `time_limit_s` for both waves together (default 10 s, at most 20 s); OSRM gets 2.5 s before haversine prices the slot instead, and the gateway waits `time_limit_s` + 6 s.
 - **Metrics:** ₹ per order, km per order, on-time %. Baselines: one trip per order, nearest-neighbour.
-- **Status (5 Oct 2026, v0):** `POST /route/solve` serves the two-wave CVRPTW from S-3 with the independent checker, OSRM from the Space image (haversine when it is down, nearest neighbour when no plan is found); `intel_gateway.api.solve_routes` records the plan for the hub and returns None when the service is down, so M7 keeps the previous day's sequence. M7's tables and endpoints come with the M7 product PR (January).
+- **Status (5 Oct 2026, v0):** `POST /route/solve` serves the two-wave CVRPTW from S-3 with the independent checker, OSRM from the Space image (haversine when it is down or slow, nearest neighbour within the fleet when no plan is found); `intel_gateway.api.solve_routes` records the plan for the hub and returns None when the service is down, so M7 keeps the previous day's sequence. M7's tables and endpoints come with the M7 product PR (January).
 - **Spike S-3 (4 Oct 2026, passed):** 50 societies are routed in under 5 s, all on time, at ₹6.87 an order against ₹7.93 for nearest neighbour and ₹76.57 for one trip per order. Vans do **two trips** by solving one window wave at a time (07–09, then 08–10, with vans carried over). That cuts the fleet by 40–45 % at 50 to 200 societies, while a single chained model stops scaling after about 50. See [S-3 note](../spikes/S-3-routing.md).
 
 ### M-G Fair kitchen assignment (research)
