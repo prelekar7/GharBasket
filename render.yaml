@@ -45,6 +45,16 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # Private uploads (M0 §3.1) on Cloudflare R2: from Infisical `staging`. Without them,
+      # POST /v1/files/presign answers 503 and sweep_uploads fails.
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET_PRIVATE # gitleaks:allow (a bucket name, not a secret)
+        sync: false
       # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
       - key: WEB_ORIGINS
         sync: false
