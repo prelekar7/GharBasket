@@ -765,6 +765,15 @@ async def skip(session: AsyncSession, cycle: WeeklyCycle) -> WeeklyCycle:
     return cycle
 
 
+async def mark_locked(session: AsyncSession, cycle: WeeklyCycle, order_id: uuid.UUID) -> None:
+    """M4 locked the order at the cut-off: the cycle mirrors it."""
+    if cycle.status in EDITABLE:
+        cycle.status = "locked"
+        cycle.order_id = order_id
+        cycle.version += 1
+        await session.flush()
+
+
 async def auto_approve_due(session: AsyncSession, delivery_date: date) -> dict[str, int]:
     """The `apply_auto_approve` job's body: approve what the household asked us to, when the
     box-ready notice went out at least 24 h before the cut-off."""
