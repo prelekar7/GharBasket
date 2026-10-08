@@ -1,6 +1,6 @@
 # Chapter 15 — Risks and Decisions
 
-> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 24 decisions taken so far — 17 during planning and seven more since (each backed by an Architecture Decision Record in `docs/adr/`); and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
+> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 25 decisions taken so far — 17 during planning and eight more since (each backed by an Architecture Decision Record in `docs/adr/`), plus any proposed decision still awaiting agreement; and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
 
 ---
 
@@ -49,7 +49,7 @@ quadrantChart
 
 ## 15.2 Decision log
 
-D1–D17 were agreed on 2 October 2026 during planning; D18–D24 were decided between 2 and 4 October 2026. Each has an ADR with context, alternatives and consequences.
+D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026. A decision marked **Proposed** has an ADR under review and is not in force yet. Each has an ADR with context, alternatives and consequences.
 
 | ID | Decision | ADR |
 |---|---|---|
@@ -77,6 +77,8 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D24 were decided b
 | D22 | Generated API client: openapi-typescript + openapi-fetch + openapi-react-query in `frontend/packages/api-client`; replaces Hey API | [ADR-0022](../adr/0022-api-client-openapi-fetch.md) |
 | D23 | Ownership: Prathamesh = all backend, infra, simulator and ML; Yash = all frontend and design; Rhythm and Manish unchanged; supersedes the code ownership in D9 | [ADR-0023](../adr/0023-ownership-backend-and-frontend.md) |
 | D24 | Sign-in: Firebase phone OTP, then our own tokens (15-minute access JWT, rotating refresh token); httpOnly cookies and CSRF checks for browsers | [ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md) |
+| D25 | ML runtime: serve on a Hugging Face Space (with OSRM), train and forecast in GitHub Actions (`backend/training`), Cloudflare R2 as lake and model registry, cron-job.org for minute-level jobs | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
+| D26 | **Proposed.** Operations contract: one unit set (`g, kg, ml, l, piece, bunch, pack`); order actors `packer`, `rider`, `captain`, `kitchen` alongside `customer`, `system`, `hub`; tiffins reuse the order statuses and events; M9 is the source of truth for Society Captains; M6 owns `hub_ops.hubs` (hub ids elsewhere without foreign keys); crates counted, not tracked | [ADR-0026](../adr/0026-operations-contract.md) |
 
 ### How decisions change
 
