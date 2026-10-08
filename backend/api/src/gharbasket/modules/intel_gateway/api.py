@@ -50,6 +50,7 @@ __all__ = [
     "plan_week",
     "price_spikes",
     "record_metrics",
+    "route_timeout_s",
     "solve_routes",
 ]
 
@@ -118,6 +119,11 @@ async def pantry_quantities(
     return answer
 
 
+def route_timeout_s(settings: Settings, request: RouteRequest) -> float:
+    """The solver's own limit plus the ML service's OSRM wait and a margin."""
+    return max(settings.ml_timeout_s, request.time_limit_s + settings.ml_route_overhead_s)
+
+
 async def solve_routes(
     http: httpx2.AsyncClient,
     settings: Settings,
@@ -129,11 +135,12 @@ async def solve_routes(
 ) -> RoutePlan | None:
     """One slot's van routes from the ML service (M10 §3.4), kept in `intel.predictions`
     (kind `route`, subject the hub). None when the service does not answer within
-    `ml_route_timeout_s`: there is no rule-based routing in the API, so M7 falls back to the
-    previous day's sequence (M7 §6)."""
+    `route_timeout_s`: there is no rule-based routing in the API, so M7 falls back to the
+    previous day's sequence (M7 §6). M7 publishes a plan only when `summary.problems` is
+    empty."""
     if not settings.ml_service_url:
         return None
-    timeout = max(settings.ml_timeout_s, request.time_limit_s + 5.0)
+    timeout = route_timeout_s(settings, request)
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
