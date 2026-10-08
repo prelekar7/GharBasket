@@ -134,11 +134,15 @@ class ForecastItemIn(BaseModel):
 class ForecastsIn(BaseModel):
     hub_id: uuid.UUID
     model: str = Field(min_length=1, max_length=60)
+    data_source: Literal["synthetic", "pilot", "live"] = Field(
+        description="Whose orders the forecast was trained on; sources are never pooled"
+    )
     items: list[ForecastItemIn] = Field(min_length=1, max_length=5000)
 
 
 class ForecastsOut(BaseModel):
     accepted: int
+    delivery_dates: list[date]
 
 
 @router.post(
@@ -146,21 +150,15 @@ class ForecastsOut(BaseModel):
     summary="Store a hub's demand forecast and order quantities (the forecast job; operator token)",
 )
 async def put_forecasts(body: ForecastsIn, session: DbSession) -> ForecastsOut:
-    """One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with
-    every product's lines in the payload; M6 reads it through `intel_gateway.api`."""
-    by_date: dict[date, list[dict[str, Any]]] = {}
-    for item in body.items:
-        by_date.setdefault(item.for_date, []).append(item.model_dump(mode="json"))
-    for for_date, items in by_date.items():
-        await service.record_prediction(
-            session,
-            kind="forecast",
-            subject_type="hub",
-            subject_id=body.hub_id,
-            for_date=for_date,
-            source="ml",
-            payload={"items": items},
-            model_name=body.model,
-        )
+    """One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`
+    the delivery day) with every product's lines in the payload, and `intel.forecast_ready`;
+    M6 reads it through `intel_gateway.api.hub_forecast`."""
+    days = await service.record_forecasts(
+        session,
+        hub_id=body.hub_id,
+        model_name=body.model,
+        data_source=body.data_source,
+        items=[item.model_dump(mode="json") for item in body.items],
+    )
     await session.commit()
-    return ForecastsOut(accepted=len(body.items))
+    return ForecastsOut(accepted=len(body.items), delivery_dates=days)
