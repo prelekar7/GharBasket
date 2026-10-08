@@ -40,7 +40,7 @@ Targets are **hypotheses** set before training. A model that misses its target i
 - M-C: drop one objective term at a time (ingredient reuse, nutrition closeness, price-spike penalty, variety) over all household-weeks.
 - M-A: cohort prior on/off; online update on/off.
 - M-E: with and without price, festival and weather features; conformal vs model intervals.
-- M-G: λ ∈ {0, 0.25, 0.5, 1, 2, 4} for the Pareto figure.
+- M-G: λ ∈ {0, 100, 200, 300, 500, 700, 1000, 2000} paise per portion of imbalance (M10 §3.5) for the Pareto figure.
 
 ## 6. Reporting
 - `just eval` writes an HTML report (marimo) to `docs/eval/<date>-<commit>.html` and rows to `intel.model_metrics` with `split`, `data_source`, seed, simulator and model versions.

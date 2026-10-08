@@ -149,21 +149,30 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
 
 ```
   request:
-    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],
+    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],   ≤ 2000
     "kitchens": [ { "id": "<partner id>", "lat", "lng", "max_portions", "skills": [...], "rating": 4.5,
-                    "earnings_paise": 120000 } ],                      rolling earnings before tonight
-    "fairness_lambda": 0.5,            0 = cost only; the eval harness sweeps it for the Pareto curve
+                    "earnings_paise": 120000 } ],         ≤ 300; rolling earnings before tonight, ≤ 10^12
+    "fairness_lambda": 300,            paise of cost per portion of earnings imbalance; 0 = cost only
     "rating_floor": 3.8, "max_km": 5, "paise_per_portion": 6000, "quality_paise_per_star": 500,
-    "time_limit_s": 5
+    "max_kitchens_per_order": 15,      only the nearest this many eligible kitchens are candidates
+    "time_limit_s": 5                  wall clock, building the model included
   200:
-    "status": "solved" | "fallback" | "infeasible",   fallback = greedy nearest kitchen
+    "status": "solved" | "partial" | "fallback" | "infeasible",
     "assignments": [ { "order_id", "kitchen_id", "portions", "km" } ],
+    "unassigned": [ { "order_id", "reason": "below_rating_floor" | "no_skills" | "too_many_portions"
+                                          | "out_of_reach" | "no_room" } ],
     "summary": { "portions", "kitchens_used", "km_per_portion", "cost_paise_per_portion",
-                 "gini", "earnings_paise": [...] } | null,
-    "seconds", "model": "assignment-cpsat-v0"
+                 "gini", "gini_eligible",
+                 "earnings_paise": [ { "kitchen_id", "earnings_paise" } ] } | null,
+    "seconds", "model": "assignment-cpsat-v0" | "greedy-v0"
 ```
-- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × the largest deviation of any kitchen's earnings (rolling + tonight) from the fair share — the linear proxy for the Gini in handbook 08 M-G.
-- **Fallbacks:** no plan or too many orders → greedy nearest kitchen with room (`status: fallback`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
+- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × (the largest deviation of an eligible kitchen's earnings from the fair share + the mean absolute deviation). Earnings are rolling + tonight and counted **in portions** (÷ `paise_per_portion`), so λ trades like for like with the cost per portion; the max is the linear proxy for the Gini in handbook 08 M-G, the mean keeps the objective from going flat when one kitchen pins the max. *Eligible* = a candidate for at least one order tonight: a kitchen with no room, below the floor, without the skills or out of reach is left out of the share and the deviations.
+- **λ default 300:** the knee of a sweep on the test instance (12 orders, 4 kitchens, three seeds: knees at 200-300); on a 60-order, 8-kitchen hub the knee is at 600-700. The eval harness's sweep settles the production value.
+- **Partial plans:** every order has a skip with a penalty per portion larger than any order's cost and fairness effect, so one order no kitchen can take never fails the hub. Skipped orders are listed in `unassigned` with the first reason that rules every kitchen out, or `no_room` when kitchens could cook it but are full; `status` is then `partial` (`infeasible` only when nothing is assigned). `summary` per-portion figures count the assigned portions.
+- **Summary:** `gini` is over every kitchen in the request (the paper metric), `gini_eligible` over the eligible kitchens (what λ balances).
+- **Time:** candidates are the nearest `max_kitchens_per_order` kitchens per order, the variables are grouped by order and kitchen in one pass, and building counts against `time_limit_s` (the solver gets the rest; under 0.05 s left → greedy). Above `max_orders_for_solver` (default 500: a 500-order, 60-kitchen hub ends within ~2 % of optimal in 5 s) greedy answers; so do instances whose objective would not fit in int64. The gateway waits `max(ml_timeout_s, time_limit_s + 5 s)`.
+- **Deterministic mode:** `assign(req, deterministic=True)` (the default for in-process callers such as the eval harness) solves with one worker and a deterministic-time limit, so repeated runs give the same plan; the endpoint passes `False` (eight workers, wall-clock limit).
+- **Fallbacks:** no plan in time, too many orders or numbers too large → greedy nearest kitchen with room (`status: fallback`, or `partial`; `model: greedy-v0`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
 
 ### 3.2 Household simulator v0 (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
