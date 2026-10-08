@@ -208,31 +208,36 @@ class Rows:
     outcomes: list[dict[str, Any]] = field(default_factory=list)  # --write-db only
 
 
-@dataclass(frozen=True)
-class Provided:
-    """Plans and drafted boxes that came from M3 (`--write-db`), one per week, in place of the
-    in-process planner and the simulator's own draft."""
+@dataclass
+class Simulation:
+    """One household's weeks, run one at a time. `simulate` runs them all with the in-process
+    planner; `--write-db` runs each week right after M3 has drafted it (through_modules.py), so
+    the next week's draft counts what the last one delivered."""
 
-    plans: list[Planned]
-    drafts: list[list[pantry_sim.Line]]
+    seed: int
+    h: SimHousehold
+    catalog: Catalog
+    first_monday: date
+    planner: Planner
+    shocks: Shocks | None = None
+    price_sensitivity: float = 0.5
+    feedback_rate: float = 0.4
+    rows: Rows = field(default_factory=lambda: Rows([], [], []))
 
+    def __post_init__(self) -> None:
+        rng = random.Random(f"gharbasket-sim:{self.seed}:{self.h.key}")
+        self.pantry = pantry_sim.initial_stock(rng, self.h, self.catalog)
 
-def simulate(
-    seed: int,
-    h: SimHousehold,
-    catalog: Catalog,
-    first_monday: date,
-    weeks: int,
-    planner: Planner,
-    shocks: Shocks | None = None,
-    *,
-    price_sensitivity: float = 0.5,
-    feedback_rate: float = 0.4,
-    provided: Provided | None = None,
-) -> Rows:
-    rows = Rows([], [], [])
-    pantry = pantry_sim.initial_stock(random.Random(f"gharbasket-sim:{seed}:{h.key}"), h, catalog)
-    for w in range(weeks):
+    def week(
+        self,
+        w: int,
+        planned: Planned | None = None,
+        drafted: list[pantry_sim.Line] | None = None,
+    ) -> None:
+        """Week `w`: the planner's plan and the simulator's own draft, unless M3 gave them."""
+        seed, h, catalog, rows, pantry = self.seed, self.h, self.catalog, self.rows, self.pantry
+        shocks, first_monday = self.shocks, self.first_monday
+        price_sensitivity, feedback_rate = self.price_sensitivity, self.feedback_rate
         rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}")
         monday = first_monday + timedelta(weeks=w)
         factor = pantry_sim.weekly_prices(catalog, shocks, w)
@@ -242,7 +247,8 @@ def simulate(
             "recipes": catalog.recipes,
             "time_limit_s": TIME_LIMIT_S,
         }
-        planned = provided.plans[w] if provided is not None else planner(request)
+        if planned is None:
+            planned = self.planner(request)
         ordered = rng.random() >= h.skip_week
         rows.weeks.append(
             {
@@ -287,9 +293,28 @@ def simulate(
             rows,
             price_sensitivity=price_sensitivity,
             feedback_rate=feedback_rate,
-            drafted=provided.drafts[w] if provided is not None else None,
+            drafted=drafted,
         )
-    return rows
+
+
+def simulate(
+    seed: int,
+    h: SimHousehold,
+    catalog: Catalog,
+    first_monday: date,
+    weeks: int,
+    planner: Planner,
+    shocks: Shocks | None = None,
+    *,
+    price_sensitivity: float = 0.5,
+    feedback_rate: float = 0.4,
+) -> Rows:
+    sim = Simulation(
+        seed, h, catalog, first_monday, planner, shocks, price_sensitivity, feedback_rate
+    )
+    for w in range(weeks):
+        sim.week(w)
+    return sim.rows
 
 
 def _week_of_box(
@@ -363,8 +388,10 @@ def _week_of_box(
     for c in rows.consumption:
         if c["household"] == h.key and c["week"] == w:
             used[c["product"]] = c["qty"]
+    # A substitute the household swapped in is cooked in place of the original (pantry.py).
+    stand_ins = {line.replaces: line.product for line in final if line.replaces} if ordered else {}
     for row in pantry_sim.consume(
-        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate
+        rng, pantry, catalog, used, delivered, feedback_rate=feedback_rate, stand_ins=stand_ins
     ):
         rows.pantry.append({"household": h.key, "week": w, **row})
 

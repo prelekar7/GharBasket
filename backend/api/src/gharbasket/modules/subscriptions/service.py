@@ -250,9 +250,9 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    carried = await carried_over(session, profile.id, delivery_date, catalog)
+    bought = await bought_recently(session, profile.id, delivery_date, catalog)
     lines = planning.lines_from_plan(
-        profile, catalog, meals, fallback=plan.plan is None, carried=carried
+        profile, catalog, meals, fallback=plan.plan is None, bought=bought
     )
     monthly_budget = profile.budget_paise
     budget_near = (
@@ -273,17 +273,17 @@ async def draft(
     return draft_box, plan.source, prediction
 
 
-async def carried_over(
+async def bought_recently(
     session: AsyncSession,
     household_id: uuid.UUID,
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
-) -> dict[uuid.UUID, float]:
-    """Base units of each staple the household's approved or locked boxes of the last
-    CARRY_WEEKS weeks carried: the cupboard the next draft can count on."""
+) -> dict[uuid.UUID, list[tuple[float, float]]]:
+    """Per dry staple, (weeks before `delivery_date`, base units) of each approved or locked box
+    of the last CARRY_WEEKS weeks: the deliveries the next draft's cupboard is made of."""
     since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
     rows = await session.execute(
-        select(BoxLine)
+        select(BoxLine, WeeklyCycle.delivery_date)
         .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
         .where(
             WeeklyCycle.household_id == household_id,
@@ -292,15 +292,18 @@ async def carried_over(
             WeeklyCycle.status.in_(("approved", "locked")),
         )
     )
-    carried: dict[uuid.UUID, float] = {}
-    for line in rows.scalars():
+    bought: dict[uuid.UUID, list[tuple[float, float]]] = {}
+    for line, delivered in rows.all():
         product = catalog.products.get(line.product_id)
-        if product is None or planning.perishable(product):
+        if product is None or not planning.carries_over(product):
             continue
-        carried[line.product_id] = carried.get(line.product_id, 0.0) + (
-            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        bought.setdefault(line.product_id, []).append(
+            (
+                (delivery_date - delivered).days / 7,
+                line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit],
+            )
         )
-    return carried
+    return bought
 
 
 async def generate_cycle(
@@ -360,7 +363,7 @@ async def generate_cycle(
         meal_plan=box.meal_plan,
         highlights=box.highlights,
         status="awaiting_approval" if notice_now else "draft",
-        notice_sent_at=datetime.now(UTC) if notice_now else None,
+        notice_sent_at=now() if notice_now else None,
         data_source=profile.data_source,
     )
     try:
