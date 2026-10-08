@@ -74,8 +74,9 @@ def cpsat_v2_planner(request: dict[str, Any]) -> Planned:
 
 
 def rules_planner(request: dict[str, Any]) -> Planned:
-    """What customers get when the ML service is down (intel_gateway's fallback)."""
-    return _planned(fallback.plan_week(GatewayRequest.model_validate(request)))
+    """What customers get when the ML service is down (intel_gateway's fallback), as registered:
+    without the observed liking (the arm stays comparable across planner versions)."""
+    return _planned(fallback.plan_week(GatewayRequest.model_validate(without_preference(request))))
 
 
 def _slot_by_slot(request: dict[str, Any], choose: Callable[..., str | None], name: str) -> Planned:
@@ -170,8 +171,9 @@ def greedy_planner(request: dict[str, Any]) -> Planned:
 
 
 def random_planner(request: dict[str, Any]) -> Planned:
-    """Baseline: a random valid plan (seeded by the request, so it is reproducible)."""
-    rng = random.Random(json.dumps(request, sort_keys=True))
+    """Baseline: a random valid plan (seeded by the request without the liking it ignores, so
+    it is reproducible and the same as before the liking existed)."""
+    rng = random.Random(json.dumps(without_preference(request), sort_keys=True))
 
     def choose(week: Any, options: list[Any], day: int, slot: str) -> str | None:
         return None if not options else rng.choice(sorted(r.slug for r in options))
@@ -188,11 +190,19 @@ PLANNERS: dict[str, Planner] = {
 }
 
 
+# The planners that read recipes[].preference; every other one plans without it.
+LIKING: frozenset[Planner] = frozenset({cpsat_v2_planner})
+
+
 def cached(planner: Planner) -> Planner:
-    """Households with the same rules in the same week get the same plan: solve it once."""
+    """Households with the same rules in the same week get the same plan: solve it once. For a
+    planner that ignores the liking, the key (and the request) is the one without it, so
+    households that differ only in what they liked share a plan, as before v2."""
     seen: dict[str, Planned] = {}
 
     def plan(request: dict[str, Any]) -> Planned:
+        if planner not in LIKING:
+            request = without_preference(request)
         key = json.dumps(request, sort_keys=True)
         if key not in seen:
             seen[key] = planner(request)

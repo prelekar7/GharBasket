@@ -211,3 +211,29 @@ def test_observed_liking_needs_two_weeks_and_feeds_only_the_v2_planner() -> None
         "recipes": [{"slug": "poha"}, {"slug": "dal-rice"}]
     }
     assert set(weeks.PLANNERS) >= {"cpsat", "cpsat_v2", "rules", "greedy", "random"}
+
+
+def test_planners_that_ignore_liking_share_a_plan_and_their_rng_with_v1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    liked = {"household": {"size": 2}, "recipes": [{"slug": "poha", "preference": 0.9}]}
+    plain = {"household": {"size": 2}, "recipes": [{"slug": "poha"}]}
+    seen: list[dict[str, Any]] = []
+
+    def counting(request: dict[str, Any]) -> Planned:
+        seen.append(request)
+        return Planned("optimal", (), {}, "count")
+
+    plan = cached(counting)
+    assert plan(liked) is plan(plain) and seen == [plain]  # the liking is not even passed on
+
+    # A planner that reads the liking (v2) keeps the two requests apart.
+    seen.clear()
+    monkeypatch.setattr(weeks, "LIKING", frozenset({counting}))
+    v2 = cached(counting)
+    assert v2(liked) is not v2(plain) and seen == [liked, plain]
+
+    assert weeks.cpsat_v2_planner in weeks.PLANNERS.values()
+    monkeypatch.undo()
+    assert weeks.cpsat_v2_planner in weeks.LIKING and len(weeks.LIKING) == 1
+    assert not {cpsat_planner, rules_planner, greedy_planner, random_planner} & weeks.LIKING
