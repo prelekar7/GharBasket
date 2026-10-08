@@ -2105,6 +2105,15 @@
             "title": "Slot",
             "type": "string"
           },
+          "source": {
+            "description": "customer: set with PUT .../meals",
+            "enum": [
+              "plan",
+              "customer"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
           "tiffin": {
             "title": "Tiffin",
             "type": "boolean"
@@ -2115,7 +2124,8 @@
           "recipe_id",
           "name",
           "tiffin",
-          "sides"
+          "sides",
+          "source"
         ],
         "title": "MealOut",
         "type": "object"
@@ -2143,6 +2153,58 @@
           "days"
         ],
         "title": "MealPlanOut",
+        "type": "object"
+      },
+      "MealSet": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "recipe_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only with set: recipe",
+            "title": "Recipe Id"
+          },
+          "set": {
+            "default": "next",
+            "description": "next: the cheapest allowed dish not in the week; recipe: recipe_id; tiffin, no_cook: no ingredients; planned: back to the planner's dish",
+            "enum": [
+              "next",
+              "recipe",
+              "tiffin",
+              "no_cook",
+              "planned"
+            ],
+            "title": "Set",
+            "type": "string"
+          },
+          "slot": {
+            "description": "Another value is 422 subscriptions.meal_unknown",
+            "enum": [
+              "breakfast",
+              "lunch",
+              "dinner"
+            ],
+            "title": "Slot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "slot"
+        ],
+        "title": "MealSet",
         "type": "object"
       },
       "MemberIn": {
@@ -7234,6 +7296,185 @@
           }
         ],
         "summary": "Remove, add, change or substitute lines before the cut-off (If-Match)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/cycles/{cycle_id}/meals": {
+      "put": {
+        "operationId": "set_meal_v1_cycles__cycle_id__meals_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MealSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.no_cycle"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.cutoff_passed, subscriptions.not_editable"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.meal_unknown, subscriptions.recipe_unknown, subscriptions.recipe_not_allowed (rules), subscriptions.no_alternative, subscriptions.budget_exceeded (over_paise)"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Set one meal (next dish, a recipe, tiffin, no-cook, or the plan's) and redraw its lines before the cut-off (If-Match)",
         "tags": [
           "subscriptions"
         ]

@@ -1,5 +1,6 @@
 """HTTP endpoints of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery days,
-the weekly cycle (read, edit, approve, skip), pantry feedback and the Budget Lock."""
+the weekly cycle (read, edit, swap a meal (§3.2), approve, skip), pantry feedback and the Budget
+Lock."""
 
 import uuid
 from datetime import datetime, timedelta
@@ -31,6 +32,7 @@ from gharbasket.modules.subscriptions.schemas import (
     LinesPatch,
     MealOut,
     MealPlanOut,
+    MealSet,
     PlanOut,
     PlansOut,
     ReplacedOut,
@@ -176,6 +178,7 @@ async def _cycle_out(
                     name=localised(recipe.names, lang) if recipe else None,
                     tiffin=bool(meal.get("tiffin")),
                     sides=list(meal.get("sides", [])),
+                    source=meal.get("source", "plan"),
                 )
             )
         days.append(DayOut(date=day["date"], meals=meals))
@@ -473,6 +476,46 @@ async def patch_lines(
         for op in body.ops
     ]
     await service.edit_lines(session, cycle, ops, expected_version=expected)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await session.commit()
+    return out
+
+
+@router.put(
+    "/cycles/{cycle_id}/meals",
+    summary="Set one meal (next dish, a recipe, tiffin, no-cook, or the plan's) and redraw its "
+    "lines before the cut-off (If-Match)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
+        412: _problem("subscriptions.version_conflict"),
+        422: _problem(
+            "subscriptions.meal_unknown, subscriptions.recipe_unknown, "
+            "subscriptions.recipe_not_allowed (rules), subscriptions.no_alternative, "
+            "subscriptions.budget_exceeded (over_paise)"
+        ),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def set_meal(
+    cycle_id: uuid.UUID,
+    body: MealSet,
+    permit: CanWrite,
+    session: DbSession,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.set_meal(
+        session,
+        cycle,
+        on=body.date,
+        slot=body.slot,
+        choice=body.set,
+        recipe_id=body.recipe_id,
+        expected_version=expected,
+    )
     out = await _answer(session, cycle, household=household, lang=lang, response=response)
     await session.commit()
     return out

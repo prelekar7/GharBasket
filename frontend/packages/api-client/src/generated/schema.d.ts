@@ -312,6 +312,23 @@ export interface paths {
         patch: operations["patch_lines_v1_cycles__cycle_id__lines_patch"];
         trace?: never;
     };
+    "/v1/cycles/{cycle_id}/meals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one meal (next dish, a recipe, tiffin, no-cook, or the plan's) and redraw its lines before the cut-off (If-Match) */
+        put: operations["set_meal_v1_cycles__cycle_id__meals_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/cycles/{cycle_id}/skip": {
         parameters: {
             query?: never;
@@ -1868,6 +1885,12 @@ export interface components {
              * @enum {string}
              */
             slot: "breakfast" | "lunch" | "dinner";
+            /**
+             * Source
+             * @description customer: set with PUT .../meals
+             * @enum {string}
+             */
+            source: "plan" | "customer";
             /** Tiffin */
             tiffin: boolean;
         };
@@ -1880,6 +1903,32 @@ export interface components {
              * @enum {string}
              */
             source: "ml" | "fallback";
+        };
+        /** MealSet */
+        MealSet: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Recipe Id
+             * @description Only with set: recipe
+             */
+            recipe_id?: string | null;
+            /**
+             * Set
+             * @description next: the cheapest allowed dish not in the week; recipe: recipe_id; tiffin, no_cook: no ingredients; planned: back to the planner's dish
+             * @default next
+             * @enum {string}
+             */
+            set: "next" | "recipe" | "tiffin" | "no_cook" | "planned";
+            /**
+             * Slot
+             * @description Another value is 422 subscriptions.meal_unknown
+             * @enum {string}
+             */
+            slot: "breakfast" | "lunch" | "dinner";
         };
         /** MemberIn */
         MemberIn: {
@@ -4475,6 +4524,108 @@ export interface operations {
                 };
             };
             /** @description subscriptions.product_unknown, subscriptions.substitute_unknown, subscriptions.qty_invalid, subscriptions.budget_exceeded (over_paise) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_meal_v1_cycles__cycle_id__meals_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.meal_unknown, subscriptions.recipe_unknown, subscriptions.recipe_not_allowed (rules), subscriptions.no_alternative, subscriptions.budget_exceeded (over_paise) */
             422: {
                 headers: {
                     [name: string]: unknown;
