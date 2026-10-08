@@ -3009,6 +3009,80 @@
         "title": "PlansOut",
         "type": "object"
       },
+      "PresignIn": {
+        "properties": {
+          "content_type": {
+            "examples": [
+              "image/jpeg"
+            ],
+            "maxLength": 100,
+            "title": "Content Type",
+            "type": "string"
+          },
+          "purpose": {
+            "description": "order_issue_photo, donation_photo or kyc_document",
+            "maxLength": 40,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "size_bytes": {
+            "description": "The exact size of the file to upload",
+            "examples": [
+              834221
+            ],
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "purpose",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "PresignIn",
+        "type": "object"
+      },
+      "PresignOut": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Send exactly these headers on the PUT",
+            "title": "Headers",
+            "type": "object"
+          },
+          "key": {
+            "description": "Send only this to the module that uses the file",
+            "title": "Key",
+            "type": "string"
+          },
+          "method": {
+            "const": "PUT",
+            "title": "Method",
+            "type": "string"
+          },
+          "url": {
+            "description": "PUT the bytes here before expires_at",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "url",
+          "method",
+          "headers",
+          "expires_at"
+        ],
+        "title": "PresignOut",
+        "type": "object"
+      },
       "Price": {
         "properties": {
           "hub_id": {
@@ -7507,6 +7581,92 @@
         "summary": "Festival and fasting days in a date range (at most 92 days)",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/files/presign": {
+      "post": {
+        "operationId": "presign_v1_files_presign_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresignOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.upload_purpose_invalid, platform.upload_type_not_allowed (with allowed) or platform.upload_too_large (with max_bytes)"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.upload_rate_limited (see Retry-After)"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A presigned PUT URL for one private upload (M0 §3.1)",
+        "tags": [
+          "files"
         ]
       }
     },
