@@ -102,7 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Tomorrow's tiffin portions to home kitchens, fairly (CP-SAT, M10 §3.5)",
     )
     async def assign_kitchens(body: AssignRequest) -> AssignResponse:
-        return await run_in_threadpool(assignment.assign, body)
+        return await run_in_threadpool(assignment.assign, body, deterministic=False)
 
     @app.post(
         "/route/solve",
