@@ -340,5 +340,6 @@ M4 (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with the new 
 ## 11. Open questions and decisions
 - **Decided (ADR-0026):** M6 owns hubs; hub ids elsewhere have no foreign key; crates are counted, not tracked; operations quantities in kg, l, piece, bunch, pack; packing does not wait for routes.
 - **Decided (this spec):** a substitute replaces a whole line only, at a price no higher than the line's; partial shortages are refunded.
+- **Decided by the owner (2026-10-09, ADR-0026):** substitute by default, but never for households that chose "never substitute, refund" (M1 preference, read through `identity.api`); routes are solved at T-1 23:15, so packing at 05:00 normally follows route order; one captain per society; a missed hold window gets one free redelivery the next morning (M7).
 - Real vendor list and APMC Vashi timings for the pilot (Rhythm Thakur, Manish Raje).
 - Labels: printed sheet from the console in the prototype; a thermal label printer at the pilot.
