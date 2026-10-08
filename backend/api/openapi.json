@@ -1314,6 +1314,16 @@
       },
       "ForecastsIn": {
         "properties": {
+          "data_source": {
+            "description": "Whose orders the forecast was trained on; sources are never pooled",
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
           "hub_id": {
             "format": "uuid",
             "title": "Hub Id",
@@ -1338,6 +1348,7 @@
         "required": [
           "hub_id",
           "model",
+          "data_source",
           "items"
         ],
         "title": "ForecastsIn",
@@ -1348,10 +1359,19 @@
           "accepted": {
             "title": "Accepted",
             "type": "integer"
+          },
+          "delivery_dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Delivery Dates",
+            "type": "array"
           }
         },
         "required": [
-          "accepted"
+          "accepted",
+          "delivery_dates"
         ],
         "title": "ForecastsOut",
         "type": "object"
@@ -8879,7 +8899,7 @@
     },
     "/v1/internal/intel/forecasts": {
       "post": {
-        "description": "One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with\nevery product's lines in the payload; M6 reads it through `intel_gateway.api`.",
+        "description": "One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`\nthe delivery day) with every product's lines in the payload, and `intel.forecast_ready`;\nM6 reads it through `intel_gateway.api.hub_forecast`.",
         "operationId": "put_forecasts_v1_internal_intel_forecasts_post",
         "requestBody": {
           "content": {

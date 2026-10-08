@@ -119,7 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Tomorrow's tiffin portions to home kitchens, fairly (CP-SAT, M10 §3.5)",
     )
     async def assign_kitchens(body: AssignRequest) -> AssignResponse:
-        return await run_in_threadpool(assignment.assign, body)
+        return await run_in_threadpool(assignment.assign, body, deterministic=False)
 
     @app.post(
         "/route/solve",
@@ -129,14 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def route_solve(
         body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
     ) -> RouteResponse:
-        nodes = routing.nodes_of(body)
-        points = [(n.lat, n.lng) for n in nodes]
-        matrix = await routing.osrm_matrix(settings.osrm_url, points) if settings.osrm_url else None
-        source = "osrm" if matrix is not None else "haversine"
-        if matrix is None:
-            matrix = routing.haversine_matrix(points)
-        inst = routing.Instance(nodes, matrix[0], matrix[1], body)
-        return await run_in_threadpool(routing.plan, inst, body.time_limit_s, source)
+        return await routing.solve(body, settings.osrm_url, settings.osrm_timeout_s)
 
     @app.post(
         "/plan/week",

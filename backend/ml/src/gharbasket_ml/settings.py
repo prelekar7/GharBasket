@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
     # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
     osrm_url: str | None = None
+    # How long /route/solve waits for OSRM's table before it prices with haversine instead. The
+    # API's gateway allows time_limit_s plus ML_ROUTE_OVERHEAD_S (6 s), which must cover this.
+    osrm_timeout_s: float = Field(default=2.5, gt=0, le=5)
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:
