@@ -23,6 +23,14 @@ class DeviceIn(BaseModel):
     push_token: str | None = Field(default=None, max_length=4096)
 
 
+class PushTokenIn(BaseModel):
+    push_token: str | None = Field(
+        min_length=1,
+        max_length=4096,
+        description="The FCM registration token of this device; null when notifications are off",
+    )
+
+
 class ExchangeIn(BaseModel):
     """Exactly one of `firebase_id_token` (always) or `dev_phone` (only with APP_ENV=dev)."""
 
@@ -174,6 +182,7 @@ ConsentPurpose = Literal[
     "health_personalisation",
     "marketing",
     "research_anonymised",
+    "whatsapp",
 ]
 CookMinutes = Annotated[int, Field(ge=10, le=240)]
 Weekday = Annotated[int, Field(ge=0, le=6)]
