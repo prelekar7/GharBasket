@@ -119,7 +119,7 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 - `cancel_from_cycle(session, cycle_id, reason="skipped")` — a skip before the cut-off cancels the order.
 - `transition(session, order_id, to, *, actor, payload=None)` — M6/M7 move fulfilment statuses; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event.
 - `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",)) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later).
-- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None)` — M6 packing; a refund for the short steps goes through `billing.api.refund_to_wallet(reason="shortage")`.
+- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None)` — M6 packing; a refund for the short steps goes through `billing.api.refund_to_wallet(reason="shortage")`. Publishes `orders.shortage_substituted { order_id, household_id, product_id, shortage_qty, substitute_product_id, refund_paise }` (`household_id` added 2026-10-09 so M11 knows whom to tell).
 
 **Error codes**
 

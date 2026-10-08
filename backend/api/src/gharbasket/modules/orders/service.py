@@ -585,6 +585,7 @@ async def mark_shortage(
         "orders.shortage_substituted",
         {
             "order_id": str(order.id),
+            "household_id": str(order.household_id),  # who M11 tells
             "product_id": str(product_id),
             "shortage_qty": shortage_qty,
             "substitute_product_id": None

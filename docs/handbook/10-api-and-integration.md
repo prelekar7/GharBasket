@@ -105,8 +105,8 @@ flowchart LR
 
 | Module | Events |
 |---|---|
-| identity | `identity.household_created` |
-| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
+| identity | `identity.household_created`, `identity.data_export_ready` |
+| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_ready`, `subscriptions.cutoff_reminder`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
 | orders | `orders.locked`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` |
 | billing | `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued` |
 | ops | `hub_ops.procurement_plan_ready`, `hub_ops.waste_logged` |
@@ -121,9 +121,9 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 
 | When | Job | Module |
 |---|---|---|
-| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_notices` (publishes `subscriptions.box_ready`; M11 notifies) | subscriptions → notify |
-| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder`) | subscriptions → notify |
+| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts; cron-job.org) | intel → subscriptions |
+| T-3 18:30 | `send_box_ready_notices` (draft → awaiting approval; publishes `subscriptions.box_ready`; M11 notifies; cron-job.org) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder` once per unapproved box auto-approve will not take; cron-job.org) | subscriptions → notify |
 | every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |

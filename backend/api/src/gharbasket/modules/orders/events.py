@@ -12,7 +12,8 @@ DISPATCHED = "orders.dispatched"
 AT_SOCIETY = "orders.at_society"
 DELIVERED = "orders.delivered"
 DELIVERY_FAILED = "orders.delivery_failed"
-SHORTAGE_SUBSTITUTED = "orders.shortage_substituted"  # own payload: product, shortage, refund
+# Own payload: order_id, household_id, product_id, shortage_qty, substitute_product_id, refund_paise
+SHORTAGE_SUBSTITUTED = "orders.shortage_substituted"
 # Issues (§3.2) carry their own payload, without notes, photo keys or names:
 ISSUE_REPORTED = "orders.issue_reported"  # issue_id, order_id, household_id, hub_id, kind, ...
 ISSUE_RESOLVED = "orders.issue_resolved"  # issue_id, order_id, household_id, status, credit, by

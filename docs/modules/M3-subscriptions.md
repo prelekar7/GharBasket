@@ -11,7 +11,7 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 ## 2. User stories
 | # | Story | Acceptance criteria |
 |---|---|---|
-| US-1 | As a customer, I want my weekly box drafted for me so that I don't plan groceries. | At T-3 18:00 a cycle in `AWAITING_APPROVAL` exists with lines and reason codes. |
+| US-1 | As a customer, I want my weekly box drafted for me so that I don't plan groceries. | At T-3 18:00 a `draft` cycle exists with lines and reason codes; at 18:30 it is `AWAITING_APPROVAL` and the household is told (`subscriptions.box_ready`). |
 | US-2 | As a customer, I want to swap, remove or change quantities so that the box fits my week. | Edits allowed until cut-off; `version` increments; conflicting edit returns 412. |
 | US-3 | As a customer, I want to approve the week in one tap so that it is confirmed. | `subscriptions.box_approved` published; status `APPROVED`. |
 | US-4 | As a customer, I want to skip a week so that I'm not charged while travelling. | Status `SKIPPED`; no order created; `subscriptions.box_skipped` published. |
@@ -125,13 +125,15 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 1. For every active subscription not paused for that delivery date: the household's rules (M1) and the hub's active recipes with today's prices (M2) go to `intel_gateway.api.plan_week` (recorded in `intel.predictions`, `source` ml or fallback).
 2. The plan becomes lines: each recipe's ingredients × household size ÷ servings, summed over the week, rounded up to steps (`source: ai`, `reason_code: meal_plan`, `reason_params.recipes`); plus the **family-size rule table** for daily-use items (milk, atta, oil, salt, curd, fruit per adult equivalent per week; `source: rule`, `reason_code: daily_use`) until the pantry twin (M10 F13) replaces the quantities with its own and `pantry_low` reasons.
 3. With the Budget Lock on, the cheapest substitutes bring the box under the month's remaining budget (`price_swap`), never below the hard rules; if it still does not fit, the box is generated anyway and `highlights` carries `budget_near`.
-4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30) marks `notice_sent_at` and publishes `subscriptions.box_ready`, which M11 turns into the box-ready message (M11 §3.1). Until that job ships, the generation job sets `notice_sent_at` itself.
+4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30) marks `notice_sent_at` and publishes `subscriptions.box_ready`, which M11 turns into the box-ready message (M11 §3.1). A draft can be read but not edited, approved or skipped (`subscriptions.not_editable`); the move keeps `version`, since the box is the one generated. The job also takes an earlier delivery day's draft still before its cut-off, so a generation run that came after its notice run is told the next evening (and, under 24 h before the cut-off, is not auto-approved).
 5. A planner failure gives last week's lines, or the rule table for a new household (`reason_code: fallback_rules`, `meal_plan.source: fallback`).
-6. `apply_auto_approve` (T-1 20:55 IST): `awaiting_approval` cycles whose subscription has `auto_approve` and whose `notice_sent_at` is at least 24 h before the cut-off are approved by the system.
+6. `remind_unapproved` (T-1 19:00 IST): every `awaiting_approval` cycle that step 7 will not approve gets one `subscriptions.cutoff_reminder` (`reminded_at` marks it).
+7. `apply_auto_approve` (T-1 20:55 IST): `awaiting_approval` cycles whose subscription has `auto_approve` and whose `notice_sent_at` is at least 24 h before the cut-off are approved by the system.
 
 **Events** (payloads are the contract for M4 and M11):
 - `subscriptions.cycle_generated { cycle_id, household_id, hub_id, delivery_date, total_paise, source }`
-- `subscriptions.box_approved { cycle_id, household_id, hub_id, society_id, delivery_date, slot_id, version, lines: [ { product_id, qty, unit_price_paise, reason_code, reason_params } ], total_paise }` (M4's `ApprovedCycle`; sent again after an edit to an approved cycle)
+- `subscriptions.box_ready { cycle_id, household_id, delivery_date, cutoff_at, total_paise }` and `subscriptions.cutoff_reminder` (same payload), once per cycle each
+- `subscriptions.box_approved { cycle_id, household_id, hub_id, society_id, delivery_date, slot_id, version, lines: [ { product_id, qty, unit_price_paise, reason_code, reason_params } ], total_paise, auto_approved }` (M4's `ApprovedCycle`; sent again after an edit to an approved cycle, then with `auto_approved: false`; `true` only on `apply_auto_approve`'s approval)
 - `subscriptions.box_skipped { cycle_id, household_id, delivery_date }`
 - `subscriptions.subscription_paused { subscription_id, household_id, paused_until }`
 - Consumed: `orders.locked` (mirror `locked` and `order_id`), `orders.cancelled` with reason `payment` (mirror `cancelled`), `orders.delivered` (open the feedback window), `identity.household_updated` (the next cycle uses the new rules).
@@ -225,7 +227,7 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 | `subscriptions.subscriptions` | id, household_id, plan_id, status, started_at, paused_until, payment_mode (wallet, autopay) |
 | `subscriptions.society_delivery_days` | society_id, weekday, slot_id |
 | `subscriptions.budget_locks` | id, household_id, month, budget_paise, spent_paise |
-| `subscriptions.weekly_cycles` | id, household_id, hub_id, society_id, subscription_id, week_start, delivery_date, slot_id, cutoff_at, plan_prediction_id (intel.predictions), plan_source (ml, fallback), status, generated_at, notice_sent_at, approved_at, auto_approved, order_id, version, meal_plan jsonb (each meal keeps the planner's original recipe for `set: planned`), highlights jsonb, data_source |
+| `subscriptions.weekly_cycles` | id, household_id, hub_id, society_id, subscription_id, week_start, delivery_date, slot_id, cutoff_at, plan_prediction_id (intel.predictions), plan_source (ml, fallback), status, generated_at, notice_sent_at, reminded_at (the cut-off reminder, once), approved_at, auto_approved, order_id, version, meal_plan jsonb (each meal keeps the planner's original recipe for `set: planned`), highlights jsonb, data_source |
 | `subscriptions.box_lines` | cycle_id, product_id, qty (steps), step_qty, step_unit, unit_price_paise, reason_code, reason_params jsonb, source (ai, rule, customer), replaces_product_id |
 | `subscriptions.edit_feedback` | id, cycle_id, product_id (null for meal rows), action (removed, added, qty_up, qty_down, swapped, meal_swapped, meal_tiffin, meal_no_cook, meal_restored), substitute_product_id, meal_date, slot, recipe_id, substitute_recipe_id, at |
 | `subscriptions.pantry_feedback` | id, cycle_id, household_id, product_id, signal (ran_out, wasted, just_right), at — the pantry twin's observations |
@@ -239,8 +241,8 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 | Job | Schedule | Notes |
 |---|---|---|
 | `generate_weekly_plans` | T-3 18:00 IST per hub (cron-job.org → `POST /v1/internal/jobs/generate_weekly_plans`) | Plans via `intel_gateway.api.plan_week`; rule-table fallback; §3.1 |
-| `send_box_ready_notices` | T-3 18:30 IST (cron-job.org) | `draft` cycles of the delivery day: sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle. The pre-debit notice for Autopay comes via M5 at the pilot |
-| `remind_unapproved` | T-1 19:00 IST (cron-job.org) | Cycles still `awaiting_approval` whose subscription doesn't auto-approve: publishes `subscriptions.cutoff_reminder` once per cycle |
+| `send_box_ready_notices` | T-3 18:30 IST (cron-job.org) | `draft` cycles of the delivery day (and earlier drafts still before their cut-off): sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle, since only drafts are taken. The pre-debit notice for Autopay comes via M5 at the pilot |
+| `remind_unapproved` | T-1 19:00 IST (cron-job.org) | Cycles still `awaiting_approval` that `apply_auto_approve` will not take (no `auto_approve`, or a notice under 24 h before the cut-off): publishes `subscriptions.cutoff_reminder` once per cycle (`reminded_at`) |
 | `apply_auto_approve` | T-1 20:55 IST | Only where `notice_sent_at` ≤ cut-off − 24 h |
 
 Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-0021) triggered by cron-job.org for minute-level timing (ADR-0025); event-triggered work runs in outbox consumers. Rules use `scheduled_for`, so a late start never lets an edit through after the cut-off.

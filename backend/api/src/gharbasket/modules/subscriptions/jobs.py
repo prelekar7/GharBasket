@@ -1,8 +1,11 @@
 """Scheduled jobs of M3 (spec §6), registered with the platform's jobs runner (ADR-0021).
 
 `generate_weekly_plans` runs at T-3 18:00 IST for delivery day T: `scheduled_for` decides the
-delivery date (three days later, IST), never the clock. `apply_auto_approve` runs at T-1 20:55
-IST, five minutes before M4's cut-off, for the next day's deliveries.
+delivery date (three days later, IST), never the clock, and the boxes are drafts.
+`send_box_ready_notices` (T-3 18:30) opens them to the customer and publishes
+`subscriptions.box_ready`; `remind_unapproved` (T-1 19:00) publishes `subscriptions.cutoff_reminder`
+for boxes nothing will approve otherwise. M11 turns both into messages. `apply_auto_approve` runs
+at T-1 20:55 IST, five minutes before M4's cut-off, for the next day's deliveries.
 
 The cycle mirrors its order after the cut-off: `orders.locked` → `locked` (with `order_id`),
 `orders.cancelled` with reason `payment` → `cancelled`.
@@ -43,6 +46,32 @@ async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
                 totals[key] += value
     totals["delivery_date"] = delivery_date.isoformat()  # type: ignore[assignment]
     return totals
+
+
+@job(
+    "send_box_ready_notices",
+    "Show the drafted boxes for the delivery day three days on and tell their households",
+)
+async def send_box_ready_notices(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=DAYS_AHEAD)
+    counts: dict[str, Any] = await service.send_box_ready_notices(
+        ctx.session, delivery_date, ctx.scheduled_for
+    )
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts
+
+
+@job(
+    "remind_unapproved",
+    "Remind households whose box for tomorrow is still unapproved and will not auto-approve",
+)
+async def remind_unapproved(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=1)
+    counts: dict[str, Any] = await service.remind_unapproved(
+        ctx.session, delivery_date, ctx.scheduled_for
+    )
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts
 
 
 @job(

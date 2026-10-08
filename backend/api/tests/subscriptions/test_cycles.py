@@ -25,6 +25,7 @@ MEENA = "+919800001004"  # Jain household, same society
 VIKRAM = "+919800001008"  # hub manager of the seed hub
 NOW = datetime(2026, 10, 10, 10, 0, tzinfo=UTC)  # Saturday 15:30 IST
 GENERATE_AT = "2026-10-10T12:30:00Z"  # Sat 18:00 IST → delivery Tue 13 Oct
+NOTICE_AT = "2026-10-10T13:00:00Z"  # Sat 18:30 IST: send_box_ready_notices for the same Tuesday
 
 
 async def as_user(
@@ -165,14 +166,34 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     assert len(cycles) == 1
     cycle = cycles[0]
     cycle_id, household_id = cycle.id, cycle.household_id  # a failed request expires rows
+    # Generated as a draft: nobody is told yet, and it cannot be approved or edited.
     assert (cycle.delivery_date, cycle.week_start, cycle.status) == (
         date(2026, 10, 13),
         date(2026, 10, 12),
-        "awaiting_approval",
+        "draft",
     )
     assert cycle.cutoff_at == datetime(2026, 10, 12, 15, 30, tzinfo=UTC)
     assert cycle.plan_source == "fallback"  # no ML service in tests: the rules planner answers
-    assert cycle.plan_prediction_id is not None and cycle.notice_sent_at is not None
+    assert cycle.plan_prediction_id is not None and cycle.notice_sent_at is None
+    await db_session.commit()
+    early = await api.post(
+        f"/v1/cycles/{cycle_id}/approve",
+        headers={**priya, "Idempotency-Key": "a0", "If-Match": '"1"'},
+    )
+    assert (early.status_code, early.json()["code"]) == (409, "subscriptions.not_editable")
+
+    # 18:30 IST: the box-ready notice opens it, once however often the job runs.
+    noticed = await api.post(
+        "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT}
+    )
+    again = await api.post(
+        "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT}
+    )
+    assert noticed.json()["summary"] == {"sent": 1, "delivery_date": "2026-10-13"}
+    assert again.json()["summary"] == {"sent": 0, "delivery_date": "2026-10-13"}
+    cycle = await db_session.get(WeeklyCycle, cycle_id, populate_existing=True)
+    assert cycle is not None
+    assert (cycle.status, cycle.notice_sent_at, cycle.version) == ("awaiting_approval", NOW, 1)
     lines = (
         (await db_session.execute(select(BoxLine).where(BoxLine.cycle_id == cycle.id)))
         .scalars()
@@ -198,6 +219,26 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     kinds = {line["reason_code"] for line in body["lines"]}
     assert {"meal_plan", "daily_use"} <= kinds
     assert body["total_paise"] == sum(line["total_paise"] for line in body["lines"]) > 0
+    ready = (
+        (
+            await db_session.execute(
+                select(OutboxEvent.payload).where(
+                    OutboxEvent.event_type == "subscriptions.box_ready"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert ready == [
+        {
+            "cycle_id": str(cycle_id),
+            "household_id": str(household_id),
+            "delivery_date": "2026-10-13",
+            "cutoff_at": "2026-10-12T15:30:00+00:00",
+            "total_paise": body["total_paise"],
+        }
+    ]
     assert body["budget_lock"] is None and body["order_id"] is None and body["captain"] is None
     # Priya's ₹6,000 Budget Lock is tight for a family of four: the box flags it, honestly.
     assert body["highlights"] == [

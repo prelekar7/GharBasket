@@ -390,6 +390,21 @@ async def test_the_facade_serves_fulfilment_and_shortages(
     tomato_id = (await catalog_api.product_ids_by_slug(db_session, ["tomato"]))["tomato"]
     line = await orders_api.mark_shortage(db_session, order_id, tomato_id, 1, None)
     assert line.shortage_qty == 1
+    (short,) = (
+        await db_session.execute(
+            select(OutboxEvent.payload).where(
+                OutboxEvent.event_type == "orders.shortage_substituted"
+            )
+        )
+    ).scalars()
+    assert short == {
+        "order_id": str(order_id),
+        "household_id": str(household.id),  # M11 tells the household (M11 §3.1)
+        "product_id": str(tomato_id),
+        "shortage_qty": 1,
+        "substitute_product_id": None,
+        "refund_paise": line.unit_price_paise,
+    }
     with pytest.raises(ProblemError) as too_many:
         await orders_api.mark_shortage(db_session, order_id, tomato_id, 5, None)
     assert too_many.value.code == "orders.qty_invalid"

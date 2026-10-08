@@ -3,7 +3,8 @@
 `build_data_export` builds the queued exports (spec §3.3). The spec names it the consumer of
 `identity.data_export_requested`, but outbox consumers get no object storage, so it is a job that
 takes queued rows instead, every few minutes from cron-job.org: well inside the promised 24 hours.
-The event stays published for M11's "your data is ready" notification.
+Once the file is written it publishes `identity.data_export_ready` for M11's "your data is ready"
+notification, which never carries the link.
 """
 
 import json
@@ -17,12 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.identity import events
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.platform import files
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.outbox import publish
 
 FORMAT = "gharbasket-export/v1"
 BATCH = 20
@@ -68,6 +71,11 @@ async def build(session: AsyncSession, store: files.ObjectStore, export: DataExp
     await store.put(key, body, "application/json")
     export.status, export.object_key, export.size_bytes = "ready", key, len(body)
     export.ready_at, export.expires_at, export.error = now, expires_at, None
+    await publish(
+        session,
+        events.DATA_EXPORT_READY,
+        {"export_id": str(export.id), "user_id": str(export.user_id)},
+    )
 
 
 @job("build_data_export", "Build queued data exports: one JSON file each, kept 7 days")
