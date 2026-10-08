@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Self
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # The learned models' folder (`<name>/latest.json`, `<name>/<version>/model.txt`), what the
     # training job writes to R2 and the image or a mount makes local; unset: fallbacks only.
     models_dir: Path | None = None
+    # How often the learned models are re-read from MODELS_DIR (ADR-0025: the Space polls
+    # latest.json every 10 minutes), so a promotion after startup is served without a restart.
+    models_reload_s: float = Field(default=600.0, gt=0)
     # The OSRM server next to this service (the Space runs it on 127.0.0.1:5000); unset: the
     # routing endpoints answer with the haversine fallback and /health/ai says "not_configured".
     osrm_url: str | None = None
@@ -26,6 +29,14 @@ class Settings(BaseSettings):
     # until the S8 evaluation); unset key: /assistant/turn answers 503 and the API says so.
     anthropic_api_key: SecretStr | None = None
     assistant_model: str = "claude-opus-5-5"
+    # One Anthropic request may take this long (one retry); the whole turn (up to four rounds)
+    # this long, below the API's ASSISTANT_TIMEOUT_S (30 s), so the API never waits on a turn
+    # this service has already given up on.
+    assistant_request_timeout_s: float = Field(default=12.0, gt=0, le=60)
+    assistant_turn_timeout_s: float = Field(default=25.0, gt=0, le=110)
+    # How long /route/solve waits for OSRM's table before it prices with haversine instead. The
+    # API's gateway allows time_limit_s plus ML_ROUTE_OVERHEAD_S (6 s), which must cover this.
+    osrm_timeout_s: float = Field(default=2.5, gt=0, le=5)
 
     @model_validator(mode="after")
     def _deployed_needs_a_token(self) -> Self:

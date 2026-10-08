@@ -16,6 +16,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
+from gharbasket.modules.intel_gateway.models import ModelMetric
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
     KitchenAssignment,
@@ -42,7 +43,12 @@ from gharbasket.platform.settings import Settings
 
 log = structlog.get_logger("gharbasket.intel_gateway")
 
+ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a cold start
+
 __all__ = [
+    "AssignRequest",
+    "HubDrift",
+    "KitchenAssignment",
     "MetricRow",
     "ModelHealth",
     "PantryItem",
@@ -58,6 +64,7 @@ __all__ = [
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
+    "assign_kitchens",
     "latest_metrics",
     "latest_prediction",
     "model_health",
@@ -66,6 +73,7 @@ __all__ = [
     "price_spikes",
     "rank_basket",
     "record_metrics",
+    "route_timeout_s",
     "solve_routes",
 ]
 
@@ -84,7 +92,15 @@ async def plan_week(
     With `session`, `household_id` and `week_monday` the answer is also kept in
     `intel.predictions` (kind `weekly_plan`, source `ml` or `fallback`); the caller commits.
     """
-    plan = await _plan_week(http, settings, request)
+    plan = await _call(
+        http,
+        settings,
+        "/plan/week",
+        request.model_dump(mode="json") | {"time_limit_s": _solver_budget(settings, request)},
+        parse=lambda body: WeekPlan.model_validate({**body, "source": "ml"}),
+        fallback_to=lambda: fallback.plan_week(request),
+        call="plan_week",
+    )
     if session is not None and household_id is not None and week_monday is not None:
         await service.record_prediction(
             session,
@@ -142,13 +158,29 @@ class MetricRow:
     data_source: str
     version: str
     computed_at: datetime
+    hub_id: str | None = None  # a row about one hub (`details.hub_id`)
+
+
+@dataclass(frozen=True)
+class HubDrift:
+    """monitor_drift's live rows of one hub and data source over the window."""
+
+    hub_id: str
+    data_source: str
+    drift: bool  # any live `drift` row of this hub and source in the window says 1
+    drifted_days: int
+    scored_days: int
+    for_date: str | None  # the newest scored delivery day
+    wape: float | None  # its realised WAPE
+    backtest_wape: float | None  # the same hub and source's backtest it was compared with
 
 
 @dataclass(frozen=True)
 class ModelHealth:
     model_name: str
     metrics: tuple[MetricRow, ...]
-    drift: bool  # the newest live `drift` row says 1
+    drift: bool  # any hub drifted in the window (`hubs`)
+    hubs: tuple[HubDrift, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -158,23 +190,63 @@ class PredictionCount:
     count: int
 
 
+def _detail(row: ModelMetric, key: str) -> Any:
+    return (row.details or {}).get(key)
+
+
+def _hub_drift(rows: list[ModelMetric]) -> list[HubDrift]:
+    """Group a model's live per-hub rows (newest first) by hub and data source."""
+    groups: dict[tuple[str, str], list[ModelMetric]] = {}
+    for row in rows:
+        groups.setdefault((service.hub_of(row) or "", row.data_source), []).append(row)
+    out = []
+    for (hub, source), part in sorted(groups.items()):
+        drifts = [r for r in part if r.metric == "drift"]
+        wapes = [r for r in part if r.metric == "wape"]
+        newest = wapes[0] if wapes else None
+        out.append(
+            HubDrift(
+                hub_id=hub,
+                data_source=source,
+                drift=any(r.value >= 1 for r in drifts),
+                drifted_days=len({_detail(r, "for_date") for r in drifts if r.value >= 1}),
+                scored_days=len({_detail(r, "for_date") for r in wapes}),
+                for_date=None if newest is None else _detail(newest, "for_date"),
+                wape=None if newest is None else newest.value,
+                backtest_wape=None if newest is None else _detail(newest, "backtest_wape"),
+            )
+        )
+    return out
+
+
 async def model_health(
     session: AsyncSession, *, since: datetime
 ) -> tuple[list[ModelHealth], list[PredictionCount]]:
     """What the console's AI health table shows (M12): every model's newest value per
-    (metric, split, data source) from `model_metrics`, its drift flag, and how often each kind
-    of prediction came from the ML service or the fallback since `since`."""
+    (metric, split, data source, hub) from `model_metrics`; per hub and data source, the live
+    rows of `monitor_drift` since `since` (the model drifts when any hub does); and how often
+    each kind of prediction came from the ML service or the fallback since `since`."""
     models = []
     for name in await service.model_names(session):
         rows = await service.latest_metrics(session, name)
+        hubs = _hub_drift(await service.live_hub_metrics(session, name, since))
         models.append(
             ModelHealth(
                 name,
                 tuple(
-                    MetricRow(m.metric, m.value, m.split, m.data_source, m.version, m.computed_at)
+                    MetricRow(
+                        m.metric,
+                        m.value,
+                        m.split,
+                        m.data_source,
+                        m.version,
+                        m.computed_at,
+                        service.hub_of(m),
+                    )
                     for m in rows
                 ),
-                any(m.metric == "drift" and m.split == "live" and m.value >= 1 for m in rows),
+                any(h.drift for h in hubs),
+                tuple(hubs),
             )
         )
     counts = [
@@ -222,9 +294,11 @@ async def rank_basket(
 async def hub_forecast(
     session: AsyncSession, hub_id: uuid.UUID, for_date: date
 ) -> dict[str, Any] | None:
-    """The latest demand forecast stored for a hub and delivery day (the forecast job's rows:
-    `items[{product_id, committed, uncommitted_q50, uncommitted_qtau, order_qty, model}]`);
-    None when the job has not run. M6 builds its procurement plan from it (M6 §6)."""
+    """The latest demand forecast stored for a hub and delivery day (`for_date` is the delivery
+    day, any weekday; the forecast job's lines: `items[{product_id, for_date, committed,
+    uncommitted_q50, uncommitted_qtau, order_qty, model}]` and `data_source`); None when the job
+    has not run for that day. M6 builds its procurement plan from it (M6 §6) on
+    `intel.forecast_ready`."""
     kept = await service.latest_prediction(
         session, kind="forecast", subject_id=hub_id, for_date=for_date
     )
@@ -241,8 +315,9 @@ async def assign_kitchens(
     for_date: date | None = None,
 ) -> KitchenAssignment | None:
     """Tomorrow's tiffin portions to kitchens from the ML service (M10 §3.5), kept in
-    `intel.predictions` (kind `assignment`, subject the hub). None when the service does not
-    answer: M8's job assigns greedily by distance itself (M8 §6)."""
+    `intel.predictions` (kind `assignment`, subject the hub). `status: partial` lists the orders
+    no kitchen could take in `unassigned`. None when the service does not answer within
+    `time_limit_s` plus a margin: M8's job assigns greedily by distance itself (M8 §6)."""
     if not settings.ml_service_url:
         return None
     headers = {}
@@ -253,7 +328,7 @@ async def assign_kitchens(
             f"{settings.ml_service_url.rstrip('/')}/assign/kitchens",
             json=request.model_dump(mode="json"),
             headers=headers,
-            timeout=max(settings.ml_timeout_s, request.time_limit_s + 5.0),
+            timeout=max(settings.ml_timeout_s, request.time_limit_s + ASSIGN_MARGIN_S),
         )
         response.raise_for_status()
         plan = KitchenAssignment.model_validate(response.json())
@@ -274,6 +349,11 @@ async def assign_kitchens(
     return plan
 
 
+def route_timeout_s(settings: Settings, request: RouteRequest) -> float:
+    """The solver's own limit plus the ML service's OSRM wait and a margin."""
+    return max(settings.ml_timeout_s, request.time_limit_s + settings.ml_route_overhead_s)
+
+
 async def solve_routes(
     http: httpx2.AsyncClient,
     settings: Settings,
@@ -285,11 +365,12 @@ async def solve_routes(
 ) -> RoutePlan | None:
     """One slot's van routes from the ML service (M10 §3.4), kept in `intel.predictions`
     (kind `route`, subject the hub). None when the service does not answer within
-    `ml_route_timeout_s`: there is no rule-based routing in the API, so M7 falls back to the
-    previous day's sequence (M7 §6)."""
+    `route_timeout_s`: there is no rule-based routing in the API, so M7 falls back to the
+    previous day's sequence (M7 §6). M7 publishes a plan only when `summary.problems` is
+    empty."""
     if not settings.ml_service_url:
         return None
-    timeout = max(settings.ml_timeout_s, request.time_limit_s + 5.0)
+    timeout = route_timeout_s(settings, request)
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
@@ -329,6 +410,8 @@ async def _call[T](
     fallback_to: Callable[[], T],
     call: str,
 ) -> T:
+    """POST `body` to the ML service at `path` within `ml_timeout_s` and `parse` the answer; on
+    no service, a timeout, an HTTP error or a malformed body, `fallback_to()` answers instead."""
     if not settings.ml_service_url:
         return fallback_to()
     headers = {}
@@ -346,32 +429,16 @@ async def _call[T](
         )
         response.raise_for_status()
         return parse(response.json())
-    except (httpx2.HTTPError, ValueError) as exc:
+    except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
         log.warning("ml_fallback", call=call, reason=type(exc).__name__)
         return fallback_to()
 
 
-async def _plan_week(
-    http: httpx2.AsyncClient, settings: Settings, request: PlanRequest
-) -> WeekPlan:
-    if not settings.ml_service_url:
-        return fallback.plan_week(request)
-    headers = {}
-    if settings.ml_service_token is not None:
-        headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
-    request_id = structlog.contextvars.get_contextvars().get("request_id")
-    if request_id:
-        headers["X-Request-ID"] = str(request_id)
-    try:
-        response = await http.post(
-            f"{settings.ml_service_url.rstrip('/')}/plan/week",
-            json=request.model_dump(mode="json"),
-            headers=headers,
-            timeout=settings.ml_timeout_s,
-        )
-        response.raise_for_status()
-        answer = response.json()
-        return WeekPlan.model_validate({**answer, "source": "ml"})
-    except (httpx2.HTTPError, ValueError) as exc:
-        log.warning("ml_fallback", call="plan_week", reason=type(exc).__name__)
-        return fallback.plan_week(request)
+# The solver gets at most this share of the HTTP timeout; the rest covers the network, the
+# model build and the JSON both ways, so a slow solve still answers before the gateway gives up.
+SOLVER_SHARE_OF_TIMEOUT = 0.5
+
+
+def _solver_budget(settings: Settings, request: PlanRequest) -> float:
+    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
+    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))

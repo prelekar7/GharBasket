@@ -136,7 +136,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Sun 03:00 | `retrain_models` (champion/challenger) | ml |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
-| Daily 03:33 | `monitor_drift` (realised WAPE and acceptance → `model_metrics`, drift flags) | intel |
+| Daily 03:33 | `monitor_drift` (realised WAPE per hub, delivery day and data source, acceptance per source → `model_metrics`, drift flags against the same hub and source's backtest) | intel |
 
 ## 10.5 Key endpoints per module (v1)
 
@@ -153,7 +153,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact` |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox), `/preferences`, `/devices` |
-| M12 analytics | `/analytics/ai-health` (built), `/analytics/*` (KPIs, unit economics, impact) |
+| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations

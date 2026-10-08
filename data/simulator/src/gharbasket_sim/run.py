@@ -5,8 +5,9 @@
 
 Needs `just seed` first (the hub, societies, catalog and prices). Users and households are
 written through M1's onboarding service with `data_source='synthetic'` (ADR-0008); running it
-again keeps them as they are. The weeks (plans, edits, skips, consumption) go only to
-data/sim_truth/ for now: they reach the database through M3/M4 once those modules exist.
+again keeps them as they are. The weeks (plans, edits, skips, consumption) go to
+data/sim_truth/; with `--write-db` they also go through M3, M4 and M5, a week at a time
+(through_modules.py).
 
 Only for the local Docker database: shared databases (staging) are always refused.
 """
@@ -39,7 +40,7 @@ from gharbasket_sim.catalog import Catalog, load_catalog
 from gharbasket_sim.config import Shocks
 from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.pantry import price_of, weekly_prices
-from gharbasket_sim.weeks import PLANNERS, Rows, cached, simulate
+from gharbasket_sim.weeks import PLANNERS, Rows, Simulation, cached
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_SEED = 7
@@ -104,37 +105,48 @@ async def simulate_world(
     ids: dict[str, uuid.UUID] = {}
     slugs: dict[uuid.UUID, str] = {}
     settings = through.app_settings(planner)
+    plan_catalog = None
     if write_db:
         await through.subscribe_all(session, households, created)
         ids = await catalog_api.product_ids_by_slug(session, sorted(catalog.products))
         slugs = {pid: slug for slug, pid in ids.items()}
+        plan_catalog = await catalog_api.plan_catalog(session, SEED_HUB_ID)
     async with through.ml_client() as http:
         for h in households:
             c = by_name[h.cohort]
-            provided = cycles = deliveries = None
-            if write_db:
-                deliveries = await through.delivery_dates(
-                    session, uuid.UUID(h.society_id), first_monday, weeks
-                )
-                provided, cycles = await through.generate_weeks(
-                    session, http, settings, h, created[h.key][0], catalog, deliveries
-                )
-            one = simulate(
+            sim = Simulation(
                 seed,
                 h,
                 catalog,
                 first_monday,
-                weeks,
                 plan,
                 shocks,
                 price_sensitivity=c.price_sensitivity,
                 feedback_rate=c.feedback_rate,
-                provided=provided,
             )
-            if write_db and cycles is not None and deliveries is not None:
-                user_id = await identity_api.owner_of_household(session, created[h.key][0])
+            one = sim.rows
+            if plan_catalog is None:
+                for w in range(weeks):
+                    sim.week(w)
+            else:
+                household_id = created[h.key][0]
+                user_id = await identity_api.owner_of_household(session, household_id)
                 assert user_id is not None
-                for w, (cycle, delivery) in enumerate(zip(cycles, deliveries, strict=True)):
+                deliveries = await through.delivery_dates(
+                    session, uuid.UUID(h.society_id), first_monday, weeks
+                )
+                # A week at a time: M3 drafts it once the week before has been replayed.
+                for w, delivery in enumerate(deliveries):
+                    planned, drafted, cycle = await through.generate_week(
+                        session,
+                        http,
+                        settings,
+                        household_id=household_id,
+                        delivery=delivery,
+                        plan_catalog=plan_catalog,
+                        slugs=slugs,
+                    )
+                    sim.week(w, planned, drafted)
                     rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}:db")
                     outcome = await through.replay_week(
                         session,

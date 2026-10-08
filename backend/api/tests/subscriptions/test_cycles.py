@@ -6,15 +6,19 @@ from datetime import UTC, date, datetime
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.identity.models import Household
 from gharbasket.modules.subscriptions import api as subscriptions_api
+from gharbasket.modules.subscriptions import planning, service
 from gharbasket.modules.subscriptions.models import BoxLine, WeeklyCycle
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
 from ..identity.fake_firebase import FakeGoogle
 
@@ -25,6 +29,7 @@ MEENA = "+919800001004"  # Jain household, same society
 VIKRAM = "+919800001008"  # hub manager of the seed hub
 NOW = datetime(2026, 10, 10, 10, 0, tzinfo=UTC)  # Saturday 15:30 IST
 GENERATE_AT = "2026-10-10T12:30:00Z"  # Sat 18:00 IST → delivery Tue 13 Oct
+WEEK_TWO = date(2026, 10, 20)
 
 
 async def as_user(
@@ -233,3 +238,93 @@ async def test_the_preview_plans_the_first_week_without_saving(
     assert (await db_session.execute(select(WeeklyCycle))).scalars().all() == []
     household = await identity_api.household_for_user(db_session, priya_id)
     assert household is not None and household.hub_id == SEED_HUB_ID
+
+
+WEEK_TWO_AT = "2026-10-17T12:30:00Z"  # Sat 18:00 IST → delivery Tue 20 Oct
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_staple_left_from_last_week_lowers_the_next_box_but_does_not_skip_it(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    await subscribe(api, priya)
+    household = await identity_api.household_for_user(db_session, priya_id)
+    assert household is not None
+    catalog = await catalog_api.plan_catalog(db_session, SEED_HUB_ID)
+    atta = catalog.product_by_slug("wheat-atta")
+    assert atta is not None and atta.step_qty == 1 and atta.step_unit == "kg"
+    profile = await identity_api.household_plan_profile(db_session, household.id)
+    assert profile is not None
+
+    def atta_on(box: list) -> int:
+        return sum(line.qty for line in box if line.product_id == atta.id)
+
+    # Week 2 as it would be drafted with an empty cupboard (nothing approved yet).
+    async with service.http_client(None) as http:
+        fresh, _, _ = await service.draft(
+            db_session, http, make_settings(), profile, catalog, WEEK_TWO, record_for=None
+        )
+    fresh_qty = atta_on(fresh.lines)
+
+    await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT})
+    week_one = (await api.get("/v1/cycles/current", headers=priya)).json()
+    drafted = sum(line["qty"] for line in week_one["lines"] if line["product_id"] == str(atta.id))
+    assert drafted == fresh_qty == 3  # the week's need n is over 2 kg and at most 3 kg
+    # Priya takes a kilo more than the draft, so a full step is left after a week of use.
+    bought = drafted + 1
+    edited = await api.patch(
+        f"/v1/cycles/{week_one['id']}/lines",
+        json={"ops": [{"op": "qty", "product_id": str(atta.id), "qty": bought}]},
+        headers={**priya, "If-Match": '"1"'},
+    )
+    assert edited.status_code == 200, edited.text
+    approved = await api.post(
+        f"/v1/cycles/{week_one['id']}/approve",
+        headers={**priya, "Idempotency-Key": str(uuid.uuid4()), "If-Match": '"2"'},
+    )
+    assert approved.status_code == 200, approved.text
+
+    history = await service.bought_recently(db_session, household.id, WEEK_TWO, catalog)
+    assert history[atta.id] == [(1.0, bought * 1000.0)]  # a week ago, in grams
+    produce = {p.id for p in catalog.products.values() if not planning.carries_over(p)}
+    assert not produce & history.keys()  # tomatoes, onions, milk are bought fresh
+
+    generated = await api.post(
+        "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": WEEK_TWO_AT}
+    )
+    assert generated.json()["summary"]["created"] == 1, generated.text
+    week_two = (
+        (
+            await db_session.execute(
+                select(BoxLine)
+                .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+                .where(WeeklyCycle.delivery_date == WEEK_TWO)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # 4 kg less a week's n leaves 4000 - n (1 to 2 kg); the line asks for n minus that,
+    # 2n - 4000 (0 to 2 kg): fewer steps than the empty-cupboard 3, but never none.
+    assert 0 < atta_on(list(week_two)) < fresh_qty
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_synthetic_household_gets_synthetic_cycles(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    await subscribe(api, priya)
+    household = await identity_api.household_for_user(db_session, priya_id)
+    assert household is not None
+    await db_session.execute(
+        update(Household).where(Household.id == household.id).values(data_source="synthetic")
+    )
+
+    await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT})
+
+    cycle = await subscriptions_api.cycle_for(db_session, household.id, date(2026, 10, 13))
+    assert cycle is not None and cycle.data_source == "synthetic"  # ADR-0008

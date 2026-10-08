@@ -13,13 +13,13 @@ from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["analytics"])
 
-CanRead = Annotated[Permit, require("analytics:read")]
+CanSeeAiHealth = Annotated[Permit, require("analytics:ai_health")]
 
 
 @router.get(
     "/analytics/ai-health",
-    summary="Every model's newest metrics, live drift flags and the ML-or-fallback share",
+    summary="Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
 )
-async def ai_health(permit: CanRead, session: DbSession, response: Response) -> AiHealthOut:
+async def ai_health(permit: CanSeeAiHealth, session: DbSession, response: Response) -> AiHealthOut:
     response.headers["Cache-Control"] = "no-store"
     return await service.ai_health(session)

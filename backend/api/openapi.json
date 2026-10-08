@@ -1362,6 +1362,16 @@
       },
       "ForecastsIn": {
         "properties": {
+          "data_source": {
+            "description": "Whose orders the forecast was trained on; sources are never pooled",
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
           "hub_id": {
             "format": "uuid",
             "title": "Hub Id",
@@ -1386,6 +1396,7 @@
         "required": [
           "hub_id",
           "model",
+          "data_source",
           "items"
         ],
         "title": "ForecastsIn",
@@ -1396,10 +1407,19 @@
           "accepted": {
             "title": "Accepted",
             "type": "integer"
+          },
+          "delivery_dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Delivery Dates",
+            "type": "array"
           }
         },
         "required": [
-          "accepted"
+          "accepted",
+          "delivery_dates"
         ],
         "title": "ForecastsOut",
         "type": "object"
@@ -1822,6 +1842,85 @@
           }
         },
         "title": "HouseholdUpdate",
+        "type": "object"
+      },
+      "HubDriftOut": {
+        "properties": {
+          "backtest_wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same hub and data source's backtest WAPE it was compared with",
+            "title": "Backtest Wape"
+          },
+          "data_source": {
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live",
+              "mixed"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "drift": {
+            "description": "A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest",
+            "title": "Drift",
+            "type": "boolean"
+          },
+          "drifted_days": {
+            "title": "Drifted Days",
+            "type": "integer"
+          },
+          "for_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest scored delivery day",
+            "title": "For Date"
+          },
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "scored_days": {
+            "title": "Scored Days",
+            "type": "integer"
+          },
+          "wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its realised WAPE",
+            "title": "Wape"
+          }
+        },
+        "required": [
+          "hub_id",
+          "data_source",
+          "drift",
+          "drifted_days",
+          "scored_days",
+          "for_date",
+          "wape",
+          "backtest_wape"
+        ],
+        "title": "HubDriftOut",
         "type": "object"
       },
       "IngredientOut": {
@@ -2636,6 +2735,18 @@
             "title": "Data Source",
             "type": "string"
           },
+          "hub_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the row is about one hub",
+            "title": "Hub Id"
+          },
           "metric": {
             "title": "Metric",
             "type": "string"
@@ -2673,11 +2784,20 @@
       "ModelHealthOut": {
         "properties": {
           "drift": {
-            "description": "The newest live measurement is worse than the backtest",
+            "description": "Any hub drifted in the window (see `hubs`)",
             "title": "Drift",
             "type": "boolean"
           },
+          "hubs": {
+            "description": "monitor_drift per hub and data source over the window",
+            "items": {
+              "$ref": "#/components/schemas/HubDriftOut"
+            },
+            "title": "Hubs",
+            "type": "array"
+          },
           "metrics": {
+            "description": "The newest value per (metric, split, data source, hub)",
             "items": {
               "$ref": "#/components/schemas/MetricOut"
             },
@@ -6632,7 +6752,7 @@
             "AccessToken": []
           }
         ],
-        "summary": "Every model's newest metrics, live drift flags and the ML-or-fallback share",
+        "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
         "tags": [
           "analytics"
         ]
@@ -6747,6 +6867,16 @@
             },
             "description": "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable"
           },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict (the week changed since the card)"
+          },
           "422": {
             "content": {
               "application/problem+json": {
@@ -6755,7 +6885,7 @@
                 }
               }
             },
-            "description": "assistant.product_unknown, subscriptions.qty_invalid"
+            "description": "subscriptions.product_unknown, subscriptions.qty_invalid"
           }
         },
         "security": [
@@ -9803,7 +9933,7 @@
     },
     "/v1/internal/intel/forecasts": {
       "post": {
-        "description": "One `intel.predictions` row per delivery day (kind `forecast`, subject the hub) with\nevery product's lines in the payload; M6 reads it through `intel_gateway.api`.",
+        "description": "One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`\nthe delivery day) with every product's lines in the payload, and `intel.forecast_ready`;\nM6 reads it through `intel_gateway.api.hub_forecast`.",
         "operationId": "put_forecasts_v1_internal_intel_forecasts_post",
         "requestBody": {
           "content": {

@@ -3,7 +3,8 @@ over simulator seeds (eval protocol §4, M-C).
 
 For every seed the simulated households live the same weeks under each planner; the household
 behaviour (accept, edit, skip) and the box are the simulator's, so the numbers compare planners,
-not households. Metrics per seed, then mean ± 95 % CI across seeds.
+not households. Metrics per seed, then mean ± 95 % CI across seeds; each arm (cpsat, rules)
+against each baseline (greedy, random) as the per-seed paired difference, mean ± 95 % t-CI.
 """
 
 from collections import Counter
@@ -12,7 +13,7 @@ from datetime import date
 from typing import Any
 
 from gharbasket_ml import planner as cpsat
-from gharbasket_ml.schemas import PlanRequest
+from gharbasket_ml.schemas import PlanRequest, Weights
 from gharbasket_sim import config
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold, sample
@@ -81,13 +82,10 @@ def _week_scores(
         out["variety"].append(float(score.variety))
         out["preference"].append(float(score.preference))
         out["cost_paise"].append(float(score.cost_paise))
+        # Every hard rule, checked independently of the planner, under the relaxation it recorded.
         relax = frozenset(week_row["relaxed"])
-        violations = sum(
-            not cpsat.allowed(week, week.recipes[slug], day, slot, relax)  # pyright: ignore[reportArgumentType]
-            for (day, slot), slug in planned.items()
-            if slug in week.recipes
-        )
-        out["hard_rule_violations"].append(float(violations))
+        violations = cpsat.check(week, plan, relax)  # pyright: ignore[reportArgumentType]
+        out["hard_rule_violations"].append(float(len(violations)))
     return out
 
 
@@ -143,35 +141,108 @@ def summarise(runs: list[PlannerRun]) -> dict[str, dict[str, Estimate]]:
     return out
 
 
-def against_target(summary: dict[str, dict[str, Estimate]]) -> dict[str, Any]:
-    """The protocol's hypotheses for M-C, each with the number and whether it holds."""
+ARMS = ("cpsat", "rules")  # the planners under test
+BASELINES = ("greedy", "random")  # the protocol's baselines for M-C
+PRIMARY = "acceptance"
+# Paired differences reported for every arm against every baseline, the primary metric first.
+PAIRED = (PRIMARY, *(m for m in METRICS if m != PRIMARY), "perishables_fewer", "score_gain")
+
+
+def objective(metrics: dict[str, float]) -> float:
+    """The planner's objective on a run's means: 3 x preference + 5 x variety - 4 x perishables."""
+    w = Weights()  # the planner's default weights (a request may override them)
+    return (
+        w.preference * metrics["preference"]
+        + w.variety * metrics["variety"]
+        - w.perishables * metrics["distinct_perishables"]
+    )
+
+
+def _difference(metric: str, arm: dict[str, float], base: dict[str, float]) -> float | None:
+    if metric == "perishables_fewer":  # the share fewer distinct perishables than the baseline
+        b = base["distinct_perishables"]
+        return 1 - arm["distinct_perishables"] / b if b else None
+    if metric == "score_gain":  # the objective's gain over the baseline, as a share
+        b = objective(base)
+        return (objective(arm) - b) / abs(b) if b else None
+    return arm[metric] - base[metric]
+
+
+def paired(runs: list[PlannerRun]) -> dict[str, dict[str, dict[str, Estimate]]]:
+    """arm → baseline → metric → mean ± 95 % CI of the per-seed difference (arm minus baseline;
+    for the two shares, arm against baseline). Both planners face the same households and weeks in
+    a seed, so the seed is the pair."""
+    by = {(r.planner, r.seed): r.metrics for r in runs}
+    out: dict[str, dict[str, dict[str, Estimate]]] = {}
+    for arm in ARMS:
+        for base in BASELINES:
+            seeds = sorted(s for p, s in by if p == arm and (base, s) in by)
+            if not seeds:
+                continue
+            out.setdefault(arm, {})[base] = {
+                metric: estimate(
+                    [
+                        d
+                        for s in seeds
+                        if (d := _difference(metric, by[arm, s], by[base, s])) is not None
+                    ]
+                )
+                for metric in PAIRED
+            }
+    return out
+
+
+def _check(e: Estimate, holds: bool, rule: str) -> dict[str, Any]:
+    return {"value": e.mean, "ci95": e.ci, "n": e.n, "holds": holds, "rule": rule}
+
+
+def _above_zero(e: Estimate) -> bool:
+    """The paired 95 % interval lies above zero."""
+    return e.n > 0 and e.mean - e.ci > 0
+
+
+def against_target(
+    summary: dict[str, dict[str, Estimate]], diffs: dict[str, dict[str, dict[str, Estimate]]]
+) -> dict[str, Any]:
+    """The protocol's M-C hypotheses for the CP-SAT planner, the primary metric first, each with
+    its estimate, interval and whether it holds; `verdict` is M-C on its primary metric
+    (acceptance ≥ 70 % and above both baselines, with every hard rule kept)."""
     cp = summary.get("cpsat")
-    greedy = summary.get("greedy")
-    checks: dict[str, Any] = {}
-    if cp is not None:
-        checks["hard_rules_100pct"] = {
-            "value": cp["hard_rule_violations"].mean,
-            "holds": cp["hard_rule_violations"].mean == 0,
-        }
-        checks["acceptance_ge_70pct"] = {
-            "value": cp["acceptance"].mean,
-            "holds": cp["acceptance"].mean >= 0.70,
-        }
-    if cp is not None and greedy is not None and greedy["distinct_perishables"].mean:
-        fewer = 1 - cp["distinct_perishables"].mean / greedy["distinct_perishables"].mean
-        checks["perishables_25pct_fewer_than_greedy"] = {"value": fewer, "holds": fewer >= 0.25}
-        own = (
-            cp["preference"].mean * 3 + cp["variety"].mean * 5 - cp["distinct_perishables"].mean * 4
+    if cp is None:
+        return {}
+    vs = diffs.get("cpsat", {})
+    checks: dict[str, Any] = {
+        "acceptance_ge_70pct": _check(
+            cp[PRIMARY], cp[PRIMARY].mean >= 0.70, "mean acceptance ≥ 0.70"
         )
-        base = (
-            greedy["preference"].mean * 3
-            + greedy["variety"].mean * 5
-            - greedy["distinct_perishables"].mean * 4
+    }
+    for base in BASELINES:
+        if base in vs:
+            e = vs[base][PRIMARY]
+            checks[f"acceptance_over_{base}"] = _check(
+                e, _above_zero(e), f"paired difference vs {base}: 95 % CI above 0"
+            )
+    v = cp["hard_rule_violations"]
+    checks["hard_rules_100pct"] = _check(v, v.n > 0 and v.mean == 0, "no violation in any seed")
+    if "greedy" in vs:
+        fewer = vs["greedy"]["perishables_fewer"]
+        checks["perishables_25pct_fewer_than_greedy"] = _check(
+            fewer, fewer.n > 0 and fewer.mean >= 0.25, "mean per-seed share fewer ≥ 0.25"
         )
-        better = (own - base) / abs(base) if base else 0.0
-        checks["score_30pct_over_greedy"] = {"value": better, "holds": better >= 0.30}
+        gain = vs["greedy"]["score_gain"]
+        checks["score_30pct_over_greedy"] = _check(
+            gain, gain.n > 0 and gain.mean >= 0.30, "mean per-seed objective gain ≥ 0.30"
+        )
     v2 = summary.get("cpsat_v2")
-    if cp is not None and v2 is not None:
+    if v2 is not None:
         lift = v2["acceptance"].mean - cp["acceptance"].mean
         checks["v2_liking_lifts_acceptance"] = {"value": lift, "holds": lift >= 0}
+    primary = [checks[k] for k in checks if k.startswith("acceptance_")]
+    checks["verdict"] = {
+        "hypothesis": "M-C on its primary metric",
+        "holds": len(primary) == 1 + len(BASELINES)
+        and all(c["holds"] for c in primary)
+        and checks["hard_rules_100pct"]["holds"],
+        "rule": "acceptance ≥ 0.70 and above greedy and random (paired CI), hard rules kept",
+    }
     return checks

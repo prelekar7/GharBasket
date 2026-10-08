@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.catalog.models import Product, Recipe, RecipeIngredient
 from gharbasket.modules.catalog.pricing import prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
-from gharbasket.modules.catalog.service import step_label
+from gharbasket.modules.catalog.service import search, step_label
 from gharbasket.modules.catalog.substitutes import substitutes
 from gharbasket.platform.errors import ProblemError
 
@@ -23,7 +23,9 @@ __all__ = [
     "PlanIngredient",
     "PlanProduct",
     "PlanRecipe",
+    "ProductMatch",
     "festivals_between",
+    "find_products",
     "line_products",
     "plan_catalog",
     "product_ids_by_slug",
@@ -74,6 +76,55 @@ async def line_products(
         )
         for p in products
     }
+
+
+@dataclass(frozen=True)
+class ProductMatch:
+    """A product a person may mean, with today's price at their hub."""
+
+    id: uuid.UUID
+    slug: str
+    names: dict[str, str]
+    step_qty: int
+    step_unit: str
+    price_paise: int
+    exact: bool  # the words are its slug or one of its spellings exactly
+    score: float  # how well the words match (1.0 for an exact spelling)
+
+
+async def find_products(
+    session: AsyncSession, words: str, hub_id: uuid.UUID | None, *, limit: int = 4
+) -> list[ProductMatch]:
+    """Products the hub sells today that `words` may name (a slug, or any spelling in English,
+    Hindi, Marathi or Hinglish), best first; products without a price at the hub are left out."""
+    term = " ".join(words.split())
+    if not term or hub_id is None:
+        return []
+    slug = term.lower().replace(" ", "-")
+    exact_ids = await product_ids_by_slug(session, [slug])
+    if exact_ids:
+        ranked = [(exact_ids[slug], True, 1.0)]
+    else:
+        hits = await search(session, term, limit=limit)
+        ranked = [(h.product.id, h.matched.lower() == term.lower(), h.score) for h in hits]
+    products = await line_products(session, [pid for pid, _, _ in ranked], hub_id=hub_id)
+    found = []
+    for pid, exact, score in ranked:
+        product = products.get(pid)
+        if product is not None and product.price_paise is not None:
+            found.append(
+                ProductMatch(
+                    product.id,
+                    product.slug,
+                    product.names,
+                    product.step_qty,
+                    product.step_unit,
+                    product.price_paise,
+                    exact,
+                    score,
+                )
+            )
+    return found
 
 
 async def substitute_ids(

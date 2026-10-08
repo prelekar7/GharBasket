@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.intel_gateway.events import FORECAST_READY
 from gharbasket.modules.intel_gateway.models import (
     Experiment,
     FeatureSnapshot,
@@ -20,6 +21,7 @@ from gharbasket.modules.intel_gateway.models import (
     Prediction,
     PriceIndex,
 )
+from gharbasket.platform.outbox import publish
 
 
 async def record_prediction(
@@ -69,6 +71,45 @@ async def latest_prediction(
     ).scalar_one_or_none()
 
 
+async def record_forecasts(
+    session: AsyncSession,
+    *,
+    hub_id: uuid.UUID,
+    model_name: str,
+    data_source: str,
+    items: list[dict[str, Any]],
+) -> list[date]:
+    """A hub's forecast lines (`items`, each with its `for_date`, the delivery day): one
+    `forecast` prediction per delivery day with every product's lines, then `intel.forecast_ready`
+    in the same transaction. Flushes; the caller commits. Returns the delivery days."""
+    by_date: dict[date, list[dict[str, Any]]] = {}
+    for item in items:
+        by_date.setdefault(date.fromisoformat(str(item["for_date"])), []).append(item)
+    for for_date, lines in sorted(by_date.items()):
+        await record_prediction(
+            session,
+            kind="forecast",
+            subject_type="hub",
+            subject_id=hub_id,
+            for_date=for_date,
+            source="ml",
+            payload={"items": lines, "data_source": data_source},
+            model_name=model_name,
+        )
+    days = sorted(by_date)
+    await publish(
+        session,
+        FORECAST_READY,
+        {
+            "hub_id": str(hub_id),
+            "delivery_dates": [d.isoformat() for d in days],
+            "model": model_name,
+            "data_source": data_source,
+        },
+    )
+    return days
+
+
 async def record_metrics(
     session: AsyncSession,
     *,
@@ -97,8 +138,16 @@ async def record_metrics(
     return rows
 
 
+def hub_of(metric: ModelMetric) -> str | None:
+    """The hub a metric row is about (`details.hub_id`), None for a model-wide row."""
+    hub = (metric.details or {}).get("hub_id")
+    return None if hub is None else str(hub)
+
+
 async def latest_metrics(session: AsyncSession, model_name: str) -> list[ModelMetric]:
-    """The newest value of each (metric, split, data_source) for a model."""
+    """The newest value of each (metric, split, data_source, hub) for a model: rows about one
+    hub (`details.hub_id`, the forecast's backtest and live rows) are kept per hub, never one
+    hub's row standing for all."""
     rows = (
         await session.execute(
             select(ModelMetric)
@@ -106,14 +155,57 @@ async def latest_metrics(session: AsyncSession, model_name: str) -> list[ModelMe
             .order_by(ModelMetric.id.desc())
         )
     ).scalars()
-    seen: dict[tuple[str, str, str], ModelMetric] = {}
+    seen: dict[tuple[str, str, str, str], ModelMetric] = {}
     for row in rows:
-        seen.setdefault((row.metric, row.split, row.data_source), row)
-    return sorted(seen.values(), key=lambda m: (m.metric, m.split, m.data_source))
+        seen.setdefault((row.metric, row.split, row.data_source, hub_of(row) or ""), row)
+    return sorted(seen.values(), key=lambda m: (m.metric, m.split, m.data_source, hub_of(m) or ""))
+
+
+async def latest_backtest(
+    session: AsyncSession, model_name: str, metric: str, hub_id: uuid.UUID, data_source: str
+) -> ModelMetric | None:
+    """The newest backtest row of a metric for one hub and one data source (monitor_drift's
+    baseline): never another hub's or another source's."""
+    return (
+        await session.execute(
+            select(ModelMetric)
+            .where(
+                ModelMetric.model_name == model_name,
+                ModelMetric.metric == metric,
+                ModelMetric.split == "backtest",
+                ModelMetric.data_source == data_source,
+                ModelMetric.details["hub_id"].astext == str(hub_id),
+            )
+            .order_by(ModelMetric.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def live_hub_metrics(
+    session: AsyncSession, model_name: str, since: datetime
+) -> list[ModelMetric]:
+    """A model's live rows about one hub (`details.hub_id`) computed since a time, newest first:
+    what the AI health table groups per hub and data source."""
+    return list(
+        (
+            await session.execute(
+                select(ModelMetric)
+                .where(
+                    ModelMetric.model_name == model_name,
+                    ModelMetric.split == "live",
+                    ModelMetric.computed_at >= since,
+                    ModelMetric.details["hub_id"].astext.is_not(None),
+                )
+                .order_by(ModelMetric.id.desc())
+            )
+        ).scalars()
+    )
 
 
 async def forecasts_on(session: AsyncSession, day: date) -> list[Prediction]:
-    """The newest forecast per hub for a delivery day."""
+    """The newest forecast per hub and data source for a delivery day (the job runs once per
+    source, so a synthetic and a pilot forecast of one hub and day are both kept)."""
     rows = (
         await session.execute(
             select(Prediction)
@@ -121,20 +213,27 @@ async def forecasts_on(session: AsyncSession, day: date) -> list[Prediction]:
             .order_by(Prediction.id.desc())
         )
     ).scalars()
-    newest: dict[uuid.UUID, Prediction] = {}
+    newest: dict[tuple[uuid.UUID, str], Prediction] = {}
     for row in rows:
-        newest.setdefault(row.subject_id, row)
+        newest.setdefault((row.subject_id, str(row.payload.get("data_source"))), row)
     return list(newest.values())
 
 
 async def scored_already(
-    session: AsyncSession, model_name: str, metric: str, day: date, hub_id: uuid.UUID | None
+    session: AsyncSession,
+    model_name: str,
+    metric: str,
+    day: date,
+    hub_id: uuid.UUID | None,
+    data_source: str,
 ) -> bool:
-    """Is there a live row of this metric for the day (and hub) already? Jobs rerun safely."""
+    """Is there a live row of this metric for the day, data source (and hub) already? Jobs rerun
+    safely."""
     stmt = select(ModelMetric.id).where(
         ModelMetric.model_name == model_name,
         ModelMetric.metric == metric,
         ModelMetric.split == "live",
+        ModelMetric.data_source == data_source,
         ModelMetric.details["for_date"].astext == day.isoformat(),
     )
     if hub_id is not None:

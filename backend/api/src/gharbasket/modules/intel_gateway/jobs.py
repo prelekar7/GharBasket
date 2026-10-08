@@ -2,12 +2,16 @@
 against what happened and keeps the result in `intel.model_metrics` for the console's AI health
 table (handbook 08 §8.1 monitoring).
 
-- Forecasts (kind `forecast`, one row per hub and delivery day): realised WAPE of the
-  uncommitted quantity per product against the add-on and tiffin lines of the orders that
-  reached the cut-off; `drift` = 1 when it is more than DRIFT_POINTS worse than the same
-  model's latest backtest WAPE.
+- Forecasts (kind `forecast`, one row per hub, delivery day and data source; `for_date` is the
+  delivery day): realised WAPE of that day's uncommitted q50 per product against that day's
+  sold lines of add-on and tiffin orders (`orders.api.sold_lines`: every status past `locked`,
+  classified by the order's kind, as the forecast job counts them), read from the orders of the
+  forecast's own data source (`synthetic`, or `real` for `pilot`/`live`). `drift` = 1 when the
+  realised WAPE is more than DRIFT_POINTS worse than the newest backtest WAPE of the same model,
+  hub and data source; without such a backtest only `wape` is written.
 - Plans: the share of the day's offered weeks that were approved or locked, per plan source
-  (`ml`, `fallback`).
+  (`ml`, `fallback`) and per data source (a `real` cycle is labelled `settings.real_data_source`).
+- Rows carry the data source they were measured on; nothing is ever written as `mixed`.
 
 Waste against the forecast waits for M6's receiving and cascade counts.
 """
@@ -26,8 +30,10 @@ from gharbasket.platform.jobs import JobContext, job
 log = structlog.get_logger("gharbasket.intel")
 IST = ZoneInfo("Asia/Kolkata")
 LOOKBACK_DAYS = 7
-DRIFT_POINTS = 0.10
+DRIFT_POINTS = 0.10  # eval protocol §4 monitoring: WAPE worse than the backtest by > 10 points
 UNCOMMITTED_KINDS = ("addon", "tiffin")
+# The eval protocol's label → the orders table's `data_source` (as the forecast job's flag).
+ORDER_SOURCE = {"synthetic": "synthetic", "pilot": "real", "live": "real"}
 
 
 def metric_model_name(prediction_model: str) -> str:
@@ -36,6 +42,11 @@ def metric_model_name(prediction_model: str) -> str:
     if len(parts) >= 2 and parts[-1].startswith("v"):
         parts = parts[:-1]
     return "_".join(parts).lower()
+
+
+def label_of(row_source: str, real_label: str) -> str:
+    """A row's `data_source` (real | synthetic) as the protocol's label."""
+    return "synthetic" if row_source == "synthetic" else real_label
 
 
 def wape(actual: dict[str, float], predicted: dict[str, float]) -> float:
@@ -50,59 +61,65 @@ def wape(actual: dict[str, float], predicted: dict[str, float]) -> float:
 async def score_forecasts(ctx: JobContext, day: date) -> tuple[int, int]:
     scored = drifted = 0
     for prediction in await service.forecasts_on(ctx.session, day):
-        model_name = metric_model_name(prediction.model_name)
+        label = prediction.payload.get("data_source")
         hub_id = prediction.subject_id
-        if await service.scored_already(ctx.session, model_name, "wape", day, hub_id):
+        if label not in ORDER_SOURCE:  # a forecast stored before sources were recorded
+            log.warning("forecast_without_data_source", hub_id=str(hub_id), for_date=str(day))
+            continue
+        model_name = metric_model_name(prediction.model_name)
+        if await service.scored_already(ctx.session, model_name, "wape", day, hub_id, label):
             continue
         actual: dict[str, float] = {}
-        for line in await orders_api.sold_lines(ctx.session, prediction.subject_id, day):
-            if line.kind in UNCOMMITTED_KINDS:
-                actual[str(line.product_id)] = actual.get(str(line.product_id), 0.0) + line.qty
-        predicted = {
-            str(item["product_id"]): float(item["uncommitted_q50"])
-            for item in prediction.payload.get("items", [])
-        }
+        for line in await orders_api.sold_lines(ctx.session, hub_id, day, ORDER_SOURCE[label]):
+            if line.order_kind in UNCOMMITTED_KINDS:
+                key = str(line.product_id)
+                actual[key] = actual.get(key, 0.0) + line.qty
+        predicted: dict[str, float] = {}
+        for item in prediction.payload.get("items", []):
+            if str(item.get("for_date", day.isoformat())) != day.isoformat():
+                continue  # only this delivery day's share of the weekly forecast
+            key = str(item["product_id"])
+            predicted[key] = predicted.get(key, 0.0) + float(item["uncommitted_q50"])
         realised = wape(actual, predicted)
-        baseline = next(
-            (
-                m.value
-                for m in await service.latest_metrics(ctx.session, model_name)
-                if m.metric == "wape" and m.split == "backtest"
-            ),
-            None,
-        )
-        drift = baseline is not None and realised - baseline > DRIFT_POINTS
+        baseline = await service.latest_backtest(ctx.session, model_name, "wape", hub_id, label)
+        metrics = {"wape": realised}
+        drift = baseline is not None and realised - baseline.value > DRIFT_POINTS
+        if baseline is not None:
+            metrics["drift"] = 1.0 if drift else 0.0
         await service.record_metrics(
             ctx.session,
             model_name=model_name,
             version=prediction.model_version or prediction.model_name,
-            metrics={"wape": realised, "drift": 1.0 if drift else 0.0},
+            metrics=metrics,
             split="live",
-            data_source="mixed",
+            data_source=label,
             details={
-                "hub_id": str(prediction.subject_id),
+                "hub_id": str(hub_id),
                 "for_date": day.isoformat(),
                 "products": len(predicted),
-                "backtest_wape": baseline,
+                "sold_units": round(sum(actual.values()), 2),
+                "backtest_wape": None if baseline is None else baseline.value,
+                "backtest_version": None if baseline is None else baseline.version,
             },
         )
         scored += 1
         if drift:
             drifted += 1
             log.warning(
-                "model_drift", model=model_name, hub_id=str(prediction.subject_id), wape=realised
+                "model_drift", model=model_name, hub_id=str(hub_id), source=label, wape=realised
             )
     return scored, drifted
 
 
 async def score_plans(ctx: JobContext, day: date) -> int:
     scored = 0
-    for source, (accepted, offered) in (
-        await subscriptions_api.acceptance_on(ctx.session, day)
-    ).items():
-        model_name = f"planner_{source}"
+    real_label = ctx.settings.real_data_source
+    acceptance = await subscriptions_api.acceptance_on(ctx.session, day)
+    for (plan_source, row_source), (accepted, offered) in sorted(acceptance.items()):
+        model_name = f"planner_{plan_source}"
+        label = label_of(row_source, real_label)
         if not offered or await service.scored_already(
-            ctx.session, model_name, "acceptance", day, None
+            ctx.session, model_name, "acceptance", day, None, label
         ):
             continue
         await service.record_metrics(
@@ -111,7 +128,7 @@ async def score_plans(ctx: JobContext, day: date) -> int:
             version=day.isoformat(),
             metrics={"acceptance": round(accepted / offered, 4)},
             split="live",
-            data_source="mixed",
+            data_source=label,
             details={"for_date": day.isoformat(), "offered": offered, "accepted": accepted},
         )
         scored += 1
