@@ -13,12 +13,12 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: Job module (e.g. collect_mandi)
+        description: Job module (collect_mandi or eval)
         required: true
         type: string
         default: collect_mandi
       args:
-        description: Extra arguments
+        description: Extra arguments (blank = the job's default; collect_mandi --push-index, export_snapshots --push-features)
         required: false
         type: string
 
@@ -46,7 +46,7 @@ jobs:
       DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}
       # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots.
       JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || 'collect_mandi') }}
-      ARGS: ${{ inputs.args || (github.event.schedule == '33 20 * * *' && '--push-features' || '--push-index') }}
+      ARGS: ${{ inputs.args }} # blank: the job's default, set in the run step
     steps:
       - name: Check that the secrets exist
         id: configured
@@ -75,4 +75,12 @@ jobs:
 
       - name: Run it
         if: steps.configured.outputs.ready == 'true'
-        run: uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
+        run: |
+          # Blank args take the job's own default (eval has none: it adds --push itself).
+          if [ -z "$ARGS" ]; then
+            case "$JOB" in
+              collect_mandi) ARGS="--push-index" ;;
+              export_snapshots) ARGS="--push-features" ;;
+            esac
+          fi
+          uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
