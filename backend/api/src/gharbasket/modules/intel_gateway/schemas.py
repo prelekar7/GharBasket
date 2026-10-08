@@ -98,6 +98,7 @@ class PlanScore(BaseModel):
     cost_paise: int
     nutrition: float | None = None
     price_penalty: float | None = None
+    liking: float | None = None  # v2: the mean preference of the chosen dishes
 
 
 class RankCandidate(BaseModel):
@@ -108,7 +109,6 @@ class RankCandidate(BaseModel):
     weeks_since: float = Field(ge=0)
     frequency: float = Field(ge=0, le=1)
     drafted: bool = False
-    drafted_rule: bool = False
     removed_last: bool = False
     popularity: float = Field(default=0, ge=0, le=1)
     price_paise: int = Field(default=0, ge=0)
@@ -116,7 +116,7 @@ class RankCandidate(BaseModel):
 
 class RankRequest(BaseModel):
     candidates: list[RankCandidate] = Field(min_length=1, max_length=500)
-    top_k: int = Field(default=10, ge=1, le=500)
+    top_k: int = Field(default=10, ge=1, le=100)  # the ML service's cap
 
 
 class RankedOut(BaseModel):

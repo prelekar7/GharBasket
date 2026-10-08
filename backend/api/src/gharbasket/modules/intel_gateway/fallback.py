@@ -64,11 +64,11 @@ def _greedy(req: PlanRequest, relax: frozenset[Rule], by_cost: bool) -> Plan | N
     fasting_days = {f.day for f in req.fasting_days}
 
     def rank(r: PlanRecipe) -> tuple[bool, float, int, str]:
-        """Household cuisine first (unless only cost counts), then the dishes the household
-        liked most (v2), then cheapest, then by name."""
+        """Household cuisine first, then the dishes the household liked most (v2), then
+        cheapest, then by name; when only cost counts (a budget pass), cheapest first."""
         return (
             not by_cost and r.cuisine not in cuisines,
-            -(r.preference or 0.0),
+            0.0 if by_cost else -(r.preference or 0.0),
             r.cost_per_serving_paise,
             r.slug,
         )
