@@ -7,7 +7,10 @@ machine, and the pantry taps as `pantry_feedback`.
 The household's behaviour stays the simulator's (weeks.py, pantry.py); the plan and the drafted
 lines come from M3 (`generate_cycle`), so the edits are against the box the app would show.
 The modules read their clock from `orders.service.now` and `subscriptions.service.now`; the
-driver sets them to the simulated instant (T-2 for edits, T-1 21:00 IST for the cut-off).
+driver sets them to the simulated instant (T-3 18:00 IST to generate, T-2 for edits, the
+cycle's cut-off at T-1 21:00 IST). Each week is generated only after the week before has been
+replayed, so M3's carry-over counts what was delivered; the outbox is relayed after the cut-off,
+so the cycle mirrors its order through M3's own consumers.
 """
 
 import random
@@ -27,18 +30,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import wallet
 from gharbasket.modules.catalog import api as catalog_api
-from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import jobs as orders_jobs
 from gharbasket.modules.orders import service as orders_service
+from gharbasket.modules.subscriptions import jobs as _subs_jobs  # noqa: F401 (M3's consumers)
 from gharbasket.modules.subscriptions import service as subs_service
 from gharbasket.modules.subscriptions.models import BoxLine, WeeklyCycle
+from gharbasket.platform import outbox
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
-from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold
 from gharbasket_sim.pantry import Line
-from gharbasket_sim.weeks import Planned, Provided, Rows
+from gharbasket_sim.weeks import Planned, Rows
 
 IST = ZoneInfo("Asia/Kolkata")
 ML_TOKEN = "simulator-ml-token"  # noqa: S105 (in-process only)
@@ -161,24 +164,20 @@ async def subscribe_all(
     await session.flush()
 
 
-async def generate_weeks(
+async def generate_week(
     session: AsyncSession,
     http: httpx2.AsyncClient,
     settings: Settings,
-    h: SimHousehold,
+    *,
     household_id: uuid.UUID,
-    catalog: Catalog,
-    deliveries: list[date],
-) -> tuple[Provided, list[WeeklyCycle | None]]:
-    """M3 drafts each week's cycle; the plan and lines feed the household's behaviour."""
-    profile = await identity_api.household_plan_profile(session, household_id)
-    assert profile is not None and profile.hub_id is not None
-    plan_catalog = await catalog_api.plan_catalog(session, profile.hub_id)
-    slugs = {p.id: p.slug for p in plan_catalog.products.values()}
-    plans: list[Planned] = []
-    drafts: list[list[Line]] = []
-    cycles: list[WeeklyCycle | None] = []
-    for delivery in deliveries:
+    delivery: date,
+    plan_catalog: catalog_api.PlanCatalog,
+    slugs: dict[uuid.UUID, str],
+) -> tuple[Planned, list[Line], WeeklyCycle | None]:
+    """M3 drafts the week's cycle at T-3 18:00 IST, as `generate_weekly_plans` would, after the
+    weeks before it have been replayed (so its carry-over sees what they delivered). The plan
+    and lines feed the household's behaviour."""
+    with simulated_time(ist(delivery - timedelta(days=3), 18, 0)):
         generated = await subs_service.generate_cycle(
             session,
             http,
@@ -187,16 +186,18 @@ async def generate_weeks(
             delivery_date=delivery,
             catalog=plan_catalog,
         )
-        if generated is None:  # paused, no delivery day: the family cooks on its own
-            plans.append(Planned("none", (), {}, "none"))
-            drafts.append([])
-            cycles.append(None)
-            continue
-        plans.append(planned_from_cycle(generated.cycle))
-        drafts.append(lines_from_cycle(generated.lines, slugs))
-        cycles.append(generated.cycle)
     await session.flush()
-    return Provided(plans, drafts), cycles
+    if generated is None:  # paused, no delivery day: the family cooks on its own
+        return Planned("none", (), {}, "none"), [], None
+    cycle = generated.cycle
+    return planned_from_cycle(cycle), lines_from_cycle(generated.lines, slugs), cycle
+
+
+async def relay_events(session: AsyncSession) -> None:
+    """Deliver the outbox as the relay does after each commit in production: M3's consumers
+    mirror `orders.locked` and `orders.cancelled` on the cycle (subscriptions/jobs.py)."""
+    while (await outbox.relay(session)).sent:
+        pass
 
 
 async def replay_week(
@@ -232,7 +233,7 @@ async def replay_week(
         for r in rows.box_lines
         if r["household"] == h.key and r["week"] == week
     ]
-    cutoff = ist(delivery - timedelta(days=1), 21, 0)
+    cutoff = cycle.cutoff_at  # T-1 21:00 IST (orders.api.cutoff_for)
     with simulated_time(cutoff - timedelta(hours=35)):  # T-2 10:00 IST
         drafted = lines_from_cycle(await subs_service.lines_of(session, cycle.id), slugs)
         ops = ops_between(drafted, final, ids)
@@ -286,10 +287,8 @@ async def replay_week(
     with simulated_time(cutoff + orders_jobs.GRACE):
         if order.status == "payment_failed":
             await orders_service.cancel(session, order, actor="system", reason="payment")
-            cycle.status = "cancelled"  # what the outbox consumer mirrors
-            cycle.version += 1
+    await relay_events(session)  # the cycle follows its order: locked, or cancelled
     if order.status == "locked":
-        cycle.status, cycle.order_id = "locked", order.id
         for status in ("packed", "dispatched", "at_society", "delivered"):
             await orders_api.transition(session, order.id, status, actor="hub")
         taps = {

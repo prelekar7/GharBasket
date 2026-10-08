@@ -891,6 +891,7 @@ Cut-off locks about 2,000 orders using batched `UPDATE … RETURNING` inside one
 - Every hub-scoped table has `hub_id`. Row-Level Security policies compare it with `current_setting('app.hub_ids')`, which the API sets with `SET LOCAL` per transaction for hub managers and franchise owners.
 - KYC numbers are encrypted with pgcrypto using a key kept in Infisical and passed to the API as a secret; only masked forms are returned.
 - No Aadhaar storage; health tags only with consent; `DELETE /me` hard-deletes personal data and keeps anonymised aggregates.
+- The lake's nightly snapshots (`snapshots/date=<day>/`, M10 §6) hold no names, contacts, addresses or users; quasi-identifiers are coarsened (no society, only the hub; the budget as a band). Partitions are deleted after 180 days (proposed: a bucket lifecycle rule). An erased household is left out of every later snapshot and feature run; older partitions lose its random id as they age out.
 
 ## 5.10 The `data_source` tag
 
@@ -916,13 +917,14 @@ It generates:
 
 It writes **through the module services**, so ledger and state-machine rules hold, with `data_source='synthetic'`. Ground truth is saved to `data/sim_truth/*.parquet` for evaluation.
 
-**Status (v0, Oct 2026):**
-- **Done:** items 2–4, through `just sim`.
+**Status (v1b, Oct 2026):**
+- **Done:** items 2–4 (v0), item 5's price shocks (v1a) and writing the weeks through M3, M4 and M5 (v1b), through `just sim`.
   - Households from `data/simulator/cohorts.json` are onboarded through M1 in the seed societies.
   - The truth files hold latent daily-use rates and tastes, weekly CP-SAT plans with accept/edit/skip, and consumption.
+  - v1a: each week's box is drafted as M3 drafts it, edited by the household with a reason per edit (`taste`, `stock`, `price`), delivered into a pantry the cooking draws down, with *ran out* / *wasted* / *just right* taps; prices follow the episodes in `data/simulator/shocks.json`.
+  - `just sim --write-db` sends the weeks through M3, M4 and M5, one week at a time: M3 drafts the cycle at T-3 18:00 (after the week before was replayed, so its carry-over counts what was delivered), the household's edits become line ops, it approves or skips, the cut-off debits the wallet and locks or cancels, and the outbox relay lets M3's own consumers mirror the order on the cycle. Each step runs at its simulated instant.
 - **Next:**
-  - item 1 (real society polygons) and items 5–6;
-  - writing the weeks through M3/M4 once they exist.
+  - item 1 (real society polygons), mandi-replayed prices and item 6.
 - See M10 §3.2 and `data/simulator/README.md`.
 
 *Figure 5.14 — Simulator data flow*
