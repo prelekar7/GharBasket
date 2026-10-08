@@ -125,7 +125,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 1. For every active subscription not paused for that delivery date: the household's rules (M1) and the hub's active recipes with today's prices (M2) go to `intel_gateway.api.plan_week` (recorded in `intel.predictions`, `source` ml or fallback).
 2. The plan becomes lines: each recipe's ingredients × household size ÷ servings, summed over the week, rounded up to steps (`source: ai`, `reason_code: meal_plan`, `reason_params.recipes`); plus the **family-size rule table** for daily-use items (milk, atta, oil, salt, curd, fruit per adult equivalent per week; `source: rule`, `reason_code: daily_use`) until the pantry twin (M10 F13) replaces the quantities with its own and `pantry_low` reasons.
 3. With the Budget Lock on, the cheapest substitutes bring the box under the month's remaining budget (`price_swap`), never below the hard rules; if it still does not fit, the box is generated anyway and `highlights` carries `budget_near`.
-4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30, M11) marks `notice_sent_at`; S3 sets it in the same job until M11 exists.
+4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30) marks `notice_sent_at` and publishes `subscriptions.box_ready`, which M11 turns into the box-ready message (M11 §3.1). Until that job ships, the generation job sets `notice_sent_at` itself.
 5. A planner failure gives last week's lines, or the rule table for a new household (`reason_code: fallback_rules`, `meal_plan.source: fallback`).
 6. `apply_auto_approve` (T-1 20:55 IST): `awaiting_approval` cycles whose subscription has `auto_approve` and whose `notice_sent_at` is at least 24 h before the cut-off are approved by the system.
 
@@ -232,14 +232,15 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 
 ## 5. Events
 **Published:** `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped`, `subscriptions.subscription_paused` (payloads in §3.1).
+- Added for M11 (2026-10-09): `subscriptions.box_ready` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}` and `subscriptions.cutoff_reminder` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}`; `subscriptions.box_approved` gains `auto_approved: bool`.
 **Consumed:** `orders.locked`, `orders.cancelled`, `orders.delivered`, `identity.household_updated`. (Plans are requested synchronously through `intel_gateway.api` inside the generation job, so `intel.plans_ready` is not needed in S3.)
 
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
 | `generate_weekly_plans` | T-3 18:00 IST per hub (cron-job.org → `POST /v1/internal/jobs/generate_weekly_plans`) | Plans via `intel_gateway.api.plan_week`; rule-table fallback; §3.1 |
-| `send_box_ready_notices` | T-3 18:30 | Via M11 (S3: the generation job sets `notice_sent_at`); pre-debit notice via M5 at the pilot |
-| `remind_unapproved` | T-1 19:00 | M11 |
+| `send_box_ready_notices` | T-3 18:30 IST (cron-job.org) | `draft` cycles of the delivery day: sets `notice_sent_at`, moves them to `awaiting_approval`, publishes `subscriptions.box_ready`; idempotent per cycle. The pre-debit notice for Autopay comes via M5 at the pilot |
+| `remind_unapproved` | T-1 19:00 IST (cron-job.org) | Cycles still `awaiting_approval` whose subscription doesn't auto-approve: publishes `subscriptions.cutoff_reminder` once per cycle |
 | `apply_auto_approve` | T-1 20:55 IST | Only where `notice_sent_at` ≤ cut-off − 24 h |
 
 Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-0021) triggered by cron-job.org for minute-level timing (ADR-0025); event-triggered work runs in outbox consumers. Rules use `scheduled_for`, so a late start never lets an edit through after the cut-off.
