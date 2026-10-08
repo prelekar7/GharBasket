@@ -80,7 +80,8 @@ class Weights(BaseModel):
     perishables: int = Field(default=4, ge=0)
     nutrition: int = Field(default=4, ge=0)
     price: int = Field(default=3, ge=0)
-    # v2: the learned liking (recipes[].preference from the ranker); 0 switches it off.
+    # v2: the learned liking (recipes[].preference from the ranker), per meal on the same scale
+    # as the cuisine match: a fully liked dish at 3 is worth one cuisine match. 0 switches it off.
     liking: int = Field(default=3, ge=0)
 
 

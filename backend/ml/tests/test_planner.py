@@ -12,6 +12,7 @@ from gharbasket_ml.planner import (
     check,
     plan_week,
     relaxations,
+    score,
     scored_days,
 )
 from gharbasket_ml.schemas import PlanRequest, PlanResponse, Weights
@@ -292,3 +293,25 @@ def test_v2_liking_tilts_the_plan_towards_kept_dishes_and_is_scored() -> None:
     # Unknown preferences: no liking in the score (v1 behaviour).
     plain = plan_week(v1_request(), deterministic=True)
     assert plain.score is not None and plain.score.liking is None
+
+
+def test_v2_liking_tilts_the_plan_without_collapsing_variety() -> None:
+    # Every main liked on a 0..1 ramp (as M3's rank-scaled preferences): v2 picks better-liked
+    # dishes than v1, keeps every rule, and gives up at most one distinct dish of variety.
+    v1 = v1_request()
+    body = v1.model_dump()
+    mains = sorted(r["slug"] for r in body["recipes"] if not r["is_side"])
+    for r in body["recipes"]:
+        if not r["is_side"]:
+            r["preference"] = round(mains.index(r["slug"]) / (len(mains) - 1), 3)
+    v2 = PlanRequest.model_validate(body)
+
+    before = plan_week(v1, deterministic=True)
+    after = plan_week(v2, deterministic=True)
+
+    verify(v2, after)
+    assert before.score is not None and after.score is not None
+    liked_before = score(Week.of(v2), as_plan(before)).liking
+    assert after.score.liking is not None and liked_before is not None
+    assert after.score.liking > liked_before
+    assert after.score.variety >= before.score.variety - 1
