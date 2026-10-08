@@ -3,7 +3,7 @@
 **Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
-**Deployables:** `backend/ml` (FastAPI; hosting to be decided before P3/P4) — long jobs run in the service or offline until a paid `ml-worker` (Taskiq queue `ml`) exists at the pilot (ADR-0021); gateway module in the API: `gharbasket.modules.intel_gateway`
+**Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025; the Space is being set up in PR #115); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`
 **Postgres schema:** `intel` (written by the ML service through the gateway's contract)
 
 ## 1. Purpose
@@ -145,7 +145,7 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
 | `intel.model_metrics` | model_name, version, metric, value, split, data_source, computed_at |
 | `intel.price_index` | product_id, day, market, modal_paise_per_kg, index_4w (today over the 4-week median; 1.62 = 62 % above usual), source, updated_at |
 
-Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decided with the ML hosting): Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3://gb-mlflow/`, simulator ground truth in `data/sim_truth/`.
+Outside Postgres (S3-API object storage; SeaweedFS locally, Cloudflare R2 when hosted, ADR-0025): Parquet snapshots in `s3://gb-lake/`, model versions in `s3://gb-mlflow/models/<name>/<version>/` with a `latest.json` pointer per model, simulator ground truth in `data/sim_truth/`.
 
 ## 5. Events
 **Published:** `intel.plans_ready`, `intel.forecast_ready`, `intel.routes_ready`, `intel.assignment_ready`, `intel.substitutions_learned`.
@@ -158,10 +158,10 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 | `export_snapshots` | Daily 02:00 | DuckDB reads Postgres → Parquet in object storage (S3 API); pandera validation |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast_uncommitted` | T-1 21:10 | StatsForecast/MLForecast/Chronos-2 + reconciliation |
-| `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |
+| `retrain_models` | Sunday 03:00 | Champion/challenger; promotion moves the model's `latest.json` on R2 (manual `just promote` in v1, ADR-0025) |
 | `monitor_drift` | Daily | WAPE, acceptance, waste vs thresholds |
 
-Until a paid worker exists, these batch jobs run in the ML service or offline, triggered by the API's internal job endpoints on a GitHub Actions schedule (ADR-0021).
+These batch jobs run in `backend/training` on GitHub Actions (daily and weekly schedules), never inside the ML service or an API request (ADR-0025, ADR-0021); results reach `intel.*` through the API's internal endpoints.
 
 ## 7. Permissions
 Service-to-service token for API ↔ ML calls; `models:read` for admin in the console.

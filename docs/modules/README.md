@@ -2,7 +2,26 @@
 
 Each backend/product module has one specification file. Specs are written **before** a module is built (spec-first) and refined at the start of the phase that builds it. Architecture rules for all modules are in `docs/TDD.md` (Sections 2.3, 4, 5, 10.3).
 
-**Status of all specs:** Draft v1 — refine at phase start (spec-first).
+**Status of the specs** (from each spec's header; a frozen section is a contract that code builds against, everything else is refined at phase start, spec-first):
+
+| ID | Version | Frozen sections |
+|---|---|---|
+| M0 | Draft v1 | §3.1 file uploads (2026-10-08) |
+| M1 | Draft v1.1 | §3.1 auth, §3.2 household, consents and address; §3.3 data export (2026-10-08) |
+| M2 | Draft v1.2 | §3.1 products, search, prices and substitutes; §3.2 recipes and festivals (for S1) |
+| M3 | Draft v1 | §3.1 subscription, delivery days, the weekly cycle, edits, approve, skip, feedback and Budget Lock (for S3); §3.2 meal swap (2026-10-08) |
+| M4 | Draft v1 | §3.1 slots, box orders, add-ons, cancel and cut-off (for S2); §3.2 order issues (2026-10-08) |
+| M5 | Draft v1 | §3.1 wallet and top-ups (for S2); §3.2 customer statements (2026-10-08) |
+| M6 | Draft v1 | None yet |
+| M7 | Draft v1 | None yet |
+| M8 | Draft v1 | None yet |
+| M9 | Draft v1.1 | §3.1 societies and society requests (for S1) |
+| M10 | Draft v1.1 | §3.1 `POST /plan/week` v0 (built in `backend/ml`) |
+| M11 | v1.1 | §3.1 inbox, preferences, push token and event map (2026-10-08) |
+| M12 | Draft v1 | None yet |
+| M13 | Draft v1 | None yet |
+
+Keep this table in step with the spec headers when a section is frozen.
 
 ## Index
 

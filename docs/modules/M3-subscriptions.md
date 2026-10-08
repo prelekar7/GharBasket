@@ -232,7 +232,7 @@ PUT /v1/cycles/{id}/meals          If-Match (the cycle's version); no Idempotenc
 
 ## 5. Events
 **Published:** `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped`, `subscriptions.subscription_paused` (payloads in §3.1).
-- Added for M11 (2026-10-09): `subscriptions.box_ready` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}` and `subscriptions.cutoff_reminder` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}`; `subscriptions.box_approved` gains `auto_approved: bool`.
+- Added for M11 (2026-10-08): `subscriptions.box_ready` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}` and `subscriptions.cutoff_reminder` `{cycle_id, household_id, delivery_date, cutoff_at, total_paise}`; `subscriptions.box_approved` gains `auto_approved: bool`.
 **Consumed:** `orders.locked`, `orders.cancelled`, `orders.delivered`, `identity.household_updated`. (Plans are requested synchronously through `intel_gateway.api` inside the generation job, so `intel.plans_ready` is not needed in S3.)
 
 ## 6. Jobs

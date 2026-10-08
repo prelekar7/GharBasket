@@ -1,6 +1,6 @@
 # Chapter 15 — Risks and Decisions
 
-> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 24 decisions taken so far — 17 during planning and seven more since (each backed by an Architecture Decision Record in `docs/adr/`); and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
+> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 25 decisions taken so far — 17 during planning and eight more since (each backed by an Architecture Decision Record in `docs/adr/`); and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
 
 ---
 
@@ -16,7 +16,7 @@ Likelihood (L) and impact (I) are rated High / Medium / Low. Owners watch their 
 | R4 | Not enough real data for the paper | H | M | Simulator with stored ground truth; pilot data reported separately (`data_source`); honest framing in the paper | Prathamesh |
 | R5 | Migration conflicts and module coupling | M | H | Single Alembic head enforced in CI, import-linter contracts, CODEOWNERS reviews | Prathamesh |
 | R6 | Scope creep from new ideas | H | H | Every change needs an ADR and guide agreement; ideas go to a "later" backlog | Rhythm |
-| R7 | OSRM and maps setup pain | M | M | Mumbai Metropolitan Region clipped extract; prebuilt files kept in object storage; spike in S0 | Prathamesh |
+| R7 | OSRM and maps setup pain | M | M | Mumbai Metropolitan Region clipped extract; OSRM data baked into the ML service image on the Hugging Face Space (D25); spike in S0 | Prathamesh |
 | R8 | LLM cost overrun | L | M | Per-user daily caps, prompt caching, cheaper model chosen by eval if accuracy holds | Prathamesh |
 | R9 | Exams collide with milestones | H | M | Floating buffer sprint; S3 kept light; dates confirmed as soon as published | Manish |
 | R10 | Legal/compliance claims challenged in the viva | M | M | Closed-loop wallet design, simulated KYC, cite RBI, DPDP and FSSAI texts, guide sign-off | Rhythm |
@@ -49,7 +49,7 @@ quadrantChart
 
 ## 15.2 Decision log
 
-D1–D17 were agreed on 2 October 2026 during planning; D18–D24 were decided between 2 and 4 October 2026. Each has an ADR with context, alternatives and consequences.
+D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026. Each has an ADR with context, alternatives and consequences.
 
 | ID | Decision | ADR |
 |---|---|---|
@@ -72,11 +72,12 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D24 were decided b
 | D17 | UI design happens in Phase 0, before any code (spec-first for later phases) | [ADR-0017](../adr/0017-design-before-code-in-phase-0.md) |
 | D18 | Frontend in JavaScript (`.js` / `.jsx`), not TypeScript; JSDoc, `jsconfig.json` (`checkJs`) and the generated API types give editor hints only | [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md) |
 | D19 | Repository layout: `frontend/` and `backend/` at the top, one backend folder (and Postgres schema) per module | [ADR-0019](../adr/0019-repository-layout-frontend-backend.md) |
-| D20 | Hosting on free tiers until the pilot: Render (API, Key Value), Vercel (PWA, console), Neon Postgres (Singapore), Cloudflare R2, Infisical, PostHog; supersedes D11 and D15 | [ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md) |
-| D21 | Jobs without a broker until the pilot: Postgres outbox relayed after each commit, plus a GitHub Actions schedule calling internal job endpoints; Taskiq returns at the pilot | [ADR-0021](../adr/0021-jobs-without-a-broker.md) |
+| D20 | Hosting on free tiers until the pilot: Render (API, Key Value), Vercel (PWA, console), Neon Postgres (Singapore), Cloudflare R2, Infisical, PostHog; supersedes D11 and D15 — ML hosting left open here, settled by D25 | [ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md) |
+| D21 | Jobs without a broker until the pilot: Postgres outbox relayed after each commit, plus a GitHub Actions schedule calling internal job endpoints; Taskiq returns at the pilot — refined by D25 (cron-job.org for minute-level jobs) | [ADR-0021](../adr/0021-jobs-without-a-broker.md) |
 | D22 | Generated API client: openapi-typescript + openapi-fetch + openapi-react-query in `frontend/packages/api-client`; replaces Hey API | [ADR-0022](../adr/0022-api-client-openapi-fetch.md) |
 | D23 | Ownership: Prathamesh = all backend, infra, simulator and ML; Yash = all frontend and design; Rhythm and Manish unchanged; supersedes the code ownership in D9 | [ADR-0023](../adr/0023-ownership-backend-and-frontend.md) |
 | D24 | Sign-in: Firebase phone OTP, then our own tokens (15-minute access JWT, rotating refresh token); httpOnly cookies and CSRF checks for browsers | [ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md) |
+| D25 | ML runtime: the ML service and OSRM serve from one Hugging Face Space; training, forecasting and snapshots run in GitHub Actions (`backend/training`); R2 is the lake and the model registry (`latest.json`, `just promote`); MLflow local only; cron-job.org triggers minute-level jobs; settles the open item in D20 and refines D21 | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
 
 ### How decisions change
 
