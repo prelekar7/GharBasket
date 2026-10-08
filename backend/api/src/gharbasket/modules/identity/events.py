@@ -6,3 +6,5 @@ through `identity.api`.
 
 HOUSEHOLD_CREATED = "identity.household_created"
 HOUSEHOLD_UPDATED = "identity.household_updated"
+# {export_id, user_id}: build_data_export picks the export up (spec §3.3, §6); M11 later.
+DATA_EXPORT_REQUESTED = "identity.data_export_requested"
