@@ -363,6 +363,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/files/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A presigned PUT URL for one private upload (M0 §3.1) */
+        post: operations["presign_v1_files_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -941,6 +958,23 @@ export interface paths {
         put?: never;
         /** Ask GharBasket to come to a society that isn't listed (Idempotency-Key required) */
         post: operations["request_society_v1_society_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's wallet for one month (IST), from the ledger, with running balances */
+        get: operations["get_statement_v1_statements_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2255,6 +2289,55 @@ export interface components {
             /** Items */
             items: components["schemas"]["PlanOut"][];
         };
+        /** PresignIn */
+        PresignIn: {
+            /**
+             * Content Type
+             * @example image/jpeg
+             */
+            content_type: string;
+            /**
+             * Purpose
+             * @description order_issue_photo, donation_photo or kyc_document
+             */
+            purpose: string;
+            /**
+             * Size Bytes
+             * @description The exact size of the file to upload
+             * @example 834221
+             */
+            size_bytes: number;
+        };
+        /** PresignOut */
+        PresignOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Headers
+             * @description Send exactly these headers on the PUT
+             */
+            headers: {
+                [key: string]: string;
+            };
+            /**
+             * Key
+             * @description Send only this to the module that uses the file
+             */
+            key: string;
+            /**
+             * Method
+             * @constant
+             */
+            method: "PUT";
+            /**
+             * Url
+             * @description PUT the bytes here before expires_at
+             */
+            url: string;
+        };
         /** Price */
         Price: {
             /**
@@ -2934,6 +3017,86 @@ export interface components {
              * @enum {string}
              */
             status: "prospect" | "unlocking" | "live" | "paused";
+        };
+        /** StatementEntry */
+        StatementEntry: {
+            /**
+             * Amount Paise
+             * @description Into the wallet +, out of it -
+             * @example -69000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Balance After Paise
+             * @description The wallet's balance after this entry, in posting order
+             * @example 181000
+             */
+            balance_after_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            /** Ref */
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
+        };
+        /** StatementOut */
+        StatementOut: {
+            /**
+             * Closing Paise
+             * @description opening + credits + debits; for the current month, now
+             * @example 181000
+             */
+            closing_paise: number;
+            /**
+             * Credits Paise
+             * @description Σ positive entries in the month
+             * @example 200000
+             */
+            credits_paise: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Debits Paise
+             * @description Σ negative entries (signed, as on entries)
+             * @example -69000
+             */
+            debits_paise: number;
+            /**
+             * Entries
+             * @description Every entry of the month, newest first
+             */
+            entries: components["schemas"]["StatementEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Opening Paise
+             * @description The balance at 00:00 IST on the 1st
+             * @example 50000
+             */
+            opening_paise: number;
+            /**
+             * Period
+             * @example 2026-10
+             */
+            period: string;
         };
         /**
          * Step
@@ -4762,6 +4925,75 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    presign_v1_files_presign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresignIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.upload_purpose_invalid, platform.upload_type_not_allowed (with allowed) or platform.upload_too_large (with max_bytes) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.upload_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6833,6 +7065,57 @@ export interface operations {
             };
             /** @description community.request_rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_statement_v1_statements_get: {
+        parameters: {
+            query: {
+                period: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.period_invalid: not YYYY-MM, or after the current month (IST) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

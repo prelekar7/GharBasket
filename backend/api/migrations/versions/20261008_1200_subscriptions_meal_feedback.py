@@ -1,7 +1,7 @@
 """subscriptions: edit_feedback gains meal rows for the meal swap (M3 §3.2)
 
 Revision ID: 5b0e8d3c71a4
-Revises: c9ae5e2949ab
+Revises: 467e2558d5bf
 Create Date: 2026-10-08 12:00:00.000000+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "5b0e8d3c71a4"
-down_revision: str | Sequence[str] | None = "c9ae5e2949ab"
+down_revision: str | Sequence[str] | None = "467e2558d5bf"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
