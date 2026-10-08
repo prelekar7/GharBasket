@@ -177,6 +177,13 @@ def test_lightgbm_is_direct_one_model_per_step_with_features_known_at_the_origin
     assert row2["mean4"] == pytest.approx(sum(p0[0:4]) / 4)
     week = where(one, (one["ds"] == diwali) & (one["unique_id"] == "product-0")).iloc[0]
     assert (week["festival_days"], week["fast_days"]) == (3.0, 1.0)  # the calendar is known
+    assert week["price_index"] == 1.0  # Diwali week's index is not known at its origin
+    after = where(one, (one["ds"] > diwali) & (one["unique_id"] == "product-0"))
+    assert (after["price_index"] == 1.6).all()  # known from the next origin on, carried forward
+    week2 = where(
+        two, (two["ds"] == diwali + pd.Timedelta(weeks=1)) & (two["unique_id"] == "product-0")
+    )
+    assert week2["price_index"].iloc[0] == 1.0  # step 2: the origin is two weeks back
     other = where(one, one["unique_id"] == "product-1")
     assert (other["price_index"] == 1.0).all() and other["festival_days"].sum() == 3.0
 
@@ -188,6 +195,95 @@ def test_lightgbm_is_direct_one_model_per_step_with_features_known_at_the_origin
     # Too few rows for a step: the model sits the window out.
     short = where(frame, frame["ds"] <= frame["ds"].min() + pd.Timedelta(weeks=4))
     assert forecast._lightgbm(short, None) is None
+
+
+def test_a_price_row_of_the_target_week_changes_no_feature_and_no_forecast() -> None:
+    series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
+    frame = forecast._uncommitted(series, "hub-1")
+    last = frame["ds"].max()
+    known = pd.DataFrame(
+        {
+            "unique_id": ["product-0", "product-1"],
+            "ds": [last - pd.Timedelta(weeks=6), last],
+            "price_index": [1.3, 0.8],
+        }
+    )
+    leak = pd.DataFrame(  # the target weeks' own index (and a later one), not known at the origin
+        {
+            "unique_id": ["product-0", "product-0", "product-1"],
+            "ds": [last + pd.Timedelta(weeks=1), last + pd.Timedelta(weeks=2), last],
+            "price_index": [5.0, 7.0, 0.8],
+        }
+    )
+    honest = forecast.Exog(prices=known)
+    leaky = forecast.Exog(prices=pd.concat([known, leak.iloc[:2]], ignore_index=True))
+    # the backtest's test rows: targets after an earlier origin, with their own week's index
+    origin = last - pd.Timedelta(weeks=4)
+    target_rows = pd.DataFrame(
+        {
+            "unique_id": ["product-0", "product-0"],
+            "ds": [origin + pd.Timedelta(weeks=1), origin + pd.Timedelta(weeks=2)],
+            "price_index": [9.0, 9.0],
+        }
+    )
+    in_window = forecast.Exog(prices=pd.concat([known, target_rows], ignore_index=True))
+
+    for h in (1, 2):
+        base = forecast._features(frame, honest, h)
+        for other in (leaky, in_window):
+            feats = forecast._features(frame, other, h)
+            test_row = (feats["unique_id"] == "product-0") & (
+                feats["ds"] == origin + pd.Timedelta(weeks=h)
+            )
+            assert (
+                feats.loc[test_row, "price_index"].iloc[0]
+                == base.loc[test_row, "price_index"].iloc[0]
+            )
+    # step 1 for the week after `last` reads `last`'s index (0.8), known at the origin
+    future = forecast._features(
+        pd.concat(
+            [
+                frame,
+                pd.DataFrame(
+                    {
+                        "unique_id": ["product-1"],
+                        "ds": [last + pd.Timedelta(weeks=1)],
+                        "y": [np.nan],
+                    }
+                ),
+            ],
+            ignore_index=True,
+        ),
+        honest,
+        1,
+    )
+    assert future.loc[future["ds"] == last + pd.Timedelta(weeks=1), "price_index"].iloc[0] == 0.8
+
+    a, b = forecast._lightgbm(frame, honest), forecast._lightgbm(frame, leaky)
+    assert a is not None and b is not None
+    pd.testing.assert_frame_equal(a, b)  # deterministic, and blind to the target weeks' prices
+
+
+def test_autoets_refusing_a_window_sits_it_out_instead_of_copying_naive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import statsforecast.models as models
+
+    class Refusing(models.AutoETS):
+        def forecast(self, *args: Any, **kwargs: Any) -> Any:
+            raise ValueError("tiny series")
+
+    monkeypatch.setattr(models, "AutoETS", Refusing)
+    series = forecast.weekly_series(lines(), forecast.last_complete_week(TODAY))
+    train = forecast._uncommitted(series, "hub-1")
+
+    answer = forecast._statsforecast(train, forecast.HORIZON)
+
+    assert "AutoETS" not in answer.columns and "Naive" in answer.columns
+    test = forecast.backtest(series, "hub-1")
+    assert "AutoETS" not in test.wape and test.windows == 4 and "LightGBM" in test.wape
+    planned, test = forecast.forecast_hub(series, lines(), "hub-1", TODAY)
+    assert planned and all(line.model != "AutoETS" for line in planned)
 
 
 def test_lightgbm_sits_out_short_windows_and_models_share_the_scored_windows() -> None:
@@ -435,3 +531,96 @@ async def test_the_job_reads_sold_lines_by_order_kind_and_m6_reads_a_delivery_da
     ).scalar_one()
     assert event.payload["hub_id"] == hub
     assert event.payload["delivery_dates"] == sorted(d.isoformat() for d in days)
+
+
+@pytest.mark.anyio
+@pytest.mark.services
+async def test_exogenous_reads_the_calendar_and_prices_up_to_the_cutoff(
+    db_session: AsyncSession,
+) -> None:
+    import uuid
+
+    from gharbasket.modules.catalog.models import Festival
+    from gharbasket.modules.intel_gateway.models import PriceIndex
+
+    product = uuid.uuid4()
+    monday = date(2031, 3, 3)  # far from any seeded calendar row
+    series = pd.DataFrame(
+        {
+            "hub_id": "hub-1",
+            "product_id": str(product),
+            "ds": pd.to_datetime([monday + timedelta(weeks=w) for w in range(3)]),
+            "committed": 0.0,
+            "uncommitted": 1.0,
+        }
+    )
+    names = {"en": "Test fast", "hi": "Test fast", "mr": "Test fast"}
+    cutoff = monday + timedelta(weeks=2, days=6)  # the Sunday ending the last series week
+    db_session.add_all(
+        [
+            Festival(
+                day=monday + timedelta(days=2),
+                code="t_fest",
+                region="all",
+                names=names,
+                rules={"fasting": False},
+            ),
+            # in a forecast week, after the cut-off: the calendar is known in advance
+            Festival(
+                day=cutoff + timedelta(days=3),
+                code="t_fast",
+                region="all",
+                names=names,
+                rules={"fasting": True},
+            ),
+            PriceIndex(
+                product_id=product,
+                day=monday + timedelta(days=1),
+                market="Vashi",
+                modal_paise_per_kg=4000,
+                index_4w=1.2,
+            ),
+            PriceIndex(
+                product_id=product,
+                day=monday + timedelta(days=3),
+                market="Vashi",
+                modal_paise_per_kg=4000,
+                index_4w=1.4,
+            ),
+            PriceIndex(
+                product_id=product,
+                day=cutoff,
+                market="Vashi",
+                modal_paise_per_kg=4000,
+                index_4w=1.1,
+            ),
+            # after the cut-off: a target week's price, never read
+            PriceIndex(
+                product_id=product,
+                day=cutoff + timedelta(days=1),
+                market="Vashi",
+                modal_paise_per_kg=9000,
+                index_4w=2.5,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    exog = await job.exogenous(db_session, series, cutoff)
+
+    assert exog.prices is not None and exog.weeks is not None
+    prices = {
+        (row["unique_id"], row["ds"].date()): row["price_index"]
+        for row in exog.prices.to_dict("records")
+    }
+    assert prices == {
+        (str(product), monday): pytest.approx(1.3),
+        (str(product), monday + timedelta(weeks=2)): pytest.approx(1.1),
+    }
+    weeks = {
+        row["ds"].date(): (row["festival_days"], row["fast_days"])
+        for row in exog.weeks.to_dict("records")
+    }
+    assert weeks[monday] == (1.0, 0.0)
+    assert weeks[monday + timedelta(weeks=3)] == (1.0, 1.0)
+    assert (await job.exogenous(db_session, series.iloc[0:0], cutoff)).prices is None

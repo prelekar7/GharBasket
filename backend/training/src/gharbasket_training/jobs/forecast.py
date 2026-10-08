@@ -119,8 +119,10 @@ def prices_frame(rows: Sequence[tuple[Any, date, float]]) -> pd.DataFrame:
     return cast(pd.DataFrame, df.groupby(["unique_id", "ds"], as_index=False)["price_index"].mean())
 
 
-async def exogenous(session: AsyncSession, series: pd.DataFrame) -> forecast.Exog:
-    """The festival calendar and the price index over the series' weeks."""
+async def exogenous(session: AsyncSession, series: pd.DataFrame, cutoff: date) -> forecast.Exog:
+    """The festival calendar over the series' weeks and the two forecast weeks (known in
+    advance), and the price index up to `cutoff`, the end of the run's last complete week: no
+    later price is read, so no feature can see one."""
     if series.empty:
         return forecast.Exog()
     weeks = [cast(pd.Timestamp, pd.Timestamp(ds)).date() for ds in series["ds"]]
@@ -129,7 +131,7 @@ async def exogenous(session: AsyncSession, series: pd.DataFrame) -> forecast.Exo
     rows = (
         await session.execute(
             select(PriceIndex.product_id, PriceIndex.day, PriceIndex.index_4w).where(
-                PriceIndex.day >= first
+                PriceIndex.day >= first, PriceIndex.day <= cutoff
             )
         )
     ).all()
@@ -256,8 +258,9 @@ async def run(settings: Settings, args: argparse.Namespace) -> list[dict[str, An
         async with AsyncSession(engine, expire_on_commit=False) as session:
             lines = await order_lines(session, args.data_source)
             today: date = args.today
-            series = forecast.weekly_series(lines, forecast.last_complete_week(today))
-            exog = await exogenous(session, series)
+            last_week = forecast.last_complete_week(today)
+            series = forecast.weekly_series(lines, last_week)
+            exog = await exogenous(session, series, last_week + timedelta(days=6))
     finally:
         await engine.dispose()
     costs = forecast.Costs(underage=args.tau, overage=1 - args.tau)

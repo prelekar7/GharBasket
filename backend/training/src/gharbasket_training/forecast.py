@@ -18,8 +18,12 @@ ones next to AutoETS and the two baselines.
   {1, 2}. The features of step h are lags 1-3 counted from the origin (y shifted by h, h+1, h+2),
   the 4-week mean up to the origin, the target week of the year on the circle, the festival and
   fast days of the target week (M2's calendar is known in advance) and the product's mandi price
-  index. It takes part in a backtest window only when that window has `LGBM_MIN_ROWS` training
-  rows for every step; its residuals enter the same per-step conformal calibration.
+  index as of the origin (the last weekly index on or before the origin week's end, so step h
+  reads the index h weeks before the target; never the target week's own). Fixed seed, one
+  thread, LightGBM's deterministic mode. It takes part in a backtest window only when that
+  window has `LGBM_MIN_ROWS` training rows for every step; its residuals enter the same
+  per-step conformal calibration. AutoETS sits out a window it refuses (never replaced by
+  Naive's answer under its name).
 - Backtest (eval protocol §3): rolling origin, an origin every week, a 2-week horizon, as many
   origins as the history allows (at least `MIN_ORIGINS`, at most `MAX_ORIGINS`). Every model is
   scored on the same windows: those where every model could forecast (a model that would cut
@@ -44,6 +48,7 @@ ones next to AutoETS and the two baselines.
 
 import math
 import warnings
+from bisect import bisect_right
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, cast
@@ -74,6 +79,10 @@ LGBM_PARAMS: dict[str, Any] = {
     "feature_fraction": 0.9,
     "verbosity": -1,
     "seed": 7,
+    # Reproducible boosters: same data and params, same model (the protocol reruns seeds).
+    "deterministic": True,
+    "force_row_wise": True,  # LightGBM's advice with `deterministic` on
+    "num_threads": 1,
 }
 LGBM_ROUNDS = 200
 LINE_COLUMNS = ["hub_id", "product_id", "order_id", "delivery_date", "order_kind", "qty"]
@@ -95,8 +104,9 @@ class Costs:
 @dataclass
 class Exog:
     """What is known in advance (v1, M10 §3.6): per week `weeks` (ds, festival_days, fast_days)
-    and per product x week `prices` (unique_id, ds, price_index: 1.0 = usual). Missing weeks
-    count as no festival and the usual price."""
+    and per product x week `prices` (unique_id, ds, price_index: 1.0 = usual; the mean of the
+    week's daily indices, known once the week has ended). Missing weeks count as no festival;
+    a product with no index on or before the origin counts as usual-priced."""
 
     weeks: pd.DataFrame | None = None
     prices: pd.DataFrame | None = None
@@ -202,6 +212,9 @@ def weekly_series(lines: pd.DataFrame, last_week: date) -> pd.DataFrame:
 
 
 def _statsforecast(train: pd.DataFrame, h: int) -> pd.DataFrame:
+    """StatsForecast's models for every series of `train`. When AutoETS refuses the window (rare
+    with `MIN_POINTS` = 7) the others answer without it: the answer has no AutoETS column, so
+    AutoETS sits that window out. Naive's answer is never relabelled as AutoETS."""
     from statsforecast import StatsForecast
     from statsforecast.models import AutoETS, CrostonOptimized, Naive, SeasonalNaive
 
@@ -211,20 +224,43 @@ def _statsforecast(train: pd.DataFrame, h: int) -> pd.DataFrame:
         try:
             sf = StatsForecast(models=[AutoETS(season_length=1), *simple], freq="W-MON", n_jobs=1)
             return cast(pd.DataFrame, sf.forecast(df=train, h=h))
-        except (NotImplementedError, ValueError):  # AutoETS refuses tiny series
-            answer = cast(
-                pd.DataFrame,
-                StatsForecast(models=simple, freq="W-MON", n_jobs=1).forecast(df=train, h=h),
-            )
-            answer["AutoETS"] = answer["Naive"]
-            return answer
+        except (NotImplementedError, ValueError):  # AutoETS refused a series of this window
+            sf = StatsForecast(models=simple, freq="W-MON", n_jobs=1)
+            return cast(pd.DataFrame, sf.forecast(df=train, h=h))
+
+
+def _price_as_of(df: pd.DataFrame, prices: pd.DataFrame, h: int) -> np.ndarray:
+    """Per row of `df` (a target week): the product's last weekly price index on or before the
+    origin, the week `h` before the target (1.0 when there is none). Never a later week's."""
+    known: dict[str, tuple[list[pd.Timestamp], list[float]]] = {}
+    for uid, ds, index in sorted(
+        zip(
+            prices["unique_id"].astype(str),
+            (cast(pd.Timestamp, pd.Timestamp(d)) for d in prices["ds"]),
+            prices["price_index"].astype(float),
+            strict=True,
+        ),
+        key=lambda row: (row[0], row[1]),
+    ):
+        weeks, values = known.setdefault(uid, ([], []))
+        weeks.append(ds)
+        values.append(float(index))
+    out = np.ones(len(df), dtype=float)
+    step = pd.Timedelta(weeks=h)
+    for i, (uid, ds) in enumerate(zip(df["unique_id"], df["ds"], strict=True)):
+        weeks, values = known.get(str(uid), ([], []))
+        k = bisect_right(weeks, cast(pd.Timestamp, pd.Timestamp(ds)) - step)
+        if k:
+            out[i] = values[k - 1]
+    return out
 
 
 def _features(frame: pd.DataFrame, exog: Exog | None, h: int) -> pd.DataFrame:
     """The features of horizon step `h` for every row of `frame` (unique_id, ds, y; each series
     on a gap-free weekly grid) taken as a target week: lags 1-3 counted from the origin (the week
     `h` before the target), the 4-week mean up to the origin, the target week of the year on the
-    circle, and the exogenous columns (zeros and 1.0 where unknown)."""
+    circle, the festival and fast days of the target week, and the price index as of the origin
+    (`_price_as_of`)."""
     df = frame.sort_values(["unique_id", "ds"]).reset_index(drop=True).copy()
     by_series = df.groupby("unique_id")["y"]
     for lag in LAGS:
@@ -240,14 +276,10 @@ def _features(frame: pd.DataFrame, exog: Exog | None, h: int) -> pd.DataFrame:
         df["festival_days"], df["fast_days"] = 0.0, 0.0
     prices = exog.prices if exog is not None else None
     if prices is not None and not prices.empty:
-        df = df.merge(
-            prices[["unique_id", "ds", "price_index"]], on=["unique_id", "ds"], how="left"
-        )
-        df["price_index"] = df.groupby("unique_id")["price_index"].ffill()
+        df["price_index"] = _price_as_of(df, prices, h)
     else:
         df["price_index"] = 1.0
     df[["festival_days", "fast_days"]] = df[["festival_days", "fast_days"]].fillna(0.0)
-    df["price_index"] = df["price_index"].fillna(1.0)
     return df
 
 
