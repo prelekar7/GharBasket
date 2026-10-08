@@ -11,7 +11,10 @@ What a report holds (v0, October 2026):
   protocol's five seeds: acceptance, edits per box, distinct perishables, variety, preference, relaxed
   and infeasible weeks, cost and hard-rule violations (`planner.check()`, must be 0); each arm against
   each baseline as the per-seed paired difference (mean ± 95 % t-CI, acceptance first); the M-C
-  hypotheses with their intervals and a verdict on the primary metric, acceptance.
+  hypotheses with their intervals and a verdict on the primary metric, acceptance. `cpsat_v2` is
+  paired with `cpsat` instead, over all weeks and over weeks ≥ 2 (before them it plans exactly as
+  v1), with its own verdict: paired acceptance CI lower bound ≥ 0, hard rules kept, perishables
+  ≤ v1 + 1, none below 5 seeds (protocol §7, 8 Oct).
 - **RQ1 — pantry baseline:** predicting each daily-use item's consumption a week ahead, as quantity MAE
   over the weekly quantity (Σ |error| / Σ actual per household item, zero weeks kept): the family-size
   rule table (static) and a running mean of the weeks observed so far (the cold-start curve, k observed
