@@ -14,6 +14,8 @@ from gharbasket.modules.catalog.models import Product, Recipe, RecipeIngredient
 from gharbasket.modules.catalog.pricing import prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
 from gharbasket.modules.catalog.service import step_label
+from gharbasket.modules.catalog.substitutes import substitutes
+from gharbasket.platform.errors import ProblemError
 
 __all__ = [
     "LineProduct",
@@ -26,6 +28,7 @@ __all__ = [
     "plan_catalog",
     "product_ids_by_slug",
     "step_label",
+    "substitute_ids",
 ]
 
 
@@ -71,6 +74,18 @@ async def line_products(
         )
         for p in products
     }
+
+
+async def substitute_ids(
+    session: AsyncSession, product_id: uuid.UUID, hub_id: uuid.UUID | None, limit: int = 10
+) -> list[uuid.UUID]:
+    """The ranked substitutes of a product (what `GET /v1/products/{id}/substitutes` shows);
+    empty for an unknown product. M3 accepts a swap only from this list."""
+    try:
+        ranked = await substitutes(session, product_id, hub_id, limit)
+    except ProblemError:
+        return []
+    return [c.product.id for c in ranked]
 
 
 # --- what the weekly planner needs (M3 §3.1, M10 §3.1) ----------------------------------------
