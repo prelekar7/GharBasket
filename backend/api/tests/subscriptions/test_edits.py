@@ -165,7 +165,13 @@ async def test_edit_approve_hand_over_and_skip(
     feedback = (
         await db_session.execute(select(EditFeedback).where(EditFeedback.cycle_id == cycle_id))
     ).scalars()
+    feedback = feedback.all()
     assert sorted(row.action for row in feedback) == ["added", "qty_up", "removed", "swapped"]
+    # Stamped from the service clock, not Postgres now(), so simulated time reaches them.
+    assert {row.at for row in feedback} == {NOW}
+    cycle_row = await db_session.get(WeeklyCycle, uuid.UUID(cycle_id))
+    assert cycle_row is not None
+    assert (cycle_row.generated_at, cycle_row.notice_sent_at) == (NOW, NOW)
 
     # Approval hands the box to M4 in the same transaction: the answer carries the order.
     approved = await api.post(
@@ -307,6 +313,7 @@ async def test_auto_approve_the_cutoff_and_the_feedback_window(
             (product, "just_right"),
             (another, "wasted"),
         }
+        assert {r.at for r in rows} == {datetime(2026, 10, 14, 8, 0, tzinfo=UTC)}
         await db_session.commit()
         stranger = await api.post(
             f"/v1/cycles/{priya_cycle['id']}/feedback",

@@ -327,7 +327,8 @@ async def generate_cycle(
         meal_plan=box.meal_plan,
         highlights=box.highlights,
         status="awaiting_approval" if notice_now else "draft",
-        notice_sent_at=datetime.now(UTC) if notice_now else None,
+        generated_at=now(),
+        notice_sent_at=now() if notice_now else None,
     )
     try:
         async with session.begin_nested():
@@ -642,6 +643,7 @@ async def edit_lines(
                 product_id=op.product_id,
                 action=action,
                 substitute_product_id=op.substitute_id if action == "swapped" else None,
+                at=now(),
             )
         )
         await session.flush()
@@ -852,6 +854,7 @@ async def record_feedback(
                     household_id=cycle.household_id,
                     product_id=product_id,
                     signal=signal,
+                    at=now(),
                 )
             )
         else:
