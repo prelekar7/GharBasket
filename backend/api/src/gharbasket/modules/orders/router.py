@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query, Response, status
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders import service
 from gharbasket.modules.orders.models import Order, Slot
