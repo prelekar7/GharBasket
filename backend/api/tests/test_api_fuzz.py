@@ -79,11 +79,15 @@ def fuzz_database_url(database_url: str) -> Iterator[str]:
 def fuzz_app(fuzz_database_url: str) -> FastAPI:
     # APP_ENV=dev: the fuzzer signs in with dev_phone. No Valkey: rate limits stay out of the way.
     # A webhook secret, so fuzzed webhooks reach the signature check (401) instead of the
-    # "payments not configured" 503 a server error check would flag.
+    # "payments not configured" 503 a server error check would flag. Storage settings for the
+    # same reason: presigning signs locally and never reaches the (absent) endpoint.
     settings = make_settings(
         app_env="dev",
         database_url=fuzz_database_url,
         razorpay_webhook_secret="fuzz-webhook-secret",
+        s3_endpoint_url="http://127.0.0.1:9",
+        s3_access_key="fuzz",
+        s3_secret_key="fuzz-storage-secret",
     )
     return create_app(settings)
 
