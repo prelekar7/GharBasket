@@ -37,7 +37,11 @@ from gharbasket.platform.settings import Settings
 
 log = structlog.get_logger("gharbasket.intel_gateway")
 
+ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a cold start
+
 __all__ = [
+    "AssignRequest",
+    "KitchenAssignment",
     "PantryItem",
     "PantryObservation",
     "PantryQuantities",
@@ -46,6 +50,7 @@ __all__ = [
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
+    "assign_kitchens",
     "latest_metrics",
     "latest_prediction",
     "pantry_quantities",
@@ -130,8 +135,9 @@ async def assign_kitchens(
     for_date: date | None = None,
 ) -> KitchenAssignment | None:
     """Tomorrow's tiffin portions to kitchens from the ML service (M10 §3.5), kept in
-    `intel.predictions` (kind `assignment`, subject the hub). None when the service does not
-    answer: M8's job assigns greedily by distance itself (M8 §6)."""
+    `intel.predictions` (kind `assignment`, subject the hub). `status: partial` lists the orders
+    no kitchen could take in `unassigned`. None when the service does not answer within
+    `time_limit_s` plus a margin: M8's job assigns greedily by distance itself (M8 §6)."""
     if not settings.ml_service_url:
         return None
     headers = {}
@@ -142,7 +148,7 @@ async def assign_kitchens(
             f"{settings.ml_service_url.rstrip('/')}/assign/kitchens",
             json=request.model_dump(mode="json"),
             headers=headers,
-            timeout=max(settings.ml_timeout_s, request.time_limit_s + 5.0),
+            timeout=max(settings.ml_timeout_s, request.time_limit_s + ASSIGN_MARGIN_S),
         )
         response.raise_for_status()
         plan = KitchenAssignment.model_validate(response.json())

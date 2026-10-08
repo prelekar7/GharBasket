@@ -235,31 +235,35 @@ class RoutePlan(BaseModel):
 
 
 class TiffinOrder(BaseModel):
-    id: str
-    lat: float
-    lng: float
-    portions: int
+    id: str = Field(min_length=1, max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    portions: int = Field(ge=1, le=200)
     skills: list[str] = Field(default_factory=list)
 
 
 class Kitchen(BaseModel):
-    id: str
-    lat: float
-    lng: float
-    max_portions: int
+    id: str = Field(min_length=1, max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    max_portions: int = Field(ge=0, le=1000)
     skills: list[str] = Field(default_factory=list)
-    rating: float = 4.5
-    earnings_paise: int = 0
+    rating: float = Field(default=4.5, ge=0, le=5)
+    earnings_paise: int = Field(default=0, ge=0, le=10**12)
 
 
 class AssignRequest(BaseModel):
-    orders: list[TiffinOrder] = Field(min_length=1)
-    kitchens: list[Kitchen] = Field(min_length=1)
-    fairness_lambda: float = 0.5
-    rating_floor: float = 3.8
-    max_km: float = 5.0
-    paise_per_portion: int = 6000
-    time_limit_s: float = 5.0
+    """The ML service's bounds, mirrored so a bad request fails here rather than as a fallback."""
+
+    orders: list[TiffinOrder] = Field(min_length=1, max_length=2000)
+    kitchens: list[Kitchen] = Field(min_length=1, max_length=300)
+    fairness_lambda: float = Field(default=300.0, ge=0, le=10_000)  # paise per portion
+    rating_floor: float = Field(default=3.8, ge=0, le=5)
+    max_km: float = Field(default=5.0, gt=0, le=50)
+    paise_per_portion: int = Field(default=6000, ge=1, le=100_000)
+    quality_paise_per_star: int = Field(default=500, ge=0, le=10_000)
+    max_kitchens_per_order: int = Field(default=15, ge=1, le=300)
+    time_limit_s: float = Field(default=5.0, ge=0.1, le=20.0)
 
 
 class Assignment(BaseModel):
@@ -269,18 +273,32 @@ class Assignment(BaseModel):
     km: float
 
 
+class Unassigned(BaseModel):
+    order_id: str
+    reason: Literal[
+        "below_rating_floor", "no_skills", "too_many_portions", "out_of_reach", "no_room"
+    ]
+
+
+class KitchenEarnings(BaseModel):
+    kitchen_id: str
+    earnings_paise: int
+
+
 class AssignSummary(BaseModel):
     portions: int
     kitchens_used: int
     km_per_portion: float
     cost_paise_per_portion: int
     gini: float
-    earnings_paise: list[int]
+    gini_eligible: float
+    earnings_paise: list[KitchenEarnings]
 
 
 class KitchenAssignment(BaseModel):
-    status: Literal["solved", "fallback", "infeasible"]
+    status: Literal["solved", "partial", "fallback", "infeasible"]
     assignments: list[Assignment]
+    unassigned: list[Unassigned]
     summary: AssignSummary | None
     seconds: float
     model: str
