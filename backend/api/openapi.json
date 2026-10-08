@@ -685,6 +685,114 @@
         "title": "CycleStep",
         "type": "object"
       },
+      "DataExportDownload": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "size_bytes": {
+            "examples": [
+              48211
+            ],
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "url": {
+            "description": "A signed GET link, valid 5 minutes; GET again for a fresh one",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at",
+          "size_bytes"
+        ],
+        "title": "DataExportDownload",
+        "type": "object"
+      },
+      "DataExportOut": {
+        "description": "A copy of your data: one JSON file, built within a day and kept 7 days.",
+        "properties": {
+          "download": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataExportDownload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while ready"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the file is deleted (7 days after ready)",
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "ready_within_hours": {
+            "examples": [
+              24
+            ],
+            "title": "Ready Within Hours",
+            "type": "integer"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "building",
+              "ready",
+              "failed",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "requested_at",
+          "ready_at",
+          "expires_at",
+          "ready_within_hours",
+          "download"
+        ],
+        "title": "DataExportOut",
+        "type": "object"
+      },
       "DayOut": {
         "properties": {
           "date": {
@@ -8951,6 +9059,108 @@
         ],
         "summary": "Change name, language or senior mode (only the fields sent)",
         "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me/data-export": {
+      "get": {
+        "operationId": "my_export_v1_me_data_export_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.export_not_found"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your latest data export, with a fresh 5-minute download link while it is ready",
+        "tags": [
+          "identity",
+          "identity"
+        ]
+      },
+      "post": {
+        "operationId": "ask_for_export_v1_me_data_export_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.export_rate_limited (more than 5 a day; see Retry-After)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Ask for a copy of your data (one per IST day; asking again answers that export)",
+        "tags": [
+          "identity",
           "identity"
         ]
       }

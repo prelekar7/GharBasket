@@ -8,12 +8,15 @@
 import uuid
 from dataclasses import dataclass
 from datetime import time
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import service
 from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED
-from gharbasket.modules.orders.models import Order, OrderLine
+from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine
 from gharbasket.modules.orders.service import (
     ApprovedCycle,
     CycleLine,
@@ -36,6 +39,7 @@ __all__ = [
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
+    "export_for_user",
     "get",
     "mark_shortage",
     "orders_for_delivery",
@@ -101,3 +105,42 @@ async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
     return SlotRef(
         slot.id, slot.hub_id, slot.label, slot.kind, slot.start_time, slot.end_time, slot.active
     )
+
+
+async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
+    """M4's section of the user's data export (M1 §3.3), read-only: orders with lines and
+    timelines, and issues (their photos counted, never included)."""
+    household = await identity_api.household_for_user(session, user_id)
+    if household is None:
+        return {"orders": [], "issues": []}
+    orders = list(
+        (
+            await session.execute(
+                select(Order)
+                .where(Order.household_id == household.id)
+                .order_by(Order.delivery_date, Order.id)
+            )
+        ).scalars()
+    )
+    ids = [order.id for order in orders]
+    found: dict[uuid.UUID, dict[str, list[dict[str, Any]]]] = {
+        i: {"lines": [], "timeline": []} for i in ids
+    }
+    lines = await session.execute(select(OrderLine).where(OrderLine.order_id.in_(ids)))
+    for line in lines.scalars():
+        found[line.order_id]["lines"].append(line.as_dict(exclude={"order_id"}))
+    events = await session.execute(
+        select(OrderEvent).where(OrderEvent.order_id.in_(ids)).order_by(OrderEvent.id)
+    )
+    for event in events.scalars():
+        found[event.order_id]["timeline"].append(event.as_dict(exclude={"order_id"}))
+    return {
+        "orders": [{**o.as_dict(exclude={"data_source"}), **found[o.id]} for o in orders],
+        "issues": await _issues_for_export(session, ids),
+    }
+
+
+async def _issues_for_export(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[Any]:
+    # TODO(M4 order issues): the issues table arrives with feat/M4-order-issues. Then list each
+    # issue of these orders with `photo_count` (the photos themselves are never exported).
+    return []

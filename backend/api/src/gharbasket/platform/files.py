@@ -117,6 +117,21 @@ class ObjectStore:
             raise storage_unavailable() from exc
         return ObjectInfo(found["ContentType"], int(found["ContentLength"]))
 
+    async def put(self, key: str, body: bytes, content_type: str) -> None:
+        """Write an object the server made itself (M1's data export); apps upload by presign."""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            await asyncio.to_thread(
+                self.client.put_object,
+                Bucket=self.bucket,
+                Key=key,
+                Body=body,
+                ContentType=content_type,
+            )
+        except (BotoCoreError, ClientError) as exc:
+            raise storage_unavailable() from exc
+
     async def delete(self, keys: Sequence[str]) -> None:
         """Delete objects; a key that is already gone is not an error (S3 semantics)."""
         for start in range(0, len(keys), 1000):  # DeleteObjects takes at most 1,000 keys
@@ -198,6 +213,33 @@ async def claim(
         upload.claimed_by, upload.claimed_at = by, datetime.now(UTC)
         await session.flush()
     return upload if upload.claimed_by == by else None
+
+
+async def record(
+    session: AsyncSession,
+    key: str,
+    *,
+    user_id: uuid.UUID,
+    purpose: str,
+    content_type: str,
+    size_bytes: int,
+    by: str,
+    delete_after: datetime,
+) -> Upload:
+    """Record an object the server writes itself (`store.put`), already claimed by module `by`,
+    so sweep_uploads deletes it after `delete_after`. Record it before the put, in the caller's
+    transaction; recording the same key again (a retried build) updates the row."""
+    if purpose in PURPOSES:
+        raise ValueError(f"{purpose!r} is uploaded by the apps through presign")
+    upload = await session.get(Upload, key, with_for_update=True)
+    if upload is None:
+        upload = Upload(key=key, user_id=user_id, purpose=purpose)
+        session.add(upload)
+    upload.content_type, upload.size_bytes = content_type, size_bytes
+    upload.claimed_by, upload.claimed_at = by, datetime.now(UTC)
+    upload.delete_after = delete_after
+    await session.flush()
+    return upload
 
 
 async def set_delete_after(session: AsyncSession, key: str, at: datetime | None) -> bool:
