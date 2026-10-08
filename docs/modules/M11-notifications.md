@@ -132,7 +132,7 @@ Push tokens are not stored here: they stay on M1's `identity.sessions.push_token
 
 ## 5. Events
 **Published:** none (terminal consumer).
-**Consumed:** the event map in §3.1. Facades used: `identity.api` (`household_owner`, `user_locale`, `active_push_tokens`, `clear_push_token`, `has_consent`).
+**Consumed:** the event map in §3.1. Facades used: `identity.api` (`owner_of_household`, `user_locale`, `active_push_tokens`, `clear_push_token`, `has_consent`).
 
 ## 6. Jobs
 | Job | Trigger | Notes |
