@@ -234,7 +234,7 @@ async def test_learned_cohort_priors_replace_the_rule_table_in_the_twin(
     from gharbasket.modules.subscriptions import rules
     from gharbasket.modules.subscriptions.rules import Member
 
-    api = clients()
+    api = clients(pantry_twin_enabled=True)  # the twin is off by default (PR #118)
     priya, user_id = await as_user(api, google, PRIYA)
     await subscribe(api, priya)
     await generate(api, GENERATE_AT)
