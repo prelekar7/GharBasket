@@ -4,17 +4,22 @@ A stop is a society (the captain does the last 50 metres). Each van leaves the h
 its drops, hands crates over inside the captain's window, collects empties and donations on the
 way, drops donations at the food bank and is back by the slot's end. The model is OR-Tools'
 CVRPTW with pickups and deliveries, solved in **two waves** (the early-window societies first,
-then the late-window ones with the same vans once they are back and reloaded): each wave is a
-plain CVRPTW, so it keeps the solver's speed and the fleet falls by 40-45 % (S-3).
+then the late-window ones with the same vans once they are back and reloaded, never more vans
+than the fleet): each wave is a plain CVRPTW, so it keeps the solver's speed and the fleet falls
+by 40-45 % (S-3).
 
 Distances come from OSRM when the service has a road network, else from the haversine formula
-scaled by a detour factor (`source: "haversine"`): worse, never blocking. An independent checker
-replays every plan (windows, loads, pairing, return time) before it is answered.
+scaled by a detour factor (`source: "haversine"`): worse, never blocking. OSRM gets a short
+timeout so the gateway's budget holds. An independent checker replays every plan (windows,
+loads, pairing, return time, fleet size) before it is answered.
 """
 
+import asyncio
+import logging
 import math
 import time
 from dataclasses import dataclass, field
+from typing import Self
 
 import httpx2
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
@@ -25,13 +30,15 @@ from gharbasket_ml.schemas import (
     RouteStopOut,
     RouteSummary,
     RouteVanOut,
-    StopIn,
 )
+
+log = logging.getLogger(__name__)
 
 MODEL = "cvrptw-waves-v0"
 DETOUR = 1.3  # road distance over the straight line in a dense suburb
 HAVERSINE_SPEED_MPS = 6.0  # about 22 km/h door to door, before the traffic factor
 MAX_TABLE = 500  # osrm-routed --max-table-size in the image and compose
+OSRM_TIMEOUT_S = 2.5  # the default of Settings.osrm_timeout_s
 
 
 @dataclass
@@ -102,30 +109,67 @@ def haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
     return 2 * 6_371_000 * math.asin(math.sqrt(h))
 
 
+def haversine_pair(a: tuple[float, float], b: tuple[float, float]) -> tuple[int, int]:
+    """Metres and seconds between two points: the straight line times the detour factor."""
+    metres = round(haversine_m(a, b) * DETOUR)
+    return metres, round(metres / HAVERSINE_SPEED_MPS)
+
+
 def haversine_matrix(points: list[tuple[float, float]]) -> tuple[list[list[int]], list[list[int]]]:
-    dist = [[round(haversine_m(a, b) * DETOUR) for b in points] for a in points]
+    dist = [[haversine_pair(a, b)[0] for b in points] for a in points]
     dur = [[round(d / HAVERSINE_SPEED_MPS) for d in row] for row in dist]
     return dist, dur
 
 
+def fill_gaps(
+    points: list[tuple[float, float]],
+    distances: list[list[float | None]],
+    durations: list[list[float | None]],
+) -> tuple[list[list[int]], list[list[int]]]:
+    """OSRM's table with its gaps filled: a pair it cannot route (null, e.g. a point off the
+    road network) takes the haversine estimate instead of a free 0 m, 0 s hop."""
+    n = len(points)
+    if len(distances) != n or len(durations) != n:
+        raise ValueError("the OSRM table does not match the points")
+    dist: list[list[int]] = []
+    dur: list[list[int]] = []
+    gaps = 0
+    for i in range(n):
+        if len(distances[i]) != n or len(durations[i]) != n:
+            raise ValueError("the OSRM table does not match the points")
+        drow, trow = [], []
+        for j in range(n):
+            d, t = distances[i][j], durations[i][j]
+            if d is None or t is None:
+                gaps += 1
+                d, t = haversine_pair(points[i], points[j])
+            drow.append(round(d))
+            trow.append(round(t))
+        dist.append(drow)
+        dur.append(trow)
+    if gaps:
+        log.warning("osrm_gaps: %d of %d pairs had no route, haversine fills them", gaps, n * n)
+    return dist, dur
+
+
 async def osrm_matrix(
-    osrm_url: str, points: list[tuple[float, float]], timeout_s: float = 20.0
+    osrm_url: str, points: list[tuple[float, float]], timeout_s: float = OSRM_TIMEOUT_S
 ) -> tuple[list[list[int]], list[list[int]]] | None:
-    """Road distances and times from OSRM's table service; None when it does not answer."""
+    """Road distances and times from OSRM's table service; None when it does not answer within
+    `timeout_s` in all (connecting, waiting and reading together)."""
     if len(points) > MAX_TABLE:
         return None
     coords = ";".join(f"{lng:.6f},{lat:.6f}" for lat, lng in points)
     url = f"{osrm_url.rstrip('/')}/table/v1/driving/{coords}?annotations=distance,duration"
     try:
-        async with httpx2.AsyncClient(timeout=timeout_s) as http:
+        async with asyncio.timeout(timeout_s), httpx2.AsyncClient(timeout=timeout_s) as http:
             answer = await http.get(url)
         body = answer.json()
         if answer.status_code != 200 or body.get("code") != "Ok":
             return None
-        dist = [[round(x or 0) for x in row] for row in body["distances"]]
-        dur = [[round(x or 0) for x in row] for row in body["durations"]]
-        return dist, dur
-    except (httpx2.HTTPError, ValueError, KeyError):
+        return fill_gaps(points, body["distances"], body["durations"])
+    except (TimeoutError, httpx2.HTTPError, ValueError, KeyError, TypeError) as exc:
+        log.warning("osrm_unavailable: %s, haversine instead", type(exc).__name__)
         return None
 
 
@@ -193,7 +237,8 @@ def solve_wave(
     if n == 1:
         return []
     reused = len(free_from or [])
-    vans = reused + req.vans.count
+    # The vans back from the first wave plus the rest of the fleet: never more than `count`.
+    vans = reused + max(0, req.vans.count - reused)
     manager = pywrapcp.RoutingIndexManager(n, vans, 0)
     routing = pywrapcp.RoutingModel(manager)
     node = manager.IndexToNode
@@ -292,7 +337,8 @@ def trip_end(inst: Instance, trip: Trip) -> int:
 
 def waves(inst: Instance, limit_s: float) -> list[Trip] | None:
     """The early-window societies first, then the others with the same vans from the moment
-    they are back and reloaded; new vans only where needed. Node indexes are the instance's."""
+    they are back and reloaded; new vans only where needed, and only those of the fleet the
+    first wave left at the hub. Node indexes are the instance's."""
     drops = [i for i, n in enumerate(inst.nodes) if n.kind == "drop"]
     if not drops:
         return []
@@ -327,11 +373,14 @@ def waves(inst: Instance, limit_s: float) -> list[Trip] | None:
 
 
 def check(inst: Instance, trips: list[Trip]) -> Checked:
-    """Replay the trips on the matrix: windows (waiting when early), loads at every stop, each
-    donation on the same van before its food-bank drop, every drop once, back in time, and a
-    van's next trip only after it is back and reloaded."""
+    """Replay the trips on the matrix: no van leaves before the vans are loaded, windows
+    (waiting when early; a drop more than `max_late_s` late is a problem), the food bank's
+    closing time, loads leaving the hub and after every stop, each donation on the same van
+    before its food-bank drop, every stop once, back in time, a van's next trip only after it
+    is back and reloaded, and no more vans than the fleet."""
     req = inst.req
     nodes = inst.nodes
+    cap_kg, cap_crates = req.vans.capacity_kg * 10, req.vans.capacity_crates
     out = Checked(0, 0.0, 0, 0.0, 0.0)
     seen: list[int] = []
     on_time = drops = 0
@@ -343,10 +392,14 @@ def check(inst: Instance, trips: list[Trip]) -> Checked:
     for k, trip in ordered:
         if not trip.stops:
             continue
+        if trip.start < req.depart_s:
+            out.problems.append(f"van {trip.van}: leaves before the vans are loaded")
         if trip.van in back_at and trip.start < back_at[trip.van] + req.vans.reload_s:
             out.problems.append(f"van {trip.van}: a trip leaves before the previous one is back")
         kg = sum(nodes[i].kg for i in trip.stops)
         crates = sum(nodes[i].crates for i in trip.stops)
+        if kg > cap_kg or crates > cap_crates:
+            out.problems.append(f"van {trip.van}: over capacity leaving the hub")
         onboard: set[int] = set()
         t, here, metres = trip.start, 0, 0
         for i in trip.stops:
@@ -361,17 +414,21 @@ def check(inst: Instance, trips: list[Trip]) -> Checked:
                     on_time += 1
                 else:
                     late += t - nd.window[1]
+                    if t - nd.window[1] > req.max_late_s:
+                        out.problems.append(f"{nd.id}: {(t - nd.window[1]) // 60} min late")
                 kg += nd.donation_kg - nd.kg
                 crates += nd.empties - nd.crates + (1 if nd.donation_kg else 0)
                 if nd.donation_kg:
                     onboard.add(i)
             elif nd.kind == "bank" and nd.donation_of is not None:
+                if t > nd.window[1]:
+                    out.problems.append(f"van {trip.van}: reaches the food bank after it closes")
                 if nd.donation_of not in onboard:
                     out.problems.append(f"van {trip.van}: food bank before its pickup")
                 onboard.discard(nd.donation_of)
                 kg -= nodes[nd.donation_of].donation_kg
                 crates -= 1
-            if kg > req.vans.capacity_kg * 10 or crates > req.vans.capacity_crates:
+            if kg > cap_kg or crates > cap_crates:
                 out.problems.append(f"van {trip.van}: over capacity at {nd.id}")
             t += inst.service_s(i)
             here = i
@@ -386,10 +443,15 @@ def check(inst: Instance, trips: list[Trip]) -> Checked:
         out.ends[k] = t
         out.km += metres / 1000
         cost += metres / 1000 * req.cost.paise_per_km + (t - trip.start) * req.cost.wage_paise_per_s
-    expected = {i for i, n in enumerate(nodes) if i}
-    if set(seen) != expected or len(seen) != len(set(seen)):
-        out.problems.append("a stop is missing or visited twice")
+    missing = sorted(set(range(1, len(nodes))) - set(seen))
+    if missing:
+        out.problems.append("not served: " + ", ".join(nodes[i].id for i in missing))
+    twice = sorted({i for i in seen if seen.count(i) > 1})
+    if twice:
+        out.problems.append("visited twice: " + ", ".join(nodes[i].id for i in twice))
     out.vans = len({t.van for t in trips if t.stops})
+    if out.vans > req.vans.count:
+        out.problems.append(f"{out.vans} vans used, more vans than the fleet of {req.vans.count}")
     cost += out.vans * req.cost.fixed_paise_per_van
     out.cost_paise = round(cost)
     out.on_time = on_time / max(drops, 1)
@@ -400,40 +462,69 @@ def check(inst: Instance, trips: list[Trip]) -> Checked:
 # --- the service ------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Load:
+    """A trip's load so far: the peak (leaving the hub or after any stop) and the load after
+    the last stop. Another stop adds its crates to everything before it (they leave the hub
+    with the van) and its pickups (empties, a donation crate) after it."""
+
+    kg_peak: int = 0
+    kg_end: int = 0
+    crates_peak: int = 0
+    crates_end: int = 0
+
+    def then(self, nd: Node) -> Self:
+        picked = nd.empties + (1 if nd.donation_kg else 0)
+        return type(self)(
+            max(self.kg_peak + nd.kg, self.kg_end + nd.donation_kg),
+            self.kg_end + nd.donation_kg,
+            max(self.crates_peak + nd.crates, self.crates_end + picked),
+            self.crates_end + picked,
+        )
+
+    def within(self, cap_kg: int, cap_crates: int) -> bool:
+        return self.kg_peak <= cap_kg and self.crates_peak <= cap_crates
+
+
 def nearest_neighbour(inst: Instance) -> list[Trip]:
-    """The baseline (and the answer when the solver finds nothing): each van takes the nearest
-    unserved society that still fits, leaving just in time for its first window."""
+    """The baseline (and the answer when the solver finds nothing). A trip takes the nearest
+    unserved society that still fits, with the load on board tracked as the checker does
+    (crates out, empties and donation crates in), then its donations to the food bank. Each
+    trip goes to the van of the fleet that is free first, leaving just in time for its first
+    window; a van goes out again only if it is back by the slot's end. Whatever is left is not
+    placed, and the checker names it."""
     req = inst.req
-    todo = [i for i, n in enumerate(inst.nodes) if n.kind == "drop"]
-    banks = {n.donation_of: j for j, n in enumerate(inst.nodes) if n.kind == "bank"}
+    nodes = inst.nodes
+    cap_kg, cap_crates = req.vans.capacity_kg * 10, req.vans.capacity_crates
+    todo = [i for i, n in enumerate(nodes) if n.kind == "drop"]
+    banks = {n.donation_of: j for j, n in enumerate(nodes) if n.kind == "bank"}
+    free_at = [req.depart_s] * req.vans.count
+    used = [False] * req.vans.count
     trips: list[Trip] = []
-    van = 0
     while todo:
-        kg = crates = 0
-        here, stops = 0, []
+        load, here, stops = Load(), 0, []
         while True:
-            fits = [
-                i
-                for i in todo
-                if kg + inst.nodes[i].kg <= req.vans.capacity_kg * 10
-                and crates + inst.nodes[i].crates + (1 if inst.nodes[i].donation_kg else 0)
-                <= req.vans.capacity_crates
-            ]
+            fits = [i for i in todo if load.then(nodes[i]).within(cap_kg, cap_crates)]
             if not fits:
                 break
             i = min(fits, key=lambda i: inst.dist[here][i])
+            load = load.then(nodes[i])
             todo.remove(i)
             stops.append(i)
-            kg += inst.nodes[i].kg
-            crates += inst.nodes[i].crates
             here = i
-        for i in list(stops):
-            if i in banks:
-                stops.append(banks[i])
-        first = min(inst.nodes[i].window[0] for i in stops if inst.nodes[i].kind == "drop")
-        start = max(req.depart_s, first - inst.travel_s(0, stops[0]))
-        trips.append(Trip(van, start, stops))
-        van += 1
+        if not stops:
+            break  # every society left is bigger than a van
+        stops += [banks[i] for i in stops if i in banks]
+        van = min(range(req.vans.count), key=lambda v: free_at[v])
+        first = min(nodes[i].window[0] for i in stops if nodes[i].kind == "drop")
+        start = max(free_at[van], first - inst.travel_s(0, stops[0]))
+        trip = Trip(van, start, stops)
+        end = trip_end(inst, trip)
+        if used[van] and end > req.return_by_s:
+            break  # no van can take another trip in time
+        used[van] = True
+        free_at[van] = end + req.vans.reload_s
+        trips.append(trip)
     return trips
 
 
@@ -481,16 +572,16 @@ def plan(inst: Instance, limit_s: float, source: str) -> RouteResponse:
     )
 
 
-async def solve(req: RouteRequest, osrm_url: str | None) -> RouteResponse:
+async def solve(
+    req: RouteRequest, osrm_url: str | None, osrm_timeout_s: float = OSRM_TIMEOUT_S
+) -> RouteResponse:
+    """The endpoint: the matrix (OSRM within `osrm_timeout_s`, else haversine), then the waves
+    and the checker on a worker thread so the event loop stays free."""
     nodes = nodes_of(req)
     points = [(n.lat, n.lng) for n in nodes]
-    matrix = await osrm_matrix(osrm_url, points) if osrm_url else None
+    matrix = await osrm_matrix(osrm_url, points, osrm_timeout_s) if osrm_url else None
     source = "osrm"
     if matrix is None:
         matrix, source = haversine_matrix(points), "haversine"
     inst = Instance(nodes, matrix[0], matrix[1], req)
-    return plan(inst, req.time_limit_s, source)
-
-
-def stops_summary(stops: list[StopIn]) -> dict[str, int]:
-    return {"stops": len(stops), "crates": sum(s.crates for s in stops)}
+    return await asyncio.to_thread(plan, inst, req.time_limit_s, source)

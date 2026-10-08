@@ -1,6 +1,11 @@
 """Point-in-time household features (`intel.feature_snapshots`, eval protocol §3): everything
-is computed from rows the household had *before* `as_of`, so a model trained on a snapshot
-never sees its future. The leakage test in tests/test_snapshots.py holds this to account.
+is computed from rows the household had *before* `as_of` (strictly: a row stamped exactly at
+`as_of` is not seen), so a model trained on a snapshot never sees its future. The leakage test in
+tests/test_snapshots.py holds this to account.
+
+`as_of` is an order cut-off (`latest_cutoff`): 21:00 IST on the evening before a delivery, the
+moment M4 locks the boxes (`orders.api.cutoff_for`). The nightly run takes the latest cut-off at
+or before the run, so its features describe the household as the planner saw it then.
 
 Features (v0, per household as of a cut-off):
 - weeks_observed: locked boxes delivered before the cut-off
@@ -12,14 +17,17 @@ Features (v0, per household as of a cut-off):
 
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx2
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog.models import Product
+from gharbasket.modules.identity.models import Household
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions.models import (
     BoxLine,
     EditFeedback,
@@ -30,16 +38,26 @@ from gharbasket.modules.subscriptions.rules import DAILY_USE_PER_ADULT_WEEK
 from gharbasket_training.settings import Settings
 
 BASE = {"g": 1, "kg": 1000, "ml": 1, "l": 1000, "piece": 1, "bunch": 1, "pack": 1}
+IST = ZoneInfo("Asia/Kolkata")
+
+
+def latest_cutoff(at: datetime) -> datetime:
+    """The latest order cut-off at or before the instant `at` (21:00 IST every evening)."""
+    today = at.astimezone(IST).date()
+    tonight = orders_api.cutoff_for(today + timedelta(days=1))
+    return tonight if tonight <= at else orders_api.cutoff_for(today)
 
 
 async def build(session: AsyncSession, as_of: datetime) -> dict[uuid.UUID, dict[str, Any]]:
-    """Features per household from what existed before `as_of`."""
-    cutoff_date = as_of.date()
+    """Features per household from what existed before `as_of` (households that still exist)."""
+    cutoff_date = as_of.astimezone(IST).date()
     cycles = (
         (
             await session.execute(
                 select(WeeklyCycle).where(
-                    WeeklyCycle.generated_at < as_of, WeeklyCycle.delivery_date < cutoff_date
+                    WeeklyCycle.generated_at < as_of,
+                    WeeklyCycle.delivery_date < cutoff_date,
+                    WeeklyCycle.household_id.in_(select(Household.id)),
                 )
             )
         )
