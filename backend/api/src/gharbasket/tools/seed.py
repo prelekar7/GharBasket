@@ -335,6 +335,10 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
         await save_category(session, CategoryData(**category))
     saved: list[tuple[str, bool]] = []
     ids: dict[str, uuid.UUID] = {}
+    nutrition = {
+        row["slug"]: {**row["per_100g"], "unit_g": row.get("unit_g"), "source": row["source"]}
+        for row in json.loads((CATALOG_SEED / "nutrition.json").read_text())["items"]
+    }
     for item in json.loads((CATALOG_SEED / "products.json").read_text())["products"]:
         step = item.pop("step")
         data = ProductData(
@@ -344,6 +348,7 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
             tags=tuple(item["tags"]),
             synonyms=tuple(item["synonyms"]),
             data_source="synthetic",
+            nutrition=nutrition.get(item["slug"]),
         )
         product, created = await save_product(session, data)
         saved.append((product.slug, created))

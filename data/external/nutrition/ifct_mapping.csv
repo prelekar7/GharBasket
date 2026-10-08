@@ -1,0 +1,69 @@
+slug,ifct_code,unit_g,note
+palak,C033,100,bunch ~100 g edible
+methi,C020,80,bunch
+coriander,G009,50,bunch
+mint,G016,40,bunch
+dill,,80,manual: IFCT 2017 has no dill leaves row; NIN Nutritive Value of Indian Foods
+curry-leaves,G010,20,bunch
+red-amaranth,C003,100,bunch
+spring-onion,D058,100,bunch; IFCT "Onion stalk"
+tomato,D076,,local variety
+bhindi,D056,,IFCT "Ladies finger"
+brinjal,D010,,
+cauliflower,D036,600,one head ~600 g edible
+cabbage,C015,800,one head
+green-peas,D061,,
+cucumber,D043,,
+bottle-gourd,D007,700,one gourd
+ridge-gourd,D068,,
+bitter-gourd,D004,,
+red-pumpkin,D066,,
+capsicum,D033,,
+french-beans,D049,,
+cluster-beans,D039,,
+drumstick,D046,,
+green-chilli,G001,,
+lemon,E033,40,one lemon ~40 g; IFCT lemon juice
+onion,G017,,
+potato,F006,,
+garlic,G011,,
+ginger,G014,,
+carrot,F002,,
+radish,F010,,
+beetroot,F001,,
+sweet-potato,F013,,
+banana,E012,100,one robusta banana ~100 g edible
+apple,E001,150,one apple
+papaya,E049,900,one papaya edible
+orange,E047,120,one orange pulp
+pomegranate,E055,,
+guava,E028,,
+watermelon,E066,2500,one melon edible
+grapes,E025,,
+chikoo,E060,,IFCT "Sapota"
+mosambi,E034,120,IFCT "Lime sweet pulp"
+custard-apple,E016,,
+pineapple,E053,900,one pineapple edible
+toor-dal,B021,,
+moong-dal,B010,,
+masoor-dal,B013,,
+chana-dal,B001,,
+basmati-rice,A015,,
+kolam-rice,A015,,same IFCT row as basmati (raw milled rice)
+wheat-atta,A019,,
+jowar-atta,A005,,IFCT "Jowar" grain
+besan,B001,,bengal gram dal flour: same row as chana dal
+poha,A011,,IFCT "Rice flakes"
+sabudana,,,manual: sago is not in IFCT 2017; NIN Nutritive Value of Indian Foods
+groundnuts,H012,,
+groundnut-oil,T005,,
+ghee,T013,,
+salt,,,manual: no energy or macronutrients
+turmeric,G033,,
+red-chilli-powder,G022,,IFCT "Chillies red" (dry)
+sugar,,,manual: refined cane sugar is not in IFCT 2017; NIN Nutritive Value of Indian Foods
+jaggery,I001,,
+milk,L002,,cow milk
+curd,,,manual: curd is not in IFCT 2017; NIN Nutritive Value of Indian Foods (cow milk curd)
+paneer,L003,,
+eggs,M001,50,one egg ~50 g

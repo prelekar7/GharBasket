@@ -101,7 +101,8 @@ class Product(Base):
     step_qty: Mapped[int] = mapped_column(Integer)
     step_unit: Mapped[str] = mapped_column(String(8))
     shelf_life_h: Mapped[int | None] = mapped_column(Integer)
-    # Per 100 g; null until the nutrition source (IFCT 2017) is settled (spec §11).
+    # Per 100 g from IFCT 2017: {kcal, protein_g, fat_g, carb_g, fibre_g, unit_g?, source}
+    # (data/seeds/catalog/nutrition.json); null for products without a row yet.
     nutrition: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     # Codes such as "leafy", "root", "onion_garlic", "fasting_ok", "high_protein".
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))

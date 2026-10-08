@@ -167,7 +167,7 @@ Weekly fasts that need no calendar (`tuesdays` in M1 `fasting_rules`) are applie
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `catalog.products` | id (uuidv7), slug (unique), kind (veg, fruit, staple, kit, tiffin, salad), category_id, names jsonb `{en, hi, mr}`, step_qty, step_unit, shelf_life_h, nutrition jsonb null, tags[], image_key null, embedding vector(1024) null (with the ML service), active, data_source |
+| `catalog.products` | id (uuidv7), slug (unique), kind (veg, fruit, staple, kit, tiffin, salad), category_id, names jsonb `{en, hi, mr}`, step_qty, step_unit, shelf_life_h, nutrition jsonb `{kcal, protein_g, fat_g, carb_g, fibre_g, unit_g?, source}` per 100 g (IFCT 2017), tags[], image_key null, embedding vector(1024) null (with the ML service), active, data_source |
 | `catalog.categories` | id, slug (unique), names jsonb, parent_id null |
 | `catalog.recipes` | id (uuidv7), slug (unique), names jsonb `{en, hi, mr}`, cuisine, slots[], cook_minutes, servings, diet, rules jsonb `{jain_ok, no_onion_garlic, fasting_ok, diabetic_ok}`, tags[], steps jsonb null, embedding null (later), active, data_source |
 | `catalog.recipe_ingredients` | recipe_id, product_id, qty_per_serving, unit (g, ml, piece, bunch), optional; primary key (recipe_id, product_id) |
@@ -210,5 +210,5 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 M0. The caller's hub comes from their household through `identity.api` (M1). Embeddings via `intel_gateway.api` (M10). No dependency on M3/M4 (they depend on M2).
 
 ## 11. Open questions
-- Source of nutrition data (IFCT 2017 tables) and licensing for the report.
+- **Decided (Oct 2026):** nutrition per 100 g comes from IFCT 2017 (ICMR-NIN) through the `@ifct2017/compositions` transcription, mapped by hand per product (`data/external/nutrition/`); five foods IFCT lacks use the NIN Nutritive Value of Indian Foods. Daily targets per age band are ICMR-NIN RDA 2020 (`rda.json`, a hypothesis until ratified). `ProductOut.nutrition` and the planner catalog's `nutrition_per_serving` carry it.
 - Initial recipe count for the pilot (target ≥ 120 recipes across cuisines).
