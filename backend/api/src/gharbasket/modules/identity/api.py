@@ -1,6 +1,7 @@
 """Facade of M1 Identity & Household: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -52,11 +53,48 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
     return None if row is None else HouseholdRef(*row)
 
 
+@dataclass(frozen=True)
+class UserContact:
+    name: str | None
+    phone_e164: str
+
+
+async def user_contacts(
+    session: AsyncSession, user_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, UserContact]:
+    """Names and phones for hub staff screens (M8 PartnerStaff); never for customers."""
+    if not user_ids:
+        return {}
+    rows = await session.execute(
+        select(User.id, User.name, User.phone_e164).where(User.id.in_(set(user_ids)))
+    )
+    return {user_id: UserContact(name, phone) for user_id, name, phone in rows.all()}
+
+
 async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> uuid.UUID | None:
     """The user whose wallet pays for this household's boxes."""
     return (
         await session.execute(select(Household.owner_user_id).where(Household.id == household_id))
     ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class Contact:
+    name: str | None
+    phone_e164: str
+
+
+async def contact_for_household(session: AsyncSession, household_id: uuid.UUID) -> Contact | None:
+    """The owner's name and phone, for M4's issue triage where the hub calls the customer back
+    (M4 §3.6). The caller audit-logs each read."""
+    row = (
+        await session.execute(
+            select(User.name, User.phone_e164)
+            .join(Household, Household.owner_user_id == User.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    return None if row is None else Contact(*row)
 
 
 @dataclass(frozen=True)
@@ -127,6 +165,22 @@ async def household_plan_profile(
     )
 
 
+async def shortage_preferences(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """Each household's choice for a short item, "substitute" or "refund" (spec §3.4), for M6's
+    packing queue and M4's mark_shortage. Read when the shortage is recorded, so a change applies
+    from the moment it is saved; an unknown id reads as "substitute"."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.id, Household.shortage_preference).where(Household.id.in_(ids))
+    )
+    found: dict[uuid.UUID, str] = {household_id: pref for household_id, pref in rows}
+    return {household_id: found.get(household_id, "substitute") for household_id in ids}
+
+
 async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:
     """Households served by this hub with Autopilot on, oldest first (the generation job)."""
     rows = await session.execute(
@@ -141,6 +195,11 @@ async def user_locale(session: AsyncSession, user_id: uuid.UUID) -> str:
     """en-IN, hi-IN or mr-IN: the language of pushes and WhatsApp messages (M11)."""
     locale = await session.scalar(select(User.locale).where(User.id == user_id))
     return locale or "en-IN"
+
+
+async def user_phone(session: AsyncSession, user_id: uuid.UUID) -> str | None:
+    """The E.164 phone WhatsApp messages go to (M11); None for an unknown user."""
+    return await session.scalar(select(User.phone_e164).where(User.id == user_id))
 
 
 @dataclass(frozen=True)

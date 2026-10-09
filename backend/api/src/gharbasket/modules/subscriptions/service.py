@@ -1,6 +1,6 @@
 """Business logic of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery
-days, generating a week's cycle, reading, editing, approving and skipping it, the pantry
-feedback after delivery, and the Budget Lock.
+days, generating a week's cycle, reading, editing, approving, skipping and un-skipping it (§3.3),
+the pantry feedback after delivery, and the Budget Lock.
 
 Approval hands the box to M4 through `orders.api.create_from_cycle` in the same transaction,
 so the answer carries `order_id` and a full slot is refused on the spot; the
@@ -22,6 +22,7 @@ from sqlalchemy import ColumnElement, and_, func, not_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.intel_gateway import api as intel_api
@@ -641,7 +642,8 @@ async def spent_in_month(
     *,
     except_cycle: uuid.UUID | None = None,
 ) -> int:
-    """What the month's approved and locked boxes cost (skipped weeks spend nothing)."""
+    """What the month's approved and locked boxes cost (skipped weeks spend nothing; a box
+    waiting for its payment still counts)."""
     first = month.replace(day=1)
     following = (first + timedelta(days=32)).replace(day=1)
     cycles = [
@@ -652,7 +654,7 @@ async def spent_in_month(
                     WeeklyCycle.household_id == household_id,
                     WeeklyCycle.delivery_date >= first,
                     WeeklyCycle.delivery_date < following,
-                    WeeklyCycle.status.in_(("approved", "locked")),
+                    WeeklyCycle.status.in_(("approved", "locked", "payment_failed")),
                 )
             )
         ).scalars()
@@ -709,15 +711,21 @@ def not_editable(cycle: WeeklyCycle) -> ProblemError:
     )
 
 
-def check_editable(cycle: WeeklyCycle, *, expected_version: int | None = None) -> None:
+def cutoff_passed() -> ProblemError:
+    return ProblemError(409, "subscriptions.cutoff_passed", "The cut-off for this week has passed.")
+
+
+def check_version(cycle: WeeklyCycle, expected_version: int | None) -> None:
     if expected_version is not None and cycle.version != expected_version:
         raise ProblemError(412, "subscriptions.version_conflict", "The week changed; reload it.")
+
+
+def check_editable(cycle: WeeklyCycle, *, expected_version: int | None = None) -> None:
+    check_version(cycle, expected_version)
     if cycle.status not in EDITABLE:
         raise not_editable(cycle)
     if now() >= cycle.cutoff_at:
-        raise ProblemError(
-            409, "subscriptions.cutoff_passed", "The cut-off for this week has passed."
-        )
+        raise cutoff_passed()
 
 
 def _qty(value: int | None) -> int:
@@ -1127,10 +1135,15 @@ async def approve(
 
 
 async def skip(session: AsyncSession, cycle: WeeklyCycle) -> WeeklyCycle:
-    """Skip the week before the cut-off; an order already created is cancelled (M4)."""
+    """Skip the week before the cut-off, or a `payment_failed` week until its grace ends
+    (§3.3); an order already created is cancelled (M4)."""
     if cycle.status == "skipped":
         return cycle
-    check_editable(cycle)
+    if cycle.status == "payment_failed":
+        if now() >= orders_api.grace_until_for(cycle.delivery_date):
+            raise cutoff_passed()
+    else:
+        check_editable(cycle)
     await orders_api.cancel_from_cycle(session, cycle.id)
     cycle.status = "skipped"
     cycle.version += 1
@@ -1147,9 +1160,83 @@ async def skip(session: AsyncSession, cycle: WeeklyCycle) -> WeeklyCycle:
     return cycle
 
 
+async def unskip(
+    session: AsyncSession, cycle: WeeklyCycle, *, expected_version: int
+) -> WeeklyCycle:
+    """A skipped week back to approval before its cut-off (§3.3), with the lines it had when it
+    was skipped: `awaiting_approval`, or `draft` if the box-ready notice never went out.
+
+    The skip cancelled its order, so approving it again creates a new one (M4 keeps `cycle_id`
+    unique only among orders that are not cancelled); the Budget Lock counts it once approved.
+    """
+    check_version(cycle, expected_version)
+    if cycle.status != "skipped":
+        raise ProblemError(409, "subscriptions.not_skipped", "Only a skipped week can come back.")
+    if now() >= cycle.cutoff_at:
+        raise cutoff_passed()
+    subscription = await session.get(Subscription, cycle.subscription_id)
+    if subscription is not None and is_paused_on(subscription, cycle.delivery_date):
+        raise ProblemError(
+            409, "subscriptions.paused", "Your subscription is paused that week; resume it first."
+        )
+    cycle.status = "awaiting_approval" if cycle.notice_sent_at is not None else "draft"
+    cycle.order_id = None
+    cycle.approved_at = None
+    cycle.auto_approved = False
+    cycle.version += 1
+    await session.flush()
+    await publish(
+        session,
+        events.BOX_UNSKIPPED,
+        {
+            "cycle_id": str(cycle.id),
+            "household_id": str(cycle.household_id),
+            "delivery_date": cycle.delivery_date.isoformat(),
+        },
+    )
+    return cycle
+
+
+@dataclass(frozen=True)
+class PaymentDue:
+    order_id: uuid.UUID
+    total_paise: int
+    wallet_paise: int
+    shortfall_paise: int
+    due_at: datetime
+
+
+async def payment_due(session: AsyncSession, cycle: WeeklyCycle) -> PaymentDue | None:
+    """What a `payment_failed` week still needs, with the wallet read live (§3.3); None for any
+    other week, or once the order has moved on (paid or cancelled) before the cycle caught up."""
+    if cycle.status != "payment_failed" or cycle.order_id is None:
+        return None
+    order = await orders_api.get(session, cycle.order_id)
+    if order.status != "payment_failed":
+        return None
+    owner = await identity_api.owner_of_household(session, cycle.household_id)
+    wallet = 0 if owner is None else await billing_api.balance(session, owner)
+    return PaymentDue(
+        order_id=order.id,
+        total_paise=order.total_paise,
+        wallet_paise=wallet,
+        shortfall_paise=max(0, order.total_paise - wallet),
+        due_at=orders_api.grace_until_for(cycle.delivery_date),
+    )
+
+
+async def mark_payment_failed(session: AsyncSession, cycle: WeeklyCycle) -> None:
+    """The cut-off could not debit the box: the cycle mirrors it and shows what is due. Only an
+    approved week moves; a late event after `orders.locked` or a skip changes nothing."""
+    if cycle.status == "approved":
+        cycle.status = "payment_failed"
+        cycle.version += 1
+        await session.flush()
+
+
 async def mark_locked(session: AsyncSession, cycle: WeeklyCycle, order_id: uuid.UUID) -> None:
-    """M4 locked the order at the cut-off: the cycle mirrors it."""
-    if cycle.status in EDITABLE:
+    """M4 locked the order at the cut-off, after a top-up or on `pay`: the cycle mirrors it."""
+    if cycle.status in (*EDITABLE, "payment_failed"):
         cycle.status = "locked"
         cycle.order_id = order_id
         cycle.version += 1

@@ -364,3 +364,72 @@ async def grant_role(
         },
     )
     return grant
+
+
+async def grant_system_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> None:
+    """Grant a role that follows from another module's event (the captain role from M9's
+    appointment): no person grants it, so the audit entry has no actor. Granting a verified role
+    again changes nothing; a user who no longer exists gets nothing."""
+    if await session.get(User, user_id) is None:
+        return
+    existing = await _role(session, user_id, role, scope_id)
+    if existing is not None and existing.status == "verified":
+        return
+    grant = existing or UserRole(
+        user_id=user_id, role=role, scope_type=ROLE_SCOPE[role], scope_id=scope_id
+    )
+    before = {"status": existing.status} if existing is not None else None
+    grant.status = "verified"
+    grant.verified_at = datetime.now(UTC)
+    session.add(grant)
+    await session.flush()
+    await audit.record(
+        session,
+        actor_user_id=None,
+        action="roles.granted",
+        entity_type="user",
+        entity_id=str(user_id),
+        before=before,
+        after={"role": role, "scope_id": str(scope_id) if scope_id else None},
+    )
+
+
+async def revoke_system_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> None:
+    """Remove a role granted by `grant_system_role` (the row is deleted: user_roles has no revoked
+    status; the audit log keeps the history). Nothing to remove changes nothing."""
+    existing = await _role(session, user_id, role, scope_id)
+    if existing is None:
+        return
+    before = {
+        "role": role,
+        "scope_id": str(scope_id) if scope_id else None,
+        "status": existing.status,
+    }
+    await session.delete(existing)
+    await session.flush()
+    await audit.record(
+        session,
+        actor_user_id=None,
+        action="roles.revoked",
+        entity_type="user",
+        entity_id=str(user_id),
+        before=before,
+    )
+
+
+async def _role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> UserRole | None:
+    return (
+        await session.execute(
+            select(UserRole).where(
+                UserRole.user_id == user_id,
+                UserRole.role == role,
+                UserRole.scope_id.is_(None) if scope_id is None else UserRole.scope_id == scope_id,
+            )
+        )
+    ).scalar_one_or_none()
