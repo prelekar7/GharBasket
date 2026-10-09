@@ -19,6 +19,7 @@ from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription,
 from gharbasket.modules.subscriptions.schemas import (
     BudgetLockIn,
     BudgetLockOut,
+    CaptainOut,
     CycleLineOut,
     CycleOut,
     CycleStep,
@@ -99,6 +100,15 @@ async def _slot(session: DbSession, slot_id: uuid.UUID) -> SlotRefOut:
     if slot is None:
         raise ProblemError(500, "subscriptions.slot_missing", "The delivery slot no longer exists.")
     return SlotRefOut(id=slot.id, label=slot.label, start=slot.start, end=slot.end)
+
+
+async def _captain(session: DbSession, society_id: uuid.UUID) -> CaptainOut | None:
+    card = await community_api.captain_card(session, society_id)
+    return (
+        None
+        if card is None
+        else CaptainOut(display_name=card.display_name, photo_url=card.photo_url)
+    )
 
 
 async def _budget_out(session: DbSession, household_id: uuid.UUID, on) -> BudgetLockOut | None:
@@ -201,7 +211,7 @@ async def _cycle_out(
         total_paise=total,
         highlights=[HighlightOut(code=h["code"], params=h.get("params", {})) for h in highlights],
         budget_lock=budget_out,
-        captain=None,
+        captain=await _captain(session, household.society_id),
         order_id=cycle.order_id if cycle else None,
         generated_at=cycle.generated_at if cycle else None,
         approved_at=cycle.approved_at if cycle else None,

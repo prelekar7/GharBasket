@@ -232,8 +232,10 @@ class FeedbackOut(BaseModel):
 
 
 class CaptainOut(BaseModel):
-    name: str
-    flat: str
+    """The society captain's card (M9 §3.2): never a flat or a phone."""
+
+    display_name: str = Field(examples=["Meena tai"])
+    photo_url: str | None
 
 
 class CycleOut(BaseModel):

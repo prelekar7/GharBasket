@@ -192,6 +192,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/captains/{captain_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a captain's appointment now (Idempotency-Key required) */
+        post: operations["end_captain_v1_captains__captain_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/consents": {
         parameters: {
             query?: never;
@@ -1154,6 +1171,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/societies/{society_id}/captains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A society's captain appointments, newest first (hub manager, admin) */
+        get: operations["society_captains_v1_societies__society_id__captains_get"];
+        put?: never;
+        /** Appoint a verified captain who lives here (Idempotency-Key required) */
+        post: operations["appoint_captain_v1_societies__society_id__captains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/societies/{society_id}/delivery-days": {
         parameters: {
             query?: never;
@@ -1442,12 +1477,34 @@ export interface components {
             /** Photo Url */
             photo_url: string | null;
         };
-        /** CaptainOut */
-        CaptainOut: {
-            /** Flat */
-            flat: string;
-            /** Name */
-            name: string;
+        /** CaptainEndIn */
+        CaptainEndIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "stepped_down" | "hub_decision";
+        };
+        /** CaptainIn */
+        CaptainIn: {
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Replace
+             * @description End the current captain (replaced) and appoint this one
+             * @default false
+             */
+            replace: boolean;
+        };
+        /** CaptainsOut */
+        CaptainsOut: {
+            /** Items */
+            items: components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"][];
         };
         /** CategoryPreference */
         CategoryPreference: {
@@ -1546,7 +1603,7 @@ export interface components {
             /** Approved At */
             approved_at: string | null;
             budget_lock: components["schemas"]["BudgetLockOut"] | null;
-            captain: components["schemas"]["CaptainOut"] | null;
+            captain: components["schemas"]["gharbasket__modules__subscriptions__schemas__CaptainOut"] | null;
             /**
              * Cutoff At
              * Format: date-time
@@ -4179,6 +4236,81 @@ export interface components {
              */
             outcome: string;
         };
+        /**
+         * CaptainOut
+         * @description An appointment as hub staff see it (§3.2): never the captain's flat or phone.
+         */
+        gharbasket__modules__community__schemas__CaptainOut: {
+            /**
+             * Appointed By
+             * @description auto: on partners.verified
+             * @enum {string}
+             */
+            appointed_by: "auto" | "hub";
+            /**
+             * Display Name
+             * @description From M8
+             * @example Meena tai
+             */
+            display_name: string | null;
+            /** End Reason */
+            end_reason: ("stepped_down" | "replaced" | "hub_decision" | "suspended") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Photo Url
+             * @description null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "ended";
+            /** Until */
+            until: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * CaptainOut
+         * @description The society captain's card (M9 §3.2): never a flat or a phone.
+         */
+        gharbasket__modules__subscriptions__schemas__CaptainOut: {
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /** Photo Url */
+            photo_url: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -4924,6 +5056,89 @@ export interface operations {
                 };
             };
             /** @description subscriptions.budget_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    end_captain_v1_captains__captain_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                captain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptainEndIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_already_ended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -8612,6 +8827,152 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    society_captains_v1_societies__society_id__captains_get: {
+        parameters: {
+            query?: {
+                /** @description Only this status; default all */
+                status?: ("active" | "ended") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptainsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    appoint_captain_v1_societies__society_id__captains_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptainIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_exists (captain_id), community.already_captain */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.partner_not_eligible, community.captain_not_resident, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -4,6 +4,9 @@
 `identity.data_export_requested`, but outbox consumers get no object storage, so it is a job that
 takes queued rows instead, every few minutes from cron-job.org: well inside the promised 24 hours.
 The event stays published for M11's "your data is ready" notification.
+
+The captain role follows M9's appointments: `community.captain_assigned` grants
+`captain:<society>` and `community.captain_ended` removes it (ADR-0026 §4).
 """
 
 import json
@@ -16,7 +19,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.identity import service
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport
 from gharbasket.modules.notifications import api as notifications_api
@@ -25,6 +30,8 @@ from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.platform import files
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.models import OutboxEvent
+from gharbasket.platform.outbox import subscribe
 
 FORMAT = "gharbasket-export/v1"
 BATCH = 20
@@ -36,6 +43,7 @@ SECTIONS: dict[str, Callable[[AsyncSession, uuid.UUID], Awaitable[dict[str, Any]
     "billing": billing_api.export_for_user,
     "notifications": notifications_api.export_for_user,
     "partners": partners_api.export_for_user,
+    "community": community_api.export_for_user,
 }
 
 
@@ -112,3 +120,33 @@ async def expire_data_exports(ctx: JobContext) -> dict[str, Any]:
         .returning(DataExport.id)
     )
     return {"expired": len(expired.all())}
+
+
+# --- the captain role from M9's appointments (ADR-0026 §4) --------------------------------------
+# Each consumer reads the appointment's current state through community.api, so a redelivered or
+# late event cannot grant a role that has ended or remove one that is active again.
+
+
+def _captain_target(event: OutboxEvent) -> tuple[uuid.UUID, uuid.UUID] | None:
+    try:
+        return uuid.UUID(str(event.payload["user_id"])), uuid.UUID(str(event.payload["society_id"]))
+    except (KeyError, ValueError):
+        return None
+
+
+async def on_captain_assigned(session: AsyncSession, event: OutboxEvent) -> None:
+    target = _captain_target(event)
+    if target is None or not await community_api.is_active_captain(session, *target):
+        return
+    await service.grant_system_role(session, target[0], "captain", target[1])
+
+
+async def on_captain_ended(session: AsyncSession, event: OutboxEvent) -> None:
+    target = _captain_target(event)
+    if target is None or await community_api.is_active_captain(session, *target):
+        return
+    await service.revoke_system_role(session, target[0], "captain", target[1])
+
+
+subscribe(community_api.CAPTAIN_ASSIGNED, on_captain_assigned)
+subscribe(community_api.CAPTAIN_ENDED, on_captain_ended)
