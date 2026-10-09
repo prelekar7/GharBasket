@@ -81,7 +81,9 @@ CycleOut : {
   "lines": [ CycleLine ], "total_paise",
   "highlights": [ { "code": "in_season" | "tiffin_day" | "health_tag" | "festival" | "budget_near", "params": { } } ],
   "budget_lock": { "month": "2026-10", "budget_paise", "spent_paise", "remaining_paise" } | null,
-  "captain": { "name", "flat" } | null,                         null until M9 captains (S4)
+  "captain": { "display_name", "photo_url" } | null,            the society captain's card (M9 §3.2,
+                                                                 ADR-0026 §4); null without an
+                                                                 active captain; never a flat
   "order_id": "<uuid>" | null,                                   after approval
   "generated_at", "approved_at" | null }
 
@@ -168,7 +170,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | PATCH body `{ op, product_id, substitute_id }` | `{ "ops": [ … ] }`; same op names, plus `remove`, `add`, `qty` |
 | 409 `orders.cutoff_passed` on the cycle | `subscriptions.cutoff_passed` |
 | `meal_plan.days[].meals[]` with `name` only | plus `recipe_id`, `sides`, and `meal_plan.source` |
-| `captain` always set | `null` until M9 captains |
+| `captain` always set, as `{ name, flat }` | `{ display_name, photo_url }` from M9, or `null` without an active captain; no flat |
 | no preview endpoint | `GET /v1/cycles/preview` for onboarding's first-week screen |
 
 ### 3.2 Meal swap contract (frozen on 2026-10-08)

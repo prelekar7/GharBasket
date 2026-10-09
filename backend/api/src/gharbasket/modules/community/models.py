@@ -1,7 +1,7 @@
 """Tables of M9 Community & Kindness. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
-Societies part (this file, so far): societies and residents' requests for new ones (spec §3.1).
-Captains, referrals, donations and NGOs follow in P5.
+Societies and residents' requests for new ones (spec §3.1), and captain appointments (§3.2).
+Referrals, donations and NGOs follow in P5.
 """
 
 import uuid
@@ -13,6 +13,7 @@ from sqlalchemy import (
     CheckConstraint,
     Computed,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     String,
@@ -107,4 +108,50 @@ class SocietyRequest(Base):
     # Set when a hub manager matches the request to a society.
     society_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+CAPTAIN_STATUSES = ("active", "ended")
+APPOINTED_BY = ("auto", "hub")
+END_REASONS = ("stepped_down", "replaced", "hub_decision", "suspended")
+ACTIVE = text("status = 'active'")
+
+
+class Captain(Base):
+    """An appointment: which verified captain serves which society, from when to when (§3.2,
+    ADR-0026 §4). At most one active per society, and one active society per captain."""
+
+    __tablename__ = "captains"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", CAPTAIN_STATUSES), name="status"),
+        CheckConstraint(_one_of("appointed_by", APPOINTED_BY), name="appointed_by"),
+        CheckConstraint(
+            f"end_reason IS NULL OR {_one_of('end_reason', END_REASONS)}", name="end_reason"
+        ),
+        CheckConstraint(
+            "(status = 'ended') = (until IS NOT NULL AND end_reason IS NOT NULL)", name="ended"
+        ),
+        Index("uq_captains_active_society", "society_id", unique=True, postgresql_where=ACTIVE),
+        Index("uq_captains_active_partner", "partner_id", unique=True, postgresql_where=ACTIVE),
+        Index("ix_captains_user_id", "user_id"),
+        Index("ix_captains_society_id_since", "society_id", "since"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    society_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.societies.id"))
+    # Copied from the society at appointment.
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    # identity.users.id and partners.partners.id: plain UUIDs, no foreign key across schemas.
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    partner_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(16), server_default="active")
+    since: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    appointed_by: Mapped[str] = mapped_column(String(8))
+    appointed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    end_reason: Mapped[str | None] = mapped_column(String(16))
+    ended_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # Staff-only, from the end request.
+    note: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -180,6 +180,22 @@ CaptainCard (residents, in SocietyOut.captain, §3.1) : { "display_name", "photo
 | 403 | `auth.forbidden` | Not a hub manager of the society's hub, or admin |
 | 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
 
+**As built (S5).**
+- **Order of refusals** when appointing:
+  - 404 `community.society_not_found`;
+  - 422 `community.partner_not_eligible`, then `community.captain_not_resident`;
+  - 409 `community.already_captain`, then `community.captain_exists`.
+
+  Re-appointing the society's current captain, even with `replace`, is 409 `community.captain_exists`.
+- **Concurrency.** Appointing locks the society row, so a second appointment in the same society waits and then gets 409. The partial unique indexes are the last guard, and a violation answers the same 409.
+- **Duplicate `partners.verified`.** An appointment of the partner made since the event was published counts as that event's, so a redelivery never appoints again, even after a hub manager ended her.
+- **`partners.suspended`** ends the appointment whatever the `reason_code`; `partners.reinstated` is not consumed.
+- **Who can read and write.** A society without a hub is visible to admins only. The end `note` is stored (staff-only) but not returned.
+- **Audit.** Every appointment and end is audit-logged (`community.captain_assigned`, `community.captain_ended`).
+- **M1's role** follows the events through `is_active_captain` (M1 §5).
+- **The export.** `export_for_user` returns `{ "captain_appointments": [ { "society_id", "society", "status", "since", "until" } ] }`.
+- **The seed** appoints Meena (Sunrise Towers) and Savita (Krishna Kunj) automatically: `just seed` delivers its events once it has committed. Meena's `captain` role is no longer granted directly by the seed.
+
 | Mock today (`feat/mobile-partner`) | Contract |
 |---|---|
 | `mocks/community.js`: `captain: { name, flat }` on the society | `captain: { display_name, photo_url }` (§3.1, unchanged); no flat |
