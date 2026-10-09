@@ -60,6 +60,7 @@ CONSENT_PURPOSES = (
     "health_personalisation",
     "marketing",
     "research_anonymised",
+    "whatsapp",  # updates on WhatsApp (M11 §3.1)
 )
 
 

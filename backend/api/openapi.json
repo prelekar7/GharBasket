@@ -365,7 +365,8 @@
               "personalisation",
               "health_personalisation",
               "marketing",
-              "research_anonymised"
+              "research_anonymised",
+              "whatsapp"
             ],
             "title": "Purpose",
             "type": "string"
@@ -411,7 +412,8 @@
               "personalisation",
               "health_personalisation",
               "marketing",
-              "research_anonymised"
+              "research_anonymised",
+              "whatsapp"
             ],
             "title": "Purpose",
             "type": "string"
@@ -4381,6 +4383,29 @@
           "name"
         ],
         "title": "ProductRef",
+        "type": "object"
+      },
+      "PushTokenIn": {
+        "properties": {
+          "push_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The FCM registration token of this device; null when notifications are off",
+            "title": "Push Token"
+          }
+        },
+        "required": [
+          "push_token"
+        ],
+        "title": "PushTokenIn",
         "type": "object"
       },
       "Ready": {
@@ -10402,6 +10427,65 @@
           }
         ],
         "summary": "Sign out one device (its refresh token stops working)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me/push-token": {
+      "put": {
+        "operationId": "put_push_token_v1_me_push_token_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Set or clear this device's FCM token for push notifications (M11 §3.1)",
         "tags": [
           "identity"
         ]
