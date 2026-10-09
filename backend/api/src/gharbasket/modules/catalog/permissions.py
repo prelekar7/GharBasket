@@ -2,5 +2,6 @@
 
 from gharbasket.platform.permissions import PERMISSIONS
 
-PERMISSIONS.allow("hub_manager", "prices:write")
-PERMISSIONS.allow("admin", "prices:write")
+PERMISSIONS.allow("hub_manager", "prices:write", "catalog:admin_read")
+PERMISSIONS.allow("admin", "prices:write", "catalog:admin_read")
+PERMISSIONS.allow("catalog_editor", "catalog:admin_read")

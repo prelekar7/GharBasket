@@ -5,7 +5,7 @@ The product, search, price and substitute shapes are the frozen S1 contract
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -197,3 +197,67 @@ class FestivalOut(BaseModel):
 
 class Festivals(BaseModel):
     items: list[FestivalOut]
+
+
+# --- catalog admin (spec §3.3) ------------------------------------------------------------------
+
+TermLang = Literal["en", "hi", "mr", "hinglish"]
+
+
+class CategoryOut(BaseModel):
+    id: uuid.UUID
+    slug: str = Field(examples=["leafy-greens"])
+    name: str
+    names: Names
+    parent_id: uuid.UUID | None
+
+
+class Categories(BaseModel):
+    items: list[CategoryOut]
+
+
+class Nutrition(BaseModel):
+    """Per 100 g; `unit_g` is the weight of one piece or bunch."""
+
+    model_config = {"extra": "forbid"}
+
+    kcal: int = Field(ge=0)
+    protein_g: float = Field(ge=0)
+    fat_g: float = Field(ge=0)
+    carb_g: float = Field(ge=0)
+    fibre_g: float = Field(ge=0)
+    unit_g: int | None = Field(default=None, ge=0)
+    source: Literal["ifct2017", "nin_nvif", "label", "manual"]
+
+
+class SynonymIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    term: str = Field(min_length=1, max_length=60, examples=["lady finger"])
+    lang: TermLang
+
+
+class UserRef(BaseModel):
+    id: uuid.UUID
+    name: str | None
+
+
+class AdminProduct(BaseModel):
+    id: uuid.UUID
+    slug: str
+    kind: Kind
+    category: CategoryRef
+    name: str
+    names: Names
+    step: Step
+    tags: list[str]
+    shelf_life_h: int | None
+    image_url: str | None
+    active: bool
+    version: int
+    nutrition: Nutrition | None
+    synonyms: list[SynonymIn]
+    used_by_recipes: int = Field(description="Active recipes with this product as an ingredient")
+    data_source: Literal["real", "synthetic"]
+    updated_at: datetime
+    updated_by: UserRef | None = Field(description="Who last edited it in the console")
