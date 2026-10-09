@@ -61,6 +61,25 @@ async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> 
 
 
 @dataclass(frozen=True)
+class Contact:
+    name: str | None
+    phone_e164: str
+
+
+async def contact_for_household(session: AsyncSession, household_id: uuid.UUID) -> Contact | None:
+    """The owner's name and phone, for M4's issue triage where the hub calls the customer back
+    (M4 §3.6). The caller audit-logs each read."""
+    row = (
+        await session.execute(
+            select(User.name, User.phone_e164)
+            .join(Household, Household.owner_user_id == User.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    return None if row is None else Contact(*row)
+
+
+@dataclass(frozen=True)
 class HouseholdPlanProfile:
     """What the weekly planner needs to know about a household (M3 §3.1, M10 §3.1)."""
 

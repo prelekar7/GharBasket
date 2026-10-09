@@ -1979,6 +1979,31 @@
         "title": "IngredientOut",
         "type": "object"
       },
+      "IssueContact": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "phone_e164"
+        ],
+        "title": "IssueContact",
+        "type": "object"
+      },
       "IssueIn": {
         "additionalProperties": false,
         "properties": {
@@ -2238,6 +2263,26 @@
         "title": "IssueOut",
         "type": "object"
       },
+      "IssuePhoto": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "url": {
+            "description": "A 5-minute signed GET",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "title": "IssuePhoto",
+        "type": "object"
+      },
       "IssueResolution": {
         "properties": {
           "at": {
@@ -2271,6 +2316,419 @@
           "at"
         ],
         "title": "IssueResolution",
+        "type": "object"
+      },
+      "IssueTriage": {
+        "properties": {
+          "amount_paise": {
+            "description": "The sum of qty times the line's paid unit price",
+            "examples": [
+              4000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "auto_credited_7d_paise": {
+            "description": "The household's automatic credits in the last 7 days",
+            "title": "Auto Credited 7D Paise",
+            "type": "integer"
+          },
+          "callback_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "created_at + callback_within_minutes, while open",
+            "title": "Callback Due At"
+          },
+          "callback_within_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the hub calls back",
+            "title": "Callback Within Minutes"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credit_paise": {
+            "description": "0 until credited",
+            "title": "Credit Paise",
+            "type": "integer"
+          },
+          "creditable_paise": {
+            "description": "What is left of the order's paid total after shortage refunds and credits",
+            "title": "Creditable Paise",
+            "type": "integer"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "missing",
+              "damaged",
+              "quality",
+              "wrong_item",
+              "late",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_credit_paise": {
+            "description": "What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved",
+            "title": "Max Credit Paise",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "open_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "photo_needed",
+                  "over_auto_credit_limit",
+                  "over_order_total",
+                  "wallet_limit",
+                  "triage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Reason"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_total_paise": {
+            "examples": [
+              69000
+            ],
+            "title": "Order Total Paise",
+            "type": "integer"
+          },
+          "photo_count": {
+            "title": "Photo Count",
+            "type": "integer"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "credited",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "kind",
+          "status",
+          "items",
+          "amount_paise",
+          "credit_paise",
+          "note",
+          "photo_count",
+          "resolution",
+          "callback_within_minutes",
+          "open_reason",
+          "created_at",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "order_total_paise",
+          "creditable_paise",
+          "max_credit_paise",
+          "auto_credited_7d_paise",
+          "callback_due_at"
+        ],
+        "title": "IssueTriage",
+        "type": "object"
+      },
+      "IssueTriageDetail": {
+        "properties": {
+          "amount_paise": {
+            "description": "The sum of qty times the line's paid unit price",
+            "examples": [
+              4000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "auto_credited_7d_paise": {
+            "description": "The household's automatic credits in the last 7 days",
+            "title": "Auto Credited 7D Paise",
+            "type": "integer"
+          },
+          "callback_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "created_at + callback_within_minutes, while open",
+            "title": "Callback Due At"
+          },
+          "callback_within_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the hub calls back",
+            "title": "Callback Within Minutes"
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueContact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The household owner, to call back"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credit_paise": {
+            "description": "0 until credited",
+            "title": "Credit Paise",
+            "type": "integer"
+          },
+          "creditable_paise": {
+            "description": "What is left of the order's paid total after shortage refunds and credits",
+            "title": "Creditable Paise",
+            "type": "integer"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "missing",
+              "damaged",
+              "quality",
+              "wrong_item",
+              "late",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_credit_paise": {
+            "description": "What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved",
+            "title": "Max Credit Paise",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "open_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "photo_needed",
+                  "over_auto_credit_limit",
+                  "over_order_total",
+                  "wallet_limit",
+                  "triage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Reason"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_total_paise": {
+            "examples": [
+              69000
+            ],
+            "title": "Order Total Paise",
+            "type": "integer"
+          },
+          "photo_count": {
+            "title": "Photo Count",
+            "type": "integer"
+          },
+          "photos": {
+            "description": "Empty while storage is unavailable; photo_count says how many there are",
+            "items": {
+              "$ref": "#/components/schemas/IssuePhoto"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "credited",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "kind",
+          "status",
+          "items",
+          "amount_paise",
+          "credit_paise",
+          "note",
+          "photo_count",
+          "resolution",
+          "callback_within_minutes",
+          "open_reason",
+          "created_at",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "order_total_paise",
+          "creditable_paise",
+          "max_credit_paise",
+          "auto_credited_7d_paise",
+          "callback_due_at",
+          "photos",
+          "contact"
+        ],
+        "title": "IssueTriageDetail",
         "type": "object"
       },
       "IssuesOut": {
@@ -3844,6 +4302,34 @@
         "title": "Page[Entry]",
         "type": "object"
       },
+      "Page_IssueTriage_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueTriage"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[IssueTriage]",
+        "type": "object"
+      },
       "Page_OrderSummaryOut_": {
         "properties": {
           "items": {
@@ -5067,6 +5553,53 @@
           "unit_price_paise"
         ],
         "title": "ReplacedOut",
+        "type": "object"
+      },
+      "ResolveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credit_paise": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Credit only; at most max_credit_paise",
+            "examples": [
+              4000
+            ],
+            "title": "Credit Paise"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required to reject",
+            "title": "Note"
+          },
+          "outcome": {
+            "enum": [
+              "credit",
+              "reject"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "ResolveIn",
         "type": "object"
       },
       "RoleGrantIn": {
@@ -7480,6 +8013,459 @@
         "summary": "Delivery log: a person's messages with their delivery attempts",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/v1/admin/order-issues": {
+      "get": {
+        "operationId": "triage_queue_v1_admin_order_issues_get",
+        "parameters": [
+          {
+            "description": "Required for hub staff",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for hub staff",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "credited",
+                "rejected"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "missing",
+                    "damaged",
+                    "quality",
+                    "wrong_item",
+                    "late",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IssueTriage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required (hub staff), request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The triage queue of a hub (all hubs for admins), oldest first",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/admin/order-issues/{issue_id}": {
+      "get": {
+        "operationId": "triage_detail_v1_admin_order_issues__issue_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTriageDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "One issue with 5-minute photo links and the customer's contact (audit-logged)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/admin/order-issues/{issue_id}/resolve": {
+      "post": {
+        "operationId": "resolve_issue_v1_admin_order_issues__issue_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTriage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_open"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged)",
+        "tags": [
+          "orders"
         ]
       }
     },
