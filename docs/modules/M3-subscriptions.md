@@ -308,6 +308,7 @@ M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel
 
 ## 11. Open questions and decisions
 - **Decided (S3 contract):** add-ons are lines on the box order (M4 §3.1), never separate orders.
+- **Decided by the owner (2026-10-09):** ~~Should an add-on-only order un-skip a skipped week?~~ Decided: no, add-on-only orders are refused (M4 §3.5, `orders.kind_unavailable`); a customer who wants add-ons in a skipped week un-skips it first (§3.3).
 - **Decided (S3 contract):** one subscription per household; one cycle per delivery day; a society may have 1 to 3 delivery days a week (the pilot uses 1).
 - **Decided:** the "ran out / wasted" taps live in `subscriptions.pantry_feedback` (the twin's observations), separate from edit feedback.
 - Delivery frequency per society for the pilot: 1 day a week at MS-A; twice weekly only if captains ask.

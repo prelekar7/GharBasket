@@ -31,7 +31,7 @@ Everything that can be planned or sold: vegetables, fruits, staples, cut-vegetab
 | GET | `/v1/festivals?from=&to=&region=` | Authenticated | — | |
 | GET | `/v1/categories` | Authenticated | — | §3.3 |
 | GET / POST / PATCH | `/v1/admin/products[/{id}]`, `…/{id}/history` | admin (write); admin, hub_manager (read) | Required (POST) | §3.3; `If-Match` on PATCH |
-| GET / POST / PATCH | `/v1/admin/recipes[/{id}]`, `…/{id}/history` | admin (write); admin, hub_manager (read) | Required (POST) | §3.3; `If-Match` on PATCH |
+| GET / POST / PATCH | `/v1/admin/recipes[/{id}]`, `…/{id}/history` | admin (write); catalog_editor (PATCH of names and the fasting and diabetic flags only); admin, hub_manager, catalog_editor (read) | Required (POST) | §3.3; `If-Match` on PATCH |
 | POST | `/v1/hubs/{id}/price-lists` | hub_manager (hub), admin | Required | Bulk upload (§3.1) |
 | GET / PUT / DELETE | `/v1/hubs/{id}/price-lists[/{list_id}]` | hub_manager (hub), admin | — | List, read, replace today's or a future list, delete a future one (§3.3) |
 | GET / POST / PATCH / DELETE | `/v1/admin/festivals[/{date}/{code}/{region}]` | admin | Required (POST) | §3.3 |
@@ -175,6 +175,10 @@ The console's Catalog page (products, recipes, festivals tabs) and Prices page, 
 - **History.** The console's History drawer reads `GET /v1/admin/products/{id}/history` and `GET /v1/admin/recipes/{id}/history`. Each answers `{ "items": [ { "at", "by": { "id", "name" }, "action", "changed": { "<field>": { "from", "to" } } } ] }`, newest first and at most 100. They are read from the audit log, so there is no separate history table.
 - **Price lists.** Their history is their `valid_from` dates: a past list never changes.
 
+**The seed and the console** (owner, 2026-10-09). Once the console ships, `just seed` only adds rows that are missing (by slug for products and recipes) and skips every row edited in the console (`updated_by` set): from the first console edit, the console is the source of truth for that row, and a later change to its seed file does not reach the database. New recipes keep arriving by file in the recipe-batch PRs. Festivals follow their own rule below (`source: manual` or `verified: true` are never overwritten).
+
+**The `catalog_editor` role** (owner, 2026-10-09). A staff role without scope, granted by an admin (`POST /v1/admin/user-roles`, M1), for Rhythm Thakur and Manish Raje, who curate recipes. With it a caller may read the admin lists (`catalog:admin_read`) and `PATCH /v1/admin/recipes/{id}` with only `names`, `fasting_ok` and `diabetic_ok` (`recipes:curate`, §7). A body with any other field gets 403 `auth.forbidden` with `fields`, and nothing is saved. Every other write stays with admins.
+
 **Change events.**
 - **`catalog.product_changed { product_id, changed: [fields], active }`** is published on every create or update. Its consumers (§6) rebuild search terms and embeddings.
 - **`catalog.recipe_changed { recipe_id, changed: [fields], active }`** is new. M10's planner catalog cache drops the recipe.
@@ -260,7 +264,7 @@ DELETE /v1/hubs/{hub_id}/price-lists/{id}          204; only a list whose valid_
   - The unit must fit the product's step: `g` for `g`/`kg`, `ml` for `ml`/`l`, `piece` for `piece`/`pack`, `bunch` for `bunch`; otherwise 422 `catalog.unit_mismatch` with `product_ids`.
 - **Recipe rules.**
   - The derived rules (`diet`, `no_onion_garlic`, `jain_ok`) are never accepted in the body (422 `request.invalid`).
-  - The curated `fasting_ok` and `diabetic_ok` record the caller and time in `reviews` whenever their value changes.
+  - The curated `fasting_ok` and `diabetic_ok` record the caller and time in `reviews` whenever their value changes. Admins and catalog editors set them.
   - `cook_minutes` is 5 to 240, `servings` 1 to 12, and `slots` 1 to 3 of `breakfast, lunch, dinner`.
 - **Sides.** `sides` must name active recipes with `is_side: true`, and a side has no sides of its own; otherwise 422 `catalog.side_invalid`. Deactivating a side that an active recipe lists is 409 `catalog.recipe_in_use` with `recipes`.
 - **Festivals.**
@@ -330,9 +334,10 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 |---|---|
 | `catalog:read` | All authenticated |
 | `catalog:write` | admin |
+| `recipes:curate` | catalog_editor, admin (a recipe's `names`, `fasting_ok` and `diabetic_ok`; §3.3) |
 | `prices:write` | hub_manager (hub), admin |
 | `tiffin_menus:write` | kitchen_partner (own), hub_manager (approve) |
-| `catalog:admin_read` | admin, hub_manager (the admin lists in §3.3, to build price lists) |
+| `catalog:admin_read` | admin, hub_manager (the admin lists in §3.3, to build price lists), catalog_editor |
 
 ## 8. Screens
 **Mobile:** product detail sheet, search, substitute sheet (shared with M3), tiffin menu browsing. **Console:** catalog and recipes editor, price lists, festival calendar, tiffin menu approvals.
@@ -343,13 +348,14 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 - Contract (§3.1): search finds every listed spelling in the top 3; a price is per step and in paise; substitutes never include the product itself; a hub manager cannot publish for another hub; the same Idempotency-Key replays a price list.
 - Data quality: every recipe ingredient references an active product; every product has en/hi/mr names before publishing.
 
-- Catalog admin (§3.3): every write is audited and bumps `version`; stale `If-Match` 412, missing 428; slug, kind and step are immutable; a missing language is refused; a restricted tag change recomputes the rules of every recipe using the product, in one transaction; deactivating an ingredient of an active recipe is refused; a past price list cannot be replaced or deleted, a future one can; a hub manager cannot touch another hub's lists or any product; the seed never overwrites a console-edited row or a manual/verified festival.
+- Catalog admin (§3.3): every write is audited and bumps `version`; stale `If-Match` 412, missing 428; slug, kind and step are immutable; a missing language is refused; a restricted tag change recomputes the rules of every recipe using the product, in one transaction; deactivating an ingredient of an active recipe is refused; a past price list cannot be replaced or deleted, a future one can; a hub manager cannot touch another hub's lists or any product; a catalog editor can change a recipe's names and fasting and diabetic flags and nothing else (403 with `fields`); the seed adds missing rows and never overwrites a console-edited row or a manual/verified festival.
 ## 10. Dependencies
-M0. The caller's hub comes from their household through `identity.api` (M1). Embeddings via `intel_gateway.api` (M10). No dependency on M3/M4 (they depend on M2).
+M0. The caller's hub comes from their household through `identity.api` (M1); M1 adds the `catalog_editor` staff role (§3.3). Embeddings via `intel_gateway.api` (M10). No dependency on M3/M4 (they depend on M2).
 
 ## 11. Open questions
 - **Decided (Oct 2026):** nutrition per 100 g comes from IFCT 2017 (ICMR-NIN) through the `@ifct2017/compositions` transcription, mapped by hand per product (`data/external/nutrition/`); five foods IFCT lacks use the NIN Nutritive Value of Indian Foods. Daily targets per age band are ICMR-NIN RDA 2020 (`rda.json`, a hypothesis until ratified). `ProductOut.nutrition` and the planner catalog's `nutrition_per_serving` carry it.
 - Initial recipe count for the pilot (target ≥ 120 recipes across cuisines).
-- **Catalog admin (§3.3):** the catalog lives in `data/seeds/catalog` and `just seed` "creates or refreshes" it, so a console edit would be overwritten by the next seed. Proposal: after the console ships, the seed only inserts missing rows and never updates a row whose `updated_by` is set (edited in the console); the recipe-batch PRs keep adding new recipes by file. Confirm, or keep git as the only source and make the console read-only for products and recipes.
-- **Catalog admin:** who may set the curated `fasting_ok` / `diabetic_ok` flags? US-4 and §3.2 say Rhythm and Manish review them; they would need a `catalog_editor` staff role (recipes and festivals only) rather than full admin.
-- **Product images** stay out of §3.3: `image_url` is always null today and every M0 upload purpose is private. Images need a public bucket (or a CDN path) and a `catalog_image` purpose in M0; decide before the console's image field is built.
+- **Decided by the owner (2026-10-09):**
+  - ~~Catalog admin (§3.3): would `just seed` overwrite console edits?~~ Decided: `just seed` only adds missing rows and skips rows edited in the console; the console is the source of truth once a row is edited (§3.3).
+  - ~~Who may set the curated `fasting_ok` / `diabetic_ok` flags?~~ Decided: a `catalog_editor` role for Rhythm Thakur and Manish Raje, who set a recipe's fasting and diabetic flags and its names (§3.3, §7).
+  - ~~Product images in §3.3?~~ Decided: later. `image_url` stays null and the console has no image field until a public bucket (or CDN path) and a `catalog_image` purpose exist in M0.

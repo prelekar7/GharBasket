@@ -312,10 +312,10 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 
 **Rules**
 - **Paid like a box.** The tiffin is paid at the 21:00 cut-off with the same `cutoff_lock` handshake (§3.1); it is `approved` until then and can be cancelled for free (`POST /v1/orders/{id}/cancel`). One tiffin per household per date and meal: a second one gets 409 `orders.tiffin_already_booked` with `order_id`.
-- **The kitchen.** The menu names the cook the customer saw. The fair assignment (M8 `assign_kitchens`, T-1 21:30) prefers that kitchen and may move the order to another kitchen with the same menu when capacity runs out. If no kitchen can take it, M8 calls `transition(…, "refunded", actor="system")`. That is a new tiffin-only move `locked → refunded`, added to the per-kind table of ADR-0026 §2. It refunds the debit at once through `billing.api.refund_to_wallet(reason="no_kitchen")`, and M11 tells the customer. The order shows the kitchen after `set_kitchen` (ADR-0026 §3).
+- **The kitchen.** The menu names the cook the customer saw. That cook is a preference, not a hard choice (owner, 2026-10-09): the fair assignment (M8 `assign_kitchens`, T-1 21:30) prefers that kitchen and may move the order to another kitchen with the same menu when capacity runs out, and the customer is not asked again. If no kitchen can take it, M8 calls `transition(…, "refunded", actor="system")`. That is a new tiffin-only move `locked → refunded`, added to the per-kind table of ADR-0026 §2. It refunds the debit at once through `billing.api.refund_to_wallet(reason="no_kitchen")`, and M11 tells the customer. The order shows the kitchen after `set_kitchen` (ADR-0026 §3).
 - **Slots.** Tiffin slots are `orders.slots` with `kind: tiffin`. They gain a `meal` column (`lunch`, `dinner`; null for box slots), so the server picks the slot; the client never sends one. A full slot is 409 `orders.slot_full`.
 - **The Week screen.** M3 consumes `orders.tiffin_booked` and, while the cycle can still be edited, sets that meal to `tiffin` exactly as `PUT /v1/cycles/{id}/meals` with `set: "tiffin"` does (M3 §3.2: the meal's ingredients leave the box). A cancelled tiffin (`orders.cancelled` with `kind: tiffin`) sets the meal back to `planned`. After the cycle's cut-off the box does not change.
-- **`kind: "addon"` (or `box`)** is 422 `orders.kind_unavailable` in v1.
+- **`kind: "addon"` (or `box`)** is 422 `orders.kind_unavailable`. Add-on-only orders are refused (owner, 2026-10-09): add-ons ride only on a box, so a household that skipped the week un-skips it first (M3 §3.3).
 
 | Mock today | Contract |
 |---|---|
@@ -418,5 +418,6 @@ M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/captur
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
 - **Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.
 - Direct orders (`POST /v1/orders`) and the SSE stream arrive in P3 with tiffins and live tracking.
-- **Leftovers (§3.5):** add-on-only orders outside a box (e.g. a week the household skipped) are not offered (`orders.kind_unavailable`): checking that the date is one of the society's delivery days needs M3's delivery days, which would make M4 depend on M3, and the app has no such flow. Confirm, or decide that an add-on-only order un-skips the week instead.
-- **Leftovers (§3.5):** may the customer choose the kitchen, or does the fair assignment (M10/M8) always decide? The contract treats the menu's cook as a preference the assignment may override.
+- **Decided by the owner (2026-10-09):**
+  - ~~Leftovers (§3.5): add-on-only orders outside a box (e.g. a week the household skipped): refuse them, or let an add-on-only order un-skip the week?~~ Decided: add-on-only orders are refused (`orders.kind_unavailable`); M4 does not depend on M3's delivery days.
+  - ~~Leftovers (§3.5): may the customer choose the kitchen, or does the fair assignment (M10/M8) always decide?~~ Decided: the cook on a tiffin menu is a preference, not a hard choice; the assignment may move the order to another kitchen with the same menu.

@@ -6,7 +6,7 @@
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`
 
 ## 1. Purpose
-Who the user is and what household they belong to: phone-OTP login exchange, sessions and devices, roles with scopes (customer, captain, kitchen partner, rider, packer, hub manager, franchise owner, NGO coordinator, admin), the household profile used by Autopilot (size, members, diet, fasting rules, consented health tags, budget), addresses linked to societies, and DPDP consent records. M1 does not verify partner KYC (M8) or manage societies (M9).
+Who the user is and what household they belong to: phone-OTP login exchange, sessions and devices, roles with scopes (customer, captain, kitchen partner, rider, packer, hub manager, franchise owner, NGO coordinator, catalog editor, admin), the household profile used by Autopilot (size, members, diet, fasting rules, consented health tags, budget), addresses linked to societies, and DPDP consent records. M1 does not verify partner KYC (M8) or manage societies (M9).
 
 ## 2. User stories
 | # | Story | Acceptance criteria |
@@ -38,7 +38,7 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | GET / POST | `/v1/consents` | Authenticated | — | Grant or revoke one purpose |
 | POST | `/v1/me/data-export` | Authenticated | One per user per IST day | Ask for a copy of your data; 202, built in the background (§3.3) |
 | GET | `/v1/me/data-export` | Authenticated | — | Status of the latest export and, when ready, a 5-minute download link; the notification comes after M11 |
-| DELETE | `/v1/me` | Authenticated (not staff) | Naturally idempotent | Schedules the account's deletion after a 30-day grace period; signing in again cancels it (§3.5) |
+| DELETE | `/v1/me` | Authenticated (not staff), OTP within the last 5 minutes | Naturally idempotent | Schedules the account's deletion after a 30-day grace period; signing in again cancels it once the app has asked "Keep my account?" (§3.5) |
 | POST | `/v1/admin/user-roles` | admin | Required | Grant staff roles |
 
 ### 3.1 Walking-skeleton contract (frozen for Sprint 0)
@@ -268,12 +268,22 @@ DELETE /v1/me              no body; no Idempotency-Key (DELETE is naturally idem
                            repeating it (e.g. a retried request) answers the same body
   409 "identity.staff_account"    the caller holds admin, hub_manager, franchise_owner or
                                   ngo_coordinator: another admin removes those roles first
+  403 "identity.fresh_otp_required"   the caller's session was not signed in with an OTP in the
+                                  last 5 minutes (below); carries "max_age_s": 300
 
-POST /v1/auth/exchange     (§3.1, additive) for an account whose deletion is scheduled: signs in,
-                           cancels the deletion and answers "deletion_cancelled": true (the field
-                           is false otherwise); the app then shows "Welcome back: your account
-                           is kept. Restart your weekly box from Week."
+POST /v1/auth/exchange     (§3.1, additive) gains "keep_account": false (optional). For an account
+                           whose deletion is scheduled:
+                           without keep_account: true → 409 "identity.deletion_pending" with
+                             "purge_on"; nothing is signed in, no tokens are issued; the app shows
+                             "Keep my account?"
+                           with keep_account: true (the same Firebase ID token, sent again after the
+                             customer taps "Keep my account") → signs in, cancels the deletion and
+                             answers "deletion_cancelled": true (the field is false otherwise); the
+                             app then shows "Welcome back: your account is kept. Restart your
+                             weekly box from Week."
 ```
+
+**Fresh OTP for deletion** (owner, 2026-10-09). Asking for deletion needs a sign-in with an OTP within the last 5 minutes, not just a valid session. The server checks the **session's `auth_time`**: `identity.sessions` gains `auth_time`, set at `POST /v1/auth/exchange` from the Firebase ID token's `auth_time` claim (when the OTP was entered; the exchange already requires the claim), or the exchange time for the dev login. Refreshes keep it, so it never moves without a new OTP. `DELETE /v1/me` reads the session of the access token's `sid` claim and needs `now − auth_time ≤ 300 s`. The session's `created_at` is not used: the Firebase SDK can mint a new ID token without an OTP, so a new session does not prove one. The app's flow: "Delete my account" → the phone OTP again (Firebase) → `POST /v1/auth/exchange` → `DELETE /v1/me` with the new token. The deletion then signs out every session anyway (step 2 below).
 
 **What happens when deletion is requested.** All of these happen in the `DELETE` transaction unless the step says otherwise:
 1. **The account is marked.** `users.status` becomes `deleting`, and an `identity.deletions` row records `requested_at` and `purge_on`. The grace period is 30 days, so `purge_on` = the IST date of the request + 30 days. This matches the app copy and handbook 13 ("purged within 30 days" of the end of the grace period).
@@ -286,12 +296,12 @@ POST /v1/auth/exchange     (§3.1, additive) for an account whose deletion is sc
    - **M11** sends nothing more to the user. It checks `identity.api.is_active(user_id)` at send time.
 5. **It is audit-logged.** The action is `identity.deletion_requested`, with no before/after personal data.
 
-**Cancelling.** Signing in again before the purge (`POST /v1/auth/exchange`, Firebase OTP) sets `status: active` and `deletions.cancelled_at`. It also publishes `identity.deletion_cancelled { user_id }`. Nothing that already happened is undone:
+**Cancelling** (owner, 2026-10-09: signing in cancels, after the app asks "Keep my account?"). Signing in again before the purge (`POST /v1/auth/exchange`, Firebase OTP, with `keep_account: true` after the question) sets `status: active` and `deletions.cancelled_at`, and publishes `identity.deletion_cancelled { user_id }`. If the customer does not confirm, the app stays on the login screen, nothing is signed in and the deletion stays scheduled. Nothing that already happened is undone:
 - the subscription stays ended, and the customer restarts it;
 - the refund to source goes ahead;
 - the captain assignment stays ended.
 
-There is no separate "cancel deletion" endpoint: signing in is the proof of the phone that the copy asks for.
+There is no separate "cancel deletion" endpoint: signing in, confirmed on the "Keep my account?" screen, is the proof of the phone that the copy asks for.
 
 **The purge** (`purge_deleted_users`, daily 03:33 IST; deletions whose `purge_on` ≤ today and that are not cancelled, oldest first, 50 per run, each in its own transaction):
 1. **Preconditions.** All of these are read through each module's facade:
@@ -334,6 +344,8 @@ Signing up again with the same phone after the purge creates a new user with a n
 |---|---|---|
 | 409 | `identity.staff_account` | A staff role is still active; the problem carries `"roles"` |
 | 401 | `auth.invalid_token` | Any call with a token from before the deletion request (§3.1) |
+| 403 | `identity.fresh_otp_required` | `DELETE /v1/me` from a session whose OTP sign-in (`auth_time`) is more than 5 minutes old (`max_age_s`) |
+| 409 | `identity.deletion_pending` | `POST /v1/auth/exchange` for an account whose deletion is scheduled, without `keep_account: true` (`purge_on`) |
 
 **For the mobile mock** (`mocks/profile.js` on `feat/mobile-profile` and later → contract)
 
@@ -341,7 +353,8 @@ Signing up again with the same phone after the purge creates a new user with a n
 |---|---|
 | `DELETE /v1/me` → 202 `{ status: "scheduled", purge_on }` | Same, plus `requested_at` and `wallet_refund` (show "₹410 is on its way back to your UPI" when it is set) |
 | `leave(false)` signs out this device only | The server has signed out every device; the app only clears its local state and goes to `/login` |
-| Copy: "You have 30 days to change your mind by signing in again." | Matches: grace period of 30 days; the exchange answer's `deletion_cancelled: true` shows the welcome-back note |
+| Copy: "You have 30 days to change your mind by signing in again." | Matches: grace period of 30 days. Signing in during it gets 409 `identity.deletion_pending`: show "Keep my account?" (with `purge_on`), and on "Keep" repeat the exchange with `keep_account: true`; its `deletion_cancelled: true` shows the welcome-back note |
+| "Delete my account" calls `DELETE /v1/me` with the current session | Ask for the phone OTP again first and exchange it, then call `DELETE /v1/me` within 5 minutes; a 403 `identity.fresh_otp_required` sends the customer back to the OTP step |
 | Copy: "your wallet balance is refunded to your UPI" | True for the refundable part; balance that cannot go back to a source (older than Razorpay's refund window) is kept for the customer to claim through support (M5 §3.3) |
 
 ## 4. Tables owned
@@ -349,7 +362,7 @@ Signing up again with the same phone after the purge creates a new user with a n
 |---|---|
 | `identity.users` | id (uuidv7), phone_e164 (unique, E.164 check), name, locale, senior_mode, status (active, blocked, deleting; the old `deleted` value is dropped: a purged user has no row), data_source, created_at, updated_at |
 | `identity.user_roles` | id, user_id, role, scope_type, scope_id, status, verified_at; unique (user, role, scope) with NULLS NOT DISTINCT |
-| `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
+| `identity.sessions` | one per signed-in device or browser (the "devices" list): id, user_id, platform, push_token, created_at, auth_time (when the OTP behind the session was entered: the Firebase token's `auth_time`; §3.5), last_seen_at, expires_at (30 days, never extended), revoked_at, revoke_reason |
 | `identity.refresh_tokens` | id, session_id, token_hash (HMAC-SHA256 with a pepper; the token is never stored), parent_id (rotation chain), created_at, used_at, revoked_at |
 | `identity.households` | id (uuidv7), owner_user_id (unique in v1), hub_id (nullable, no FK until M6), society_id → community.societies, size, diet, cuisine_tags[], weekday_cook_minutes, weekend_cook_minutes, no_cook_days smallint[], budget_paise BIGINT null, autopilot_enabled, auto_approve, shortage_preference (substitute, refund; §3.4), data_source, version, created_at, updated_at |
 | `identity.household_members` | id, household_id, age_band, sex null, health_tags[] (empty unless `health_personalisation` is granted), fasting_rules jsonb `{jain, fasts[], no_onion_garlic_on_fast_days}`, created_at |
@@ -398,7 +411,7 @@ Signing up again with the same phone after the purge creates a new user with a n
 - E2E: onboarding under 2 minutes on a mid-range device profile; role switch.
 - Security: OTP exchange rate limits; refresh token theft simulation.
 - Shortage preference (§3.4): default `substitute`; PATCH needs If-Match and publishes `household_updated`; `shortage_preferences` reads unknown ids as `substitute`.
-- Account deletion (§3.5): DELETE revokes every session at once (an old access token gets 401); a staff account gets 409; pending exports and their files are gone; signing in during the grace period cancels and answers `deletion_cancelled: true`; the purge waits while an order is open, an issue is open or the wallet is not closed, and is idempotent (a rerun after a crash part-way finishes the job, and a purged user is not touched again); after the purge no table outside the kept records of the matrix has a row with the user or household id (a test walks every schema); ledger postings sum to zero before and after.
+- Account deletion (§3.5): DELETE revokes every session at once (an old access token gets 401); a staff account gets 409; pending exports and their files are gone; `DELETE /v1/me` from a session whose `auth_time` is more than 5 minutes old gets 403 `identity.fresh_otp_required` and changes nothing, and a refresh does not move `auth_time`; signing in during the grace period without `keep_account` gets 409 `identity.deletion_pending` and issues no tokens, and with `keep_account: true` cancels and answers `deletion_cancelled: true`; the purge waits while an order is open, an issue is open or the wallet is not closed, and is idempotent (a rerun after a crash part-way finishes the job, and a purged user is not touched again); after the purge no table outside the kept records of the matrix has a row with the user or household id (a test walks every schema); ledger postings sum to zero before and after.
 
 ## 10. Dependencies
 M0 (platform). Reads society existence via `community.api` (M9). Partner verification arrives via `partners.verified` events.
@@ -407,4 +420,6 @@ M0 (platform). Reads society existence via `community.api` (M9). Partner verific
 - ~~One household per user in v1?~~ Decided: one household and one address per owner in v1 (§3.2). Multiple households (e.g. parents' home) stay open for later.
 - ~~Minimum household fields before the first plan?~~ Decided: everything in `POST /v1/households` except `budget_paise`, `sex`, `health_tags` and the optional consents.
 - Localised tower labels and fasting names: served by M2/M9 later, or kept as client copy?
-- Account deletion (§3.5): is signing in again the right way to cancel (it is what the app copy says), or should the app ask "Keep my account?" first? Should deletion also need a fresh OTP (step-up) rather than a valid session?
+- **Decided by the owner (2026-10-09):**
+  - ~~Account deletion (§3.5): is signing in again the right way to cancel, or should the app ask "Keep my account?" first?~~ Decided: signing in again cancels a pending deletion, after the app shows a "Keep my account?" screen (`identity.deletion_pending`, then the exchange with `keep_account: true`).
+  - ~~Should deletion also need a fresh OTP (step-up) rather than a valid session?~~ Decided: yes, a sign-in with an OTP within the last 5 minutes, checked on the session's `auth_time` (the Firebase token's `auth_time`, kept across refreshes); otherwise 403 `identity.fresh_otp_required` (§3.5).
