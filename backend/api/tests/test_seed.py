@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.hub_ops.models import Hub, Vendor
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.platform.db import create_engine
@@ -149,6 +150,14 @@ async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
             # Households, members, addresses and consents go with their owners.
             await cleanup.execute(delete(User).where(User.phone_e164.in_(PHONES)))
             societies = await cleanup.execute(delete(Society).where(Society.slug.in_(SLUGS)))
+            await cleanup.execute(
+                delete(OutboxEvent).where(
+                    OutboxEvent.event_type.like("hub_ops.hub_%"),
+                    OutboxEvent.payload["hub_id"].astext == str(SEED_HUB_ID),
+                )
+            )
+            await cleanup.execute(delete(Vendor).where(Vendor.hub_id == SEED_HUB_ID))
+            await cleanup.execute(delete(Hub).where(Hub.id == SEED_HUB_ID))
             await cleanup.commit()
             return len(users), societies.rowcount  # pyright: ignore[reportAttributeAccessIssue]
     finally:
@@ -161,6 +170,7 @@ def test_the_seed_command_fills_the_local_database(
     try:
         assert seed_command([]) == 0
         out = capsys.readouterr().out
+        assert f"hub kharghar ({SEED_HUB_ID}) new" in out
         assert f"{len(PEOPLE)} synthetic people" in out
         assert f"{len(SOCIETIES)} synthetic societies" in out
         assert f"{len(HOUSEHOLDS)} synthetic households" in out
