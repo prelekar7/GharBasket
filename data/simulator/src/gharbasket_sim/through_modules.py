@@ -174,9 +174,10 @@ async def generate_week(
     plan_catalog: catalog_api.PlanCatalog,
     slugs: dict[uuid.UUID, str],
 ) -> tuple[Planned, list[Line], WeeklyCycle | None]:
-    """M3 drafts the week's cycle at T-3 18:00 IST, as `generate_weekly_plans` would, after the
-    weeks before it have been replayed (so its carry-over sees what they delivered). The plan
-    and lines feed the household's behaviour."""
+    """M3 drafts the week's cycle at T-3 18:00 IST, as `generate_weekly_plans` would, and shows it
+    to the household at 18:30 (`send_box_ready_notices`), after the weeks before it have been
+    replayed (so its carry-over sees what they delivered). The plan and lines feed the
+    household's behaviour."""
     with simulated_time(ist(delivery - timedelta(days=3), 18, 0)):
         generated = await subs_service.generate_cycle(
             session,
@@ -189,6 +190,11 @@ async def generate_week(
     await session.flush()
     if generated is None:  # paused, no delivery day: the family cooks on its own
         return Planned("none", (), {}, "none"), [], None
+    # The week is a draft until M3's box-ready notice shows it to the household at 18:30 IST.
+    notice_at = ist(delivery - timedelta(days=3), 18, 30)
+    with simulated_time(notice_at):
+        await subs_service.send_box_ready_notices(session, delivery, notice_at)
+    await session.flush()
     cycle = generated.cycle
     return planned_from_cycle(cycle), lines_from_cycle(generated.lines, slugs), cycle
 
