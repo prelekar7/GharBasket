@@ -40,6 +40,7 @@ ROLE_SCOPE: dict[str, ScopeType | None] = {
     "franchise_owner": "hub",
     "ngo_coordinator": "ngo",
     "admin": None,
+    "catalog_editor": None,
 }
 
 

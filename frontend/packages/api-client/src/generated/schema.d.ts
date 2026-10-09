@@ -3673,7 +3673,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin";
+            role: "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin" | "catalog_editor";
             /** Scope Id */
             scope_id?: string | null;
         };

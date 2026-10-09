@@ -156,6 +156,7 @@ class RoleGrantIn(BaseModel):
         "franchise_owner",
         "ngo_coordinator",
         "admin",
+        "catalog_editor",
     ]
     scope_id: uuid.UUID | None = None
 

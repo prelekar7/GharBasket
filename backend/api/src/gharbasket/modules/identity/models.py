@@ -45,6 +45,8 @@ ROLES = (
     "franchise_owner",
     "ngo_coordinator",
     "admin",
+    # Curates recipes: names and the fasting and diabetic flags (M2 §3.3).
+    "catalog_editor",
 )
 ROLE_STATUSES = ("applied", "kyc_pending", "verified", "suspended")
 SCOPE_TYPES = ("society", "hub", "ngo")

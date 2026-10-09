@@ -13,9 +13,12 @@ from decimal import Decimal
 from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import events
 from gharbasket.modules.catalog.models import Festival, Product, Recipe, RecipeIngredient
 from gharbasket.modules.catalog.pricing import prices_for
+from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
 # A product's step in the ingredient units: 1 kg is 1000 g, 1 l is 1000 ml.
@@ -33,7 +36,7 @@ def recipe_not_found() -> ProblemError:
     return ProblemError(404, "catalog.recipe_not_found", "No such recipe.")
 
 
-# --- writing (seed now; the console editor later) ---------------------------------------------
+# --- writing (the seed; the console recipe editor later) ------------------------------------
 
 
 @dataclass(frozen=True)
@@ -107,8 +110,10 @@ async def save_recipe(session: AsyncSession, data: RecipeData) -> tuple[Recipe, 
     ).scalar_one_or_none()
     created = recipe is None
     if recipe is None:
-        recipe = Recipe(slug=data.slug)
+        recipe = Recipe(slug=data.slug, version=1)
         session.add(recipe)
+    else:
+        recipe.version += 1
     recipe.names = data.names
     recipe.cuisine = data.cuisine
     recipe.slots = list(data.slots)
@@ -139,6 +144,59 @@ async def save_recipe(session: AsyncSession, data: RecipeData) -> tuple[Recipe, 
     )
     await session.flush()
     return recipe, created
+
+
+async def recompute_rules(
+    session: AsyncSession, product_ids: list[uuid.UUID], actor: uuid.UUID | None
+) -> list[str]:
+    """Recalculate the derived rules of every recipe using these products (after their tags
+    changed). Each recipe whose rules change gets version + 1, an audit entry and
+    `catalog.recipe_changed`. Returns the slugs of those recipes."""
+    using = select(RecipeIngredient.recipe_id).where(RecipeIngredient.product_id.in_(product_ids))
+    found = list(
+        (
+            await session.execute(
+                select(Recipe).where(Recipe.id.in_(using)).order_by(Recipe.slug).with_for_update()
+            )
+        ).scalars()
+    )
+    tags: dict[uuid.UUID, list[set[str]]] = {recipe.id: [] for recipe in found}
+    rows = await session.execute(
+        select(RecipeIngredient.recipe_id, Product.tags)
+        .join(Product, Product.id == RecipeIngredient.product_id)
+        .where(RecipeIngredient.recipe_id.in_(list(tags)))
+    )
+    for recipe_id, product_tags in rows.all():
+        tags[recipe_id].append(set(product_tags))
+    changed: list[str] = []
+    for recipe in found:
+        diet, jain_ok, no_onion_garlic = derived_rules(tags[recipe.id])
+        before = {"diet": recipe.diet, "rules": recipe.rules}
+        after = {
+            "diet": diet,
+            "rules": {**recipe.rules, "jain_ok": jain_ok, "no_onion_garlic": no_onion_garlic},
+        }
+        fields = [name for name in ("diet", "rules") if before[name] != after[name]]
+        if not fields:
+            continue
+        recipe.diet, recipe.rules = diet, after["rules"]
+        recipe.version += 1
+        await audit.record(
+            session,
+            actor_user_id=actor,
+            action="catalog.recipe_updated",
+            entity_type="recipe",
+            entity_id=str(recipe.id),
+            before={name: before[name] for name in fields},
+            after={name: after[name] for name in fields},
+        )
+        await publish(
+            session,
+            events.RECIPE_CHANGED,
+            {"recipe_id": str(recipe.id), "changed": fields, "active": recipe.active},
+        )
+        changed.append(recipe.slug)
+    return changed
 
 
 async def save_festival(
