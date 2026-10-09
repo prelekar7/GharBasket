@@ -6,9 +6,11 @@ The product, search, price and substitute shapes are the frozen S1 contract
 
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from gharbasket.modules.catalog.models import SLUG
 
 Kind = Literal["veg", "fruit", "staple", "kit", "tiffin", "salad"]
 Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
@@ -216,6 +218,23 @@ class Categories(BaseModel):
     items: list[CategoryOut]
 
 
+class NamesIn(BaseModel):
+    """All three are required; a missing or blank one is 422 `catalog.names_incomplete`."""
+
+    model_config = {"extra": "forbid"}
+
+    en: str | None = Field(default=None, max_length=80)
+    hi: str | None = Field(default=None, max_length=80)
+    mr: str | None = Field(default=None, max_length=80)
+
+
+class StepIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    qty: int = Field(ge=1, le=100_000, examples=[250])
+    unit: Unit
+
+
 class Nutrition(BaseModel):
     """Per 100 g; `unit_g` is the weight of one piece or bunch."""
 
@@ -235,6 +254,42 @@ class SynonymIn(BaseModel):
 
     term: str = Field(min_length=1, max_length=60, examples=["lady finger"])
     lang: TermLang
+
+
+TagCode = Annotated[str, Field(max_length=40)]
+
+
+class ProductIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    slug: str = Field(min_length=2, max_length=60, pattern=SLUG, examples=["bhindi"])
+    kind: str = Field(
+        max_length=20, description="veg, fruit, staple or salad (else catalog.kind_not_editable)"
+    )
+    category_id: uuid.UUID
+    names: NamesIn
+    step: StepIn
+    shelf_life_h: int | None = Field(default=None, ge=1, le=8760)
+    tags: list[TagCode] = Field(default=[], max_length=20, description="Codes from catalog.TAGS")
+    nutrition: Nutrition | None = None
+    synonyms: list[SynonymIn] = Field(default=[], max_length=30)
+
+
+class ProductPatch(BaseModel):
+    """Only the fields sent change. slug, kind and step never change (catalog.field_immutable)."""
+
+    model_config = {"extra": "forbid"}
+
+    slug: str | None = Field(default=None, description="Refused: catalog.field_immutable")
+    kind: str | None = Field(default=None, description="Refused: catalog.field_immutable")
+    step: StepIn | None = Field(default=None, description="Refused: catalog.field_immutable")
+    category_id: uuid.UUID | None = None
+    names: NamesIn | None = None
+    shelf_life_h: int | None = Field(default=None, ge=1, le=8760)
+    tags: list[TagCode] | None = Field(default=None, max_length=20)
+    nutrition: Nutrition | None = None
+    synonyms: list[SynonymIn] | None = Field(default=None, max_length=30)
+    active: bool | None = None
 
 
 class UserRef(BaseModel):
@@ -261,3 +316,25 @@ class AdminProduct(BaseModel):
     data_source: Literal["real", "synthetic"]
     updated_at: datetime
     updated_by: UserRef | None = Field(description="Who last edited it in the console")
+
+
+class ProductSaved(AdminProduct):
+    recipes_recomputed: list[str] = Field(
+        default=[], description="Slugs of recipes whose derived rules changed with the tags"
+    )
+
+
+class FieldChange(BaseModel):
+    from_: Any = Field(alias="from")
+    to: Any
+
+
+class HistoryEntry(BaseModel):
+    at: datetime
+    by: UserRef | None
+    action: str = Field(examples=["catalog.product_updated"])
+    changed: dict[str, FieldChange]
+
+
+class History(BaseModel):
+    items: list[HistoryEntry] = Field(description="Newest first, at most 100")

@@ -1637,6 +1637,22 @@
         "title": "Festivals",
         "type": "object"
       },
+      "FieldChange": {
+        "properties": {
+          "from": {
+            "title": "From"
+          },
+          "to": {
+            "title": "To"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "FieldChange",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "commit": {
@@ -1695,6 +1711,64 @@
           "params"
         ],
         "title": "HighlightOut",
+        "type": "object"
+      },
+      "History": {
+        "properties": {
+          "items": {
+            "description": "Newest first, at most 100",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "History",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "properties": {
+          "action": {
+            "examples": [
+              "catalog.product_updated"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FieldChange"
+            },
+            "title": "Changed",
+            "type": "object"
+          }
+        },
+        "required": [
+          "at",
+          "by",
+          "action",
+          "changed"
+        ],
+        "title": "HistoryEntry",
         "type": "object"
       },
       "HouseholdIn": {
@@ -3939,6 +4013,50 @@
         "title": "Names",
         "type": "object"
       },
+      "NamesIn": {
+        "additionalProperties": false,
+        "description": "All three are required; a missing or blank one is 422 `catalog.names_incomplete`.",
+        "properties": {
+          "en": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "En"
+          },
+          "hi": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hi"
+          },
+          "mr": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mr"
+          }
+        },
+        "title": "NamesIn",
+        "type": "object"
+      },
       "NotificationOut": {
         "properties": {
           "body": {
@@ -5304,6 +5422,90 @@
         "title": "Problem",
         "type": "object"
       },
+      "ProductIn": {
+        "additionalProperties": false,
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "veg, fruit, staple or salad (else catalog.kind_not_editable)",
+            "maxLength": 20,
+            "title": "Kind",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/NamesIn"
+          },
+          "nutrition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Nutrition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shelf_life_h": {
+            "anyOf": [
+              {
+                "maximum": 8760.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life H"
+          },
+          "slug": {
+            "examples": [
+              "bhindi"
+            ],
+            "maxLength": 60,
+            "minLength": 2,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/StepIn"
+          },
+          "synonyms": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SynonymIn"
+            },
+            "maxItems": 30,
+            "title": "Synonyms",
+            "type": "array"
+          },
+          "tags": {
+            "default": [],
+            "description": "Codes from catalog.TAGS",
+            "items": {
+              "maxLength": 40,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slug",
+          "kind",
+          "category_id",
+          "names",
+          "step"
+        ],
+        "title": "ProductIn",
+        "type": "object"
+      },
       "ProductNutrition": {
         "description": "Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.",
         "properties": {
@@ -5466,6 +5668,136 @@
         "title": "ProductOut",
         "type": "object"
       },
+      "ProductPatch": {
+        "additionalProperties": false,
+        "description": "Only the fields sent change. slug, kind and step never change (catalog.field_immutable).",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refused: catalog.field_immutable",
+            "title": "Kind"
+          },
+          "names": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NamesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nutrition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Nutrition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shelf_life_h": {
+            "anyOf": [
+              {
+                "maximum": 8760.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life H"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refused: catalog.field_immutable",
+            "title": "Slug"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refused: catalog.field_immutable"
+          },
+          "synonyms": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SynonymIn"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synonyms"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "ProductPatch",
+        "type": "object"
+      },
       "ProductRef": {
         "properties": {
           "name": {
@@ -5488,6 +5820,158 @@
           "name"
         ],
         "title": "ProductRef",
+        "type": "object"
+      },
+      "ProductSaved": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CategoryRef"
+          },
+          "data_source": {
+            "enum": [
+              "real",
+              "synthetic"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "kind": {
+            "enum": [
+              "veg",
+              "fruit",
+              "staple",
+              "kit",
+              "tiffin",
+              "salad"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/Names"
+          },
+          "nutrition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Nutrition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recipes_recomputed": {
+            "default": [],
+            "description": "Slugs of recipes whose derived rules changed with the tags",
+            "items": {
+              "type": "string"
+            },
+            "title": "Recipes Recomputed",
+            "type": "array"
+          },
+          "shelf_life_h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life H"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "synonyms": {
+            "items": {
+              "$ref": "#/components/schemas/SynonymIn"
+            },
+            "title": "Synonyms",
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who last edited it in the console"
+          },
+          "used_by_recipes": {
+            "description": "Active recipes with this product as an ingredient",
+            "title": "Used By Recipes",
+            "type": "integer"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "kind",
+          "category",
+          "name",
+          "names",
+          "step",
+          "tags",
+          "shelf_life_h",
+          "image_url",
+          "active",
+          "version",
+          "nutrition",
+          "synonyms",
+          "used_by_recipes",
+          "data_source",
+          "updated_at",
+          "updated_by"
+        ],
+        "title": "ProductSaved",
         "type": "object"
       },
       "PushTokenIn": {
@@ -6838,6 +7322,39 @@
           "label"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "StepIn": {
+        "additionalProperties": false,
+        "properties": {
+          "qty": {
+            "examples": [
+              250
+            ],
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Qty",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "unit"
+        ],
+        "title": "StepIn",
         "type": "object"
       },
       "SubscriptionIn": {
@@ -9022,6 +9539,143 @@
           "catalog",
           "catalog"
         ]
+      },
+      "post": {
+        "operationId": "create_product_v1_admin_products_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProduct"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.slug_taken"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.names_incomplete (missing), catalog.kind_not_editable, catalog.tag_unknown (tags), catalog.category_unknown, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Add a product (admin; Idempotency-Key; audit-logged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
       }
     },
     "/v1/admin/products/{product_id}": {
@@ -9131,6 +9785,280 @@
           }
         ],
         "summary": "One product for the console (ETag: its version)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      },
+      "patch": {
+        "operationId": "edit_product_v1_admin_products__product_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Product Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSaved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.product_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.product_in_use (recipes)"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.tag_unknown (tags), catalog.category_unknown, request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Edit a product, or deactivate or reactivate it (admin; If-Match; audit-logged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/admin/products/{product_id}/history": {
+      "get": {
+        "operationId": "product_history_v1_admin_products__product_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Product Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.product_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Who changed a product and what, newest first (from the audit log)",
         "tags": [
           "catalog",
           "catalog"

@@ -1,22 +1,32 @@
 """HTTP endpoints of the console's catalog editor (spec §3.3): categories and products.
 
-Admins, hub managers and catalog editors read the admin lists (`catalog:admin_read`). A read of one
-product sends its version as the ETag, for the edits that come with If-Match.
+Admins write (`catalog:write`); admins, hub managers and catalog editors read the admin lists
+(`catalog:admin_read`). Reads of one product send its version as the ETag; edits need If-Match.
 """
 
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response
+from fastapi import APIRouter, Query, Response, status
 
 from gharbasket.modules.catalog import admin
 from gharbasket.modules.catalog import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.catalog.schemas import AdminProduct, Categories, CategoryOut, Kind
+from gharbasket.modules.catalog.schemas import (
+    AdminProduct,
+    Categories,
+    CategoryOut,
+    History,
+    Kind,
+    ProductIn,
+    ProductPatch,
+    ProductSaved,
+)
 from gharbasket.modules.catalog.service import ProductRow, step_label
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
-from gharbasket.platform.etag import set_etag
+from gharbasket.platform.etag import IfMatch, set_etag
+from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
 from gharbasket.platform.pagination import Cursor, Page
 from gharbasket.platform.permissions import Permit, require
@@ -25,6 +35,7 @@ router = APIRouter(tags=["catalog"])
 
 PRODUCTS = "/admin/products"
 CanRead = Annotated[Permit, require("catalog:admin_read")]
+CanWrite = Annotated[Permit, require("catalog:write")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -112,3 +123,95 @@ async def get_admin_product(
     set_etag(response, row.product.version)
     response.headers["Cache-Control"] = "no-store"
     return (await _admin_out(session, [row], lang))[0]
+
+
+@router.post(
+    PRODUCTS,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a product (admin; Idempotency-Key; audit-logged)",
+    responses={
+        403: _problem("auth.forbidden"),
+        409: _problem("catalog.slug_taken"),
+        422: _problem(
+            "catalog.names_incomplete (missing), catalog.kind_not_editable, catalog.tag_unknown "
+            "(tags), catalog.category_unknown, request.invalid"
+        ),
+    },
+)
+async def create_product(
+    body: ProductIn,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    response: Response,
+) -> AdminProduct:
+    product = await admin.create(session, body, permit.principal.user_id)
+    out = (await _admin_out(session, [await admin.get(session, product.id)], lang))[0]
+    await idem.save(201, out)
+    await session.commit()
+    set_etag(response, product.version)
+    return out
+
+
+@router.patch(
+    PRODUCTS + "/{product_id}",
+    summary="Edit a product, or deactivate or reactivate it (admin; If-Match; audit-logged)",
+    responses={
+        403: _problem("auth.forbidden"),
+        404: _problem("catalog.product_not_found"),
+        409: _problem("catalog.product_in_use (recipes)"),
+        412: _problem("catalog.version_conflict"),
+        422: _problem(
+            "catalog.field_immutable (fields), catalog.names_incomplete (missing), "
+            "catalog.tag_unknown (tags), catalog.category_unknown, request.invalid"
+        ),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def edit_product(
+    product_id: uuid.UUID,
+    body: ProductPatch,
+    permit: CanWrite,
+    session: DbSession,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> ProductSaved:
+    product, recomputed = await admin.update(
+        session, product_id, expected, body, permit.principal.user_id
+    )
+    [out] = await _admin_out(session, [await admin.get(session, product.id)], lang)
+    await session.commit()
+    set_etag(response, product.version)
+    return ProductSaved(**out.model_dump(), recipes_recomputed=recomputed)
+
+
+@router.get(
+    PRODUCTS + "/{product_id}/history",
+    summary="Who changed a product and what, newest first (from the audit log)",
+    responses={403: _problem("auth.forbidden"), 404: _problem("catalog.product_not_found")},
+)
+async def product_history(product_id: uuid.UUID, _permit: CanRead, session: DbSession) -> History:
+    await admin.get(session, product_id)
+    entries = await admin.history(session, "product", product_id)
+    who = await identity_api.user_names(
+        session, {e.actor_user_id for e in entries if e.actor_user_id}
+    )
+    return History.model_validate(
+        {
+            "items": [
+                {
+                    "at": e.at,
+                    "by": e.actor_user_id
+                    and {"id": e.actor_user_id, "name": who.get(e.actor_user_id)},
+                    "action": e.action,
+                    "changed": {
+                        field: {"from": (e.before or {}).get(field), "to": to}
+                        for field, to in (e.after or {}).items()
+                    },
+                }
+                for e in entries
+            ]
+        }
+    )
