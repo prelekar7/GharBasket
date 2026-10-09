@@ -105,8 +105,8 @@ flowchart LR
 
 | Module | Events |
 |---|---|
-| identity | `identity.household_created` |
-| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
+| identity | `identity.household_created`, `identity.data_export_ready` |
+| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_ready`, `subscriptions.cutoff_reminder`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
 | orders | `orders.locked`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` |
 | billing | `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued` |
 | ops | `hub_ops.procurement_plan_ready`, `hub_ops.waste_logged` |
@@ -121,9 +121,9 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 
 | When | Job | Module |
 |---|---|---|
-| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_notices` (publishes `subscriptions.box_ready`; M11 notifies) | subscriptions → notify |
-| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder`) | subscriptions → notify |
+| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts; cron-job.org) | intel → subscriptions |
+| T-3 18:30 | `send_box_ready_notices` (draft → awaiting approval; publishes `subscriptions.box_ready`; M11 notifies; cron-job.org) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder` once per unapproved box auto-approve will not take; cron-job.org) | subscriptions → notify |
 | every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
@@ -137,6 +137,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
+| Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 
 ## 10.5 Key endpoints per module (v1)
 
@@ -144,10 +145,10 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 |---|---|
 | M0 platform | `/health`, `/ready`, `POST /files/presign`; internal `GET /internal/jobs`, `POST /internal/jobs/{name}` (`JOBS_TOKEN`) |
 | M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `POST/GET /me/data-export`, `DELETE /me` |
-| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals` |
-| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/feedback`, `/budget-lock` |
-| M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots` |
-| M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements?period=` |
+| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3) |
+| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock` |
+| M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
+| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=`, `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`; `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |

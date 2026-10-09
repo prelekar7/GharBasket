@@ -55,7 +55,8 @@ def clock(moment: datetime, lang: Language) -> str:
     return f"{part} {shown} बजे" if lang == "hi" else f"{part} {shown}"
 
 
-def _format(kind: PlaceholderType, raw: Any, lang: Language) -> str:
+def format_value(kind: PlaceholderType, raw: Any, lang: Language) -> str:
+    """One raw value for the reader; ValueError or TypeError when it is not that type."""
     match kind:
         case "money":
             return money(int(raw))
@@ -75,9 +76,19 @@ def render(text: str, kind: Kind, params: dict[str, Any], lang: Language) -> str
     """The template with each placeholder formatted. Templates are checked when saved, so an
     unknown placeholder or a missing value only shows as empty rather than failing a read."""
     values = {
-        name: _format(kind.placeholders[name], params[name], lang)
+        name: format_value(kind.placeholders[name], params[name], lang)
         if name in kind.placeholders and name in params
         else ""
         for name in placeholders_of(text)
     }
     return text.format_map(values)
+
+
+def ordered_values(text: str, kind: Kind, params: dict[str, Any], lang: Language) -> list[str]:
+    """The template's placeholders formatted, in the order they appear: a WhatsApp template's
+    {{1}}, {{2}} … parameters (spec §3.2)."""
+    return [
+        render(f"{{{name}}}", kind, params, lang)
+        for _, name, _, _ in string.Formatter().parse(text)
+        if name
+    ]

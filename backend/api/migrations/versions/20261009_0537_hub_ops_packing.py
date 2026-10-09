@@ -5,7 +5,7 @@ and an audit row per packer action with the phone's tap time. Order, slot, socie
 user ids are plain UUIDs (ADR-0026 §5); route_id and stop_seq stay null until M7 publishes routes.
 
 Revision ID: 232e527f6a85
-Revises: 386739a6e42e
+Revises: 058901d53044
 Create Date: 2026-10-09 05:37:52.790746+00:00
 """
 
@@ -16,7 +16,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "232e527f6a85"
-down_revision: str | Sequence[str] | None = "386739a6e42e"
+down_revision: str | Sequence[str] | None = "058901d53044"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

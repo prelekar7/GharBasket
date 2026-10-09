@@ -1,4 +1,5 @@
-"""Business logic of M11 Notifications: the inbox and preferences (spec §3.1)."""
+"""Business logic of M11 Notifications: the inbox and preferences (spec §3.1), and the message
+and its deliveries that an event leaves behind (§3.1 rules)."""
 
 import re
 import uuid
@@ -9,9 +10,18 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.notifications.kinds import CATEGORIES, KINDS
-from gharbasket.modules.notifications.models import Message, Preference, QuietHours, Template
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.notifications.kinds import ACCOUNT, CATEGORIES, KINDS
+from gharbasket.modules.notifications.models import (
+    Delivery,
+    Message,
+    Preference,
+    QuietHours,
+    Template,
+)
+from gharbasket.modules.notifications.quiet import held_until
 from gharbasket.modules.notifications.render import render
+from gharbasket.modules.notifications.routes import Route
 from gharbasket.modules.notifications.schemas import (
     CategoryPreference,
     NotificationOut,
@@ -20,6 +30,7 @@ from gharbasket.modules.notifications.schemas import (
 )
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.locale import Language
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
 LOCALE: dict[Language, str] = {"en": "en-IN", "hi": "hi-IN", "mr": "mr-IN"}
@@ -57,6 +68,20 @@ async def active_templates(
     return {(t.kind, t.locale): t for t in rows.scalars()}
 
 
+async def whatsapp_template(session: AsyncSession, kind: str, locale: str) -> Template | None:
+    """The active WhatsApp template of this kind in the person's locale, else in English."""
+    rows = await session.execute(
+        select(Template).where(
+            Template.channel == "whatsapp",
+            Template.active,
+            Template.kind == kind,
+            Template.locale.in_({locale, FALLBACK_LOCALE}),
+        )
+    )
+    found = {t.locale: t for t in rows.scalars()}
+    return found.get(locale) or found.get(FALLBACK_LOCALE)
+
+
 def rendered(
     message: Message, templates: dict[tuple[str, str], Template], lang: Language
 ) -> NotificationOut:
@@ -80,9 +105,9 @@ def rendered(
     )
 
 
-async def inbox(
-    session: AsyncSession, user_id: uuid.UUID, lang: Language, cursor: str | None, limit: int
-) -> tuple[list[NotificationOut], int, str | None]:
+async def messages_page(
+    session: AsyncSession, user_id: uuid.UUID, cursor: str | None, limit: int
+) -> tuple[list[Message], str | None]:
     """Newest first. Message ids are uuidv7 (time-ordered), so the cursor is the last id seen."""
     stmt = select(Message).where(Message.user_id == user_id)
     if cursor is not None:
@@ -95,13 +120,19 @@ async def inbox(
         (await session.execute(stmt.order_by(Message.id.desc()).limit(limit + 1))).scalars()
     )
     page = rows[:limit]
+    return page, encode_cursor({"before": str(page[-1].id)}) if len(rows) > limit else None
+
+
+async def inbox(
+    session: AsyncSession, user_id: uuid.UUID, lang: Language, cursor: str | None, limit: int
+) -> tuple[list[NotificationOut], int, str | None]:
+    page, next_cursor = await messages_page(session, user_id, cursor, limit)
     templates = await active_templates(session, {m.kind for m in page}, lang)
     unread = await session.scalar(
         select(func.count())
         .select_from(Message)
         .where(Message.user_id == user_id, Message.read_at.is_(None))
     )
-    next_cursor = encode_cursor({"before": str(page[-1].id)}) if len(rows) > limit else None
     return [rendered(m, templates, lang) for m in page], unread or 0, next_cursor
 
 
@@ -157,9 +188,8 @@ def _clock(value: str) -> time:
 
 
 async def whatsapp_allowed(session: AsyncSession, user_id: uuid.UUID) -> bool:
-    """The M1 `whatsapp` consent (§3.1). It arrives with the send pipeline, so until then no one
-    can turn WhatsApp on."""
-    return False
+    """The M1 `whatsapp` consent (§3.1), checked when saving and again for every message."""
+    return await identity_api.has_consent(session, user_id, "whatsapp")
 
 
 async def save_preferences(
@@ -201,3 +231,60 @@ async def save_preferences(
             .on_conflict_do_update(index_elements=["user_id"], set_=times)
         )
     return await preferences(session, user_id)
+
+
+# --- messages from events ----------------------------------------------------------------------
+
+
+async def channels_for(
+    session: AsyncSession, user_id: uuid.UUID, category: str, saved: PreferencesOut
+) -> list[str]:
+    """Where a message goes besides the inbox. Account messages are always pushed (§3.1)."""
+    if category == ACCOUNT:
+        return ["push"]
+    choice = next(c for c in saved.categories if c.category == category)
+    channels = ["push"] if choice.push else []
+    if choice.whatsapp and await whatsapp_allowed(session, user_id):
+        channels.append("whatsapp")
+    return channels
+
+
+async def record(session: AsyncSession, event: OutboxEvent, route: Route) -> int:
+    """The message for each recipient, and a delivery per channel for a new one only, so an event
+    delivered twice changes nothing. Returns the number of new messages."""
+    kind = KINDS[route.kind]
+    created = 0
+    for user_id in route.user_ids:
+        message_id = await session.scalar(
+            insert(Message)
+            .values(
+                user_id=user_id,
+                event_id=event.id,
+                event_type=event.event_type,
+                kind=route.kind,
+                category=kind.category,
+                params=route.params,
+                link=kind.link,
+            )
+            .on_conflict_do_nothing(index_elements=["event_id", "user_id"])
+            .returning(Message.id)
+        )
+        if message_id is None:
+            continue
+        created += 1
+        saved = await preferences(session, user_id)
+        channels = await channels_for(session, user_id, kind.category, saved)
+        at = now()
+        quiet = (_clock(saved.quiet_start), _clock(saved.quiet_end))
+        held = None if kind.critical else held_until(at, *quiet)
+        session.add_all(
+            Delivery(
+                message_id=message_id,
+                channel=channel,
+                status="queued" if held is None else "held",
+                next_attempt_at=held or at,
+            )
+            for channel in channels
+        )
+    await session.flush()
+    return created

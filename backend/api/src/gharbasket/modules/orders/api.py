@@ -1,6 +1,7 @@
 """Facade of M4 Orders & Checkout: the only module other modules may import (spec §3.1, §3.2).
 
-- M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip.
+- M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip,
+  and shows a `payment_failed` week's amount due until `grace_until_for` its delivery date.
 - The cut-off job and M6/M7/M8 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
@@ -16,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
-from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED
+from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
 from gharbasket.modules.orders.models import (
     Order,
     OrderEvent,
@@ -30,6 +31,7 @@ from gharbasket.modules.orders.service import (
     OrderSummary,
     create_from_cycle,
     cutoff_for,
+    grace_until_for,
     orders_for_delivery,
 )
 
@@ -37,6 +39,7 @@ __all__ = [
     "CANCELLED",
     "DELIVERED",
     "LOCKED",
+    "PAYMENT_FAILED",
     "ApprovedCycle",
     "CycleLine",
     "Order",
@@ -49,6 +52,7 @@ __all__ = [
     "cutoff_for",
     "export_for_user",
     "get",
+    "grace_until_for",
     "mark_shortage",
     "orders_for_delivery",
     "resolve_issue",
@@ -62,8 +66,9 @@ async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = 
 
 
 async def cancel_from_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
-    """A skipped cycle cancels its order if one exists and is not paid yet."""
-    order = await service.by_cycle(session, cycle_id)
+    """A skipped cycle cancels its order if one exists and is not paid yet (a `payment_failed`
+    one too: M3 allows that skip until the grace ends)."""
+    order = await service.by_cycle(session, cycle_id, for_update=True)
     if order is None:
         return None
     return await service.cancel(session, order, actor="system", reason="skipped")
@@ -100,7 +105,8 @@ async def mark_shortage(
     """M6 packing (§3.1, ADR-0026 §6): refund the short steps to the wallet, or replace a
     whole short line with a same-or-cheaper substitute and refund the difference, in the
     caller's transaction; once per line. `billing.wallet_limit` is raised as is and then
-    nothing is recorded."""
+    nothing is recorded. A household that chose "never substitute, refund" (M1 §3.4) is
+    refused any substitute (`orders.substitute_invalid`, reason `refund_preferred`)."""
     order = await service.get(session, order_id, for_update=True)
     return await service.mark_shortage(
         session, order, product_id, shortage_qty, substitute_product_id
