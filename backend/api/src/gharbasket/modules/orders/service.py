@@ -37,6 +37,15 @@ def cutoff_for(delivery_date: date) -> datetime:
     return datetime.combine(delivery_date - timedelta(days=1), CUTOFF_TIME, IST).astimezone(UTC)
 
 
+# A box the cut-off could not debit may still be paid for this long (T-1 23:00 IST).
+PAYMENT_GRACE = timedelta(hours=2)
+
+
+def grace_until_for(delivery_date: date) -> datetime:
+    """When a `payment_failed` box stops being payable: two hours after its cut-off."""
+    return cutoff_for(delivery_date) + PAYMENT_GRACE
+
+
 def now() -> datetime:
     return datetime.now(UTC)
 
@@ -178,10 +187,15 @@ def _totals(order: Order, lines: list[OrderLine]) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
 
 
-async def by_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
-    return (
-        await session.execute(select(Order).where(Order.cycle_id == cycle_id))
-    ).scalar_one_or_none()
+async def by_cycle(
+    session: AsyncSession, cycle_id: uuid.UUID, *, for_update: bool = False
+) -> Order | None:
+    """The cycle's order that is not cancelled (at most one: a partial unique index). A skip
+    cancels the order, so an un-skipped week approved again gets a new one (M3 §3.3)."""
+    stmt = select(Order).where(Order.cycle_id == cycle_id, Order.status != "cancelled")
+    if for_update:  # wait for a `pay` or a top-up in flight, then read what it left
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await session.execute(stmt)).scalar_one_or_none()
 
 
 async def _box_products(
@@ -486,6 +500,51 @@ async def cancel(
     return order
 
 
+# --- paying: the cut-off, a top-up in the grace period, and `pay` (§3.1, §3.4) -------------------
+
+
+async def debit_and_lock(session: AsyncSession, order: Order, *, actor: str) -> Order:
+    """Debit the household owner's wallet for the order and lock it.
+
+    The debit is M5's `box:<order id>` entry, the same for the cut-off, a top-up's retry and
+    `pay`, so the order is never charged twice. `billing.insufficient_balance` is raised with
+    nothing changed (the debit runs in a savepoint).
+    """
+    owner = await identity_api.owner_of_household(session, order.household_id)
+    if owner is None:
+        raise ValueError(f"order {order.id} has no household owner")
+    if order.total_paise > 0:
+        async with session.begin_nested():
+            await billing_api.debit_for_order(
+                session, owner, order.id, order.total_paise, order.delivery_date
+            )
+    return await transition(session, order, "locked", actor=actor)
+
+
+async def pay(session: AsyncSession, order: Order) -> Order:
+    """The customer pays a `payment_failed` box from the wallet before its grace ends (§3.4).
+
+    The caller holds the order's row lock, so `pay` and the top-up consumer run one after the
+    other; whichever comes second finds the order locked, and a locked order answers as is.
+    """
+    if order.status == "locked":
+        return order
+    if order.status != "payment_failed":
+        raise ProblemError(
+            409,
+            "orders.not_payable",
+            f"A {order.status.replace('_', ' ')} order has nothing to pay.",
+            extra={"status": order.status},
+        )
+    if now() >= order.cutoff_at + PAYMENT_GRACE:
+        raise ProblemError(
+            409,
+            "orders.payment_grace_over",
+            "The time to pay for this box has passed; it will be cancelled.",
+        )
+    return await debit_and_lock(session, order, actor="customer")
+
+
 async def transition(
     session: AsyncSession,
     order: Order,
@@ -622,7 +681,8 @@ async def mark_shortage(
     catalog's list (`catalog.api.substitute_ids`) that is not already on the order and costs no
     more per step at the hub today: the line takes the substitute's product, step and price and
     keeps its qty, `substituted_from` names the original, and the difference is refunded.
-    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record.
+    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record;
+    a household that chose "never substitute, refund" (M1 §3.4) gets `refund_preferred`.
 
     The refund goes through `billing.api.refund_to_wallet(reason=f"short_{product_id.hex}")` in
     the caller's transaction, and the order's totals follow its lines (a line counts
@@ -662,6 +722,11 @@ async def mark_shortage(
     if substitute_product_id is None:
         refund = shortage_qty * line.unit_price_paise
     else:
+        # A second check behind M6's packing screen (M1 §3.4), read now, not when the task was
+        # built: a household that chose "never substitute, refund" is never substituted.
+        preference = await identity_api.shortage_preferences(session, [order.household_id])
+        if preference[order.household_id] == "refund":
+            raise _substitute_invalid("refund_preferred")
         found = await catalog_api.line_products(
             session, [substitute_product_id], hub_id=order.hub_id
         )
@@ -698,6 +763,7 @@ async def mark_shortage(
         SHORTAGE_SUBSTITUTED,
         {
             "order_id": str(order.id),
+            "household_id": str(order.household_id),  # who M11 tells
             "product_id": str(product_id),
             "shortage_qty": shortage_qty,
             "substitute_product_id": None if substitute is None else str(substitute.id),

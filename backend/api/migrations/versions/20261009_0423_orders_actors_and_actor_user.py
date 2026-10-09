@@ -1,7 +1,7 @@
 """orders: packer, rider, captain and kitchen actors; who made each move (ADR-0026 §2, M4 §4)
 
 Revision ID: 386739a6e42e
-Revises: 6b1d0c4e9a27
+Revises: 15f45f1073b6
 Create Date: 2026-10-09 04:23:00.000000+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "386739a6e42e"
-down_revision: str | Sequence[str] | None = "6b1d0c4e9a27"
+down_revision: str | Sequence[str] | None = "15f45f1073b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

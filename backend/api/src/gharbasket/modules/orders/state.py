@@ -17,7 +17,8 @@ _BEFORE_CUTOFF: Table = {
         "cancelled": frozenset({"customer", "system"}),
     },
     "payment_failed": {
-        "locked": frozenset({"system"}),  # a top-up inside the grace period
+        # A top-up inside the grace period (system), or `POST /v1/orders/{id}/pay` (customer).
+        "locked": frozenset({"system", "customer"}),
         "cancelled": frozenset({"system", "customer"}),
     },
 }
