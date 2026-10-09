@@ -1462,6 +1462,16 @@
             "title": "No Cook Days",
             "type": "array"
           },
+          "shortage_preference": {
+            "default": "substitute",
+            "description": "A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)",
+            "enum": [
+              "substitute",
+              "refund"
+            ],
+            "title": "Shortage Preference",
+            "type": "string"
+          },
           "society_id": {
             "format": "uuid",
             "title": "Society Id",
@@ -1581,6 +1591,14 @@
             "title": "No Cook Days",
             "type": "array"
           },
+          "shortage_preference": {
+            "enum": [
+              "substitute",
+              "refund"
+            ],
+            "title": "Shortage Preference",
+            "type": "string"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -1617,6 +1635,7 @@
           "budget_paise",
           "autopilot_enabled",
           "auto_approve",
+          "shortage_preference",
           "members",
           "address",
           "created_at"
@@ -1716,6 +1735,21 @@
               }
             ],
             "title": "No Cook Days"
+          },
+          "shortage_preference": {
+            "anyOf": [
+              {
+                "enum": [
+                  "substitute",
+                  "refund"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortage Preference"
           },
           "weekday_cook_minutes": {
             "anyOf": [

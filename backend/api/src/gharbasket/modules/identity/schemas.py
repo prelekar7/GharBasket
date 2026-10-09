@@ -175,6 +175,7 @@ ConsentPurpose = Literal[
     "marketing",
     "research_anonymised",
 ]
+ShortagePreference = Literal["substitute", "refund"]
 CookMinutes = Annotated[int, Field(ge=10, le=240)]
 Weekday = Annotated[int, Field(ge=0, le=6)]
 FLAT = re.compile(r"^[A-Z0-9 /-]{1,20}$")
@@ -274,6 +275,11 @@ class HouseholdSettings(BaseModel):
     budget_paise: int | None = Field(
         default=None, ge=50_000, examples=[300_000], description="Monthly Budget Lock; null = off"
     )
+    shortage_preference: ShortagePreference = Field(
+        default="substitute",
+        description="A short item: a similar one at the same price or cheaper, or never "
+        "substitute and refund (§3.4)",
+    )
 
     _unique_cuisines = field_validator("cuisine_tags")(_unique)
     _unique_days = field_validator("no_cook_days")(_unique)
@@ -307,6 +313,7 @@ class HouseholdUpdate(BaseModel):
     budget_paise: int | None = Field(default=None, ge=50_000)
     autopilot_enabled: bool | None = None
     auto_approve: bool | None = None
+    shortage_preference: ShortagePreference | None = None
 
     @field_validator("cuisine_tags", "no_cook_days")
     @classmethod
@@ -335,6 +342,7 @@ class HouseholdOut(BaseModel):
     budget_paise: int | None
     autopilot_enabled: bool
     auto_approve: bool
+    shortage_preference: ShortagePreference
     members: list[MemberOut]
     address: AddressOut
     created_at: datetime

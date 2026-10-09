@@ -211,3 +211,37 @@ async def test_a_full_wallet_refuses_the_refund_and_nothing_is_recorded(
     line = await orders_api.mark_shortage(db_session, order_id, ids["tomato"], 2, cucumber)
     assert line.product_id == cucumber
     await assert_ledger_balances(db_session)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_household_that_chose_a_refund_is_never_substituted(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    order_id, ids = await placed_order(db_session, priya_id, reach=PICKING, box=BOX)
+    gourd = (await slugs(db_session, "bitter-gourd"))["bitter-gourd"]
+    before = await billing_api.balance(db_session, priya_id)
+    # Chosen after the box was locked: packing reads it when the shortage is recorded (M1 §3.4).
+    me = await api.get("/v1/households/me", headers=priya)
+    chosen = await api.patch(
+        f"/v1/households/{me.json()['id']}",
+        json={"shortage_preference": "refund"},
+        headers={**priya, "If-Match": me.headers["etag"]},
+    )
+    assert chosen.status_code == 200, chosen.text
+
+    with pytest.raises(ProblemError) as refused:
+        await orders_api.mark_shortage(db_session, order_id, ids["tomato"], 2, gourd)
+
+    assert (refused.value.status, refused.value.code) == (422, "orders.substitute_invalid")
+    assert refused.value.extra == {"reason": "refund_preferred"}
+    tomato = await line_of(db_session, order_id, ids["tomato"])
+    assert (tomato.shortage_qty, tomato.substituted_from) == (0, None)
+    assert await billing_api.balance(db_session, priya_id) == before
+    assert await events(db_session, SHORTAGE) == []
+    # The shortage itself is still recorded, as a refund.
+    line = await orders_api.mark_shortage(db_session, order_id, ids["tomato"], 2)
+    assert (line.product_id, line.shortage_qty) == (ids["tomato"], 2)
+    assert await billing_api.balance(db_session, priya_id) == before + 5_000
+    await assert_ledger_balances(db_session)
