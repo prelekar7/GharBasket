@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity import households as households_service
 from gharbasket.modules.identity.models import Address, Consent, Household, HouseholdMember
 from gharbasket.platform.models import AuditEntry, OutboxEvent
@@ -43,6 +44,7 @@ async def test_onboarding_creates_everything_in_one_call(
     assert body["version"] == 1 and body["size"] == 2
     assert body["society_id"] == str(SEED_SOCIETY_ID) and body["hub_id"] == str(SEED_HUB_ID)
     assert (body["autopilot_enabled"], body["auto_approve"]) == (True, False)
+    assert body["shortage_preference"] == "substitute"
     assert body["address"]["flat"] == "A-1203"
     assert body["address"]["location"] == {"lat": 19.0396, "lng": 73.0676}
     assert body["address"]["household_id"] == body["id"]
@@ -266,6 +268,7 @@ async def test_a_society_without_a_boundary_accepts_any_pin_and_no_pin(
         {"address": {"tower_id": "a", "flat": "A-1", "location": {"lat": 0, "lng": 0}}},
         {"members": [{"age_band": "18_59", "health_tags": ["flu"]}]},
         {"consents": [ONBOARDING["consents"][0], ONBOARDING["consents"][0]]},
+        {"shortage_preference": "never"},
         {"surprise": 1},
     ],
 )
@@ -394,7 +397,15 @@ async def test_a_jain_household_cannot_switch_to_eggs(
 
 
 @pytest.mark.parametrize(
-    "change", [{"diet": None}, {"budget_paise": 100}, {"size": 3}, {"no_cook_days": [8]}]
+    "change",
+    [
+        {"diet": None},
+        {"budget_paise": 100},
+        {"size": 3},
+        {"no_cook_days": [8]},
+        {"shortage_preference": None},
+        {"shortage_preference": "never"},
+    ],
 )
 async def test_invalid_edits_are_422(
     clients: ClientFactory, google: FakeGoogle, change: dict[str, Any]
@@ -419,6 +430,69 @@ async def test_nobody_else_can_edit_a_household(clients: ClientFactory, google: 
     )
 
     assert response.status_code == 404
+
+
+# --- shortage preference (§3.4) -----------------------------------------------------------------
+
+
+async def test_a_household_can_choose_a_refund_instead_of_a_substitute(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    headers = await customer(api, google)
+    household_id = uuid.UUID((await onboard(api, headers)).json()["id"])
+    path = f"/v1/households/{household_id}"
+    assert await identity_api.shortage_preferences(db_session, [household_id]) == {
+        household_id: "substitute"
+    }
+    await db_session.commit()  # the refused request below rolls back the shared session
+
+    missing = await api.patch(path, json={"shortage_preference": "refund"}, headers=headers)
+    assert missing.status_code == 428
+    edited = await api.patch(
+        path, json={"shortage_preference": "refund"}, headers={**headers, "If-Match": '"1"'}
+    )
+
+    assert edited.status_code == 200, edited.text
+    assert edited.headers["etag"] == '"2"'
+    assert (edited.json()["version"], edited.json()["shortage_preference"]) == (2, "refund")
+    assert (await api.get("/v1/households/me", headers=headers)).json() == edited.json()
+    event = (
+        await db_session.execute(
+            select(OutboxEvent).where(
+                OutboxEvent.event_type == "identity.household_updated",
+                OutboxEvent.payload["household_id"].astext == str(household_id),
+            )
+        )
+    ).scalar_one()
+    assert (event.payload["version"], event.payload["changed"]) == (2, ["shortage_preference"])
+    assert await identity_api.shortage_preferences(db_session, [household_id]) == {
+        household_id: "refund"
+    }
+
+    back = await api.patch(
+        path, json={"shortage_preference": "substitute"}, headers={**headers, "If-Match": '"2"'}
+    )
+    assert (back.json()["version"], back.json()["shortage_preference"]) == (3, "substitute")
+
+
+async def test_onboarding_can_choose_a_refund_and_unknown_households_read_as_substitute(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+
+    created = await onboard(
+        api, await customer(api, google), onboarding(shortage_preference="refund")
+    )
+
+    assert created.status_code == 201, created.text
+    assert created.json()["shortage_preference"] == "refund"
+    household_id, stranger = uuid.UUID(created.json()["id"]), uuid.uuid4()
+    assert await identity_api.shortage_preferences(db_session, [household_id, stranger]) == {
+        household_id: "refund",
+        stranger: "substitute",
+    }
+    assert await identity_api.shortage_preferences(db_session, []) == {}
 
 
 # --- consents ---------------------------------------------------------------------------------

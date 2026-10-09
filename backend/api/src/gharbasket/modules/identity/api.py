@@ -1,6 +1,7 @@
 """Facade of M1 Identity & Household: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -125,6 +126,22 @@ async def household_plan_profile(
         auto_approve=household.auto_approve,
         data_source=household.data_source,
     )
+
+
+async def shortage_preferences(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """Each household's choice for a short item, "substitute" or "refund" (spec §3.4), for M6's
+    packing queue and M4's mark_shortage. Read when the shortage is recorded, so a change applies
+    from the moment it is saved; an unknown id reads as "substitute"."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.id, Household.shortage_preference).where(Household.id.in_(ids))
+    )
+    found: dict[uuid.UUID, str] = {household_id: pref for household_id, pref in rows}
+    return {household_id: found.get(household_id, "substitute") for household_id in ids}
 
 
 async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:
