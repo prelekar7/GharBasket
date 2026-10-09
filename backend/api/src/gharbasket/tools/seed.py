@@ -91,7 +91,7 @@ PEOPLE = (
     Person("+919800001009", "Sanjay Mehta", roles=(("franchise_owner", SEED_HUB_ID),)),
     Person("+919800001010", "Asha Fernandes", roles=(("ngo_coordinator", SEED_NGO_ID),)),
     Person("+919800001011", "Neha Iyer", roles=(("admin", None),)),
-    Person("+919800001012", "Rekha Joshi", roles=(("catalog_editor", None),)),
+    Person("+919800001013", "Rekha Joshi", roles=(("catalog_editor", None),)),
 )
 
 
