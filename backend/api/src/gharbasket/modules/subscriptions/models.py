@@ -35,7 +35,15 @@ SCHEMA = "subscriptions"
 PLAN_CODES = ("autopilot", "tiffin", "salad")
 SUBSCRIPTION_STATUSES = ("active", "paused", "ended")
 PAYMENT_MODES = ("wallet", "autopay")
-CYCLE_STATUSES = ("draft", "awaiting_approval", "approved", "skipped", "cancelled", "locked")
+CYCLE_STATUSES = (
+    "draft",
+    "awaiting_approval",
+    "approved",
+    "skipped",
+    "cancelled",
+    "locked",
+    "payment_failed",  # mirrored from the order: the cut-off found the wallet short (§3.3)
+)
 PLAN_SOURCES = ("ml", "fallback")
 LINE_SOURCES = ("ai", "rule", "customer")
 REASON_CODES = (

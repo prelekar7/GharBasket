@@ -29,13 +29,15 @@ stateDiagram-v2
     AWAITING_APPROVAL --> AWAITING_APPROVAL : customer edits (version + 1)
     AWAITING_APPROVAL --> APPROVED : customer approves
     AWAITING_APPROVAL --> SKIPPED : customer skips week
+    SKIPPED --> AWAITING_APPROVAL : customer un-skips before cut-off (a new order on approval)
     AWAITING_APPROVAL --> APPROVED : auto-approve at cut-off (notice sent at least 24 h earlier)
     AWAITING_APPROVAL --> CANCELLED : customer cancels
     APPROVED --> AWAITING_APPROVAL : customer edits again before cut-off
     APPROVED --> CANCELLED : customer cancels before cut-off
     APPROVED --> LOCKED : cut-off and payment captured
     APPROVED --> PAYMENT_FAILED : cut-off and payment failed
-    PAYMENT_FAILED --> LOCKED : payment retried within 2 h grace
+    PAYMENT_FAILED --> LOCKED : customer pays, or a top-up retries, within 2 h grace
+    PAYMENT_FAILED --> SKIPPED : customer skips within the grace (order cancelled)
     PAYMENT_FAILED --> CANCELLED : grace period expired
     LOCKED --> PICKING : packing task started
     PICKING --> PACKED : all lines packed, shortages resolved
@@ -61,8 +63,11 @@ stateDiagram-v2
 | APPROVED → APPROVED | Customer edit | Before cut-off; M4 replaces the order's box lines | `subscriptions.box_approved` (again) | — |
 | AWAITING_APPROVAL → APPROVED (auto) | Cut-off job | `auto_approve = true` and pre-debit notice sent ≥ 24 h earlier | `subscriptions.box_approved` | — |
 | AWAITING_APPROVAL or APPROVED → SKIPPED | Customer | Before cut-off; an existing order is cancelled (`orders.cancelled`, reason `skipped`) | `subscriptions.box_skipped` | — |
+| SKIPPED → AWAITING_APPROVAL | Customer (`POST /v1/cycles/{id}/unskip`) | Before cut-off, `If-Match`, subscription not paused that week (`draft` if the box-ready notice never went out); approving again creates a new order (`orders.cycle_id` is unique only among orders that are not cancelled) | `subscriptions.box_unskipped` | — |
 | APPROVED → LOCKED | Cut-off job (T-1 21:00) | Wallet balance sufficient or Autopay capture succeeded | `orders.locked` | wallet → unearned_revenue |
 | APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance (`orders.payment_failed`) or an Autopay capture failed (`billing.payment_failed`, pilot) | `orders.payment_failed` | — |
+| PAYMENT_FAILED → LOCKED | Customer (`POST /v1/orders/{id}/pay`) or a top-up (`billing.wallet_topped_up` consumer, system) | Before the grace ends (T-1 23:00 IST); the same debit key as the cut-off (`box:<order id>`), so it is charged once | `orders.locked` | wallet → unearned_revenue |
+| PAYMENT_FAILED → SKIPPED (cycle) | Customer | Before the grace ends; the order is cancelled (reason `skipped`) | `subscriptions.box_skipped` | — |
 | PAYMENT_FAILED → CANCELLED | System timer | 2 h grace expired | `orders.cancelled` | — |
 | LOCKED → PICKING → PACKED | Packer | All lines scanned; shortages substituted or refunded | `orders.shortage_substituted`, `orders.packed` | partial refund if needed |
 | PACKED → DISPATCHED | Rider | Route started | `orders.dispatched` | — |

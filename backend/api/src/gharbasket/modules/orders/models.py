@@ -115,7 +115,14 @@ class Order(Base):
             name="money",
         ),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
-        UniqueConstraint("cycle_id"),
+        # One live order per weekly cycle: a skip cancels it, and an un-skipped week approved
+        # again gets a new one (M4 §4, M3 §3.3).
+        Index(
+            "uq_orders_cycle_id_active",
+            "cycle_id",
+            unique=True,
+            postgresql_where=text("status <> 'cancelled'"),
+        ),
         Index("ix_orders_household_delivery", "household_id", "delivery_date"),
         Index("ix_orders_hub_delivery_status", "hub_id", "delivery_date", "status"),
         {"schema": SCHEMA},
