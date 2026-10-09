@@ -23,6 +23,7 @@ from gharbasket.platform.models import Upload
 from gharbasket.platform.tokens import issue_access_token
 from gharbasket.platform.valkey import create_valkey
 
+from .commit_guard import CommitGuard
 from .conftest import make_settings
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
@@ -87,15 +88,9 @@ Factory = Callable[..., httpx2.AsyncClient]
 
 
 @pytest.fixture
-async def make_api(db_session: AsyncSession, store: ObjectStore) -> AsyncIterator[Factory]:
+async def make_api(commit_guard: CommitGuard, store: ObjectStore) -> AsyncIterator[Factory]:
     opened: list[httpx2.AsyncClient] = []
-
-    async def session_override() -> AsyncIterator[AsyncSession]:
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
+    session_override = commit_guard.override()
 
     def make(
         *, storage: ObjectStore | None = store, valkey: Redis | None = None, user=ME

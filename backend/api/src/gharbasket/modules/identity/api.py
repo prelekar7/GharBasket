@@ -1,13 +1,14 @@
 """Facade of M1 Identity & Household: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity import households
+from gharbasket.modules.identity import households, service
 from gharbasket.modules.identity.models import (
     Consent,
     Household,
@@ -57,6 +58,25 @@ async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> 
     return (
         await session.execute(select(Household.owner_user_id).where(Household.id == household_id))
     ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class Contact:
+    name: str | None
+    phone_e164: str
+
+
+async def contact_for_household(session: AsyncSession, household_id: uuid.UUID) -> Contact | None:
+    """The owner's name and phone, for M4's issue triage where the hub calls the customer back
+    (M4 §3.6). The caller audit-logs each read."""
+    row = (
+        await session.execute(
+            select(User.name, User.phone_e164)
+            .join(Household, Household.owner_user_id == User.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    return None if row is None else Contact(*row)
 
 
 @dataclass(frozen=True)
@@ -127,6 +147,22 @@ async def household_plan_profile(
     )
 
 
+async def shortage_preferences(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """Each household's choice for a short item, "substitute" or "refund" (spec §3.4), for M6's
+    packing queue and M4's mark_shortage. Read when the shortage is recorded, so a change applies
+    from the moment it is saved; an unknown id reads as "substitute"."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.id, Household.shortage_preference).where(Household.id.in_(ids))
+    )
+    found: dict[uuid.UUID, str] = {household_id: pref for household_id, pref in rows}
+    return {household_id: found.get(household_id, "substitute") for household_id in ids}
+
+
 async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:
     """Households served by this hub with Autopilot on, oldest first (the generation job)."""
     rows = await session.execute(
@@ -135,6 +171,45 @@ async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uu
         .order_by(Household.id)
     )
     return list(rows.scalars())
+
+
+async def user_locale(session: AsyncSession, user_id: uuid.UUID) -> str:
+    """en-IN, hi-IN or mr-IN: the language of pushes and WhatsApp messages (M11)."""
+    locale = await session.scalar(select(User.locale).where(User.id == user_id))
+    return locale or "en-IN"
+
+
+async def user_phone(session: AsyncSession, user_id: uuid.UUID) -> str | None:
+    """The E.164 phone WhatsApp messages go to (M11); None for an unknown user."""
+    return await session.scalar(select(User.phone_e164).where(User.id == user_id))
+
+
+@dataclass(frozen=True)
+class PushTarget:
+    session_id: uuid.UUID
+    token: str
+    platform: str
+
+
+async def active_push_tokens(session: AsyncSession, user_id: uuid.UUID) -> list[PushTarget]:
+    """The FCM tokens of the user's signed-in devices (neither revoked nor expired)."""
+    return [
+        PushTarget(device.id, device.push_token, device.platform)
+        for device in await service.list_devices(session, user_id)
+        if device.push_token
+    ]
+
+
+async def clear_push_token(session: AsyncSession, token: str) -> None:
+    """FCM says the token is gone (the app was uninstalled): stop sending to it."""
+    await session.execute(
+        update(LoginSession).where(LoginSession.push_token == token).values(push_token=None)
+    )
+
+
+async def has_consent(session: AsyncSession, user_id: uuid.UUID, purpose: str) -> bool:
+    """Whether the user has an active grant for this purpose (e.g. `whatsapp`, M11)."""
+    return purpose in await households.active_consents(session, user_id)
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

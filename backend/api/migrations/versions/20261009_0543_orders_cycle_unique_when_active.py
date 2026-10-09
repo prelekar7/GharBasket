@@ -6,7 +6,7 @@ unique constraint on `orders.orders.cycle_id` becomes a partial unique index. Th
 mirrors a box the cut-off could not debit as `payment_failed`.
 
 Revision ID: 15f45f1073b6
-Revises: 4f1c2a7d9e30
+Revises: c7e3a1f05d92
 Create Date: 2026-10-09 05:43:43.944313+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "15f45f1073b6"
-down_revision: str | Sequence[str] | None = "4f1c2a7d9e30"
+down_revision: str | Sequence[str] | None = "c7e3a1f05d92"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
