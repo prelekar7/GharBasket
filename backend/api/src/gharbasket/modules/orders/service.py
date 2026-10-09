@@ -601,7 +601,8 @@ async def mark_shortage(
     catalog's list (`catalog.api.substitute_ids`) that is not already on the order and costs no
     more per step at the hub today: the line takes the substitute's product, step and price and
     keeps its qty, `substituted_from` names the original, and the difference is refunded.
-    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record.
+    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record;
+    a household that chose "never substitute, refund" (M1 §3.4) gets `refund_preferred`.
 
     The refund goes through `billing.api.refund_to_wallet(reason=f"short_{product_id.hex}")` in
     the caller's transaction, and the order's totals follow its lines (a line counts
@@ -641,6 +642,11 @@ async def mark_shortage(
     if substitute_product_id is None:
         refund = shortage_qty * line.unit_price_paise
     else:
+        # A second check behind M6's packing screen (M1 §3.4), read now, not when the task was
+        # built: a household that chose "never substitute, refund" is never substituted.
+        preference = await identity_api.shortage_preferences(session, [order.household_id])
+        if preference[order.household_id] == "refund":
+            raise _substitute_invalid("refund_preferred")
         found = await catalog_api.line_products(
             session, [substitute_product_id], hub_id=order.hub_id
         )

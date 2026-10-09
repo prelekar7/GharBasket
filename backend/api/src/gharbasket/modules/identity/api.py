@@ -1,6 +1,7 @@
 """Facade of M1 Identity & Household: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -57,6 +58,25 @@ async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> 
     return (
         await session.execute(select(Household.owner_user_id).where(Household.id == household_id))
     ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class Contact:
+    name: str | None
+    phone_e164: str
+
+
+async def contact_for_household(session: AsyncSession, household_id: uuid.UUID) -> Contact | None:
+    """The owner's name and phone, for M4's issue triage where the hub calls the customer back
+    (M4 §3.6). The caller audit-logs each read."""
+    row = (
+        await session.execute(
+            select(User.name, User.phone_e164)
+            .join(Household, Household.owner_user_id == User.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    return None if row is None else Contact(*row)
 
 
 @dataclass(frozen=True)
@@ -125,6 +145,22 @@ async def household_plan_profile(
         auto_approve=household.auto_approve,
         data_source=household.data_source,
     )
+
+
+async def shortage_preferences(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """Each household's choice for a short item, "substitute" or "refund" (spec §3.4), for M6's
+    packing queue and M4's mark_shortage. Read when the shortage is recorded, so a change applies
+    from the moment it is saved; an unknown id reads as "substitute"."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.id, Household.shortage_preference).where(Household.id.in_(ids))
+    )
+    found: dict[uuid.UUID, str] = {household_id: pref for household_id, pref in rows}
+    return {household_id: found.get(household_id, "substitute") for household_id in ids}
 
 
 async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:

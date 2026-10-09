@@ -301,6 +301,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert sections["notifications"] == {"messages": []}
     assert sections["identity"]["user"]["phone_e164"] == "+919800000001"
     assert sections["identity"]["household"]["address"]["flat"] == "A-1203"
+    assert sections["identity"]["household"]["shortage_preference"] == "substitute"  # §3.4
     assert sections["identity"]["household"]["address"]["location"] == {
         "lat": 19.0396,
         "lng": 73.0676,

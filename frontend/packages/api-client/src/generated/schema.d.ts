@@ -90,6 +90,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/order-issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The triage queue of a hub (all hubs for admins), oldest first */
+        get: operations["triage_queue_v1_admin_order_issues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One issue with 5-minute photo links and the customer's contact (audit-logged) */
+        get: operations["triage_detail_v1_admin_order_issues__issue_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged) */
+        post: operations["resolve_issue_v1_admin_order_issues__issue_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -1923,6 +1974,13 @@ export interface components {
              */
             no_cook_days?: number[];
             /**
+             * Shortage Preference
+             * @description A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)
+             * @default substitute
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
+            /**
              * Society Id
              * Format: uuid
              */
@@ -1970,6 +2028,11 @@ export interface components {
             members: components["schemas"]["MemberOut"][];
             /** No Cook Days */
             no_cook_days: number[];
+            /**
+             * Shortage Preference
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
             /** Size */
             size: number;
             /**
@@ -2001,6 +2064,8 @@ export interface components {
             diet?: ("veg" | "egg" | "nonveg") | null;
             /** No Cook Days */
             no_cook_days?: number[] | null;
+            /** Shortage Preference */
+            shortage_preference?: ("substitute" | "refund") | null;
             /** Weekday Cook Minutes */
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
@@ -2047,6 +2112,13 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** IssueContact */
+        IssueContact: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string;
         };
         /** IssueIn */
         IssueIn: {
@@ -2159,6 +2231,19 @@ export interface components {
              */
             status: "open" | "credited" | "rejected";
         };
+        /** IssuePhoto */
+        IssuePhoto: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET
+             */
+            url: string;
+        };
         /** IssueResolution */
         IssueResolution: {
             /**
@@ -2173,6 +2258,209 @@ export interface components {
             by: "auto" | "hub";
             /** Note */
             note: string | null;
+        };
+        /** IssueTriage */
+        IssueTriage: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssueTriageDetail */
+        IssueTriageDetail: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /** @description The household owner, to call back */
+            contact: components["schemas"]["IssueContact"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            /**
+             * Photos
+             * @description Empty while storage is unavailable; photo_count says how many there are
+             */
+            photos: components["schemas"]["IssuePhoto"][];
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
         };
         /** IssuesOut */
         IssuesOut: {
@@ -2834,6 +3122,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[IssueTriage] */
+        Page_IssueTriage_: {
+            /** Items */
+            items: components["schemas"]["IssueTriage"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[OrderSummaryOut] */
         Page_OrderSummaryOut_: {
             /** Items */
@@ -3362,6 +3657,25 @@ export interface components {
             slug: string;
             /** Unit Price Paise */
             unit_price_paise: number;
+        };
+        /** ResolveIn */
+        ResolveIn: {
+            /**
+             * Credit Paise
+             * @description Credit only; at most max_credit_paise
+             * @example 4000
+             */
+            credit_paise?: number | null;
+            /**
+             * Note
+             * @description Required to reject
+             */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "credit" | "reject";
         };
         /**
          * RoleGrantIn
@@ -4545,6 +4859,210 @@ export interface operations {
                 };
             };
             /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_queue_v1_admin_order_issues_get: {
+        parameters: {
+            query?: {
+                /** @description Required for hub staff */
+                hub_id?: string | null;
+                status?: "open" | "credited" | "rejected";
+                kind?: ("missing" | "damaged" | "quality" | "wrong_item" | "late" | "other") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IssueTriage_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required (hub staff), request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_detail_v1_admin_order_issues__issue_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriageDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_issue_v1_admin_order_issues__issue_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriage"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
             422: {
                 headers: {
                     [name: string]: unknown;
