@@ -54,6 +54,24 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
     return None if row is None else HouseholdRef(*row)
 
 
+@dataclass(frozen=True)
+class UserContact:
+    name: str | None
+    phone_e164: str
+
+
+async def user_contacts(
+    session: AsyncSession, user_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, UserContact]:
+    """Names and phones for hub staff screens (M8 PartnerStaff); never for customers."""
+    if not user_ids:
+        return {}
+    rows = await session.execute(
+        select(User.id, User.name, User.phone_e164).where(User.id.in_(set(user_ids)))
+    )
+    return {user_id: UserContact(name, phone) for user_id, name, phone in rows.all()}
+
+
 async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> uuid.UUID | None:
     """The user whose wallet pays for this household's boxes."""
     return (

@@ -6,10 +6,12 @@ Every row is `data_source='synthetic'`, so it never counts in real metrics. Runn
 changes nothing. It writes through the module services, like the simulator will, so the same
 rules hold as for a real sign-in: a new phone becomes a customer, staff roles are audit-logged.
 
-The phones +91 98000 01001 to 01011 are reserved for this seed. Sign in as any of them locally
+The phones +91 98000 01001 to 01012 are reserved for this seed. Sign in as any of them locally
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
-Kharghar, Kamothe and Panvel sectors, with approximate boundaries; four of the people have a
-household there, created through the same onboarding service as `POST /v1/households`. The
+Kharghar, Kamothe and Panvel sectors, with approximate boundaries; five of the people have a
+household there, created through the same onboarding service as `POST /v1/households`. Each live
+society has a verified captain partner (M8) who lives there, verified like a real one; the seed
+delivers its events at the end, so M9 appoints her and M1 grants her `captain:<society>` role. The
 catalog (categories and products with English, Hindi and Marathi names) comes from
 data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed society with a
 hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
@@ -46,15 +48,20 @@ from gharbasket.modules.catalog.service import (
     save_category,
     save_product,
 )
+from gharbasket.modules.community import jobs as _community_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.hub_ops import service as hub_service
 from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.hub_ops.schemas import GeoPolygon, HubIn, HubPatch, VendorIn
+from gharbasket.modules.identity import jobs as _identity_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.modules.orders import service as orders_service
+from gharbasket.modules.partners import api as partners_api
+from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.subscriptions import service as subscriptions_service
+from gharbasket.platform import outbox
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.geo import LatLng
@@ -83,7 +90,8 @@ PEOPLE = (
     Person("+919800001001", "Priya Sharma"),
     Person("+919800001002", "Sunita Patil", locale="mr-IN"),
     Person("+919800001003", "Ramesh Kulkarni", locale="mr-IN", senior_mode=True),
-    Person("+919800001004", "Meena Jadhav", locale="hi-IN", roles=(("captain", SEED_SOCIETY_ID),)),
+    # Meena is a captain through M9's appointment (CAPTAINS below), not a role granted here.
+    Person("+919800001004", "Meena Jadhav", locale="hi-IN"),
     Person(
         "+919800001005", "Lata Shinde", locale="mr-IN", roles=(("kitchen_partner", SEED_HUB_ID),)
     ),
@@ -93,6 +101,7 @@ PEOPLE = (
     Person("+919800001009", "Sanjay Mehta", roles=(("franchise_owner", SEED_HUB_ID),)),
     Person("+919800001010", "Asha Fernandes", roles=(("ngo_coordinator", SEED_NGO_ID),)),
     Person("+919800001011", "Neha Iyer", roles=(("admin", None),)),
+    Person("+919800001012", "Savita Naik", locale="mr-IN"),
 )
 
 
@@ -289,7 +298,27 @@ HOUSEHOLDS: dict[str, dict[str, object]] = {
         ],
         "consents": _consents(),
     },
+    "+919800001012": {  # Savita (Krishna Kunj's captain): she lives there, alone
+        "society_id": str(_society_id(5)),
+        "address": {"tower_id": "b", "flat": "B-204", "location": None},
+        "diet": "veg",
+        "cuisine_tags": ["maharashtrian"],
+        "weekday_cook_minutes": 30,
+        "weekend_cook_minutes": 45,
+        "no_cook_days": [],
+        "budget_paise": None,
+        "members": [_adult("f")],
+        "consents": _consents(),
+    },
 }
+
+# One verified captain partner per live seed society, each living there (M8 build order (a),
+# M9 §3.2): (phone, society, display name). Seeded before applications exist; the seed publishes
+# partners.verified for each, as a real verification would.
+CAPTAINS = (
+    ("+919800001004", SEED_SOCIETY_ID, "Meena tai"),
+    ("+919800001012", _society_id(5), "Savita tai"),
+)
 
 
 @dataclass(frozen=True)
@@ -369,6 +398,31 @@ async def seed_households(session: AsyncSession) -> list[tuple[str, bool]]:
         if created:
             body = HouseholdIn.model_validate(request)
             await create_household(session, user.id, body, data_source="synthetic")
+        done.append((phone, created))
+    return done
+
+
+async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Verify the seeded captains (M8), publishing `partners.verified` with the society each
+    lives in, so M9 appoints her: (phone, created) each. Needs the people, societies and
+    households first. An existing partner record is kept as it is."""
+    hubs = {society.id: society.hub_id for society in SOCIETIES}
+    done: list[tuple[str, bool]] = []
+    for phone, society_id, display_name in CAPTAINS:
+        user, _ = await find_or_create_user(session, phone)
+        hub_id = hubs[society_id]
+        assert hub_id is not None, "a seeded captain's society needs a hub"
+        created = await partners_api.partner_for_user(session, user.id, "captain") is None
+        if created:
+            await partners_service.verify(
+                session,
+                user_id=user.id,
+                kind="captain",
+                hub_id=hub_id,
+                display_name=display_name,
+                requested_society_id=society_id,
+                data_source="synthetic",
+            )
         done.append((phone, created))
     return done
 
@@ -506,6 +560,7 @@ class Report:
     people: list[Seeded]
     societies: list[tuple[str, bool]]
     households: list[tuple[str, bool]]
+    partners: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
@@ -520,10 +575,14 @@ async def run(database_url: str) -> Report:
                 people=await seed(session),
                 societies=await seed_societies(session),
                 households=await seed_households(session),
+                partners=await seed_partners(session),
                 products=await seed_catalog(session),
                 delivery=await seed_delivery(session),
             )
             await session.commit()
+            # Deliver the seed's events now, so M9 appoints the captains and M1 grants their role.
+            while (await outbox.relay(session)).sent:
+                pass
             return report
     finally:
         await engine.dispose()
@@ -553,6 +612,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for phone, created in report.households:
         print(f"{phone}  household {'new' if created else 'kept'}")
     print(f"{len(report.households)} synthetic households")
+    for phone, created in report.partners:
+        print(f"{phone}  captain partner {'new' if created else 'kept'}")
+    print(f"{len(report.partners)} synthetic captain partners")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
     if report.delivery:
