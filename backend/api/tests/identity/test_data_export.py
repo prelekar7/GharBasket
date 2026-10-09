@@ -161,7 +161,9 @@ async def activity(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
                 source="rule",
             ),
             OrderLine(order_id=order.id, kind="box", unit_price_paise=6_000, **line),
-            OrderEvent(order_id=order.id, to_status="delivered", actor="hub"),
+            OrderEvent(
+                order_id=order.id, to_status="delivered", actor="rider", actor_user_id=uuid.uuid4()
+            ),
             Payment(
                 user_id=user_id,
                 provider="razorpay",
@@ -311,6 +313,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert sections["notifications"] == {"messages": []}
     assert sections["identity"]["user"]["phone_e164"] == "+919800000001"
     assert sections["identity"]["household"]["address"]["flat"] == "A-1203"
+    assert sections["identity"]["household"]["shortage_preference"] == "substitute"  # §3.4
     assert sections["identity"]["household"]["address"]["location"] == {
         "lat": 19.0396,
         "lng": 73.0676,
@@ -325,7 +328,8 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert sections["subscriptions"]["subscription"]["payment_mode"] == "wallet"
     (order,) = sections["orders"]["orders"]
     assert order["id"] == str(order_id) and len(order["lines"]) == 1
-    assert [event["to_status"] for event in order["timeline"]] == ["delivered"]
+    assert [(e["to_status"], e["actor"]) for e in order["timeline"]] == [("delivered", "rider")]
+    assert "actor_user_id" not in order["timeline"][0]  # the actor kind only, never who
     (issue,) = sections["orders"]["issues"]
     assert issue["order_id"] == str(order_id) and issue["kind"] == "missing"
     assert issue["photo_count"] == 1 and "photo_keys" not in issue  # counted, never included
@@ -343,6 +347,10 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         select(AuditEntry).where(AuditEntry.action == "identity.data_export_link_minted")
     )
     assert len(minted.scalars().all()) == 1
+    told = await db_session.execute(
+        select(OutboxEvent.payload).where(OutboxEvent.event_type == "identity.data_export_ready")
+    )
+    assert told.scalars().all() == [{"export_id": export_id, "user_id": str(user_id)}]
 
 
 async def test_tokens_and_other_households_are_left_out(
@@ -464,6 +472,8 @@ async def test_a_failing_build_retries_three_times_then_asking_again_queues_it(
     failed = (await api.get(EXPORT, headers=headers)).json()
     assert failed["status"] == "failed" and failed["download"] is None
     assert await db_session.get(Upload, f"data_export/{user_id}/{export_id}.json") is None
+    ready_events = select(OutboxEvent).where(OutboxEvent.event_type == "identity.data_export_ready")
+    assert (await db_session.execute(ready_events)).scalars().all() == []  # no file, no notice
 
     again = (await api.post(EXPORT, headers=headers)).json()
     assert again["id"] == export_id and again["status"] == "queued"
@@ -473,6 +483,7 @@ async def test_a_failing_build_retries_three_times_then_asking_again_queues_it(
         select(OutboxEvent).where(OutboxEvent.event_type == "identity.data_export_requested")
     )
     assert len(events.scalars().all()) == 2
+    assert len((await db_session.execute(ready_events)).scalars().all()) == 1
 
 
 async def test_the_build_needs_storage(db_session: AsyncSession) -> None:

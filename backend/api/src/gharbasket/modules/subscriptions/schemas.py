@@ -1,5 +1,5 @@
-"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1) and the
-meal swap (§3.2)."""
+"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1), the
+meal swap (§3.2), and a week that failed to pay (§3.3)."""
 
 import uuid
 from datetime import date, datetime, time
@@ -11,7 +11,14 @@ PlanCode = Literal["autopilot", "tiffin", "salad"]
 PaymentMode = Literal["wallet", "autopay"]
 SubscriptionStatus = Literal["active", "paused", "ended"]
 CycleStatus = Literal[
-    "draft", "awaiting_approval", "approved", "skipped", "cancelled", "locked", "preview"
+    "draft",
+    "awaiting_approval",
+    "approved",
+    "skipped",
+    "cancelled",
+    "locked",
+    "payment_failed",
+    "preview",
 ]
 LineSource = Literal["ai", "rule", "customer"]
 Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
@@ -238,6 +245,16 @@ class CaptainOut(BaseModel):
     photo_url: str | None
 
 
+class PaymentDueOut(BaseModel):
+    """What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay."""
+
+    order_id: uuid.UUID
+    total_paise: int
+    wallet_paise: int = Field(description="The wallet's balance now")
+    shortfall_paise: int = Field(description="What a top-up must add: total minus wallet, >= 0")
+    due_at: datetime = Field(description="The end of the grace period (T-1 23:00 IST), in UTC")
+
+
 class CycleOut(BaseModel):
     id: uuid.UUID | None = Field(description="null for a preview")
     household_id: uuid.UUID
@@ -256,3 +273,4 @@ class CycleOut(BaseModel):
     order_id: uuid.UUID | None
     generated_at: datetime | None
     approved_at: datetime | None
+    payment_due: PaymentDueOut | None = Field(description="Only while the week is payment_failed")

@@ -10,11 +10,13 @@ The phones +91 98000 01001 to 01012 are reserved for this seed. Sign in as any o
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
 Kharghar, Kamothe and Panvel sectors, with approximate boundaries; five of the people have a
 household there, created through the same onboarding service as `POST /v1/households`. Each live
-society has a verified captain partner (M8) who lives there; the seed delivers its events at the
-end, so M9 appoints her and M1 grants her `captain:<society>` role. The catalog (categories and
-products with English, Hindi and Marathi names) comes from data/seeds/catalog/*.json. The seed hub
-gets one morning box slot and every seed society with a hub delivers on Tuesdays (M3/M4), so
-`just sim` and the weekly job have somewhere to deliver.
+society has a verified captain partner (M8) who lives there, verified like a real one; the seed
+delivers its events at the end, so M9 appoints her and M1 grants her `captain:<society>` role. The
+catalog (categories and products with English, Hindi and Marathi names) comes from
+data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed society with a
+hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
+The seed hub itself (M6, ADR-0026 §5) is Kharghar, with a service area around the seed societies
+and one default vendor, so every hub id above points at a real `hub_ops.hubs` row.
 Later module PRs add their rows here and use the hub, society and NGO ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
@@ -48,6 +50,9 @@ from gharbasket.modules.catalog.service import (
 )
 from gharbasket.modules.community import jobs as _community_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.community.service import SocietyData, save_society
+from gharbasket.modules.hub_ops import service as hub_service
+from gharbasket.modules.hub_ops.models import Hub
+from gharbasket.modules.hub_ops.schemas import GeoPolygon, HubIn, HubPatch, VendorIn
 from gharbasket.modules.identity import jobs as _identity_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
@@ -59,6 +64,7 @@ from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.geo import LatLng
 from gharbasket.platform.settings import DatabaseSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -195,6 +201,28 @@ SOCIETIES = (
 )
 
 
+SEED_HUB = HubIn(
+    slug="kharghar",
+    name="Kharghar hub",
+    address="Plot 12, Sector 19, Kharghar, Navi Mumbai 410210",
+    location=LatLng(lat=19.0330, lng=73.0297),
+    # Around every seed society with a hub (Kharghar, Kamothe, New Panvel).
+    service_area=GeoPolygon(
+        type="Polygon",
+        coordinates=[
+            [[73.02, 18.99], [73.13, 18.99], [73.13, 19.05], [73.02, 19.05], [73.02, 18.99]]
+        ],
+    ),
+)
+SEED_VENDOR = VendorIn(
+    name="Shinde Traders",
+    kind="apmc_trader",
+    phone="+919800002001",
+    is_default=True,
+    notes="APMC Vashi, vegetables",
+)
+
+
 def _consents(*extra: str) -> list[dict[str, object]]:
     purposes = ("service_delivery", "personalisation", *extra)
     return [{"purpose": purpose, "version": "v1", "granted": True} for purpose in purposes]
@@ -326,6 +354,27 @@ async def seed(session: AsyncSession) -> list[Seeded]:
         roles = ("customer", *(role for role, _ in person.roles))
         seeded.append(Seeded(person.phone, person.name, roles, created))
     return seeded
+
+
+async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Create or refresh the seed hub, and give it its default vendor once: (slug, created).
+
+    Commits nothing. A refresh puts the hub back as SEED_HUB describes it (version + 1 only if
+    something had changed); an existing vendor of that name is kept as it is.
+    """
+    hub = await session.get(Hub, SEED_HUB_ID)
+    created = hub is None
+    if hub is None:
+        hub = await hub_service.create_hub(
+            session, SEED_HUB, hub_id=SEED_HUB_ID, data_source="synthetic"
+        )
+    else:
+        fields = SEED_HUB.model_dump(exclude={"slug", "timings", "procurement_buffer_pct"})
+        await hub_service.update_hub(session, hub, HubPatch.model_validate(fields))
+    vendors = await hub_service.list_vendors(session, hub.id, None)
+    if not any(vendor.name.lower() == SEED_VENDOR.name.lower() for vendor in vendors):
+        await hub_service.create_vendor(session, hub, SEED_VENDOR)
+    return [(hub.slug, created)]
 
 
 async def seed_societies(session: AsyncSession) -> list[tuple[str, bool]]:
@@ -514,6 +563,7 @@ class Report:
     partners: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
     delivery: tuple[uuid.UUID, int] | None = None
+    hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
 
 async def run(database_url: str) -> Report:
@@ -521,6 +571,7 @@ async def run(database_url: str) -> Report:
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             report = Report(
+                hubs=await seed_hubs(session),
                 people=await seed(session),
                 societies=await seed_societies(session),
                 households=await seed_households(session),
@@ -548,6 +599,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("seed data is only for the local Docker database")
 
     report = asyncio.run(run(url))
+    for slug, created in report.hubs:
+        print(f"hub {slug} ({SEED_HUB_ID}) {'new' if created else 'kept'}")
     seeded, societies = report.people, report.societies
     for person in seeded:
         state = "new" if person.created else "kept"
