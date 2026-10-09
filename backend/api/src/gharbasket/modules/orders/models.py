@@ -51,7 +51,7 @@ STATUSES = (
     "redelivery",
     "refunded",
 )
-ACTORS = ("customer", "system", "hub")
+ACTORS = ("customer", "system", "hub", "packer", "rider", "captain", "kitchen")
 UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
 ISSUE_KINDS = ("missing", "damaged", "quality", "wrong_item", "late", "other")
 ISSUE_STATUSES = ("open", "credited", "rejected")
@@ -200,7 +200,10 @@ class OrderEvent(Base):
     )
     from_status: Mapped[str | None] = mapped_column(String(16))
     to_status: Mapped[str] = mapped_column(String(16))
-    actor: Mapped[str] = mapped_column(String(10))
+    actor: Mapped[str] = mapped_column(String(10))  # the kind of actor; the timeline shows this
+    # The person who made the move (packer, rider, captain, kitchen partner, hub manager or the
+    # customer), when there is one; never shown to customers (ADR-0026 §2).
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

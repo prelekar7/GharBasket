@@ -373,7 +373,13 @@ async def cancel_order(
     order_id: uuid.UUID, permit: CanWrite, session: DbSession, idem: Idempotent, lang: Lang
 ) -> OrderOut:
     order = await _owned(session, permit, order_id, for_update=True)
-    await service.cancel(session, order, actor="customer", reason="customer")
+    await service.cancel(
+        session,
+        order,
+        actor="customer",
+        reason="customer",
+        actor_user_id=permit.principal.user_id,
+    )
     out = await _full(session, order, lang)
     await idem.save(200, out)
     await session.commit()

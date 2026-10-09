@@ -2,7 +2,7 @@
 
 - M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip,
   and shows a `payment_failed` week's amount due until `grace_until_for` its delivery date.
-- The cut-off job and M6/M7 call `transition`; M6 packing calls `mark_shortage`;
+- The cut-off job and M6/M7/M8 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
 """
@@ -80,10 +80,19 @@ async def transition(
     to_status: str,
     *,
     actor: str,
+    actor_user_id: uuid.UUID | None = None,
     payload: dict[str, object] | None = None,
 ) -> Order:
+    """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
+    actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
+    `actor_user_id` the person, recorded on the timeline row but never shown to customers.
+    M4 checks only the state machine (409 `orders.illegal_transition`); the caller has already
+    checked that this person may act on this order (packer of its hub, rider of its route,
+    active captain of its society, kitchen of its assignment)."""
     order = await service.get(session, order_id, for_update=True)
-    return await service.transition(session, order, to_status, actor=actor, payload=payload)
+    return await service.transition(
+        session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
+    )
 
 
 async def mark_shortage(
@@ -168,7 +177,10 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         select(OrderEvent).where(OrderEvent.order_id.in_(ids)).order_by(OrderEvent.id)
     )
     for event in events.scalars():
-        found[event.order_id]["timeline"].append(event.as_dict(exclude={"order_id"}))
+        # Who made each move is the actor kind only: other people's user ids are not exported.
+        found[event.order_id]["timeline"].append(
+            event.as_dict(exclude={"order_id", "actor_user_id"})
+        )
     return {
         "orders": [{**o.as_dict(exclude={"data_source"}), **found[o.id]} for o in orders],
         "issues": await _issues_for_export(session, ids),
