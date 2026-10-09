@@ -340,6 +340,7 @@ async def put_push_token(
     body: PushTokenIn, principal: CurrentPrincipal, user: SignedInUser, session: DbSession
 ) -> None:
     await service.set_push_token(session, user.id, principal.session_id, body.push_token)
+    await session.commit()
 
 
 @router.post(
