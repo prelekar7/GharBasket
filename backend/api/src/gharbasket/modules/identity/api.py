@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import households
 from gharbasket.modules.identity.models import (
+    Address,
     Consent,
     Household,
     HouseholdMember,
@@ -162,3 +163,32 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         else (await households.view(session, household)).model_dump(mode="json"),
         "consents": [c.as_dict() for c in await rows(Consent, Consent.user_id == user_id)],
     }
+
+
+@dataclass(frozen=True)
+class DeliveryLabel:
+    tower_id: str
+    flat: str
+
+
+async def delivery_labels(
+    session: AsyncSession, household_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, DeliveryLabel]:
+    """Tower and flat of each household's address, for bag labels (ADR-0026 §6): no names, no
+    phones. Households without an address are left out."""
+    if not household_ids:
+        return {}
+    rows = await session.execute(
+        select(Address.household_id, Address.tower_id, Address.flat).where(
+            Address.household_id.in_(household_ids)
+        )
+    )
+    return {household: DeliveryLabel(tower, flat) for household, tower, flat in rows.all()}
+
+
+async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """Display names of staff (who holds a packing task); users without a name are left out."""
+    if not user_ids:
+        return {}
+    rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
+    return {user_id: name for user_id, name in rows.all() if name is not None}

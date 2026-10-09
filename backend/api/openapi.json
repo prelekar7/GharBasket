@@ -249,6 +249,39 @@
         "title": "BudgetLockOut",
         "type": "object"
       },
+      "BuildIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "BuildIn",
+        "type": "object"
+      },
+      "BuildOut": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "existing": {
+            "title": "Existing",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "existing"
+        ],
+        "title": "BuildOut",
+        "type": "object"
+      },
       "CaptainCard": {
         "properties": {
           "display_name": {
@@ -3896,6 +3929,644 @@
         "title": "OrderSummaryOut",
         "type": "object"
       },
+      "Packer": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "Packer",
+        "type": "object"
+      },
+      "PackingLineOut": {
+        "properties": {
+          "done": {
+            "description": "picked_qty + short_qty = qty",
+            "title": "Done",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "picked_qty": {
+            "description": "Steps in the bag (of the substitute, if any)",
+            "title": "Picked Qty",
+            "type": "integer"
+          },
+          "product_id": {
+            "description": "The ordered product",
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Steps ordered",
+            "title": "Qty",
+            "type": "integer"
+          },
+          "short_qty": {
+            "description": "Steps refunded",
+            "title": "Short Qty",
+            "type": "integer"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/PackingStep"
+          },
+          "substitute": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingSubstitute"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "step",
+          "qty",
+          "picked_qty",
+          "short_qty",
+          "substitute",
+          "done"
+        ],
+        "title": "PackingLineOut",
+        "type": "object"
+      },
+      "PackingRoute": {
+        "properties": {
+          "route_id": {
+            "format": "uuid",
+            "title": "Route Id",
+            "type": "string"
+          },
+          "stop_seq": {
+            "examples": [
+              3
+            ],
+            "title": "Stop Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "route_id",
+          "stop_seq"
+        ],
+        "title": "PackingRoute",
+        "type": "object"
+      },
+      "PackingSlot": {
+        "properties": {
+          "end": {
+            "examples": [
+              "09:00"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "7-9 am"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "start": {
+            "description": "IST HH:MM",
+            "examples": [
+              "07:00"
+            ],
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "start",
+          "end"
+        ],
+        "title": "PackingSlot",
+        "type": "object"
+      },
+      "PackingSociety": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Sunrise Towers"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PackingSociety",
+        "type": "object"
+      },
+      "PackingStep": {
+        "properties": {
+          "label": {
+            "description": "In the requested language",
+            "examples": [
+              "250 g"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "qty": {
+            "examples": [
+              250
+            ],
+            "title": "Qty",
+            "type": "integer"
+          },
+          "unit": {
+            "examples": [
+              "g"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "unit",
+          "label"
+        ],
+        "title": "PackingStep",
+        "type": "object"
+      },
+      "PackingSubstitute": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/PackingStep"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "step"
+        ],
+        "title": "PackingSubstitute",
+        "type": "object"
+      },
+      "PackingSummary": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "packed": {
+            "title": "Packed",
+            "type": "integer"
+          },
+          "picking": {
+            "title": "Picking",
+            "type": "integer"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "societies": {
+            "items": {
+              "$ref": "#/components/schemas/SocietyLoad"
+            },
+            "title": "Societies",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "queued",
+          "picking",
+          "packed",
+          "societies"
+        ],
+        "title": "PackingSummary",
+        "type": "object"
+      },
+      "PackingTaskDetail": {
+        "properties": {
+          "bag_qr": {
+            "examples": [
+              "GB1:0199a0000000700080000000000000ab"
+            ],
+            "title": "Bag Qr",
+            "type": "string"
+          },
+          "bags": {
+            "title": "Bags",
+            "type": "integer"
+          },
+          "crate_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Crate within the society, set at complete",
+            "title": "Crate No"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tower label and flat; no name or phone",
+            "examples": [
+              "B wing, B-402"
+            ],
+            "title": "Flat Label"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "description": "By catalog category, then name",
+            "items": {
+              "$ref": "#/components/schemas/PackingLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "lines_done": {
+            "title": "Lines Done",
+            "type": "integer"
+          },
+          "lines_total": {
+            "title": "Lines Total",
+            "type": "integer"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_kind": {
+            "enum": [
+              "box",
+              "addon"
+            ],
+            "title": "Order Kind",
+            "type": "string"
+          },
+          "packed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packed At"
+          },
+          "packer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Packer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who holds the task"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingRoute"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when M7 publishes routes"
+          },
+          "seq": {
+            "description": "Position in the hub's queue for the date",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society": {
+            "$ref": "#/components/schemas/PackingSociety"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "picking",
+              "packed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "order_id",
+          "order_kind",
+          "delivery_date",
+          "slot",
+          "society",
+          "flat_label",
+          "seq",
+          "route",
+          "status",
+          "packer",
+          "bag_qr",
+          "bags",
+          "crate_no",
+          "lines_total",
+          "lines_done",
+          "started_at",
+          "packed_at",
+          "version",
+          "lines"
+        ],
+        "title": "PackingTaskDetail",
+        "type": "object"
+      },
+      "PackingTaskOut": {
+        "properties": {
+          "bag_qr": {
+            "examples": [
+              "GB1:0199a0000000700080000000000000ab"
+            ],
+            "title": "Bag Qr",
+            "type": "string"
+          },
+          "bags": {
+            "title": "Bags",
+            "type": "integer"
+          },
+          "crate_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Crate within the society, set at complete",
+            "title": "Crate No"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tower label and flat; no name or phone",
+            "examples": [
+              "B wing, B-402"
+            ],
+            "title": "Flat Label"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines_done": {
+            "title": "Lines Done",
+            "type": "integer"
+          },
+          "lines_total": {
+            "title": "Lines Total",
+            "type": "integer"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_kind": {
+            "enum": [
+              "box",
+              "addon"
+            ],
+            "title": "Order Kind",
+            "type": "string"
+          },
+          "packed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packed At"
+          },
+          "packer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Packer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who holds the task"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingRoute"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when M7 publishes routes"
+          },
+          "seq": {
+            "description": "Position in the hub's queue for the date",
+            "title": "Seq",
+            "type": "integer"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PackingSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society": {
+            "$ref": "#/components/schemas/PackingSociety"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "picking",
+              "packed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "order_id",
+          "order_kind",
+          "delivery_date",
+          "slot",
+          "society",
+          "flat_label",
+          "seq",
+          "route",
+          "status",
+          "packer",
+          "bag_qr",
+          "bags",
+          "crate_no",
+          "lines_total",
+          "lines_done",
+          "started_at",
+          "packed_at",
+          "version"
+        ],
+        "title": "PackingTaskOut",
+        "type": "object"
+      },
       "Page_Entry_": {
         "properties": {
           "items": {
@@ -3950,6 +4621,34 @@
           "next_cursor"
         ],
         "title": "Page[OrderSummaryOut]",
+        "type": "object"
+      },
+      "Page_PackingTaskOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PackingTaskOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[PackingTaskOut]",
         "type": "object"
       },
       "Page_ProductOut_": {
@@ -5543,6 +6242,40 @@
           "items"
         ],
         "title": "SlotsOut",
+        "type": "object"
+      },
+      "SocietyLoad": {
+        "properties": {
+          "bags": {
+            "title": "Bags",
+            "type": "integer"
+          },
+          "crates": {
+            "title": "Crates",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "packed_bags": {
+            "title": "Packed Bags",
+            "type": "integer"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "society_id",
+          "name",
+          "bags",
+          "packed_bags",
+          "crates"
+        ],
+        "title": "SocietyLoad",
         "type": "object"
       },
       "SocietyOut": {
@@ -10892,6 +11625,414 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/packing-summary": {
+      "get": {
+        "operationId": "packing_summary_v1_hubs__hub_id__packing_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Tasks by status and bags and crates per society for a date",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/packing-tasks": {
+      "get": {
+        "operationId": "list_packing_tasks_v1_hubs__hub_id__packing_tasks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "queued",
+                    "picking",
+                    "packed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "society_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Society Id"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PackingTaskOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range, request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's packing queue for a date, by seq",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/packing-tasks/build": {
+      "post": {
+        "operationId": "build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/price-lists": {
       "post": {
         "operationId": "publish_price_list_v1_hubs__hub_id__price_lists_post",
@@ -13112,6 +14253,118 @@
         "summary": "Report a problem with a delivery (Idempotency-Key); auto-credit or triage",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/v1/packing-tasks/{task_id}": {
+      "get": {
+        "operationId": "get_packing_task_v1_packing_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackingTaskDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.task_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A packing task with its lines",
+        "tags": [
+          "hub_ops"
         ]
       }
     },
