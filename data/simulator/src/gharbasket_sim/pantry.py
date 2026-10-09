@@ -111,17 +111,23 @@ def rule_share(
     )
     grams = rules.FRUIT_PER_ADULT_WEEK_G * h.adult_equivalents / rules.FRUIT_KINDS
     for _, slug in fruits[: rules.FRUIT_KINDS]:
-        share.setdefault(slug, (grams, "in_season"))
+        share.setdefault(slug, (catalog.products[slug].base_units(grams), "in_season"))
     return share
 
 
 def draft_box(
-    h: SimHousehold, catalog: Catalog, planned: list[str], factor: dict[str, float]
+    h: SimHousehold,
+    catalog: Catalog,
+    planned: list[str],
+    factor: dict[str, float],
+    pantry: "Pantry | None" = None,
 ) -> list[Line]:
     """M3's draft: the planned dishes' ingredients plus the rule share (daily use, two fruits),
-    summed per product and rounded up to steps. A line with a rule share is the rule's line."""
+    summed per product and rounded up to steps. A line with a rule share is the rule's line.
+    Staples the pantry still holds are not ordered again (M3's carry-over rule)."""
     need = recipe_need(h, catalog, planned)
     share = rule_share(h, catalog, factor)
+    stock = pantry.stock if pantry is not None else {}
     lines: list[Line] = []
     for slug in sorted(set(need) | set(share)):
         product = catalog.products.get(slug)
@@ -130,8 +136,11 @@ def draft_box(
             continue
         extra, reason = share.get(slug, (0.0, "meal_plan"))
         source = "ai" if reason == "meal_plan" else "rule"
-        qty = steps(product, need.get(slug, 0.0) + extra)
-        lines.append(Line(slug, qty, product.step, price, reason, source))
+        wanted = need.get(slug, 0.0) + extra
+        wanted -= 0.0 if product.perishable else stock.get(slug, 0.0)
+        if wanted <= 0:
+            continue  # enough still in the pantry
+        lines.append(Line(slug, steps(product, wanted), product.step, price, reason, source))
     return lines
 
 

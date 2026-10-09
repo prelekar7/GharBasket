@@ -37,7 +37,15 @@ def profile(**overrides: object) -> HouseholdPlanProfile:
     return HouseholdPlanProfile(**base)  # type: ignore[arg-type]
 
 
-def product(slug: str, kind: str = "veg", step=(250, "g"), price: int | None = 2000) -> PlanProduct:
+def product(
+    slug: str,
+    kind: str = "veg",
+    step=(250, "g"),
+    price: int | None = 2000,
+    *,
+    shelf_life_h: int = 72,
+    nutrition: dict[str, Any] | None = None,
+) -> PlanProduct:
     return PlanProduct(
         uuid.uuid5(uuid.NAMESPACE_URL, slug),
         slug,
@@ -46,8 +54,9 @@ def product(slug: str, kind: str = "veg", step=(250, "g"), price: int | None = 2
         step[0],
         step[1],
         frozenset(),
-        72,
+        shelf_life_h,
         price,
+        nutrition,
     )
 
 
@@ -59,8 +68,9 @@ def catalog() -> PlanCatalog:
             product("toor-dal", "staple", (500, "g"), 7000),
             product("chapati-atta", "staple", (1, "kg"), 5000),
             product("milk", "staple", (500, "ml"), 3000),
-            product("wheat-atta", "staple", (1, "kg"), 5000),
-            product("banana", "fruit", (6, "piece"), 4000),
+            product("wheat-atta", "staple", (1, "kg"), 5000, shelf_life_h=2160),
+            product("potato", "veg", (1, "kg"), 3000, shelf_life_h=720),
+            product("banana", "fruit", (6, "piece"), 4000, nutrition={"unit_g": 120}),
             product("apple", "fruit", (500, "g"), 9000),
             product("guava", "fruit", (500, "g"), 3000),
             product("unpriced", "veg", (250, "g"), None),
@@ -143,7 +153,7 @@ def test_the_plan_request_carries_rules_recipes_and_a_weekly_budget() -> None:
     assert request["household"]["weekly_budget_paise"] == 600_000 * 7 // 30
     assert request["household"]["no_cook_days"] == [6]
     slugs = [r["slug"] for r in request["recipes"]]
-    assert slugs == ["dal-tadka", "chapati", "tomato-sabzi"]
+    assert slugs == ["dal-tadka", "tomato-sabzi"]  # chapati is a side, not a meal
     assert request["recipes"][0]["cost_per_serving_paise"] == 1200
 
 
@@ -220,3 +230,56 @@ def test_the_meal_plan_days_show_recipes_sides_and_tiffins() -> None:
         {"code": "budget_near", "params": {}},
         {"code": "fallback_rules", "params": {}},
     ]
+
+
+def by_slug(cat: PlanCatalog, lines: list[planning.DraftLine]) -> dict[str, planning.DraftLine]:
+    return {cat.products[line.product_id].slug: line for line in lines}
+
+
+def test_fruit_grams_become_pieces_through_the_weight_of_one() -> None:
+    cat = catalog()
+    banana = cat.product_by_slug("banana")
+    guava = cat.product_by_slug("guava")
+    assert banana is not None and guava is not None
+
+    lines = by_slug(cat, planning.lines_from_plan(profile(), cat, None, fallback=True))
+
+    # 700 g a week x 3.2 adult equivalents ÷ 2 fruits = 1120 g of each.
+    assert planning.in_base_units(guava, 1120) == 1120  # sold by weight: grams as they are
+    assert planning.in_base_units(banana, 1120) == 1120 / 120  # 9.3 bananas of 120 g
+    assert lines["banana"].qty == 2  # two dozen-halves of 6, not 1120 ÷ 6 = 187 steps
+    assert lines["guava"].qty == 3  # 1120 g in 500 g steps
+    unweighed = product("chikoo", "fruit", (6, "piece"))
+    assert planning.in_base_units(unweighed, 1120) == 1120 / planning.DEFAULT_UNIT_G
+
+
+def test_a_dry_staple_left_over_is_used_up_by_the_weekly_need_before_it_counts() -> None:
+    # Bought 3 kg a week ago, the household uses 2.24 kg a week: 0.76 kg is left.
+    assert planning.left_over([(1.0, 3000)], 2240) == 760
+    # Two deliveries: 3 kg two weeks ago (0.76 kg left a week later) and 2 kg a week ago.
+    assert planning.left_over([(1.0, 2000), (2.0, 3000)], 2240) == 520
+    # Nothing goes below zero: an empty cupboard does not borrow from the next delivery.
+    assert planning.left_over([(1.0, 1000), (3.0, 500)], 2240) == 0
+    assert planning.left_over([], 2240) == 0
+
+    cat = catalog()
+    staple, potato, tomato = (cat.product_by_slug(s) for s in ("wheat-atta", "potato", "tomato"))
+    assert staple is not None and potato is not None and tomato is not None
+    assert planning.carries_over(staple)
+    assert not planning.carries_over(potato) and not planning.carries_over(tomato)  # produce
+    week = [{"day": 0, "slot": "dinner", "recipe": "tomato-sabzi"}]
+
+    def atta_and_tomato(bought: dict[uuid.UUID, list[tuple[float, float]]]) -> tuple:
+        lines = by_slug(
+            cat, planning.lines_from_plan(profile(), cat, week, fallback=False, bought=bought)
+        )
+        return (lines["wheat-atta"].qty if "wheat-atta" in lines else 0, lines["tomato"].qty)
+
+    # The rule table: 700 g x 3.2 = 2240 g of atta a week → 3 kg steps with nothing at home.
+    assert atta_and_tomato({}) == (3, 1)
+    # Last week's 3 kg left 760 g: the need minus the leftover is 1480 g → 2 steps, not none.
+    assert atta_and_tomato({staple.id: [(1.0, 3000)]}) == (2, 1)
+    # 6 kg a week ago still covers this week: no atta line.
+    assert atta_and_tomato({staple.id: [(1.0, 6000)]}) == (0, 1)
+    # Produce is bought fresh whatever came before.
+    assert atta_and_tomato({tomato.id: [(1.0, 5000)]}) == (3, 1)

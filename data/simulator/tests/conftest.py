@@ -38,6 +38,10 @@ def json_catalog() -> Catalog:
     prices = {
         i["slug"]: i["price_paise"] for i in json.loads((SEED / "prices.json").read_text())["items"]
     }
+    unit_g = {
+        n["slug"]: n.get("unit_g")
+        for n in json.loads((SEED / "nutrition.json").read_text())["items"]
+    }
     products = {
         p["slug"]: Product(
             p["slug"],
@@ -48,6 +52,7 @@ def json_catalog() -> Catalog:
             prices.get(p["slug"]),
             shelf[p["slug"]],
             p["category"],
+            unit_g.get(p["slug"]),
         )
         for p in raw
     }

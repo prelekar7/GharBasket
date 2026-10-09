@@ -252,7 +252,10 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    lines = planning.lines_from_plan(profile, catalog, meals, fallback=plan.plan is None)
+    bought = await bought_recently(session, profile.id, delivery_date, catalog)
+    lines = planning.lines_from_plan(
+        profile, catalog, meals, fallback=plan.plan is None, bought=bought
+    )
     monthly_budget = profile.budget_paise
     budget_near = (
         monthly_budget is not None
@@ -270,6 +273,39 @@ async def draft(
         )
         prediction = kept.id if kept else None
     return draft_box, plan.source, prediction
+
+
+async def bought_recently(
+    session: AsyncSession,
+    household_id: uuid.UUID,
+    delivery_date: date,
+    catalog: catalog_api.PlanCatalog,
+) -> dict[uuid.UUID, list[tuple[float, float]]]:
+    """Per dry staple, (weeks before `delivery_date`, base units) of each approved or locked box
+    of the last CARRY_WEEKS weeks: the deliveries the next draft's cupboard is made of."""
+    since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
+    rows = await session.execute(
+        select(BoxLine, WeeklyCycle.delivery_date)
+        .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+        .where(
+            WeeklyCycle.household_id == household_id,
+            WeeklyCycle.delivery_date >= since,
+            WeeklyCycle.delivery_date < delivery_date,
+            WeeklyCycle.status.in_(("approved", "locked")),
+        )
+    )
+    bought: dict[uuid.UUID, list[tuple[float, float]]] = {}
+    for line, delivered in rows.all():
+        product = catalog.products.get(line.product_id)
+        if product is None or not planning.carries_over(product):
+            continue
+        bought.setdefault(line.product_id, []).append(
+            (
+                (delivery_date - delivered).days / 7,
+                line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit],
+            )
+        )
+    return bought
 
 
 async def generate_cycle(
@@ -331,6 +367,7 @@ async def generate_cycle(
         status="awaiting_approval" if notice_now else "draft",
         generated_at=now(),
         notice_sent_at=now() if notice_now else None,
+        data_source=profile.data_source,
     )
     try:
         async with session.begin_nested():

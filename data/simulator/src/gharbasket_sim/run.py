@@ -5,14 +5,16 @@
 
 Needs `just seed` first (the hub, societies, catalog and prices). Users and households are
 written through M1's onboarding service with `data_source='synthetic'` (ADR-0008); running it
-again keeps them as they are. The weeks (plans, edits, skips, consumption) go only to
-data/sim_truth/ for now: they reach the database through M3/M4 once those modules exist.
+again keeps them as they are. The weeks (plans, edits, skips, consumption) go to
+data/sim_truth/; with `--write-db` they also go through M3, M4 and M5, a week at a time
+(through_modules.py).
 
 Only for the local Docker database: shared databases (staging) are always refused.
 """
 
 import argparse
 import asyncio
+import random
 import uuid
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -23,6 +25,8 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import api as catalog_api
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user
@@ -30,12 +34,13 @@ from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.settings import DatabaseSettings
 from gharbasket.tools.seed import SEED_HUB_ID
 from gharbasket_sim import config as cohorts
+from gharbasket_sim import through_modules as through
 from gharbasket_sim import truth
 from gharbasket_sim.catalog import Catalog, load_catalog
 from gharbasket_sim.config import Shocks
 from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.pantry import price_of, weekly_prices
-from gharbasket_sim.weeks import PLANNERS, Rows, cached, simulate
+from gharbasket_sim.weeks import PLANNERS, Rows, Simulation, cached
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_SEED = 7
@@ -85,6 +90,7 @@ async def simulate_world(
     planner: str,
     adoption: float | None = None,
     shocks: Shocks | None = None,
+    write_db: bool = False,
 ) -> Run:
     first_monday = start - timedelta(days=start.weekday())
     last_day = first_monday + timedelta(weeks=weeks, days=-1)
@@ -96,21 +102,78 @@ async def simulate_world(
     plan = cached(PLANNERS[planner])
     by_name = {c.name: c for c in cohorts.load().cohorts}
     rows = Rows([], [], [])
-    for h in households:
-        c = by_name[h.cohort]
-        one = simulate(
-            seed,
-            h,
-            catalog,
-            first_monday,
-            weeks,
-            plan,
-            shocks,
-            price_sensitivity=c.price_sensitivity,
-            feedback_rate=c.feedback_rate,
-        )
-        for name in ("weeks", "meals", "consumption", "boxes", "box_lines", "edits", "pantry"):
-            getattr(rows, name).extend(getattr(one, name))
+    ids: dict[str, uuid.UUID] = {}
+    slugs: dict[uuid.UUID, str] = {}
+    settings = through.app_settings(planner)
+    plan_catalog = None
+    if write_db:
+        await through.subscribe_all(session, households, created)
+        ids = await catalog_api.product_ids_by_slug(session, sorted(catalog.products))
+        slugs = {pid: slug for slug, pid in ids.items()}
+        plan_catalog = await catalog_api.plan_catalog(session, SEED_HUB_ID)
+    async with through.ml_client() as http:
+        for h in households:
+            c = by_name[h.cohort]
+            sim = Simulation(
+                seed,
+                h,
+                catalog,
+                first_monday,
+                plan,
+                shocks,
+                price_sensitivity=c.price_sensitivity,
+                feedback_rate=c.feedback_rate,
+            )
+            one = sim.rows
+            if plan_catalog is None:
+                for w in range(weeks):
+                    sim.week(w)
+            else:
+                household_id = created[h.key][0]
+                user_id = await identity_api.owner_of_household(session, household_id)
+                assert user_id is not None
+                deliveries = await through.delivery_dates(
+                    session, uuid.UUID(h.society_id), first_monday, weeks
+                )
+                # A week at a time: M3 drafts it once the week before has been replayed.
+                for w, delivery in enumerate(deliveries):
+                    planned, drafted, cycle = await through.generate_week(
+                        session,
+                        http,
+                        settings,
+                        household_id=household_id,
+                        delivery=delivery,
+                        plan_catalog=plan_catalog,
+                        slugs=slugs,
+                    )
+                    sim.week(w, planned, drafted)
+                    rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}:db")
+                    outcome = await through.replay_week(
+                        session,
+                        settings,
+                        rng,
+                        h,
+                        user_id=user_id,
+                        cycle=cycle,
+                        delivery=delivery,
+                        week=w,
+                        rows=one,
+                        ids=ids,
+                        slugs=slugs,
+                    )
+                    one.outcomes.append(through.outcome_row(h, w, outcome))
+                await session.commit()
+            for name in (
+                "weeks",
+                "meals",
+                "consumption",
+                "boxes",
+                "box_lines",
+                "edits",
+                "pantry",
+                "outcomes",
+            ):
+                getattr(rows, name).extend(getattr(one, name))
     prices = [
         {"week": w, "product": slug, "price_paise": price, "multiplier": factor[slug]}
         for w in range(weeks)
@@ -162,6 +225,7 @@ def tables(run: Run) -> dict[str, list[dict[str, Any]]]:
         "edits": run.rows.edits,
         "pantry": run.rows.pantry,
         "prices": run.prices,
+        "outcomes": run.rows.outcomes,
     }
 
 
@@ -170,13 +234,18 @@ def _counts(values: Iterable[str]) -> str:
 
 
 def summary(run: Run) -> list[str]:
+    lines = _summary(run)
+    return lines
+
+
+def _summary(run: Run) -> list[str]:
     new = sum(created for _, created in run.created.values())
     actions = Counter(m["action"] for m in run.rows.meals)
     planned = actions["accept"] + actions["edit"]
     statuses = Counter(w["plan_status"] for w in run.rows.weeks)
     skipped = sum(not w["ordered"] for w in run.rows.weeks)
     relaxed = sum(bool(w["relaxed"]) for w in run.rows.weeks)
-    return [
+    lines = [
         f"{len(run.households)} synthetic households ({new} new) across "
         f"{len({h.society_id for h in run.households})} societies",
         f"{run.weeks} weeks from {run.first_monday}, planner {run.planner}: "
@@ -190,6 +259,16 @@ def summary(run: Run) -> list[str]:
         f"pantry taps: {_counts(p['signal'] for p in run.rows.pantry if p['signal'])}; "
         f"{sum(1 for p in run.prices if p['multiplier'] > 1)} product-weeks with a price shock",
     ]
+    if run.rows.outcomes:
+        lines.append(
+            "through the modules: "
+            f"{_counts(o['cycle_status'] for o in run.rows.outcomes)} cycles; "
+            f"orders {_counts(o['order_status'] for o in run.rows.outcomes if o['order_status'])}; "
+            f"{sum(o['ops'] for o in run.rows.outcomes)} line ops, "
+            f"{sum(o['feedback'] for o in run.rows.outcomes)} pantry taps recorded; refused: "
+            f"{_counts(code for o in run.rows.outcomes for code in o['refused']) or 'none'}"
+        )
+    return lines
 
 
 async def run(database_url: str, args: argparse.Namespace) -> Run:
@@ -204,6 +283,7 @@ async def run(database_url: str, args: argparse.Namespace) -> Run:
                 planner=args.planner,
                 adoption=args.adoption,
                 shocks=None if args.no_shocks else cohorts.load_shocks(),
+                write_db=args.write_db,
             )
             await session.commit()
             return result
@@ -222,6 +302,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--no-shocks", action="store_true", help="flat prices (no episodes from shocks.json)"
     )
+    parser.add_argument(
+        "--write-db",
+        action="store_true",
+        help="send the weeks through M3, M4 and M5 (cycles, edits, orders, wallet, feedback)",
+    )
     args = parser.parse_args(argv)
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
@@ -238,6 +323,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "first_monday": result.first_monday,
         "planner": args.planner,
         "shocks": not args.no_shocks,
+        "write_db": args.write_db,
         "adoption": args.adoption,
         "data_source": "synthetic",
     }
