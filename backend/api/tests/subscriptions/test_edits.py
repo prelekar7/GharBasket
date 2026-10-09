@@ -19,7 +19,7 @@ from gharbasket.tools.seed import SEED_HUB_ID
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from .test_cycles import GENERATE_AT, MEENA, NOW, PRIYA, as_user, subscribe
+from .test_cycles import GENERATE_AT, MEENA, NOTICE_AT, NOW, PRIYA, as_user, subscribe
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("delivery")]
 
@@ -27,10 +27,10 @@ CUTOFF = datetime(2026, 10, 12, 15, 30, tzinfo=UTC)  # Mon 21:00 IST for the Tue
 
 
 async def generate(api: httpx2.AsyncClient) -> None:
-    answer = await api.post(
-        "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT}
-    )
-    assert answer.status_code == 200, answer.text
+    """The week as the customer first sees it: drafted at 18:00, shown at 18:30 IST."""
+    for name, at in (("generate_weekly_plans", GENERATE_AT), ("send_box_ready_notices", NOTICE_AT)):
+        answer = await api.post(f"/v1/internal/jobs/{name}", json={"scheduled_for": at})
+        assert answer.status_code == 200, answer.text
 
 
 async def events(db: AsyncSession, event_type: str) -> list[dict]:
@@ -192,6 +192,7 @@ async def test_edit_approve_hand_over_and_skip(
         len(handed) == 1
         and handed[0]["version"] == 3
         and len(handed[0]["lines"]) == len(by_product)
+        and handed[0]["auto_approved"] is False  # Priya approved it herself: M11 stays quiet
     )
     again = await api.post(
         f"/v1/cycles/{cycle_id}/approve", headers={**priya, **key(), "If-Match": '"3"'}
@@ -269,6 +270,8 @@ async def test_auto_approve_the_cutoff_and_the_feedback_window(
     assert (approved.status, approved.auto_approved) == ("approved", True)
     assert approved.order_id is not None
     assert cycles[uuid.UUID(meena_cycle["id"])].status == "awaiting_approval"
+    (handed,) = await events(db_session, "subscriptions.box_approved")
+    assert handed["cycle_id"] == priya_cycle["id"] and handed["auto_approved"] is True
     await db_session.commit()
 
     # After the cut-off nothing on the week can change.
