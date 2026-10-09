@@ -1,7 +1,7 @@
 """identity: a `whatsapp` consent purpose for updates on WhatsApp (M1 §3.2, M11 §3.1)
 
 Revision ID: 7c3e91b2d5a4
-Revises: a8e9dd07f72c
+Revises: 4f1c2a7d9e30
 Create Date: 2026-10-08 19:00:00.000000+00:00
 """
 
@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "7c3e91b2d5a4"
-down_revision: str | Sequence[str] | None = "a8e9dd07f72c"
+down_revision: str | Sequence[str] | None = "4f1c2a7d9e30"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
