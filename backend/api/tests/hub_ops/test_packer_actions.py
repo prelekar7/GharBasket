@@ -8,13 +8,14 @@ from typing import Any
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.hub_ops.models import PackingEvent
+from gharbasket.modules.identity.models import Household
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import service as order_service
 from gharbasket.modules.orders.models import OrderEvent
@@ -239,6 +240,43 @@ async def test_shortages_refund_once_or_substitute_the_whole_line(
     assert order_lines[gourd].substituted_from == ids["tomato"]
     assert order_lines[ids["onion"]].shortage_qty == 1
     assert len(await events(db_session, "orders.shortage_substituted")) == 2
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_household_that_chose_a_refund_is_never_substituted_at_packing(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    manager, _ = await staff(api, google, VIKRAM)
+    order_id, ids = await locked_order(db_session, PRIYA)
+    owner = await user_id(db_session, PRIYA)
+    await build(api, manager)
+    packer, _ = await staff(api, google, KAVITA)
+    task = (await api.post(f"{TASKS}/next", headers={**packer, **key()})).json()
+    gourd = (await catalog_api.product_ids_by_slug(db_session, ["bitter-gourd"]))["bitter-gourd"]
+    before = await billing_api.balance(db_session, owner)
+    # Chosen after the task was built: packing reads it when the shortage is recorded (M1 §3.4).
+    household = (await orders_api.get(db_session, order_id)).household_id
+    await db_session.execute(
+        update(Household).where(Household.id == household).values(shortage_preference="refund")
+    )
+    await db_session.commit()
+    whole = {"product_id": str(ids["tomato"]), "short_qty": 2}
+
+    refused = await act(
+        api, packer, task["id"], "shortage", {**whole, "substitute_product_id": str(gourd)}
+    )
+
+    assert (refused.status_code, refused.json()["code"]) == (422, "hub_ops.substitute_invalid")
+    assert refused.json()["reason"] == "refund_preferred"
+    assert await events(db_session, "orders.shortage_substituted") == []
+    assert await billing_api.balance(db_session, owner) == before
+    # The packer records the shortage as a refund instead.
+    refunded = await act(api, packer, task["id"], "shortage", whole)
+    assert refunded.status_code == 200, refunded.text
+    tomato = line(refunded.json(), ids["tomato"])
+    assert (tomato["short_qty"], tomato["substitute"], tomato["done"]) == (2, None, True)
+    assert await refunds(db_session, order_id) == [f"refund:{order_id}:short_{ids['tomato'].hex}"]
 
 
 @time_machine.travel(NOW, tick=False)

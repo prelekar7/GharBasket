@@ -89,11 +89,10 @@ def actor(permit: Permit, hub_id: uuid.UUID) -> Actor:
 
 
 async def household_allows_substitutes(session: AsyncSession, household_id: uuid.UUID) -> bool:
-    """Hook for the household preference "never substitute, refund" (ADR-0026 §6, decided by the
-    owner 2026-10-09). M1 does not store it yet, so every household allows substitutes; when it
-    lands, read it here through `identity.api`."""
-    del session, household_id
-    return True
+    """False for a household that chose "never substitute, refund" (ADR-0026 §6, M1 §3.4), read
+    when the shortage is recorded so a change applies at once; M4's `mark_shortage` checks again."""
+    preferences = await identity_api.shortage_preferences(session, [household_id])
+    return preferences[household_id] != "refund"
 
 
 # --- building the queue ---------------------------------------------------------------------------
@@ -558,7 +557,7 @@ async def shortage(
             raise _substitute_invalid("partial")
         order = await orders_api.get(session, task.order_id)
         if not await household_allows_substitutes(session, order.household_id):
-            raise _substitute_invalid("refund_only")
+            raise _substitute_invalid("refund_preferred")
     try:
         await orders_api.mark_shortage(
             session, task.order_id, line.product_id, short_qty, substitute_id
