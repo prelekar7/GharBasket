@@ -10,7 +10,8 @@ The phones +91 98000 01001 to 01012 are reserved for this seed. Sign in as any o
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
 Kharghar, Kamothe and Panvel sectors, with approximate boundaries; five of the people have a
 household there, created through the same onboarding service as `POST /v1/households`. Each live
-society has a verified captain partner (M8) who lives there, verified like a real one. The
+society has a verified captain partner (M8) who lives there, verified like a real one; the seed
+delivers its events at the end, so M9 appoints her and M1 grants her `captain:<society>` role. The
 catalog (categories and products with English, Hindi and Marathi names) comes from
 data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed society with a
 hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
@@ -47,10 +48,12 @@ from gharbasket.modules.catalog.service import (
     save_category,
     save_product,
 )
+from gharbasket.modules.community import jobs as _community_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.hub_ops import service as hub_service
 from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.hub_ops.schemas import GeoPolygon, HubIn, HubPatch, VendorIn
+from gharbasket.modules.identity import jobs as _identity_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
@@ -58,6 +61,7 @@ from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service as partners_service
 from gharbasket.modules.subscriptions import service as subscriptions_service
+from gharbasket.platform import outbox
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.geo import LatLng
@@ -86,7 +90,8 @@ PEOPLE = (
     Person("+919800001001", "Priya Sharma"),
     Person("+919800001002", "Sunita Patil", locale="mr-IN"),
     Person("+919800001003", "Ramesh Kulkarni", locale="mr-IN", senior_mode=True),
-    Person("+919800001004", "Meena Jadhav", locale="hi-IN", roles=(("captain", SEED_SOCIETY_ID),)),
+    # Meena is a captain through M9's appointment (CAPTAINS below), not a role granted here.
+    Person("+919800001004", "Meena Jadhav", locale="hi-IN"),
     Person(
         "+919800001005", "Lata Shinde", locale="mr-IN", roles=(("kitchen_partner", SEED_HUB_ID),)
     ),
@@ -575,6 +580,9 @@ async def run(database_url: str) -> Report:
                 delivery=await seed_delivery(session),
             )
             await session.commit()
+            # Deliver the seed's events now, so M9 appoints the captains and M1 grants their role.
+            while (await outbox.relay(session)).sent:
+                pass
             return report
     finally:
         await engine.dispose()

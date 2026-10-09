@@ -727,22 +727,71 @@
         "title": "CaptainCard",
         "type": "object"
       },
-      "CaptainOut": {
+      "CaptainEndIn": {
+        "additionalProperties": false,
         "properties": {
-          "flat": {
-            "title": "Flat",
-            "type": "string"
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
-          "name": {
-            "title": "Name",
+          "reason": {
+            "enum": [
+              "stepped_down",
+              "hub_decision"
+            ],
+            "title": "Reason",
             "type": "string"
           }
         },
         "required": [
-          "name",
-          "flat"
+          "reason"
         ],
-        "title": "CaptainOut",
+        "title": "CaptainEndIn",
+        "type": "object"
+      },
+      "CaptainIn": {
+        "additionalProperties": false,
+        "properties": {
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "replace": {
+            "default": false,
+            "description": "End the current captain (replaced) and appoint this one",
+            "title": "Replace",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "partner_id"
+        ],
+        "title": "CaptainIn",
+        "type": "object"
+      },
+      "CaptainsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__community__schemas__CaptainOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CaptainsOut",
         "type": "object"
       },
       "CategoryPreference": {
@@ -1004,7 +1053,7 @@
           "captain": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CaptainOut"
+                "$ref": "#/components/schemas/gharbasket__modules__subscriptions__schemas__CaptainOut"
               },
               {
                 "type": "null"
@@ -9207,6 +9256,159 @@
         ],
         "title": "WhatsAppAck",
         "type": "object"
+      },
+      "gharbasket__modules__community__schemas__CaptainOut": {
+        "description": "An appointment as hub staff see it (§3.2): never the captain's flat or phone.",
+        "properties": {
+          "appointed_by": {
+            "description": "auto: on partners.verified",
+            "enum": [
+              "auto",
+              "hub"
+            ],
+            "title": "Appointed By",
+            "type": "string"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From M8",
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name"
+          },
+          "end_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "stepped_down",
+                  "replaced",
+                  "hub_decision",
+                  "suspended"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Reason"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null for now (M8 §11)",
+            "title": "Photo Url"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "ended"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "society_id",
+          "hub_id",
+          "user_id",
+          "partner_id",
+          "display_name",
+          "photo_url",
+          "status",
+          "since",
+          "until",
+          "appointed_by",
+          "end_reason"
+        ],
+        "title": "CaptainOut",
+        "type": "object"
+      },
+      "gharbasket__modules__subscriptions__schemas__CaptainOut": {
+        "description": "The society captain's card (M9 §3.2): never a flat or a phone.",
+        "properties": {
+          "display_name": {
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          }
+        },
+        "required": [
+          "display_name",
+          "photo_url"
+        ],
+        "title": "CaptainOut",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -11544,6 +11746,147 @@
         "summary": "Set the month's Budget Lock (≥ ₹500, this month or next); null switches it off (204)",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/captains/{captain_id}/end": {
+      "post": {
+        "operationId": "end_captain_v1_captains__captain_id__end_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "captain_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Captain Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptainEndIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__schemas__CaptainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.captain_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.captain_already_ended"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "End a captain's appointment now (Idempotency-Key required)",
+        "tags": [
+          "community"
         ]
       }
     },
@@ -19495,6 +19838,262 @@
           }
         ],
         "summary": "A society with its towers (and its captain, for residents)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/societies/{society_id}/captains": {
+      "get": {
+        "operationId": "society_captains_v1_societies__society_id__captains_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "society_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Society Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this status; default all",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "ended"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this status; default all",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptainsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A society's captain appointments, newest first (hub manager, admin)",
+        "tags": [
+          "community"
+        ]
+      },
+      "post": {
+        "operationId": "appoint_captain_v1_societies__society_id__captains_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "society_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Society Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptainIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__schemas__CaptainOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.captain_exists (captain_id), community.already_captain"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.partner_not_eligible, community.captain_not_resident, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Appoint a verified captain who lives here (Idempotency-Key required)",
         "tags": [
           "community"
         ]
