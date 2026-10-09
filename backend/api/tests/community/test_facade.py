@@ -17,7 +17,11 @@ async def test_get_society_gives_what_an_address_needs(db_session: AsyncSession)
     society = await api.get_society(db_session, SEED_SOCIETY_ID)
 
     assert society == api.SocietyRef(
-        id=SEED_SOCIETY_ID, hub_id=SEED_HUB_ID, status="live", tower_ids=frozenset({"a", "b", "c"})
+        id=SEED_SOCIETY_ID,
+        hub_id=SEED_HUB_ID,
+        status="live",
+        tower_ids=frozenset({"a", "b", "c"}),
+        name="Sunrise Towers",
     )
     assert await api.get_society(db_session, uuid.uuid4()) is None
 

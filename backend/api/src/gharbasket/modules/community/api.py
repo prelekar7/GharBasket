@@ -20,6 +20,7 @@ class SocietyRef:
     hub_id: uuid.UUID | None
     status: str
     tower_ids: frozenset[str]
+    name: str
 
 
 async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRef | None:
@@ -31,6 +32,7 @@ async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRe
         hub_id=society.hub_id,
         status=society.status,
         tower_ids=frozenset(str(tower["id"]) for tower in society.towers),
+        name=society.name,
     )
 
 

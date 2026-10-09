@@ -1,8 +1,8 @@
 """Tables of M8 Partner Network. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 The partner core (spec §3.3, build order (a)): one `partners` row per verified person and kind.
-Applications, KYC documents, training, kitchens, assignments, ratings and the rate card follow in
-S6 (spec §4).
+Applications (§3.1): `applications`. KYC documents, training, kitchens, assignments, ratings and the
+rate card follow in S6 (spec §4).
 """
 
 import uuid
@@ -12,6 +12,7 @@ from decimal import Decimal
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -33,6 +34,22 @@ STATUSES = ("active", "paused", "suspended", "left")
 # What a hub manager may give as the reason (§3.3); "left" is set on account deletion only.
 SUSPEND_REASONS = ("rating", "hygiene", "compliance", "conduct", "other")
 REASON_CODES = (*SUSPEND_REASONS, "left")
+APPLICATION_STATUSES = ("applied", "kyc_pending", "training", "verified", "rejected", "withdrawn")
+# One open application per person (§3.1).
+OPEN_STATUSES = ("applied", "kyc_pending", "training")
+# What each kind needs (§3.1, handbook 13 §13.8), in the order the app shows them.
+REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
+    "kitchen": ("id_proof", "pan", "bank", "fssai", "kitchen_photos"),
+    "captain": ("id_proof", "pan", "bank"),
+    "rider": ("id_proof", "driving_licence", "bank"),
+    "packer": ("id_proof", "bank"),
+}
+REQUIRED_TRAININGS: dict[str, tuple[str, ...]] = {
+    "kitchen": ("app_basics", "hygiene", "kitchen_ops"),
+    "captain": ("app_basics", "captain_handover"),
+    "rider": ("app_basics", "rider_safety"),
+    "packer": ("app_basics", "hygiene", "packing"),
+}
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -88,3 +105,57 @@ class Partner(Base):
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Application(Base):
+    """A request to become a partner of one kind (§3.1). A captain's scope is the society she
+    lives in and asks to serve; everyone else's is the hub."""
+
+    __tablename__ = "applications"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", KINDS), name="kind"),
+        CheckConstraint(_one_of("status", APPLICATION_STATUSES), name="status"),
+        CheckConstraint(_one_of("scope_type", ("society", "hub")), name="scope_type"),
+        CheckConstraint("char_length(display_name) BETWEEN 2 AND 40", name="display_name"),
+        CheckConstraint(
+            "status <> 'verified' OR (partner_id IS NOT NULL AND verified_at IS NOT NULL)",
+            name="verified",
+        ),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        # One open application per person (§3.1).
+        Index(
+            "uq_applications_user_id_open",
+            "user_id",
+            unique=True,
+            postgresql_where=text(_one_of("status", OPEN_STATUSES)),
+        ),
+        # The review queue: a hub's applications by status, oldest first.
+        Index("ix_applications_hub_id_status_created_at", "hub_id", "status", "created_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    # identity.users.id, the society and the hub are plain UUIDs (ADR-0026 §5).
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    scope_type: Mapped[str] = mapped_column(String(16))
+    scope_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    display_name: Mapped[str] = mapped_column(String(40))
+    # The hub manager who created it for a rider or packer without a household; else null.
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(16), server_default="applied")
+    # When the hub manager approved the documents (then training, or verified).
+    docs_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Why it was rejected or sent back (shown to the applicant).
+    reason: Mapped[str | None] = mapped_column(String(300))
+    partner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.partners.id"))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -90,3 +90,102 @@ class ReinstateIn(BaseModel):
     @classmethod
     def _tidy(cls, value: str | None) -> str | None:
         return _note(value)
+
+
+# --- applications (§3.1) ------------------------------------------------------------------------
+
+ApplicationStatus = Literal[
+    "applied", "kyc_pending", "training", "verified", "rejected", "withdrawn"
+]
+KIND_DESCRIPTION = "kitchen, captain, rider or packer (else 422 partners.kind_invalid)"
+
+
+class ApplicationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(max_length=16, description=KIND_DESCRIPTION, examples=["captain"])
+    scope_id: uuid.UUID | None = Field(
+        default=None,
+        description="Optional: a captain's own society, anyone else's household hub",
+    )
+    display_name: str | None = Field(
+        default=None,
+        max_length=100,
+        description="What customers will see, 2 to 40 characters; default your M1 name",
+        examples=["Meena tai"],
+    )
+
+
+class HubApplicationIn(BaseModel):
+    """A rider or packer application a hub manager creates for a person without a household."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(max_length=16, description="rider or packer", examples=["rider"])
+    phone_e164: str = Field(
+        pattern=r"^\+[1-9][0-9]{7,14}$",
+        description="A signed-up user's phone",
+        examples=["+919812345678"],
+    )
+    display_name: str = Field(max_length=100, description="2 to 40 characters", examples=["Ravi"])
+
+
+class DocumentRequirement(BaseModel):
+    doc_type: str = Field(examples=["pan"])
+    status: Literal["missing", "submitted", "accepted", "rejected"]
+    document_id: uuid.UUID | None
+    reason: str | None = Field(description="Why the hub asked for it again")
+
+
+class TrainingRequirement(BaseModel):
+    code: str = Field(examples=["hygiene"])
+    status: Literal["todo", "passed", "failed"]
+
+
+class Requirements(BaseModel):
+    documents: list[DocumentRequirement] = Field(description="The kind's required types only")
+    trainings: list[TrainingRequirement]
+
+
+class ApplicationOut(BaseModel):
+    id: uuid.UUID
+    kind: PartnerKind
+    status: ApplicationStatus
+    scope_type: Literal["society", "hub"] = Field(
+        description="society: the captain's own society; hub: everyone else"
+    )
+    scope_id: uuid.UUID
+    hub_id: uuid.UUID
+    display_name: str = Field(examples=["Meena tai"])
+    requirements: Requirements
+    next_step: Literal["documents", "review", "training"] | None = Field(
+        description="null once verified, rejected or withdrawn"
+    )
+    reason: str | None = Field(description="Why it was rejected or sent back")
+    partner_id: uuid.UUID | None = Field(description="Set at verification")
+    submitted_at: datetime
+    decided_at: datetime | None
+    verified_at: datetime | None
+    version: int
+
+
+class ApplicantOut(BaseModel):
+    user_id: uuid.UUID
+    name: str | None
+    phone_e164: str | None
+
+
+class ApplicationSocietyOut(BaseModel):
+    id: uuid.UUID
+    name: str | None
+    has_active_captain: bool | None = Field(
+        description="Whether the society already has an active captain (M9); null until M9's "
+        "captains are available"
+    )
+
+
+class ApplicationReviewOut(ApplicationOut):
+    """An application as hub staff of its hub (and admins) see it."""
+
+    applicant: ApplicantOut
+    society: ApplicationSocietyOut | None = Field(description="Captain applications")

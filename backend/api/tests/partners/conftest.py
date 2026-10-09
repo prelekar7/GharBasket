@@ -19,7 +19,10 @@ SAVITA = "+919800001012"  # captain partner of Krishna Kunj (seed)
 LATA = "+919800001005"  # kitchen partner role at the seed hub, no partner record yet
 VIKRAM = "+919800001008"  # hub manager of the seed hub
 SANJAY = "+919800001009"  # franchise owner of the seed hub
-PRIYA = "+919800001001"  # customer
+PRIYA = "+919800001001"  # customer, household in Sunrise Towers
+SUNITA = "+919800001002"  # customer, household in Green Valley Heights
+RAMESH = "+919800001003"  # customer, household in Krishna Kunj
+ARJUN = "+919800001006"  # rider role at the seed hub, no household
 NEHA = "+919800001011"  # admin
 
 
