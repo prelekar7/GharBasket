@@ -41,7 +41,7 @@ The analytics module serves read-only numbers: the hub's today board, KPIs, unit
 | GET | `/v1/public/societies/{slug}` | Public | The society landing page (§3.7) |
 | POST | `/v1/internal/jobs/refresh_analytics` · `refresh_analytics_nightly` · `rebuild_analytics` | `JOBS_TOKEN` | §3.2 |
 
-`/v1/analytics/experiments/{key}` from Draft v1 is cut from S9: nothing assigns experiments yet (open question, §11).
+`/v1/analytics/experiments/{key}` from Draft v1 is cut from S9 (owner, 2026-10-09; §11): nothing assigns experiments yet.
 
 ### 3.1 How M12 reads other modules (decided in this draft)
 **Decision: facts through facades, views over M12's own tables.**
@@ -69,7 +69,7 @@ The analytics module serves read-only numbers: the hub's today board, KPIs, unit
 |---|---|---|
 | M1 | `identity.api.household_facts(session, *, created_from=None, ids=None)` | household_id, hub_id, society_id, created_on, status, data_source |
 | M3 | `subscriptions.api.cycle_facts(session, *, date_from, date_to, hub_ids)` | cycle_id, household_id, hub_id, society_id, week_start, delivery_date, status, auto_approved, approved_before_cutoff, edits, plan_source, ran_out_taps, wasted_taps, data_source |
-| M4 | `orders.api.order_facts(…)` | order_id, household_id, hub_id, society_id, kind, delivery_date, slot_end, status, total_paise, refunded_paise, credited_paise, lines, short_lines, delivered_at, attempts, data_source |
+| M4 | `orders.api.order_facts(…)` | order_id, household_id, hub_id, society_id, kind, delivery_date, slot_end, status, total_paise, fees_paise, refunded_paise, credited_paise, lines, short_lines, delivered_at, attempts, data_source |
 | M4 | `orders.api.issue_facts(…)`, `open_issue_summary(session, hub_id)`, `today_counts(session, hub_id, date)` | issue_id, order_id, hub_id, kind, status, amount_paise, credit_paise, by, created_at, resolved_at; the open count, oldest `created_at` and earliest `callback_due_at`; orders by status |
 | M5 | `billing.api.earning_facts(session, *, week_from, week_to)` | partner_id, iso_week, basis, units, amount_paise |
 | M5 | `billing.api.kindness_facts(…)` | date, source_type, points credited, donated, expired |
@@ -191,7 +191,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
 
 - **Data sources are never pooled** (eval protocol §2, ADR-0008).
   - `data_source` is required. The values are what the modules store: `synthetic` for simulator rows and `real` for everything else. The console labels `real` as "Pilot" until launch.
-  - Handbook 05 §5.10's `pilot`/`live` and M10's `synthetic | pilot | live | mixed` differ from the stored `real | synthetic` (§11).
+  - Handbook 05 §5.10's `pilot`/`live` and M10's `synthetic | pilot | live | mixed` differ from the stored `real | synthetic`. The owner decided on 2026-10-09 that M12 uses the stored values (§11).
 - **Hub scope.** A hub manager or franchise owner must give a `hub_id` within their grants (403 `auth.forbidden`). Only an admin may omit it.
 - **Aggregates only.** No M12 response carries a household id, name, flat or phone. This answers Draft v1's open question: franchise owners and hub managers get aggregates in M12, and household detail stays in M1 and M4's own screens under their own permissions.
 - **The order-issue triage link.** M12 does not serve or duplicate the triage queue. M4 §3.6 owns it (`GET /v1/admin/order-issues`, built in #156). The today board's `issue_open` row (`count`, oldest `created_at`, earliest `callback_due_at` as `due_at`, from `orders.api.open_issue_summary`) and the `issues_per_1000_orders` tile link to the console's Issues page, `/hub/issues?status=open`, which renders M4 §3.6. `donations_to_verify` links to `/community/donations`, `surplus_open` to `/hub/waste`, `delivery_held` to `/hub/deliveries`, and `plan_needs_review` to `/hub/routes`.
@@ -206,7 +206,7 @@ GET /v1/analytics/societies?hub_id=&data_source=real
 | `GET /v1/analytics/customer-summary?hub_id=` → `{ active_households, active_households_change, paused_households, approved_on_time_bp, joining_societies, societies: [...] }` | `GET /v1/analytics/societies`; the hub totals and the change are computed by the console from `items`; `joining_societies` = items with `status: "unlocking"` |
 
 ### 3.4 Unit economics, P&L and assumptions contract (drafted 2026-10-09, frozen on approval)
-Handbook 02 §5: **contribution per box = AOV × margin − (delivery + packing + captain + payment fee + CAC)**. Each input is **measured** when the pilot (or the simulator) has produced it, and an editable **assumption** otherwise. The console's Unit economics and P&L pages (`(franchise)/unit-economics`, `(franchise)/pnl`) build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
+Handbook 02 §5: **contribution per box = AOV × margin + delivery fee − (delivery + packing + captain + payment fee + CAC)**. The delivery fee is the pre-live fee customers pay per box until their society goes live (M9 §3.6, owner 2026-10-09); it is revenue, and 0 for boxes in live societies. Each input is **measured** when the pilot (or the simulator) has produced it, and an editable **assumption** otherwise. The console's Unit economics and P&L pages (`(franchise)/unit-economics`, `(franchise)/pnl`) build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 
 ```
 Assumptions : { "aov_paise": 62000, "margin_bp": 2400, "delivery_paise": 4000, "packing_paise": 3000,
@@ -230,16 +230,19 @@ GET /v1/analytics/unit-economics?hub_id=&from=&to=&data_source=real&prefer=measu
                       "packing_paise": 400, "captain_paise": 600 },    null: not measurable yet
         "used": Assumptions,                             override > measured (prefer=measured) > saved
         "sources": { "aov_paise": "measured" | "assumed" | "override", … },
-        "per_box": { "margin_paise", "delivery_paise", "packing_paise", "captain_paise",
-                     "fee_paise", "cac_paise", "contribution_paise" },
+        "delivery_fee_paise": 410,                       measured only: Σ fees_paise ÷ boxes; 0 with no
+                                                         pre-live boxes; overridable for a what-if
+        "per_box": { "margin_paise", "delivery_fee_paise", "delivery_paise", "packing_paise",
+                     "captain_paise", "fee_paise", "cac_paise", "contribution_paise" },
+                     fee_paise is the payment fee (a cost); delivery_fee_paise is revenue
         "weeks": [ { "week": "2027-02-01", "boxes": 103, "contribution_paise": 4120 } ] }
 
 GET /v1/analytics/pnl?hub_id=&period=2027-02&data_source=real            franchise_owner (hub), admin
   200 { "hub_id", "period": "2027-02", "as_of", "boxes": 412, "tiffins": 220,
         "revenue_paise", "contribution_paise", "previous_contribution_paise" | null,
         "per_box_paise", "partners_paise": { "captains", "kitchens", "riders", "packers" },
-        "lines": [ { "key": "box_revenue" | "tiffin_revenue" | "produce" | "kitchen" | "delivery"
-                            | "packing" | "captain" | "fees" | "acquisition",
+        "lines": [ { "key": "box_revenue" | "delivery_fee_revenue" | "tiffin_revenue" | "produce"
+                            | "kitchen" | "delivery" | "packing" | "captain" | "fees" | "acquisition",
                      "amount_paise": -1840000,          costs negative, exact paise
                      "source": "measured" | "assumed",
                      "basis": { "kind": "times", "qty": 412, "unit": "box", "rate_paise": 4000 }
@@ -251,7 +254,8 @@ GET /v1/analytics/pnl?hub_id=&period=2027-02&data_source=real            franchi
 
 | Input | Measured as | Measurable from |
 |---|---|---|
-| `aov_paise` | (box + add-on revenue of delivered boxes − refunds − issue credits) ÷ boxes delivered | S2 (M4) |
+| `aov_paise` | (box + add-on revenue of delivered boxes − refunds − issue credits) ÷ boxes delivered; the delivery fee is left out | S2 (M4) |
+| `delivery_fee_paise` (revenue, not an assumption) | Σ `fees_paise` of delivered boxes ÷ boxes delivered; 0 when every society is live | With M4's pre-live fee (M9 §11) |
 | `margin_bp` | 1 − (COGS of packed lines ÷ revenue) | When M6 §3.4 records lot costs and `hub_day_facts.cogs_paise` is set |
 | `delivery_paise` | Σ `cost_paise` of the hub's box routes ÷ boxes on them (M7's route cost model) | S5 (M7) |
 | `packing_paise` | Packer earnings ÷ boxes packed (M8 rate card, ₹4 an order); hub overheads stay in the assumption | S6 (M8) |
@@ -260,7 +264,7 @@ GET /v1/analytics/pnl?hub_id=&period=2027-02&data_source=real            franchi
 | `cac_paise` | Never measured: marketing spend is outside the system | Always an assumption |
 
 - **Arithmetic** is integer, the same as the console's `boxEconomics`. Money is in paise and percentages in basis points. Each percentage step is rounded half up to a whole paisa, so the server and the console's live what-if give the same numbers on shared fixtures (§9).
-- **The P&L's lines** use measured totals where they exist (revenue, kitchen, captain, packing, delivery). `produce` is the measured COGS, or the share `10,000 − margin_bp` of box revenue; `fees` and `acquisition` are assumed. `amount_paise` is exact, and the console rounds for display.
+- **The P&L's lines** use measured totals where they exist (revenue, kitchen, captain, packing, delivery). `delivery_fee_revenue` is the measured Σ `fees_paise` of delivered boxes (refunded fees left out), kept apart from `box_revenue` so that the produce share is taken of the food only. `produce` is the measured COGS, or the share `10,000 − margin_bp` of box revenue; `fees` (the payment fee) and `acquisition` are assumed. `amount_paise` is exact, and the console rounds for display.
 - **Franchise owners** get only their hubs' aggregates. Hub managers do not get P&L or unit economics (the franchise's business).
 
 | Mock today (console) | Contract |
@@ -268,6 +272,7 @@ GET /v1/analytics/pnl?hub_id=&period=2027-02&data_source=real            franchi
 | `GET /v1/analytics/unit-economics?hub_id=` → `{ assumptions, per_box, history }` | Adds `from`/`to`, `data_source`, `measured`, `used`, `sources`, `weeks`; `history` moves to the assumptions endpoint |
 | `PUT /v1/hubs/{hub}/unit-economics-assumptions` | `PUT /v1/analytics/hubs/{hub_id}/assumptions` with If-Match (the `/v1/hubs` path belongs to M6); same body and `errors[]` |
 | Default `captain_paise: 1000` | 600 (₹6 a bag, decided 2026-10-09) |
+| `boxEconomics` has no delivery fee | Adds `delivery_fee_paise` per box as revenue (owner, 2026-10-09: the pre-live fee, M9 §3.6), so the server and the console still agree |
 | `GET /v1/analytics/pnl` lines rounded to a whole rupee; no `source` | Exact paise and a `source` per line; `partners_paise` replaces `captains_paise` and `kitchens_paise`; `periods` (the month picker) is dropped: any of the last 24 months |
 
 ### 3.5 Cohorts, partner earnings and the research metrics contract (drafted 2026-10-09, frozen on approval)
@@ -455,6 +460,7 @@ S9 pages on this contract:
 - **Unit economics:**
   - The server's per-box arithmetic equals the console's `boxEconomics` on shared fixtures (rounding half up in paise and basis points).
   - `sources` reports measured, assumed and override correctly.
+  - `delivery_fee_paise` and the `delivery_fee_revenue` line count the fees of delivered boxes only (refunded fees left out), and are 0 for a hub whose societies are all live.
   - A stale If-Match on the PUT gets 412, and every change is audit-logged with a history row.
 - **Public page:**
   - Prospect and paused societies 404.
@@ -481,7 +487,7 @@ M1 for auth and household facts, and every module's facade listed in §3.1. The 
   - §3.3 notes that M12 has no export section.
 - **M3:** `cycle_facts` (with `approved_before_cutoff`, `edits`, `plan_source` and the pantry feedback taps), and `delivery_days(society_id)` on the facade for the public page.
 - **M4:**
-  - `order_facts`, `issue_facts`, `open_issue_summary` and `today_counts`.
+  - `order_facts` (with `fees_paise`, the pre-live delivery fee of M9 §3.6), `issue_facts`, `open_issue_summary` and `today_counts`.
   - §3.2's "M12 queues the open ones" and "the console endpoint comes with M12" are now stale: M4 §3.6 serves the queue and the photo links, and M12 only counts and links.
 - **M5:** `earning_facts` and `kindness_facts`; store Razorpay's `fee_paise` on payments, so the payment fee can be measured.
 - **M6:** `hub_day_facts` (with `cogs_paise` once §3.4 records lot costs) and `packing_progress`.
@@ -494,15 +500,17 @@ M1 for auth and household facts, and every module's facade listed in §3.1. The 
   - 04 §4: add an arrow from `analytics` to the facades.
   - 12: add the two refresh jobs to the job table.
 
-## 11. Open questions
-- **`data_source` values.** Transactional tables store `real | synthetic`; handbook 05 §5.10 says `synthetic | pilot | live`; M10's tables use `synthetic | pilot | live | mixed`; the console mocks use `simulator`/`sim` and `pilot`.
-  - *Recommendation:* M12 takes the stored `real | synthetic`, and the console labels `real` as "Pilot" until launch.
-  - Later, an ADR could rename `real` to `pilot` across the schemas before the pilot starts. The cost is one migration per module, and it matters for the paper's tables.
-- **Experiments endpoint.** *Recommendation:* cut from S9. Nothing assigns experiments, and the B9 uplift offers are a stretch feature. The simulator A/B lives in the eval harness.
-- **Hub managers and P&L.** *Recommendation:* no, P&L and unit economics are for franchise owners and admins; hub managers get KPIs and the today board.
-- **Refresh cadence on the free tier.** *Recommendation:* 15 minutes for the daily views (96 short runs a day on cron-job.org) and nightly for the rest. If Neon compute hours run short, move `refresh_analytics` to 30 minutes, since nothing else depends on it.
-- **The small-number threshold of 5** for partner distributions, impact and the public page. It is shared with M9 §3.7. *Recommendation:* 5.
-- **Default assumptions.** *Recommendation:* the console mock's numbers (AOV ₹620, margin 24 %, delivery ₹40, packing ₹30, payment fee 1.2 %, CAC ₹13), with the captain at the decided ₹6. These are hypotheses (handbook 02 §5), shown as "assumed" until measured.
+## 11. Open questions and decisions
+No open questions remain for §3.1–§3.9.
+
+- **Decided by the owner (2026-10-09)** (every recommendation of this section accepted as written):
+  - ~~`data_source` values? Transactional tables store `real | synthetic`; handbook 05 §5.10 says `synthetic | pilot | live`; M10's tables use `synthetic | pilot | live | mixed`; the console mocks use `simulator`/`sim` and `pilot`.~~ Decided: M12 takes the stored `real | synthetic`, and the console labels `real` as "Pilot" until launch (§3.3). Renaming `real` to `pilot` across the schemas before the pilot would be a later ADR, at one migration per module.
+  - ~~Experiments endpoint?~~ Decided: cut from S9. Nothing assigns experiments, and the B9 uplift offers are a stretch feature. The simulator A/B lives in the eval harness.
+  - ~~Hub managers and P&L?~~ Decided: no. P&L and unit economics are for franchise owners and admins; hub managers get KPIs and the today board (§3.4, §7).
+  - ~~Refresh cadence on the free tier?~~ Decided: every 15 minutes for the daily views (96 short runs a day on cron-job.org) and nightly for the rest (§6). If Neon compute hours run short, `refresh_analytics` moves to 30 minutes, since nothing else depends on it.
+  - ~~The small-number threshold for partner distributions, impact and the public page?~~ Decided: 5, shared with M9 §3.7.
+  - ~~Default assumptions?~~ Decided: the console mock's numbers (AOV ₹620, margin 24 %, delivery ₹40, packing ₹30, payment fee 1.2 %, CAC ₹13), with the captain at the decided ₹6 (§3.4). They are hypotheses (handbook 02 §5), shown as "assumed" until measured.
+  - ~~Boxes before a society is live (asked in M9 §11)?~~ Decided, changing M9's recommendation: households in a society that is not yet live get boxes with a per-box delivery fee (per hub, proposed default ₹30) until it goes live (M9 §3.6). For M12 the fee is revenue: `delivery_fee_paise` per box in unit economics and a `delivery_fee_revenue` line in the P&L (§3.4), from `fees_paise` in `order_facts` (§3.1, §10).
 - **Decided in this draft (owner to confirm):**
   - ~~Can franchise owners see household-level data?~~ No: aggregates only, in every M12 response (§3.3).
   - ~~Read-only views over other schemas?~~ No: facades into M12's own fact tables (§3.1).

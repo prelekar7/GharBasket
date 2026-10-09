@@ -229,7 +229,7 @@ POST /v1/referrals              customer (the neighbour who was referred); Idemp
   4. It publishes `community.referral_converted { referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points, referee_points }`. M5's `billing.points_credited` already notifies each side (M11 category `kindness`), so M11 maps nothing for this event.
 - **Cap.** A referrer is rewarded for at most 10 conversions per IST calendar month. Later conversions still count in `summary` with `points: 0`, and the referee is still rewarded.
 - **Void.** A referral becomes `void` when either account's deletion is requested (consumer of `identity.deletion_requested`), or when the referee's household is still unconverted 90 days after `joined_on` (`expire_referrals`). Void referrals pay nothing.
-- **Captains.** A captain shares her own code like any customer and earns the same points. A cash referral bonus for captains (handbook 02 lever B11, handbook 09's "referral bonus" on the Earnings screen) is not in M8's rate card; it is an open question (§11).
+- **Captains.** A captain shares her own code like any customer and earns the same points. A cash referral bonus for captains (handbook 02 lever B11, handbook 09's "referral bonus" on the Earnings screen) is not in v1 (owner, 2026-10-09; §11): a captain already earns ₹6 for every bag in her society.
 - **Synthetic data.** The simulator's households refer each other through the same endpoints, so the referral funnel has `data_source` like every household-derived row.
 
 **Error codes**
@@ -471,7 +471,9 @@ POST /v1/ngo-handoffs/{id}/confirm                ngo_coordinator of the hand-of
 - **Meals (donated points).**
   - **Pledges.** In the consumer of `billing.points_donated { entry_id, user_id, meals, points, code }`, M9 stores a `meal_pledges` row (unique by `entry_id`, so a redelivered event counts once). The row's hub is the user's household hub (`identity.api.household_for_user`).
   - **Serving.** A `meals` hand-off of `n` meals serves the hub's oldest unserved pledges first, splitting a pledge when needed. `n` may not exceed `meals_waiting`: otherwise 422 `community.meals_exceed_pledged` (`meals_waiting`). The NGO must accept meals.
-  - **Who pays.** How a donated meal is paid for and cooked is an open question (§11): points have no cash value, so the money is GharBasket's.
+  - **Who pays** (owner, 2026-10-09; §11). Points have no cash value, so a donated meal is GharBasket's cost.
+    - **Prototype:** no money moves. A meal counts as served when a partner NGO records a `meals` hand-off.
+    - **Before the pilot:** the owner and Prof. Kranti Bade set a sponsored cost per meal (about ₹25). M5 then books it as an INR expense at the `meals` hand-off, under a new `meal_sponsorship` entry kind (an M5 change made then).
 - **Photos.** A new M0 upload purpose, `handoff_photo` (JPEG, PNG or WebP, 5 MB, kept 3 years as impact proof), is an M0 follow-up. Photos show goods and the hand-over, **never beneficiaries' faces**: they are often children, and the console's upload copy says so. Links are 5-minute signed GETs for the hub's staff, admins and the NGO's coordinators, never public.
 - **NGO coordinators** never see a donor: hand-offs and `ready` show items, kilograms and dates, never a household, flat or name.
 - **`community.handoff_recorded { handoff_id, ngo_id, hub_id, kind, items, kg_tenths, meals }`** feeds M12. It is not mapped in M11.
@@ -500,10 +502,13 @@ POST /v1/ngo-handoffs/{id}/confirm                ngo_coordinator of the hand-of
 This adds to §3.1 how a society moves from `prospect` to `live` and where the threshold comes from (handbook 07 W10). The Society screen's unlock bar and celebration, the public page (M12 §3.7), M3's delivery days and M11 build against it.
 
 ```
-GET /v1/societies/{id}/unlock      (§3.1, two fields added)
+GET /v1/societies/{id}/unlock      (§3.1, three fields added)
   200 : { "society_id", "status", "joined": 14, "threshold": 20,
           "live_at": "2027-02-27T06:12:00Z" | null,             set once, when it first went live
-          "threshold_source": "model" | "hub" | "default" }
+          "threshold_source": "model" | "hub" | "default",
+          "box_fee_paise": 3000 }                               the delivery fee on each box until
+                                                                live (the hub's setting); 0 once
+                                                                `live_at` is set
 
 PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) gains
           { "unlock_threshold": 25, "unlock_threshold_pinned": true }   pinned: the weekly job leaves it
@@ -516,11 +521,20 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
   - **`unlocking → live`** happens automatically when `joined ≥ threshold`. It is checked in the consumer of `identity.household_created` (and `identity.household_updated` when `society_id` changed), and after any threshold change.
   - The transition sets `live_at` and publishes **`community.society_live { society_id, hub_id, joined, threshold, live_at }`**. Both happen once in the society's life: `live_at` is never cleared, and a society that is paused and resumed does not publish again.
 - **Never back down on its own.** A live society stays live if households leave; only the hub can pause it.
-- **What live means.**
-  - **Delivery days.** A hub manager assigns delivery days (M3 §3.1). M11 tells the society's households (category `kindness`, link `/society`) and the hub's managers (a console task "set delivery days").
-  - **No delivery fee.** M4's `fees_paise` stays 0 for live societies (M4 §11).
-  - **Before live.** Whether households in an `unlocking` society can get boxes, and at what fee, is an open question (§11). The recommendation is no boxes and no fee: until a society is live it has no delivery days, so M3 drafts no cycles. The unlock bar is then the whole offer.
-- **The threshold `N`** is "the number of households at which a stop becomes cheaper than the delivery fee" (W10).
+- **What live changes: the delivery fee** (owner, 2026-10-09; §11). Live is free delivery, not the start of delivery.
+  - **Boxes before live.** Households in a society that is not yet live (`prospect` or `unlocking`) can get boxes, with a delivery fee on each box until the society goes live.
+    - The hub decides when to start serving such a society by assigning its delivery days (M3 §3.1, which does not depend on the status). From then on M3 drafts cycles as for any society.
+    - Until the society has a captain, its stop is in rider mode (M7 §3.4).
+  - **The fee.** It is a per-hub setting, `pre_live_box_fee_paise` on the hub (M6 follow-up, §11), set by an admin in the hub's settings.
+    - **Default: 3,000 (a flat ₹30 a box).** This is a proposed default that the owner may change.
+    - **Box orders only.** Add-ons ride on the box and pay no fee of their own. Tiffins, which have their own slots, pay none.
+    - **Zero once live.** The fee is 0 when the society's `live_at` is set, and so always for live societies. It is `live_at` that decides, not `status`, so a live society that is paused and resumed never pays the fee again.
+  - **How it is charged.** M4 adds the fee to the box order as `fees_paise`, and M3 shows it in the cycle total before approval. It is charged at cut-off with the box, and refunded with the box (M4 follow-up, §11). Shortage and issue refunds never touch it.
+  - **At live.** The fee drops to 0 from the next cut-off, including on boxes already approved (M4 re-reads `live_at` at the lock).
+    - M11 tells the society's households (category `kindness`, link `/society`): delivery is now free.
+    - When the society has no delivery days yet, M11 also gives the hub's managers a console task, "set delivery days".
+  - **The unlock bar** shows the fee beside the count (`box_fee_paise`), e.g. "₹30 delivery a box until 20 homes join, then free".
+- **The threshold `N`** is "the number of households at which a stop becomes cheaper than the delivery fee" (W10). The formula below is kept as drafted (owner, 2026-10-09): the pre-live fee does not enter it.
   - **The weekly job.** `recompute_unlock_thresholds` (Monday 02:10 IST) asks M10, through `intel_gateway.api.society_stop_cost(society_id)` (an M10 follow-up on `/slots/price`), for the marginal cost of adding the society as a stop. It then sets `N = clamp(ceil(stop_cost_paise ÷ DELIVERY_ALLOWANCE_PAISE), 10, 60)`, where `DELIVERY_ALLOWANCE_PAISE` (default 4,000, ₹40, the console's delivery-per-box assumption) is what one household's box can carry towards a stop.
   - **When M10 is down.** The job keeps the current threshold (`threshold_source` unchanged). A society never priced keeps the default 20 (`default`).
   - **Pinned thresholds.** A pinned threshold is never changed by the job (`hub`).
@@ -529,7 +543,7 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 
 | Mock today | Contract |
 |---|---|
-| Newest mobile mock (`feat/mobile-sync-orders`): `{ society_id, status, joined, threshold }`; the app celebrates when `status` turns `live` | Adds `live_at` and `threshold_source`; celebrate once per society when `live_at` is newer than the last one the app saw |
+| Newest mobile mock (`feat/mobile-sync-orders`): `{ society_id, status, joined, threshold }`; the app celebrates when `status` turns `live` | Adds `live_at`, `threshold_source` and `box_fee_paise`; celebrate once per society when `live_at` is newer than the last one the app saw |
 | Older mocks: `unlocked_at`, and the referral mock bumps `joined` and flips the society live | `live_at`; only a new household moves `joined` |
 
 ### 3.7 Impact contract (drafted 2026-10-09, frozen on approval)
@@ -580,6 +594,7 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 
 ### 3.8 Facade, export and erasure additions (drafted 2026-10-09)
 **Facade** (`gharbasket.modules.community.api`, in addition to §3.1 and §3.2):
+- `get_society` (§3.1) gains `live_at`, so M4 can set the pre-live delivery fee (§3.6). The change is additive.
 - `society_impact(session, society_id, period) -> SocietyImpact`: the `society` scope of §3.7 with the k rules applied, for M12's public page.
 - `public_society(session, slug) -> PublicSociety | None`: `{ id, slug, name, area, status, joined, threshold, live_at }` for `unlocking` and `live` societies only; `None` for `prospect`, `paused` or unknown.
 - `pickups_for(session, society_id, on) -> list[DonationPickup]`: `{ donation_id, household_id, items_summary }` for M7's return leg and the captain's flat checklist. M7 adds the flat through `identity.api.delivery_labels`.
@@ -708,6 +723,7 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
   - A live society stays live when households leave.
   - The job never changes a pinned threshold, keeps the threshold when M10 is down, and makes a society live when the new threshold is at or below `joined`.
   - The first captain moves a `prospect` society to `unlocking`.
+  - `box_fee_paise` is the hub's `pre_live_box_fee_paise` while `live_at` is null, and 0 once it is set, also after a pause and resume.
 - Impact (§3.7):
   - Every society number is `null` under 5 contributors, and partner earnings are `null` under 5 partners.
   - The `me` numbers equal the sum of the user's verified donations, credited points and donated meals.
@@ -718,13 +734,13 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
 ## 10. Dependencies
 - **M1:** addresses; `household_for_user` for the captain residency rule and meal pledges; household and deletion events; `delivery_labels` for the verification queue; role grants for `ngo_coordinator:<ngo>`; `is_active`.
 - **M3:** `subscriptions.api.delivery_dates(society_id, after, n)` for pickup dates. This is new and follows the existing `delivery_days`.
-- **M4:** `orders.delivered` carries `kind` (ADR-0026 §3).
+- **M4:** `orders.delivered` carries `kind` (ADR-0026 §3). The pre-live delivery fee on box orders (§3.6; the follow-up in §11).
 - **M5:**
   - `credit_points` for referrals;
   - consumes `donation_verified`;
   - publishes `points_donated`;
   - `kindness_totals(user_id)` is new, for the `me` impact.
-- **M6 (§3.5, being refined):** `surplus_offered`; `settle_surplus` with a taker; a `surplus_settled` event (new) so M9 can expire offers taken elsewhere.
+- **M6 (§3.5, being refined):** `surplus_offered`; `settle_surplus` with a taker; a `surplus_settled` event (new) so M9 can expire offers taken elsewhere. `hub_ops.api.get_hub` with the hub's `pre_live_box_fee_paise`, for the unlock bar (§3.6; the follow-up in §11).
 - **M7 (§3.6):** consumes `donation_scheduled` and `donation_cancelled`. `pickup_completed` must carry each donation's outcome, which is a change. M7 reads `pickups_for` for the captain's flat checklist.
 - **M8:** verified captain partners through `partners.api.get_partner` and `profile_card`, and its `partners.verified` and `partners.suspended` events. `partners.api.hub_earnings(hub_id, month) -> { paise, partners }` is new, for the impact card.
 - **M10:** `intel_gateway.api.society_stop_cost(society_id)` is new, on `/slots/price`.
@@ -732,26 +748,40 @@ Captains have no M9 permission beyond a resident's: their society's unlock, driv
 - **M11:** event map rows for `society_live`, `donation_verified` and `donation_rejected`. It must not send twice for `points_credited` with `source_type: "donation"`.
 - **M12:** reads M9's facts through the §3.8 facade.
 
-## 11. Open questions
-- **Who pays for a donated meal, and who cooks it?** (§3.5) Points have no cash value, so a meal for a child is GharBasket's cost.
-  - *Recommendation:* in the prototype, no money moves. A meal counts as served when a partner NGO records a `meals` hand-off. Before the pilot, the owner and Prof. Kranti Bade set a sponsored cost per meal (e.g. ₹25). M5 then books it as an INR expense at the hand-off, and an M5 change adds a `meal_sponsorship` entry kind.
-  - *Alternative:* home kitchens cook the meals as paid tiffins for the NGO. This is more on-brand, but it needs M4, M8 and money flows in S9.
-- **Can households in an `unlocking` society get boxes before it goes live, and at what delivery fee?** (§3.6; M4 §11 deferred this to S9)
-  - *Recommendation:* no. Until live there are no delivery days, so there are no cycles and no fee, and `fees_paise` stays 0 everywhere. The demo shows the unlock moment.
-  - *Alternative:* boxes at a flat fee (e.g. ₹30) that drops to 0 at live. This needs M4 to read the society status at booking and the app to explain the fee.
-- **Referral rewards** (§3.3).
-  - *Recommendation:* 250 points to each side (two referrals make a meal), at most 10 rewarded conversions a month, conversion on the first delivered box, a 14-day claim window and a 90-day expiry.
-  - *Question:* should the neighbour get points too? Recommended yes: it costs nothing in cash, and it makes the link worth tapping.
-- **A cash referral bonus for captains** (handbook 02 lever B11; handbook 09 lists "referral bonus" on the captain's Earnings screen).
-  - *Recommendation:* not in v1, because a captain already earns ₹6 for every bag in her society.
-  - *If wanted:* a new M8 rate-card basis `household_referred` (e.g. ₹50 at conversion, posted through `billing.api.accrue_earning`). M9's conversion would publish the referrer's partner id, and M8 would pay it.
-- **Point rates and multipliers** (the old open question).
-  - *Recommendation:* the console mock's numbers as the seed: clothes 40/kg, school bag 50 each, books 10, toys 15, utensils 30/kg. Multipliers run from 1.0 to 3.0.
-  - Points are only worth something as meals (500 a meal), so a 3 kg bag of clothes (120 points) is about a quarter of a meal.
-- **Small-number threshold k = 5** for society and partner numbers, on the app and the public page (§3.7). *Recommendation:* 5. Raise it to 10 if the guide prefers.
-- **Rejected items** (§3.4). *Recommendation:* rejected items are not returned. The scheduling screen says that items the hub cannot use go to a recycler. Returning them would take a van slot and a captain's time for a bag of unusable clothes.
-- **Hand-off photo retention** (§3.5). *Recommendation:* 3 years, the same as the audit log, because they are impact proof. Photos must never show beneficiaries' faces.
-- **NGO partners for the pilot** (Rhythm Thakur and Manish Raje to identify two): one food bank (food and meals), and one school or shelter (items).
+## 11. Open questions and decisions
+No open questions remain for §3.3–§3.8.
+
+- **Decided by the owner (2026-10-09)** (asked in this section; every recommendation accepted as written, except the boxes before live):
+  - ~~Who pays for a donated meal, and who cooks it? (§3.5)~~ Decided as recommended: in the prototype no money moves, and a meal counts as served when a partner NGO records a `meals` hand-off. Before the pilot, the owner and Prof. Kranti Bade set a sponsored cost per meal (about ₹25); M5 then books it as an INR expense at the hand-off, under a new `meal_sponsorship` entry kind (an M5 change made then). The alternative (home kitchens cooking the meals as paid tiffins for the NGO) is not taken in v1.
+  - ~~Can households in a society that is not yet live get boxes, and at what delivery fee? (§3.6; M4 §11 deferred this to S9)~~ **Decided, changing the recommendation:** yes. Households in a `prospect` or `unlocking` society can get boxes once the hub assigns delivery days, with a **per-box delivery fee until the society goes live**. The fee is per hub, set by an admin; the proposed default is a flat ₹30 a box, which the owner may change. It is 0 once the society is live, and always for live societies. The rules are in §3.6, the follow-ups below. The society-unlock threshold formula is kept as drafted (§3.6).
+  - ~~Referral rewards (§3.3)?~~ Decided: 250 points to each side (two referrals make a meal), the neighbour included; at most 10 rewarded conversions a month; conversion on the first delivered box; a 14-day claim window and a 90-day expiry.
+  - ~~A cash referral bonus for captains (handbook 02 lever B11; handbook 09's "referral bonus" on the captain's Earnings screen)?~~ Decided: not in v1, because a captain already earns ₹6 for every bag in her society (§3.3). If it is wanted later, it is a new M8 rate-card basis `household_referred` (e.g. ₹50 at conversion, through `billing.api.accrue_earning`): M9's conversion publishes the referrer's partner id, and M8 pays it. Handbook 09's "referral bonus" on the Earnings screen is dropped for v1.
+  - ~~Point rates and multipliers?~~ Decided: the console mock's numbers are the seed: clothes 40/kg, school bag 50 each, books 10, toys 15, utensils 30/kg. Multipliers run from 1.0 to 3.0 (§3.4). Points are only worth something as meals (500 a meal), so a 3 kg bag of clothes (120 points) is about a quarter of a meal.
+  - ~~Small-number threshold?~~ Decided: k = 5 for society and partner numbers, on the app and the public page (§3.7; M12 §3.6, §3.7).
+  - ~~Rejected items (§3.4)?~~ Decided: not returned. The scheduling screen says that items the hub cannot use go to a recycler.
+  - ~~Hand-off photo retention (§3.5)?~~ Decided: 3 years, the same as the audit log, because they are impact proof. Photos never show beneficiaries' faces.
+  - ~~NGO partners for the pilot?~~ Decided: Rhythm Thakur and Manish Raje identify two: one food bank (food and meals), and one school or shelter (items).
+- **Follow-ups from the boxes before live** (each made in the PR that needs it, reviewed by both owners):
+  - **M4** (supersedes M4 §11's "the policy for non-unlocked societies is decided with M9 unlock thresholds in S9"):
+    1. **The fee on the order.** A box order's `fees_paise` (the column and `OrderOut` field exist and are 0 today) is the pre-live fee. Add-on and tiffin orders keep 0. `total_paise = subtotal_paise + fees_paise − discount_paise`.
+    2. **One rule, one place.** `orders.api.box_fee(session, hub_id, society_id) -> int` returns 0 when `community.api.get_society(…).live_at` is set (§3.8), else `hub_ops.api.get_hub(…).pre_live_box_fee_paise`.
+    3. **When it is set.** `create_from_cycle` sets the fee at approval, as it freezes line prices. A later rise in the hub's fee changes only boxes approved after it. The cut-off re-reads `live_at` at the lock and sets the fee to 0 if the society went live in between. It never raises it.
+    4. **Charged at cut-off, in the same `box_debit` entry.** `billing.api.debit_for_order(owner, order_id, total_paise, delivery_date)` already debits the order's `total_paise`, which now includes the fee. M5 does not change.
+       - *Why not a new `delivery_fee` entry:* one entry keeps one idempotency key (the order id) and one balance check. A wallet that covers the food but not the fee then fails as one payment (`payment_failed`, one shortfall), never a half-paid box. A cancelled or undelivered box needs one refund, and the app's wallet list and M5's per-kind property tests need nothing new.
+       - The split between food and fee is already on the order (`subtotal_paise`, `fees_paise`), which is where M12 reads it (`order_facts`, below). A second entry would only repeat it at the cost of a second key and a paid-box-unpaid-fee state.
+       - The payment grace (`pay`) debits the same total through the same call.
+    5. **Refunded with the box.** A box cancelled before cut-off was never charged, so nothing is refunded. A whole-box refund after the lock (`transition(…, "refunded")`, whose default `refund_paise` is what is left of the paid total) includes the fee.
+       - A box missed twice (ADR-0027 §2) refunds the fee with its perishables, since it was never delivered.
+       - Shortage refunds (`mark_shortage`) and issue credits refund lines and never touch the fee.
+    6. **M3 shows it before approval.** The cycle (M3 §3.1 `CycleOut`) gains `fees_paise` (from `orders.api.box_fee`) and `payable_paise = total_paise + fees_paise`; `total_paise` stays the lines' sum, which is what Budget Lock checks (the fee is not food).
+       - `subscriptions.box_ready` and `subscriptions.cutoff_reminder` gain `fees_paise`.
+       - The Box screen shows "₹30 delivery until your society goes live" under the total.
+       - M3 already calls M4 (`create_from_cycle`), so this adds no new dependency direction.
+    7. **Tests.** A pre-live box is debited lines + fee once, and a live society's box is debited lines only. A society that goes live between approval and cut-off is charged no fee. A whole-box refund returns the fee, and a shortage refund does not.
+  - **M6:** `hub_ops.hubs` gains `pre_live_box_fee_paise` (integer paise, default 3,000, 0 to 10,000), edited by an admin in the hub's settings (`PATCH /v1/admin/hubs/{id}` with If-Match, audit-logged) and returned by `hub_ops.api.get_hub`. The default is a proposal the owner may change.
+  - **M11:** the `subscriptions.box_ready` message (the pre-debit notice) and the cut-off reminder mention the fee when `fees_paise > 0`, e.g. "Your box for Tue 3 Nov is ready: ₹690 + ₹30 delivery. Delivery is free once your society goes live." The `community.society_live` message says delivery is now free.
+  - **M12:** the delivery fee is revenue. Unit economics gains a measured `delivery_fee_paise` per box, which adds to the contribution, and the P&L gains a `delivery_fee_revenue` line; both read `fees_paise` from `order_facts` (M12 §3.4, §10).
+  - **Handbook:** 07 W10 (boxes before live with a fee; live means free delivery) and 02 §5 (the fee in the contribution formula).
 - **Decided by the owner (2026-10-09)** (asked in M8 §11):
   - ~~Does a captain need proof of residence?~~ Decided: a captain must live in the society she serves; no proof upload in the prototype (§3.2).
   - ~~Partner photos on the captain card?~~ Decided: `photo_url` is null for now; an upload purpose comes later (§3.2).
