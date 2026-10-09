@@ -251,7 +251,8 @@ async def draft(
     the preview waits on at most one ML call (the planner's, bounded by `ml_timeout_s`)."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
-    request = planning.plan_request(profile, catalog, monday, festivals)
+    price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
+    request = planning.plan_request(profile, catalog, monday, festivals, price_index)
     plan = await intel_api.plan_week(
         http,
         settings,

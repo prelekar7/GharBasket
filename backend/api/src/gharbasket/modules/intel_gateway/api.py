@@ -71,7 +71,7 @@ async def plan_week(
         http,
         settings,
         "/plan/week",
-        request.model_dump(mode="json"),
+        request.model_dump(mode="json") | {"time_limit_s": _solver_budget(settings, request)},
         parse=lambda body: WeekPlan.model_validate({**body, "source": "ml"}),
         fallback_to=lambda: fallback.plan_week(request),
         call="plan_week",
@@ -157,3 +157,13 @@ async def _call[T](
     except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
         log.warning("ml_fallback", call=call, reason=type(exc).__name__)
         return fallback_to()
+
+
+# The solver gets at most this share of the HTTP timeout; the rest covers the network, the
+# model build and the JSON both ways, so a slow solve still answers before the gateway gives up.
+SOLVER_SHARE_OF_TIMEOUT = 0.5
+
+
+def _solver_budget(settings: Settings, request: PlanRequest) -> float:
+    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
+    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))

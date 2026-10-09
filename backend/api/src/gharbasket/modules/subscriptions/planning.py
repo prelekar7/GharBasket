@@ -21,6 +21,7 @@ from gharbasket.modules.catalog.api import (
     PlanCatalog,
     PlanIngredient,
     PlanProduct,
+    PlanRecipe,
 )
 from gharbasket.modules.identity.api import HouseholdPlanProfile
 from gharbasket.modules.subscriptions import rules
@@ -55,11 +56,16 @@ def plan_request(
     catalog: PlanCatalog,
     monday: date,
     festivals: list[tuple[date, str, dict[str, bool]]],
+    price_index: dict[uuid.UUID, float] | None = None,
 ) -> dict[str, Any]:
+    """The planner's request (M10 §3.1 + v1 §3.2): the household's rules and members, the
+    week's fasting days, every active recipe (sides flagged, never planned alone) with its
+    nutrition and the price spike of its costliest ingredient from `intel.price_index`."""
     budget = profile.budget_paise
     return {
         "household": {
             "size": profile.size,
+            "members": [{"age_band": band, "sex": "other"} for band in profile.member_age_bands],
             "diet": profile.diet,
             "jain": profile.jain,
             "diabetic": profile.diabetic,
@@ -71,10 +77,39 @@ def plan_request(
             "weekly_budget_paise": None if budget is None else budget * 7 // 30,
         },
         "fasting_days": fasting_days(profile, monday, festivals),
-        # Mains only: a side (chapati, a chutney) is paired by the planner, never a meal.
-        "recipes": [r.as_plan_recipe() for r in catalog.recipes if not r.is_side],
-        "time_limit_s": 2.0,
+        "recipes": [
+            {
+                **r.as_plan_recipe(),
+                "price_spike": price_spike(r, catalog.products, price_index or {}),
+            }
+            for r in catalog.recipes
+        ],
+        "time_limit_s": 1.0,
     }
+
+
+def price_spike(
+    recipe: PlanRecipe,
+    products: dict[uuid.UUID, PlanProduct],
+    price_index: dict[uuid.UUID, float],
+) -> float | None:
+    """(price - 4-week index) / index of the recipe's costliest ingredient, the one with the
+    largest qty x today's price per serving (M10 §3.2); None when that ingredient is not above
+    its usual price. A spiked garnish (2 g of coriander) never marks the dish."""
+    costs = [
+        (
+            i.qty_per_serving / (p.step_qty * BASE_FACTOR[p.step_unit]) * p.price_paise,
+            i.product_slug,
+            i,
+        )
+        for i in recipe.ingredients
+        if (p := products.get(i.product_id)) is not None and p.price_paise is not None
+    ]
+    if not costs:
+        return None
+    costliest = max(costs, key=lambda c: (c[0], c[1]))[2]
+    index = price_index.get(costliest.product_id)
+    return round(index - 1.0, 3) if index is not None and index > 1.0 else None
 
 
 @dataclass

@@ -15,6 +15,7 @@ from gharbasket.modules.intel_gateway.schemas import (
     PlannedMeal,
     PlanRecipe,
     PlanRequest,
+    Reason,
     Rule,
     Slot,
     WeekPlan,
@@ -109,7 +110,7 @@ def _greedy(req: PlanRequest, relax: frozenset[Rule], by_cost: bool) -> Plan | N
                 plan[day, slot] = None
                 continue
             options = sorted(
-                (r for r in req.recipes if _allowed(req, r, day, slot, relax)),
+                (r for r in req.recipes if not r.is_side and _allowed(req, r, day, slot, relax)),
                 key=lambda r: (needs_fast and not r.fasting_ok, *_rank(r, cuisines, by_cost)),
             )
             choice = next(
@@ -129,7 +130,12 @@ def _greedy(req: PlanRequest, relax: frozenset[Rule], by_cost: bool) -> Plan | N
     return plan
 
 
+def _reasons(slug: str | None) -> list[Reason]:
+    return ["FALLBACK", "TIFFIN"] if slug is None else ["FALLBACK"]
+
+
 def plan_week(req: PlanRequest) -> WeekPlan:
+    sides = {r.slug: r.sides for r in req.recipes}
     pairs = [frozenset(FALLBACK[i : i + 2]) for i in range(len(FALLBACK) - 1)]
     for relax in [frozenset(), *(frozenset({rule}) for rule in FALLBACK), *pairs]:
         for by_cost in (False, True):
@@ -140,7 +146,13 @@ def plan_week(req: PlanRequest) -> WeekPlan:
                     status="feasible",
                     relaxed=[rule for rule in FALLBACK if rule in relax],
                     plan=[
-                        PlannedMeal(day=d, slot=s, recipe=plan[d, s])
+                        PlannedMeal(
+                            day=d,
+                            slot=s,
+                            recipe=plan[d, s],
+                            sides=list(sides.get(plan[d, s] or "", [])),
+                            reasons=_reasons(plan[d, s]),
+                        )
                         for d in range(7)
                         for s in SLOTS
                     ],

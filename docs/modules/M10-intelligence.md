@@ -53,7 +53,8 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
                    "jain_ok": false, "no_onion_garlic": false, "fasting_ok": false,
                    "diabetic_ok": false, "no_cook": false,
                    "cost_per_serving_paise": 1268, "perishables": ["coriander"] } ],  1 to 500
-    "time_limit_s": 2.0 }                                                0.1 to 5
+    "time_limit_s": 1.0 }        0.1 to 5; the solver's wall-clock budget for the whole request,
+                                 every relaxation included (the gateway caps it at half its timeout)
   200 : { "status": "optimal" | "feasible" | "infeasible",
           "relaxed": ["repeat"],          comfort rules relaxed to find a plan (see below)
           "plan": [ { "day": 0, "slot": "breakfast", "recipe": "kanda-poha" | null } ] | null,
@@ -76,7 +77,7 @@ POST /plan/week          Authorization: Bearer <ML_SERVICE_TOKEN>   (X-Request-I
 - **Fallback when infeasible:** relax `repeat` (a dish may come back on a later day, never twice on the same day), then `cook_time`, then `budget`, one rule and then two. **Never** relax diet, Jain, diabetic or fasting rules. `relaxed` says what was used, and `infeasible` is returned if nothing works.
 - **Deterministic mode:** in-process callers (the simulator) can pass `deterministic=True` to `plan_week`. CP-SAT then interleaves its workers in fixed batches with a deterministic time limit, so the same request always gives the same plan. Several plans can tie for the best score, and the faster default can return any of them. The HTTP endpoint keeps the default.
 
-### 3.2 `POST /plan/week` v1 (planned for Nov–Dec 2026; additive, so v0 clients keep working)
+### 3.2 `POST /plan/week` v1 (implemented 5 Oct 2026; additive, so v0 clients keep working)
 Every new field is optional; a request without them is a v0 request and gets a v0 answer.
 
 ```
@@ -96,12 +97,18 @@ Every new field is optional; a request without them is a v0 request and gets a v
                                          defaults as given; only evaluation ablations override them
   200 additions:
     "plan": [ { …v0…, "sides": ["chapati"], "reasons": ["FESTIVAL", "BUDGET"] } ]
-                                         reason codes per meal (handbook 08 §8.4), params in "reason_params"
-    "score": { …v0…, "nutrition": 0.82, "price_penalty": 3 }   nutrition = share of member-days
-                                         within ±20 % of the RDA targets for kcal and protein
+                                         reason codes per meal (handbook 08 §8.4); "reason_params"
+                                         (the codes' parameters) is not implemented in v1
+    "score": { …v0…, "nutrition": 0.83, "price_penalty": 0.62 }
+                                         nutrition = share of cooking days (no-cook days left out)
+                                         whose kcal and protein per person are within ±20 % of the
+                                         household's average RDA target; price_penalty = Σ
+                                         price_spike of the chosen dishes
 ```
-- **Soft objective v1:** v0 terms + `nutrition` × adherence − `price` × Σ price_spike of chosen dishes (an ingredient 62 % above its 4-week index costs 0.62 × its share). Hard rules are unchanged; the relaxation order is unchanged.
-- **Fallback:** the rule-based planner gains sides pairing and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
+- **Soft objective v1:** v0 terms + `nutrition` × adherent days − `price` × Σ price_spike of chosen dishes (a dish whose costliest ingredient is 62 % above its 4-week index costs 0.62 × the weight). Every term is on one integer scale (hundredths of a weight point), so one cuisine match is worth `preference`, one adherent day `nutrition`, and a 3 % spike only 0.03 × `price`. The costliest ingredient is the one with the largest quantity × today's price per serving (M3 `planning.price_spike`), so a spiked garnish never marks a dish. A day is adherent when its three meals' kcal and protein per person (mains plus their sides) fall within ±20 % of the household's average ICMR-NIN target (`gharbasket_ml/nutrition.py`, from `data/external/nutrition/rda.json`); CP-SAT models it with one indicator per day that enforces the four bounds when set. No-cook days are left out of the term and of `score.nutrition`: their tiffins carry no nutrition data, so they could never be adherent. Hard rules are unchanged; the relaxation order is unchanged.
+- **Solve time v1:** the indicators make optimality slow to prove (1.5 to 3 s for a seed week), so the planner first solves the v0 objective with 30 % of the limit and passes that plan to the v1 search as a hint (`add_hint`); the v1 search then has the rest of `time_limit_s`. The default limit is 1 s and covers every relaxation, and the gateway sends at most half of `ml_timeout_s` (3 s), so the answer arrives in about 1 s with room for the network; a plan that is not proven optimal comes back as `"feasible"`.
+- **Reason codes:** `FESTIVAL` on fasting days, `TIFFIN` on no-cook slots, `BUDGET` when the budget rule was relaxed, `FALLBACK` from the rules planner.
+- **Fallback:** the rule-based planner pairs sides, never plans a side as a meal, and ignores nutrition and price (it records `reasons: ["FALLBACK"]`).
 - Kits on busy days and preference from the ranker (M-B) come with v2 in P4.
 
 ### 3.3 `POST /pantry/quantities` (v0, the pantry twin; M-A)

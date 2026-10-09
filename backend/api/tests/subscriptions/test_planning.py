@@ -1,6 +1,7 @@
 """The pure parts of cycle generation: fasting days, the rule table, plan → lines."""
 
 import uuid
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -148,13 +149,44 @@ def test_fasting_days_come_from_the_household_and_the_calendar() -> None:
 
 
 def test_the_plan_request_carries_rules_recipes_and_a_weekly_budget() -> None:
-    request = planning.plan_request(profile(), catalog(), MONDAY, [])
+    cat = catalog()
+    tomato = next(p.id for p in cat.products.values() if p.slug == "tomato")
+    request = planning.plan_request(profile(), cat, MONDAY, [], {tomato: 1.4})
 
     assert request["household"]["weekly_budget_paise"] == 600_000 * 7 // 30
     assert request["household"]["no_cook_days"] == [6]
-    slugs = [r["slug"] for r in request["recipes"]]
-    assert slugs == ["dal-tadka", "tomato-sabzi"]  # chapati is a side, not a meal
-    assert request["recipes"][0]["cost_per_serving_paise"] == 1200
+    assert [m["age_band"] for m in request["household"]["members"]] == [
+        "18_59",
+        "18_59",
+        "5_17",
+        "under_5",
+    ]
+    by_slug = {r["slug"]: r for r in request["recipes"]}
+    assert list(by_slug) == ["dal-tadka", "chapati", "tomato-sabzi"]
+    assert by_slug["chapati"]["is_side"] is True and by_slug["dal-tadka"]["sides"] == ["chapati"]
+    assert by_slug["dal-tadka"]["cost_per_serving_paise"] == 1200
+    # Tomato is 40 % above its 4-week index: the sabzi carries the spike, the dal does not.
+    assert (
+        by_slug["tomato-sabzi"]["price_spike"] == 0.4
+        and by_slug["dal-tadka"]["price_spike"] is None
+    )
+
+
+def test_only_the_costliest_ingredient_marks_a_dish_not_a_spiked_garnish() -> None:
+    cat = catalog()
+    coriander = product("coriander", "veg", (250, "g"), 2000)
+    products = {**cat.products, coriander.id: coriander}
+    dal = cat.recipes[0]
+    toor = dal.ingredients[0].product_id
+    garnished = replace(
+        dal,
+        ingredients=(*dal.ingredients, PlanIngredient(coriander.id, "coriander", 2, True)),
+    )
+
+    # 2 g of coriander (16 paise a serving) up 50 %: the dal (560 paise of toor dal) is unmarked.
+    assert planning.price_spike(garnished, products, {coriander.id: 1.5}) is None
+    # Toor dal, the costliest ingredient, up 10 %: the dal carries that spike, not the garnish's.
+    assert planning.price_spike(garnished, products, {coriander.id: 1.5, toor: 1.1}) == 0.1
 
 
 def test_the_rule_table_scales_with_adult_equivalents() -> None:

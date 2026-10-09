@@ -11,6 +11,11 @@ Slot = Literal["breakfast", "lunch", "dinner"]
 Rule = Literal["repeat", "cook_time", "budget"]
 
 
+class PlanMember(BaseModel):
+    age_band: Literal["under_5", "5_17", "18_59", "60_plus"]
+    sex: Literal["f", "m", "other"] = "other"
+
+
 class HouseholdRules(BaseModel):
     size: int = Field(ge=1, le=12)
     diet: Literal["veg", "egg", "nonveg"]
@@ -21,11 +26,18 @@ class HouseholdRules(BaseModel):
     weekend_cook_minutes: int
     no_cook_days: list[int] = Field(default_factory=list)
     weekly_budget_paise: int | None = None
+    members: list[PlanMember] | None = None  # v1: RDA targets
 
 
 class FastingDay(BaseModel):
     day: int = Field(ge=0, le=6)
     no_onion_garlic: bool = False
+
+
+class PlanNutrition(BaseModel):
+    kcal: float
+    protein_g: float
+    fibre_g: float = 0
 
 
 class PlanRecipe(BaseModel):
@@ -41,19 +53,48 @@ class PlanRecipe(BaseModel):
     no_cook: bool = False
     cost_per_serving_paise: int
     perishables: list[str] = Field(default_factory=list)
+    # v1 (M10 §3.2), optional: nutrition for the RDA term, sides paired with the main, sides
+    # flagged so they are never planned as meals, the price spike of the costliest ingredient.
+    nutrition_per_serving: PlanNutrition | None = None
+    sides: list[str] = Field(default_factory=list)
+    is_side: bool = False
+    price_spike: float | None = Field(default=None, ge=0)
+
+
+class PlanWeights(BaseModel):
+    preference: int = 3
+    variety: int = 5
+    perishables: int = 4
+    nutrition: int = 4
+    price: int = 3
 
 
 class PlanRequest(BaseModel):
     household: HouseholdRules
     fasting_days: list[FastingDay] = Field(default_factory=list)
     recipes: list[PlanRecipe] = Field(min_length=1)
-    time_limit_s: float = 2.0
+    time_limit_s: float = 1.0  # the solver's budget for the whole request (M10 §3.2)
+    weights: PlanWeights | None = None
+
+
+Reason = Literal["FESTIVAL", "TIFFIN", "BUDGET", "FALLBACK"]
 
 
 class PlannedMeal(BaseModel):
     day: int
     slot: Slot
     recipe: str | None
+    sides: list[str] = Field(default_factory=list)
+    reasons: list[Reason] = Field(default_factory=list)
+
+
+class PlanScore(BaseModel):
+    preference: int
+    variety: int
+    perishables: int
+    cost_paise: int
+    nutrition: float | None = None
+    price_penalty: float | None = None
 
 
 class WeekPlan(BaseModel):
@@ -64,6 +105,7 @@ class WeekPlan(BaseModel):
     relaxed: list[Rule]
     plan: list[PlannedMeal] | None
     model: str
+    score: PlanScore | None = None
 
 
 # --- POST /pantry/quantities (M10 §3.3): the pantry twin ---------------------------------------
