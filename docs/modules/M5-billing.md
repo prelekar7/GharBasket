@@ -201,7 +201,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 
 **Which top-ups take the money back.**
 - **Newest first.** The amount is split over the user's `paid` Razorpay top-ups, newest first. Each top-up can take back at most its amount minus what earlier parts already took (failed parts don't count).
-- **Within Razorpay's refund window.** Only top-ups captured within `RAZORPAY_REFUND_WINDOW_DAYS` qualify (180 assumed; check Razorpay's current limit when this is built).
+- **Within Razorpay's refund window.** Only top-ups captured within `RAZORPAY_REFUND_WINDOW_DAYS` qualify (default 180, Razorpay's six months; measured from the top-up's order, which is never later than its capture).
 - **One part per top-up**, and one Razorpay refund per part.
 - **`refundable_paise`** is the smaller of the balance and the sum of what the qualifying top-ups can still take.
 - **Dev top-ups** (`provider: dev`) are refundable in dev and test, and the job settles their parts at once (`rfnd_dev_…`).
@@ -213,6 +213,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 | Request, per part | `refund_to_source` (`rts:<part id>`) | wallet:U | razorpay_clearing |
 | `refund.failed` for a part | `refund_to_source_failed` (`rts_failed:<part id>`) | razorpay_clearing | wallet:U |
 | Deletion: balance no top-up can take | `unclaimed` (`unclaimed:<user id>`) | wallet:U | `unclaimed_balances` (platform liability, new) |
+| Deletion: a failed part no other top-up can take | `unclaimed` (`unclaimed:<part id>`) | wallet:U | `unclaimed_balances` |
 
 - **Holding the cap.** A part counts against the cap while it is `pending` or `sent`, as unpaid top-ups do (`topup_room_paise` = cap − balance − unpaid top-ups − parts in flight). A failed part can therefore always go back into the wallet without passing ₹10,000.
 - **On a deleting account,** a failed part is moved once to the next top-up that can take it, and otherwise to `unclaimed`. The customer can still claim it through support, and the money stays a liability, never revenue.
@@ -227,7 +228,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 **Webhook** (the existing endpoint and dedupe, §3.1):
 - `refund.processed` sets the part to `processed`.
 - `refund.failed` sets it to `failed` and posts the `refund_to_source_failed` entry.
-- When every part is final, the refund is `processed` (all parts processed), `failed` (none processed) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, amount_paise, processed_paise, status }` goes to M11 (category money, link `/wallet`).
+- When every part is final, the refund is `processed` (all its money went back, a moved part included), `failed` (none of it) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, amount_paise, processed_paise, status }` goes to M11 (category money, link `/wallet`).
 - New outcomes: `refund_processed`, `refund_failed`, `unknown_refund`. Refund events for the late over-cap refunds of §3.1 answer `already_settled`.
 
 **Rules**
@@ -395,7 +396,7 @@ If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate 
 | `billing.payouts` | id, partner_id, week (ISO, e.g. 2027-W03), period_from, period_to, amount_paise, status (held, pending, processing, processed, failed), hold_reason, provider (simulated, razorpay_route), provider_ref, entry_id, attempts, created_at, processed_at; unique (partner_id, week) |
 | `billing.points_lots` | id, user_id, points, remaining, earned_at, expires_at, source_type, source_id, entry_id; unique (source_type, source_id) |
 | `billing.refunds` | id, user_id, amount_paise, reason (customer, account_deleted), status, idempotency_key, created_at, settled_at (§3.3) |
-| `billing.refund_parts` | id, refund_id, payment_id → payments, amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, last_error, entry_id, failed_entry_id, sent_at, settled_at |
+| `billing.refund_parts` | id, refund_id, payment_id → payments, replaces_part_id (a deleting account's failed part moved once), amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, next_attempt_at, last_error, entry_id, failed_entry_id, sent_at, settled_at |
 | `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, finished_at (§3.4) |
 | `billing.reconciliation_items` | id, run_id, kind, status (open, healed, resolved), razorpay_ref, topup_id, refund_part_id, user_id, expected_paise, actual_paise, first_seen_at, last_seen_at, resolved_by, resolution_note, resolved_at; one open item per (kind, razorpay_ref) |
 

@@ -5,7 +5,8 @@ postings. Amounts are signed minor units, debit positive and credit negative, so
 an entry sum to zero per currency; a deferred constraint trigger (see the migration) refuses any
 transaction where they don't, and entries and postings can never be updated or deleted.
 
-Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1).
+Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1), and refunds of
+wallet money to those payments (§3.3).
 """
 
 import uuid
@@ -18,6 +19,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    SmallInteger,
     String,
     UniqueConstraint,
     Uuid,
@@ -34,12 +36,26 @@ SCHEMA = "billing"
 CURRENCIES = ("INR", "KINDNESS_PTS")
 ACCOUNT_KINDS = ("asset", "liability", "revenue", "expense")
 OWNER_TYPES = ("platform", "user", "partner")
-ENTRY_KINDS = ("topup", "topup_bonus", "box_debit", "refund", "adjustment")
-REF_TYPES = ("topup", "order")
+ENTRY_KINDS = (
+    "topup",
+    "topup_bonus",
+    "box_debit",
+    "refund",
+    "adjustment",
+    "refund_to_source",
+    "refund_to_source_failed",
+    "unclaimed",
+)
+REF_TYPES = ("topup", "order", "refund")
 PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
 PAYMENT_STATUSES = ("created", "paid", "failed", "refunded")
+REFUND_REASONS = ("customer", "account_deleted")
+REFUND_STATUSES = ("pending", "processing", "processed", "partly_failed", "failed")
+OPEN_REFUND = "status IN ('pending', 'processing') AND reason = 'customer'"
+PART_STATUSES = ("pending", "sent", "processed", "failed")
+IN_FLIGHT = ("pending", "sent")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -82,7 +98,7 @@ class JournalEntry(Base):
 
     # uuidv7: time-ordered, so "newest first" is "id descending".
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
-    kind: Mapped[str] = mapped_column(String(20))
+    kind: Mapped[str] = mapped_column(String(32))
     ref_type: Mapped[str | None] = mapped_column(String(16))
     ref_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     details: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # e.g. {"delivery_date": …}
@@ -153,3 +169,70 @@ class PaymentWebhook(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Refund(Base):
+    """Wallet money going back to the payments it came from (spec §3.3), in one or more parts."""
+
+    __tablename__ = "refunds"
+    __table_args__ = (
+        CheckConstraint(_one_of("reason", REFUND_REASONS), name="reason"),
+        CheckConstraint(_one_of("status", REFUND_STATUSES), name="status"),
+        CheckConstraint("amount_paise > 0", name="amount_paise"),
+        # One customer refund in progress per user, even for two requests at the same moment.
+        Index(
+            "ix_billing_refunds_one_open",
+            "user_id",
+            unique=True,
+            postgresql_where=text(OPEN_REFUND),
+        ),
+        Index(None, "user_id", "id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M1's user; no foreign key across schemas
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    reason: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), server_default="pending")
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))  # none for account deletion
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RefundPart(Base):
+    """The share of a refund one top-up takes back: one Razorpay refund, sent by `send_refunds`."""
+
+    __tablename__ = "refund_parts"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", PART_STATUSES), name="status"),
+        CheckConstraint("amount_paise > 0", name="amount_paise"),
+        Index(None, "status", "next_attempt_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    refund_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.refunds.id", ondelete="RESTRICT"), index=True
+    )
+    payment_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.payments.id", ondelete="RESTRICT"), index=True
+    )
+    # A failed part of a deleting account is moved once to another top-up (spec §3.3).
+    replaces_part_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.refund_parts.id", ondelete="RESTRICT")
+    )
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16), server_default="pending")
+    provider_refund_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(200))
+    entry_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.journal_entries.id", ondelete="RESTRICT")
+    )
+    failed_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.journal_entries.id", ondelete="RESTRICT")
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

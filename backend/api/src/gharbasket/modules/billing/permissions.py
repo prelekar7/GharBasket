@@ -2,4 +2,4 @@
 
 from gharbasket.platform.permissions import PERMISSIONS
 
-PERMISSIONS.allow("customer", "wallet:read", "wallet:write", "statements:read")
+PERMISSIONS.allow("customer", "wallet:read", "wallet:write", "statements:read", "refunds:write")

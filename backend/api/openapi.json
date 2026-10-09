@@ -1123,7 +1123,10 @@
               "topup_bonus",
               "box_debit",
               "refund",
-              "adjustment"
+              "adjustment",
+              "refund_to_source",
+              "refund_to_source_failed",
+              "unclaimed"
             ],
             "title": "Kind",
             "type": "string"
@@ -1134,6 +1137,7 @@
                 "discriminator": {
                   "mapping": {
                     "order": "#/components/schemas/OrderRef",
+                    "refund": "#/components/schemas/RefundRef",
                     "topup": "#/components/schemas/TopUpRef"
                   },
                   "propertyName": "type"
@@ -1144,6 +1148,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/OrderRef"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RefundRef"
                   }
                 ]
               },
@@ -4414,6 +4421,34 @@
         "title": "Page[RecipeSummary]",
         "type": "object"
       },
+      "Page_RefundOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RefundOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[RefundOut]",
+        "type": "object"
+      },
       "Page_SocietySummary_": {
         "properties": {
           "items": {
@@ -5526,6 +5561,175 @@
         "title": "RefreshIn",
         "type": "object"
       },
+      "RefundIn": {
+        "properties": {
+          "amount_paise": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "At least ₹1 (100); null sends back everything refundable",
+            "examples": [
+              41000
+            ],
+            "title": "Amount Paise"
+          }
+        },
+        "title": "RefundIn",
+        "type": "object"
+      },
+      "RefundOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              41000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parts": {
+            "description": "One per top-up taking money back, newest first",
+            "items": {
+              "$ref": "#/components/schemas/RefundPartOut"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "reason": {
+            "enum": [
+              "customer",
+              "account_deleted"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "processing",
+              "processed",
+              "partly_failed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amount_paise",
+          "reason",
+          "status",
+          "parts",
+          "created_at",
+          "settled_at"
+        ],
+        "title": "RefundOut",
+        "type": "object"
+      },
+      "RefundPartOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              20000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "razorpay_payment_id": {
+            "examples": [
+              "pay_EKwxwAgItmmXdp"
+            ],
+            "title": "Razorpay Payment Id",
+            "type": "string"
+          },
+          "razorpay_refund_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "rfnd_FP8DDKxqJif6ca"
+            ],
+            "title": "Razorpay Refund Id"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "sent",
+              "processed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "topup_id": {
+            "format": "uuid",
+            "title": "Topup Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topup_id",
+          "razorpay_payment_id",
+          "amount_paise",
+          "status",
+          "razorpay_refund_id"
+        ],
+        "title": "RefundPartOut",
+        "type": "object"
+      },
+      "RefundRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "refund",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "RefundRef",
+        "type": "object"
+      },
       "ReplacedOut": {
         "properties": {
           "name": {
@@ -6390,7 +6594,10 @@
               "topup_bonus",
               "box_debit",
               "refund",
-              "adjustment"
+              "adjustment",
+              "refund_to_source",
+              "refund_to_source_failed",
+              "unclaimed"
             ],
             "title": "Kind",
             "type": "string"
@@ -6401,6 +6608,7 @@
                 "discriminator": {
                   "mapping": {
                     "order": "#/components/schemas/OrderRef",
+                    "refund": "#/components/schemas/RefundRef",
                     "topup": "#/components/schemas/TopUpRef"
                   },
                   "propertyName": "type"
@@ -6411,6 +6619,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/OrderRef"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RefundRef"
                   }
                 ]
               },
@@ -7303,6 +7514,14 @@
             "title": "Entries",
             "type": "array"
           },
+          "refundable_paise": {
+            "description": "What POST /v1/wallet/refund-to-source can send back now",
+            "examples": [
+              41000
+            ],
+            "title": "Refundable Paise",
+            "type": "integer"
+          },
           "topup_room_paise": {
             "description": "What can still be added now: the cap minus the balance and unpaid top-ups, limited by this month's allowance",
             "examples": [
@@ -7316,6 +7535,7 @@
           "balance_paise",
           "cap_paise",
           "topup_room_paise",
+          "refundable_paise",
           "entries"
         ],
         "title": "WalletOut",
@@ -16033,6 +16253,340 @@
           }
         ],
         "summary": "Older wallet entries, newest first",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/wallet/refund-to-source": {
+      "post": {
+        "operationId": "refund_to_source_v1_wallet_refund_to_source_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.refund_in_progress (with refund_id)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.refund_too_small, billing.refund_exceeds_refundable (with refundable_paise), request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.too_many_refunds"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Send unused wallet money back to the payments it came from (a job sends it)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/wallet/refunds": {
+      "get": {
+        "operationId": "list_refunds_v1_wallet_refunds_get",
+        "parameters": [
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RefundOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's refunds to source, newest first",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/wallet/refunds/{refund_id}": {
+      "get": {
+        "operationId": "get_refund_v1_wallet_refunds__refund_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "refund_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Refund Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.refund_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A refund to source and its parts",
         "tags": [
           "billing"
         ]
