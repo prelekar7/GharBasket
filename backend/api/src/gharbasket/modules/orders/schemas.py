@@ -1,10 +1,11 @@
-"""Request and response models of M4 Orders & Checkout: the S2 contract (spec §3.1, §3.2)."""
+"""Request and response models of M4 Orders & Checkout: the S2 contract (spec §3.1, §3.2) and
+the issue triage (§3.6)."""
 
 import uuid
 from datetime import date, datetime, time
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from gharbasket.modules.orders.models import ISSUE_KINDS
 
@@ -151,6 +152,7 @@ class AddonsIn(BaseModel):
 # --- issues (§3.2) ------------------------------------------------------------------------------
 
 IssueKind = Literal["missing", "damaged", "quality", "wrong_item", "late", "other"]
+IssueStatus = Literal["open", "credited", "rejected"]
 
 
 class IssueItemIn(BaseModel):
@@ -197,7 +199,7 @@ class IssueOut(BaseModel):
     id: uuid.UUID
     order_id: uuid.UUID
     kind: IssueKind
-    status: Literal["open", "credited", "rejected"]
+    status: IssueStatus
     items: list[IssueItemOut]
     amount_paise: int = Field(
         description="The sum of qty times the line's paid unit price", examples=[4000]
@@ -218,3 +220,62 @@ class IssueOut(BaseModel):
 
 class IssuesOut(BaseModel):
     items: list[IssueOut]
+
+
+# --- triage (§3.6) ------------------------------------------------------------------------------
+
+
+class IssueTriage(IssueOut):
+    household_id: uuid.UUID
+    hub_id: uuid.UUID
+    society_id: uuid.UUID
+    delivery_date: date
+    order_total_paise: int = Field(examples=[69000])
+    creditable_paise: int = Field(
+        description="What is left of the order's paid total after shortage refunds and credits"
+    )
+    max_credit_paise: int = Field(
+        description="What resolve would accept now: amount_paise, or the order total for late "
+        "and other, capped by creditable_paise; 0 once resolved"
+    )
+    auto_credited_7d_paise: int = Field(
+        description="The household's automatic credits in the last 7 days"
+    )
+    callback_due_at: datetime | None = Field(
+        description="created_at + callback_within_minutes, while open"
+    )
+
+
+class IssuePhoto(BaseModel):
+    url: str = Field(description="A 5-minute signed GET")
+    expires_at: datetime
+
+
+class IssueContact(BaseModel):
+    name: str | None
+    phone_e164: str
+
+
+class IssueTriageDetail(IssueTriage):
+    photos: list[IssuePhoto] = Field(
+        description="Empty while storage is unavailable; photo_count says how many there are"
+    )
+    contact: IssueContact | None = Field(description="The household owner, to call back")
+
+
+class ResolveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["credit", "reject"]
+    credit_paise: int | None = Field(
+        default=None, ge=0, description="Credit only; at most max_credit_paise", examples=[4000]
+    )
+    note: str | None = Field(default=None, max_length=500, description="Required to reject")
+
+    @model_validator(mode="after")
+    def _note_to_reject(self) -> "ResolveIn":
+        if self.outcome == "reject" and not (self.note and self.note.strip()):
+            raise ValueError("A rejection needs a note.")
+        if self.outcome == "reject" and self.credit_paise:
+            raise ValueError("A rejection credits nothing.")
+        return self
