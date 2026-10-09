@@ -295,6 +295,33 @@
         "title": "CaptainOut",
         "type": "object"
       },
+      "CategoryPreference": {
+        "properties": {
+          "category": {
+            "examples": [
+              "weekly_box"
+            ],
+            "maxLength": 32,
+            "title": "Category",
+            "type": "string"
+          },
+          "push": {
+            "title": "Push",
+            "type": "boolean"
+          },
+          "whatsapp": {
+            "title": "Whatsapp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "category",
+          "push",
+          "whatsapp"
+        ],
+        "title": "CategoryPreference",
+        "type": "object"
+      },
       "CategoryRef": {
         "properties": {
           "id": {
@@ -2079,6 +2106,40 @@
         "title": "HubsOut",
         "type": "object"
       },
+      "InboxOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unread": {
+            "description": "Unread messages in the whole inbox, not only this page",
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unread",
+          "next_cursor"
+        ],
+        "title": "InboxOut",
+        "type": "object"
+      },
       "IngredientOut": {
         "properties": {
           "label": {
@@ -3297,6 +3358,85 @@
         "title": "Names",
         "type": "object"
       },
+      "NotificationOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "category": {
+            "description": "weekly_box, delivery, money, kindness, offers or account",
+            "examples": [
+              "delivery"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "event_type": {
+            "examples": [
+              "orders.at_society"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An app route",
+            "examples": [
+              "/orders"
+            ],
+            "title": "Link"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "title": {
+            "examples": [
+              "Your box has reached your society"
+            ],
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "category",
+          "title",
+          "body",
+          "link",
+          "created_at",
+          "read_at"
+        ],
+        "title": "NotificationOut",
+        "type": "object"
+      },
       "OrderLineOut": {
         "properties": {
           "kind": {
@@ -3370,11 +3510,12 @@
             ]
           },
           "total_paise": {
+            "description": "(qty - shortage_qty) x unit_price_paise",
             "title": "Total Paise",
             "type": "integer"
           },
           "unit_price_paise": {
-            "description": "Per step, frozen when the line was made",
+            "description": "Per step, frozen when the line was made; a packing substitute's price",
             "title": "Unit Price Paise",
             "type": "integer"
           }
@@ -3945,6 +4086,84 @@
           "items"
         ],
         "title": "PlansOut",
+        "type": "object"
+      },
+      "PreferencesIn": {
+        "properties": {
+          "categories": {
+            "description": "Categories left out keep their value",
+            "items": {
+              "$ref": "#/components/schemas/CategoryPreference"
+            },
+            "maxItems": 10,
+            "title": "Categories",
+            "type": "array"
+          },
+          "quiet_end": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quiet End"
+          },
+          "quiet_start": {
+            "anyOf": [
+              {
+                "maxLength": 5,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST, HH:MM in 15-minute steps",
+            "title": "Quiet Start"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "PreferencesIn",
+        "type": "object"
+      },
+      "PreferencesOut": {
+        "properties": {
+          "categories": {
+            "description": "All five, in the order weekly_box, delivery, money, kindness, offers",
+            "items": {
+              "$ref": "#/components/schemas/CategoryPreference"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "quiet_end": {
+            "description": "IST, HH:MM",
+            "examples": [
+              "07:00"
+            ],
+            "title": "Quiet End",
+            "type": "string"
+          },
+          "quiet_start": {
+            "description": "IST, HH:MM",
+            "examples": [
+              "22:00"
+            ],
+            "title": "Quiet Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categories",
+          "quiet_start",
+          "quiet_end"
+        ],
+        "title": "PreferencesOut",
         "type": "object"
       },
       "PresignIn": {
@@ -11660,6 +11879,304 @@
         "summary": "All roles of the signed-in user, with scope and status (for the role switcher)",
         "tags": [
           "identity"
+        ]
+      }
+    },
+    "/v1/notifications": {
+      "get": {
+        "operationId": "list_notifications_v1_notifications_get",
+        "parameters": [
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's inbox, newest first, in the request language",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/notifications/preferences": {
+      "get": {
+        "operationId": "get_preferences_v1_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Push and WhatsApp per category, and quiet hours",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "put_preferences_v1_notifications_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreferencesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.whatsapp_consent_required"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.category_unknown, notifications.quiet_hours_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Save push and WhatsApp per category, and optionally quiet hours",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/notifications/read-all": {
+      "post": {
+        "operationId": "read_all_v1_notifications_read_all_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Mark the whole inbox read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "read_one_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Mark one message read (the first read time is kept)",
+        "tags": [
+          "notifications"
         ]
       }
     },

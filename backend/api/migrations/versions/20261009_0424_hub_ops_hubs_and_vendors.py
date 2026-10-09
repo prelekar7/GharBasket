@@ -6,7 +6,7 @@ cycles, role scopes) stay plain UUIDs without a foreign key; `just seed` upserts
 (case-insensitive), with at most one default each (partial unique index).
 
 Revision ID: 6b1d0c4e9a27
-Revises: a8e9dd07f72c
+Revises: 4f1c2a7d9e30
 Create Date: 2026-10-09 04:24:07.127167+00:00
 """
 
@@ -18,7 +18,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "6b1d0c4e9a27"
-down_revision: str | Sequence[str] | None = "a8e9dd07f72c"
+down_revision: str | Sequence[str] | None = "4f1c2a7d9e30"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

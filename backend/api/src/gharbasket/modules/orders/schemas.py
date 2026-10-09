@@ -94,8 +94,10 @@ class OrderLineOut(BaseModel):
     kind: LineKind
     qty: int = Field(description="Steps", examples=[2])
     step: OrderStep
-    unit_price_paise: int = Field(description="Per step, frozen when the line was made")
-    total_paise: int
+    unit_price_paise: int = Field(
+        description="Per step, frozen when the line was made; a packing substitute's price"
+    )
+    total_paise: int = Field(description="(qty - shortage_qty) x unit_price_paise")
     reason_code: str | None
     reason_params: dict[str, object] | None
     substituted_from: ProductRef | None
