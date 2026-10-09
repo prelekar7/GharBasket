@@ -1,10 +1,11 @@
-"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1)."""
+"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1) and the
+meal swap (§3.2)."""
 
 import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PlanCode = Literal["autopilot", "tiffin", "salad"]
 PaymentMode = Literal["wallet", "autopay"]
@@ -115,6 +116,7 @@ class MealOut(BaseModel):
     name: str | None
     tiffin: bool
     sides: list[str]
+    source: Literal["plan", "customer"] = Field(description="customer: set with PUT .../meals")
 
 
 class DayOut(BaseModel):
@@ -188,6 +190,28 @@ class LinesPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     ops: list[LineOp] = Field(min_length=1, max_length=20, description="Applied in order")
+
+
+class MealSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    slot: str = Field(
+        json_schema_extra={"enum": ["breakfast", "lunch", "dinner"]},
+        description="Another value is 422 subscriptions.meal_unknown",
+    )
+    set: Literal["next", "recipe", "tiffin", "no_cook", "planned"] = Field(
+        default="next",
+        description="next: the cheapest allowed dish not in the week; recipe: recipe_id; "
+        "tiffin, no_cook: no ingredients; planned: back to the planner's dish",
+    )
+    recipe_id: uuid.UUID | None = Field(default=None, description="Only with set: recipe")
+
+    @model_validator(mode="after")
+    def _recipe_only_with_recipe(self) -> "MealSet":
+        if (self.set == "recipe") != (self.recipe_id is not None):
+            raise ValueError("recipe_id goes with set: recipe, and only with it")
+        return self
 
 
 class FeedbackItem(BaseModel):

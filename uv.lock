@@ -623,6 +623,7 @@ source = { editable = "backend/api" }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "boto3" },
     { name = "fastapi" },
     { name = "geoalchemy2" },
     { name = "h3" },
@@ -641,6 +642,7 @@ dependencies = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.20.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "boto3", specifier = ">=1.43.108" },
     { name = "fastapi", specifier = ">=0.142.2" },
     { name = "geoalchemy2", specifier = ">=0.20.0" },
     { name = "h3", specifier = ">=4.5.0" },

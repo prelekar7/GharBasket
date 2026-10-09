@@ -7,8 +7,9 @@ so the answer carries `order_id` and a full slot is refused on the spot; the
 `subscriptions.box_approved` event still goes out for M11 and analytics.
 """
 
+import copy
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -505,6 +506,7 @@ async def generate_cycle(
         meal_plan=box.meal_plan,
         highlights=box.highlights,
         status="awaiting_approval" if notice_now else "draft",
+        generated_at=now(),
         notice_sent_at=now() if notice_now else None,
         data_source=profile.data_source,
     )
@@ -821,10 +823,20 @@ async def edit_lines(
                 product_id=op.product_id,
                 action=action,
                 substitute_product_id=op.substitute_id if action == "swapped" else None,
+                at=now(),
             )
         )
         await session.flush()
-    total = sum(line.qty * line.unit_price_paise for line in lines.values())
+    await _check_budget(session, cycle, _total(lines.values()))
+    return await _saved(session, cycle, lines)
+
+
+def _total(lines: Iterable[BoxLine]) -> int:
+    return sum(line.qty * line.unit_price_paise for line in lines)
+
+
+async def _check_budget(session: AsyncSession, cycle: WeeklyCycle, total: int) -> None:
+    """With the Budget Lock on, the box must fit what the month has left."""
     lock = await budget_lock_for(session, cycle.household_id, cycle.delivery_date)
     if lock is not None:
         spent = await spent_in_month(
@@ -837,12 +849,192 @@ async def edit_lines(
                 "This box goes over your Budget Lock for the month.",
                 extra={"over_paise": spent + total - lock.budget_paise},
             )
+
+
+async def _saved(
+    session: AsyncSession, cycle: WeeklyCycle, lines: dict[uuid.UUID, BoxLine]
+) -> list[BoxLine]:
+    """Bump the version; on an approved week the order already exists: hand the lines over."""
     cycle.version += 1
     await session.flush()
     result = sorted(lines.values(), key=lambda line: line.product_id)
-    if cycle.status == "approved":  # the order already exists: hand the new lines over
+    if cycle.status == "approved":
         await _hand_over(session, cycle, result)
     return result
+
+
+# --- the meal swap (§3.2) -----------------------------------------------------------------------
+
+MEAL_ACTION = {
+    "next": "meal_swapped",
+    "recipe": "meal_swapped",
+    "tiffin": "meal_tiffin",
+    "no_cook": "meal_no_cook",
+    "planned": "meal_restored",
+}
+MEAL_KEYS = ("recipe_id", "recipe_slug", "tiffin", "sides")
+NEVER_REDUCED = ("added_by_you", "daily_use")  # a swap only takes away what a meal brought
+
+
+def _week_plan(meal_plan: list[dict[str, Any]], monday: date) -> list[dict[str, Any]]:
+    """The cycle's meals in the planner's shape, for `planning.lines_from_plan`."""
+    return [
+        {
+            "day": (date.fromisoformat(day["date"]) - monday).days,
+            "slot": meal["slot"],
+            "recipe": meal.get("recipe_slug"),
+        }
+        for day in meal_plan
+        for meal in day["meals"]
+    ]
+
+
+async def _chosen_meal(
+    session: AsyncSession,
+    cycle: WeeklyCycle,
+    day: int,
+    slot: str,
+    choice: str,
+    recipe_id: uuid.UUID | None,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+) -> dict[str, Any]:
+    """The meal `next` or `recipe` sets, under the same hard rules as generation (M1)."""
+    menu = {
+        r.slug: r
+        for r in catalog.recipes
+        if not r.is_side and r.cost_per_serving_paise is not None and slot in r.slots
+    }
+    monday = cycle.week_start
+    festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
+    request = PlanRequest.model_validate(planning.plan_request(profile, catalog, monday, festivals))
+    request.recipes = [r for r in request.recipes if r.slug in menu]
+    if choice == "recipe":
+        recipe = next((r for r in menu.values() if r.id == recipe_id), None)
+        if recipe is None:
+            raise ProblemError(
+                422, "subscriptions.recipe_unknown", "That dish is not on this hub's menu for it."
+            )
+        planned = next(r for r in request.recipes if r.slug == recipe.slug)
+        broken = intel_api.rule_breaks(request, planned, day, slot, every_meal_fasts=True)
+        if broken:
+            raise ProblemError(
+                422,
+                "subscriptions.recipe_not_allowed",
+                "That dish breaks your household's food rules.",
+                extra={"rules": broken},
+            )
+    else:  # next: the cheapest allowed dish not in the week yet
+        in_week = {m.get("recipe_slug") for d in cycle.meal_plan for m in d["meals"]}
+        found = intel_api.next_recipe(request, day, slot, {s for s in in_week if s})
+        if found is None:
+            raise ProblemError(422, "subscriptions.no_alternative", "No other dish fits this meal.")
+        recipe = menu[found.slug]
+    return {
+        "recipe_id": str(recipe.id),
+        "recipe_slug": recipe.slug,
+        "tiffin": False,
+        "sides": list(recipe.sides),
+    }
+
+
+async def set_meal(
+    session: AsyncSession,
+    cycle: WeeklyCycle,
+    *,
+    on: date,
+    slot: str,
+    choice: str,
+    recipe_id: uuid.UUID | None,
+    expected_version: int,
+) -> list[BoxLine]:
+    """Set one meal of the week and redraw its lines: `lines_from_plan` before and after, the
+    per-product difference in steps applied to the box. One meal-level edit_feedback row; the
+    ingredient changes it causes are not the customer's product choices and write none."""
+    check_editable(cycle, expected_version=expected_version)
+    meal_plan = copy.deepcopy(cycle.meal_plan)
+    day = next((d for d in meal_plan if d["date"] == on.isoformat()), None)
+    meal = next((m for m in day["meals"] if m["slot"] == slot), None) if day else None
+    if meal is None:
+        raise ProblemError(422, "subscriptions.meal_unknown", "No such meal in this week.")
+    profile = await identity_api.household_plan_profile(session, cycle.household_id)
+    assert profile is not None
+    catalog = await catalog_api.plan_catalog(session, cycle.hub_id)
+    planned = meal.get("planned") or {key: meal.get(key) for key in MEAL_KEYS}
+    if choice == "planned":
+        chosen = planned
+    elif choice in ("tiffin", "no_cook"):
+        chosen = {"recipe_id": None, "recipe_slug": None, "tiffin": choice == "tiffin", "sides": []}
+    else:
+        index = (on - cycle.week_start).days
+        chosen = await _chosen_meal(
+            session, cycle, index, slot, choice, recipe_id, profile, catalog
+        )
+    before = {
+        line.product_id: line
+        for line in planning.lines_from_plan(
+            profile, catalog, _week_plan(meal_plan, cycle.week_start), fallback=False
+        )
+    }
+    previous_recipe = meal.get("recipe_id")
+    meal.update(chosen, source="customer", planned=planned)
+    after = {
+        line.product_id: line
+        for line in planning.lines_from_plan(
+            profile, catalog, _week_plan(meal_plan, cycle.week_start), fallback=False
+        )
+    }
+
+    lines = {line.product_id: line for line in await lines_of(session, cycle.id)}
+    total_before = _total(lines.values())
+    instead_of = {  # a product the customer substituted counts as its substitute
+        line.replaces_product_id: line for line in lines.values() if line.replaces_product_id
+    }
+    for product_id in sorted(before.keys() | after.keys(), key=str):
+        old, new = before.get(product_id), after.get(product_id)
+        delta = (new.qty if new else 0) - (old.qty if old else 0)
+        recipes = (new.reason_params or {}).get("recipes") if new else None
+        line = lines.get(product_id) or instead_of.get(product_id)
+        if line is None:
+            if delta > 0 and new is not None:
+                lines[product_id] = BoxLine(
+                    cycle_id=cycle.id,
+                    product_id=product_id,
+                    qty=delta,
+                    step_qty=new.step_qty,
+                    step_unit=new.step_unit,
+                    unit_price_paise=new.unit_price_paise,
+                    reason_code="meal_plan",
+                    reason_params={"recipes": recipes or []},
+                    source="customer",
+                )
+                session.add(lines[product_id])
+            continue
+        if delta < 0 and line.reason_code in NEVER_REDUCED:
+            continue
+        line.qty += delta
+        if line.qty <= 0:
+            await session.delete(line)
+            del lines[line.product_id]
+        elif line.reason_code == "meal_plan" and recipes is not None:
+            line.reason_params = {**(line.reason_params or {}), "recipes": recipes}
+    total = _total(lines.values())
+    if total > total_before:  # tiffin, no-cook and cheaper swaps always go through
+        await _check_budget(session, cycle, total)
+    cycle.meal_plan = meal_plan
+    session.add(
+        EditFeedback(
+            cycle_id=cycle.id,
+            product_id=None,
+            action=MEAL_ACTION[choice],
+            meal_date=on,
+            slot=slot,
+            recipe_id=uuid.UUID(previous_recipe) if previous_recipe else None,
+            substitute_recipe_id=uuid.UUID(chosen["recipe_id"]) if chosen["recipe_id"] else None,
+            at=now(),
+        )
+    )
+    return await _saved(session, cycle, lines)
 
 
 def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.ApprovedCycle:
@@ -1031,6 +1223,7 @@ async def record_feedback(
                     household_id=cycle.household_id,
                     product_id=product_id,
                     signal=signal,
+                    at=now(),
                 )
             )
         else:
