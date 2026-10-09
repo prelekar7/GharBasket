@@ -144,10 +144,10 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 |---|---|
 | M0 platform | `/health`, `/ready`, `POST /files/presign`; internal `GET /internal/jobs`, `POST /internal/jobs/{name}` (`JOBS_TOKEN`) |
 | M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `POST/GET /me/data-export`, `DELETE /me` |
-| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals` |
-| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/feedback`, `/budget-lock` |
-| M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots` |
-| M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements?period=` |
+| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3) |
+| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock` |
+| M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
+| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=`, `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`; `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |
