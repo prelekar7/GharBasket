@@ -163,7 +163,7 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 - **Jain.** A Jain member (`fasting_rules.jain`) requires `diet = "veg"`.
 - **Consent purposes.** These follow handbook 13 §DPDP:
   - `service_delivery` and `personalisation` are required for Autopilot; onboarding must grant both.
-  - `health_personalisation`, `marketing`, `research_anonymised` and `whatsapp` (updates on WhatsApp, M11 §3.1; added 2026-10-09) are optional opt-ins.
+  - `health_personalisation`, `marketing`, `research_anonymised` and `whatsapp` (updates on WhatsApp, M11 §3.1; added 2026-10-08) are optional opt-ins.
   - The current notice version is `v1` for every purpose. A version other than the current one is refused, so the app has to show the new notice.
 - **Granting and revoking.**
   - Granting inserts a row. Revoking sets `revoked_at` on the active row.

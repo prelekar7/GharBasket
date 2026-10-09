@@ -167,7 +167,7 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 | Item | Cost (approx.) | Notes |
 |---|---|---|
 | Render (API, Key Value), Neon, Vercel, Cloudflare R2, Infisical, PostHog, UptimeRobot, Firebase (test numbers) | ₹0 | Free tiers that cannot bill us; free tiers only until the pilot (D20) |
-| Hosting for the ML service, OSRM and MLflow | To be decided before P3/P4 | Local Docker until then |
+| Hugging Face Space (ML service + OSRM), GitHub Actions (training), cron-job.org (minute-level jobs) | ₹0 | Free CPU Space, no card; MLflow stays local (Docker Compose), never hosted; decided in D25 ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)) |
 | Paid plans for the pilot (Render Starter for the API, a worker, Firebase Blaze for real OTPs; the pilot database, Q3) | To be decided before P6 | |
 | Domain name (optional) | ≈ ₹800/year | Not bought yet; Render and Vercel default URLs for now |
 | Claude API (assistant) | ≈ ₹350–1,300/week at demo scale | Model chosen after the S8 eval; per-user caps |
@@ -178,7 +178,7 @@ R = Responsible, A = Accountable, C = Consulted, I = Informed.
 
 ## Decisions & open questions
 
-- Decided: P0 is design-only; UI design happens in Claude Design during P0 ([ADR-0016](../adr/0016-ui-design-in-claude-design.md), [ADR-0017](../adr/0017-design-before-code-in-phase-0.md)); plan targets April 2027 with one floating buffer sprint ([ADR-0010](../adr/0010-timeline-april-2027-floating-buffer.md)); one backend owner and one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md)); free tiers until the pilot ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)).
+- Decided: P0 is design-only; UI design happens in Claude Design during P0 ([ADR-0016](../adr/0016-ui-design-in-claude-design.md), [ADR-0017](../adr/0017-design-before-code-in-phase-0.md)); plan targets April 2027 with one floating buffer sprint ([ADR-0010](../adr/0010-timeline-april-2027-floating-buffer.md)); one backend owner and one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md)); free tiers until the pilot ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md)); the ML service and OSRM on a Hugging Face Space, training in GitHub Actions, models and the lake on R2 ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)).
 - Open: semester exam dates and the final submission deadline (moves the buffer and possibly S3/S4); United Brothers Global's involvement in the pilot; paid plans and the pilot database location (before P6).
 
 Related: [Chapter 15 — Risks and Decisions](15-risks-and-decisions.md) · [Chapter 11 — Engineering Process](11-engineering-process.md) · [Chapter 01 — Vision and Scope](01-vision-and-scope.md) · [ADR index](../adr/README.md)
