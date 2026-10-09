@@ -1874,6 +1874,13 @@ export interface components {
              */
             no_cook_days?: number[];
             /**
+             * Shortage Preference
+             * @description A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)
+             * @default substitute
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
+            /**
              * Society Id
              * Format: uuid
              */
@@ -1921,6 +1928,11 @@ export interface components {
             members: components["schemas"]["MemberOut"][];
             /** No Cook Days */
             no_cook_days: number[];
+            /**
+             * Shortage Preference
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
             /** Size */
             size: number;
             /**
@@ -1952,6 +1964,8 @@ export interface components {
             diet?: ("veg" | "egg" | "nonveg") | null;
             /** No Cook Days */
             no_cook_days?: number[] | null;
+            /** Shortage Preference */
+            shortage_preference?: ("substitute" | "refund") | null;
             /** Weekday Cook Minutes */
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
