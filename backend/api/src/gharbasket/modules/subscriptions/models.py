@@ -49,7 +49,9 @@ REASON_CODES = (
     "health_tag",
     "pantry_low",
 )
-EDIT_ACTIONS = ("removed", "added", "qty_up", "qty_down", "swapped")
+PRODUCT_ACTIONS = ("removed", "added", "qty_up", "qty_down", "swapped")
+MEAL_ACTIONS = ("meal_swapped", "meal_tiffin", "meal_no_cook", "meal_restored")
+EDIT_ACTIONS = PRODUCT_ACTIONS + MEAL_ACTIONS
 PANTRY_SIGNALS = ("ran_out", "wasted", "just_right")
 UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
 
@@ -147,7 +149,8 @@ class WeeklyCycle(Base):
     cutoff_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     plan_prediction_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # intel.predictions
     plan_source: Mapped[str] = mapped_column(String(10))
-    # The week's meals as shown: [{date, meals: [{slot, recipe_id, name_slug, tiffin, sides}]}]
+    # The week's meals as shown: [{date, meals: [{slot, recipe_id, recipe_slug, tiffin, sides}]}];
+    # a meal the customer set (M3 §3.2) adds source "customer" and keeps the planner's in "planned"
     meal_plan: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
     highlights: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
     status: Mapped[str] = mapped_column(String(20))
@@ -190,11 +193,18 @@ class BoxLine(Base):
 
 
 class EditFeedback(Base):
-    """What the customer changed on a box: the ranker's labels (handbook 08 M-B)."""
+    """What the customer changed on a box: the ranker's labels (handbook 08 M-B). A product row
+    names the product; a meal row (M3 §3.2) names the meal and its recipe before and after."""
 
     __tablename__ = "edit_feedback"
     __table_args__ = (
         CheckConstraint(_one_of("action", EDIT_ACTIONS), name="action"),
+        CheckConstraint(
+            f"CASE WHEN {_one_of('action', MEAL_ACTIONS)} "
+            "THEN product_id IS NULL AND meal_date IS NOT NULL AND slot IS NOT NULL "
+            "ELSE product_id IS NOT NULL END",
+            name="target",
+        ),
         Index("ix_edit_feedback_cycle", "cycle_id"),
         {"schema": SCHEMA},
     )
@@ -203,9 +213,13 @@ class EditFeedback(Base):
     cycle_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey(f"{SCHEMA}.weekly_cycles.id", ondelete="CASCADE")
     )
-    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)
-    action: Mapped[str] = mapped_column(String(10))
+    product_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    action: Mapped[str] = mapped_column(String(16))
     substitute_product_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    meal_date: Mapped[date | None] = mapped_column(Date)
+    slot: Mapped[str | None] = mapped_column(String(10))
+    recipe_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M2, before the change
+    substitute_recipe_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # after
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
