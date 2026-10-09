@@ -161,7 +161,9 @@ async def activity(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
                 source="rule",
             ),
             OrderLine(order_id=order.id, kind="box", unit_price_paise=6_000, **line),
-            OrderEvent(order_id=order.id, to_status="delivered", actor="hub"),
+            OrderEvent(
+                order_id=order.id, to_status="delivered", actor="rider", actor_user_id=uuid.uuid4()
+            ),
             Payment(
                 user_id=user_id,
                 provider="razorpay",
@@ -315,7 +317,8 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert sections["subscriptions"]["subscription"]["payment_mode"] == "wallet"
     (order,) = sections["orders"]["orders"]
     assert order["id"] == str(order_id) and len(order["lines"]) == 1
-    assert [event["to_status"] for event in order["timeline"]] == ["delivered"]
+    assert [(e["to_status"], e["actor"]) for e in order["timeline"]] == [("delivered", "rider")]
+    assert "actor_user_id" not in order["timeline"][0]  # the actor kind only, never who
     (issue,) = sections["orders"]["issues"]
     assert issue["order_id"] == str(order_id) and issue["kind"] == "missing"
     assert issue["photo_count"] == 1 and "photo_keys" not in issue  # counted, never included
