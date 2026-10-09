@@ -5669,10 +5669,15 @@
       "TimelineEntry": {
         "properties": {
           "actor": {
+            "description": "Who moved it, as a kind of actor only: never a name or id",
             "enum": [
               "customer",
               "system",
-              "hub"
+              "hub",
+              "packer",
+              "rider",
+              "captain",
+              "kitchen"
             ],
             "title": "Actor",
             "type": "string"

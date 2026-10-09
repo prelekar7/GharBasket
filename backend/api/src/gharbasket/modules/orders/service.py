@@ -451,7 +451,14 @@ async def set_addons(
     return lines
 
 
-async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str) -> Order:
+async def cancel(
+    session: AsyncSession,
+    order: Order,
+    *,
+    actor: str,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
+) -> Order:
     """Before the cut-off, while approved: cancelled, booking freed, event published."""
     if order.status in ("cancelled",):
         return order
@@ -459,7 +466,14 @@ async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str
         raise ProblemError(409, "orders.already_locked", "This order is already locked.")
     if order.status == "approved" and actor == "customer" and now() >= order.cutoff_at:
         raise cutoff_passed()
-    await transition(session, order, "cancelled", actor=actor, payload={"reason": reason})
+    await transition(
+        session,
+        order,
+        "cancelled",
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload={"reason": reason},
+    )
     booking = (
         await session.execute(select(SlotBooking).where(SlotBooking.order_id == order.id))
     ).scalar_one_or_none()
@@ -475,10 +489,13 @@ async def transition(
     to_status: str,
     *,
     actor: str,
+    actor_user_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
 ) -> Order:
-    """Move an order along the state machine, write the timeline row and publish the event."""
-    state.check(order.status, to_status, actor)
+    """Move an order along its kind's state machine, write the timeline row (with the actor kind
+    and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
+    Only the state machine is checked: the caller has checked that this person may act."""
+    state.check(order.kind, order.status, to_status, actor)
     from_status = order.status
     order.status = to_status
     order.version += 1
@@ -490,6 +507,7 @@ async def transition(
             from_status=from_status,
             to_status=to_status,
             actor=actor,
+            actor_user_id=actor_user_id,
             payload=payload,
         )
     )
@@ -505,6 +523,8 @@ async def transition(
             "slot_id": str(order.slot_id),
             "total_paise": order.total_paise,
             **(payload or {}),
+            "kind": order.kind,  # box | addon | tiffin, for consumers that care (ADR-0026 §3)
+            "actor": actor,  # the kind only; never the person's id
         }
         if to_status == "locked":
             body["lines"] = [
@@ -531,21 +551,22 @@ async def orders_for_delivery(
     hub_id: uuid.UUID,
     delivery_date: date,
     statuses: tuple[str, ...] = ("locked",),
+    kinds: tuple[str, ...] | None = None,
 ) -> list[OrderSummary]:
-    """What M6 packs and M7 routes on a day, with lines."""
-    orders = list(
-        (
-            await session.execute(
-                select(Order)
-                .where(
-                    Order.hub_id == hub_id,
-                    Order.delivery_date == delivery_date,
-                    Order.status.in_(statuses),
-                )
-                .order_by(Order.society_id, Order.id)
-            )
-        ).scalars()
+    """What M6 packs and M7 routes on a day, with lines; `kinds` narrows it (say to tiffins),
+    all kinds by default."""
+    query = (
+        select(Order)
+        .where(
+            Order.hub_id == hub_id,
+            Order.delivery_date == delivery_date,
+            Order.status.in_(statuses),
+        )
+        .order_by(Order.society_id, Order.id)
     )
+    if kinds is not None:
+        query = query.where(Order.kind.in_(kinds))
+    orders = list((await session.execute(query)).scalars())
     if not orders:
         return []
     rows = await session.execute(

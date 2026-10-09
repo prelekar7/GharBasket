@@ -3522,9 +3522,10 @@ export interface components {
         TimelineEntry: {
             /**
              * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
              * @enum {string}
              */
-            actor: "customer" | "system" | "hub";
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
             /**
              * At
              * Format: date-time

@@ -13,7 +13,8 @@
 
 - **Trigger** = who or what causes the transition: Customer, Autopilot job, Cut-off job, Packer, Rider, Captain, Kitchen partner, Hub manager, Payment webhook, or System timer.
 - **Event** = the domain event written to `platform.outbox` in the same database transaction.
-- Invalid transitions raise `409 Conflict` with a problem code such as `orders.invalid_transition`.
+- Invalid transitions raise `409 Conflict` with a problem code such as `orders.illegal_transition`.
+- In M4 (orders, boxes and tiffins) every `orders.order_events` row records the **actor kind** (`customer`, `system`, `hub`, `packer`, `rider`, `captain`, `kitchen`) and, for a person, their `actor_user_id`; the customer timeline shows only the kind. `hub` is a hub manager in the console, who may make any fulfilment move. M4 checks only the state machine of the order's kind; whether this packer, rider, captain or kitchen may act on this order is checked by M6, M7 or M8 before they call `orders.api.transition` (ADR-0026 §2).
 - All times are IST. **T** is the delivery day; the standard cut-off is **T-1 21:00**.
 
 ## 6.2 Weekly box / order (M3 → M4)
@@ -64,12 +65,13 @@ stateDiagram-v2
 | APPROVED → LOCKED | Cut-off job (T-1 21:00) | Wallet balance sufficient or Autopay capture succeeded | `orders.locked` | wallet → unearned_revenue |
 | APPROVED → PAYMENT_FAILED | Cut-off job | Insufficient balance (`orders.payment_failed`) or an Autopay capture failed (`billing.payment_failed`, pilot) | `orders.payment_failed` | — |
 | PAYMENT_FAILED → CANCELLED | System timer | 2 h grace expired | `orders.cancelled` | — |
-| LOCKED → PICKING → PACKED | Packer | All lines scanned; shortages substituted or refunded | `orders.shortage_substituted`, `orders.packed` | partial refund if needed |
-| PACKED → DISPATCHED | Rider | Route started | `orders.dispatched` | — |
-| DISPATCHED → AT_SOCIETY | Captain | Crate QR scanned, bag count matches | `orders.at_society` | captain commission accrues |
-| AT_SOCIETY → DELIVERED | Captain or rider | OTP, photo or captain confirmation | `orders.delivered` | unearned → sales revenue |
-| AT_SOCIETY → UNDELIVERED | Captain | Held until evening window, still unreachable | `orders.delivery_failed` | — |
-| UNDELIVERED → REFUNDED | Customer | — | `billing.refund_issued` | unearned → wallet |
+| LOCKED → PICKING → PACKED | Packer (`packer`) or hub manager (`hub`); LOCKED → PACKED directly: hub manager only | All lines scanned; shortages substituted or refunded | `orders.shortage_substituted`, `orders.packed` | partial refund if needed |
+| PACKED → DISPATCHED | Rider (`rider`) or hub manager | Route started | `orders.dispatched` | — |
+| DISPATCHED → AT_SOCIETY | Captain (`captain`); the rider only where the society has no active captain; hub manager | Crate QR scanned, bag count matches | `orders.at_society` | captain commission accrues |
+| AT_SOCIETY → DELIVERED | Captain, or the rider where there is no captain; hub manager | OTP, photo or captain confirmation | `orders.delivered` | unearned → sales revenue |
+| AT_SOCIETY → UNDELIVERED | Captain (rider where there is no captain), hub manager, or the `hold_expiry` job (`system`, 20:30) | Held until 20:00, still unreachable | `orders.delivery_failed` | — |
+| UNDELIVERED → REDELIVERY → DISPATCHED | Customer or hub manager picks the next slot; the rider (or hub manager) dispatches | One free redelivery the next morning (ADR-0026) | `orders.dispatched` | — |
+| UNDELIVERED → REFUNDED | Customer or system | — | `billing.refund_issued` | unearned → wallet |
 
 ## 6.3 Tiffin order (M4 + M8)
 
@@ -98,10 +100,14 @@ stateDiagram-v2
 | SCHEDULED → LOCKED | Cut-off job | Payment captured | `orders.locked` |
 | LOCKED → ASSIGNED | `assign_kitchens` job (T-1 21:30) | Capacity, menu skill, rating floor, distance, fairness penalty | `partners.assignment_created` |
 | ASSIGNED → ASSIGNED | Kitchen partner declines | Re-solve for remaining capacity | `partners.assignment_created` |
-| PREPARING → READY | Kitchen partner | Hygiene checklist ticked | `orders.packed` |
-| READY → PICKED_UP | Rider | QR scan at kitchen | `orders.dispatched` |
-| PICKED_UP → DELIVERED | Rider or captain | Proof captured | `orders.delivered` (kitchen earning accrues) |
-| FAILED → REFUNDED | System | — | `billing.refund_issued` |
+| ASSIGNED → PREPARING | Kitchen partner (`kitchen`) or hub manager | Kitchen holds the assignment (M8 checks) | — |
+| PREPARING → READY | Kitchen partner (`kitchen`) or hub manager | Hygiene checklist ticked | `orders.packed` |
+| READY → PICKED_UP | Rider (`rider`) or hub manager | QR scan at kitchen | `orders.dispatched` |
+| PICKED_UP → DELIVERED | Rider or captain, or hub manager | Proof captured | `orders.delivered` (kitchen earning accrues) |
+| PICKED_UP → FAILED | Rider or captain, or hub manager | Not deliverable in the window | `orders.delivery_failed` |
+| FAILED → REFUNDED | System, at once | A lunch is never redelivered | `billing.refund_issued` |
+
+**In M4** a tiffin is an `orders.orders` row with `kind = 'tiffin'` that takes a shorter path through the order statuses of §6.2 (ADR-0026 §3): SCHEDULED = `approved`, LOCKED and ASSIGNED = `locked` (the assignment is M8 data), PREPARING = `picking`, READY = `packed`, PICKED_UP = `dispatched`, then `delivered`, or FAILED = `undelivered` followed by `refunded`. Tiffins never reach `at_society` or `redelivery`, and boxes never go `dispatched → delivered`. Every order event carries `kind`, so consumers filter tiffins from boxes.
 
 Leftover portions after the lunch window are listed in the evening "Bachat Box" (surplus cascade, Chapter 07, W9).
 

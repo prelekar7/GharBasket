@@ -36,7 +36,7 @@ Status = Literal[
     "redelivery",
     "refunded",
 ]
-Actor = Literal["customer", "system", "hub"]
+Actor = Literal["customer", "system", "hub", "packer", "rider", "captain", "kitchen"]
 
 
 class SlotOut(BaseModel):
@@ -105,7 +105,7 @@ class OrderLineOut(BaseModel):
 class TimelineEntry(BaseModel):
     status: Status
     at: datetime
-    actor: Actor
+    actor: Actor = Field(description="Who moved it, as a kind of actor only: never a name or id")
 
 
 class OrderSummaryOut(BaseModel):

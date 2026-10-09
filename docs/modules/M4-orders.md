@@ -77,7 +77,9 @@ OrderOut : {
   "lines": [ OrderLine ],
   "subtotal_paise": 69000, "fees_paise": 0, "discount_paise": 0, "total_paise": 69000,
   "version": 3, "created_at", "locked_at": "…" | null,
-  "timeline": [ { "status": "approved", "at": "…", "actor": "customer" | "system" | "hub" } ] }
+  "timeline": [ { "status": "approved", "at": "…",
+                 "actor": "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen" } ] }
+                                     the kind of actor only, never a name or user id (ADR-0026 §2)
 
 GET /v1/orders?status=&from=&to=&hub_id=&cursor=&limit=
   200 : Page[OrderOut without lines and timeline]   newest delivery first; limit <= 100, default 20;
@@ -112,13 +114,34 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 - `orders.locked { order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, lines: [ { product_id, qty, step_qty, step_unit } ] }`
 - `orders.payment_failed { order_id, household_id, shortfall_paise, grace_until }` (M5's `billing.payment_failed` is for Autopay captures, pilot phase)
 - `orders.cancelled { order_id, household_id, reason: "customer" | "payment" | "skipped" }`
-- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.shortage_substituted`) are published when M6/M7 call `orders.api.transition`.
+- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`) are published when M6/M7/M8 call `orders.api.transition`: `{ order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, kind: "box" | "addon" | "tiffin", actor, …the caller's payload }`. `orders.shortage_substituted` is published by `mark_shortage` with its own payload.
+- **Every event published by a status change** (the three above and the fulfilment events) carries `kind` and `actor` (the kind of actor, never the person's id), so a consumer that cares about tiffins or boxes filters on `kind` (ADR-0026 §3).
+
+**State machine per order kind** (ADR-0026 §2, §3; `orders/state.py`). M4 checks only that the move exists for the order's kind and that this kind of actor may make it; whether *this* packer, rider, captain or kitchen may act on *this* order is checked by the calling module (M6: `packer:<hub>`; M7: the active captain of the order's society through `community.api`, or the rider who owns the route; M8: the kitchen holding the assignment). `hub` is a hub manager acting from the console, an override for every fulfilment move. A move that is not in the table for the order's kind, or by an actor not listed, is 409 `orders.illegal_transition` with `kind`, `from`, `to` (and `actor` when only the actor is wrong).
+
+| From → to | Box / add-on orders | Tiffin orders |
+|---|---|---|
+| approved → locked / payment_failed; payment_failed → locked | system | system |
+| approved → cancelled; payment_failed → cancelled | customer, system | customer, system |
+| locked → picking | packer, hub | kitchen (preparing), hub |
+| picking → packed | packer, hub | kitchen (ready), hub |
+| locked → packed | hub (fast path) | — |
+| packed → dispatched | rider (route start), hub | rider (pickup scan at the kitchen), hub |
+| redelivery → dispatched | rider, hub | — |
+| dispatched → at_society | captain (handover scan), rider (only where the society has no active captain; M7 checks), hub | — |
+| at_society → delivered | captain, rider (no captain), hub | — |
+| at_society → undelivered | captain, rider (no captain), system (`hold_expiry`), hub | — |
+| dispatched → delivered / undelivered | — | rider, captain, hub |
+| undelivered → redelivery | customer, hub | — |
+| undelivered → refunded | customer, system | system (at once; a lunch is never redelivered) |
+
+Tiffins therefore never reach `at_society` or `redelivery`, and boxes and add-ons never take `dispatched → delivered`. The tiffin statuses read as handbook 06 §6.3: `approved` = scheduled, `locked` = locked (the kitchen assignment is M8 data), `picking` = preparing, `packed` = ready, `dispatched` = picked up; the apps label them by kind.
 
 **For other modules** (`orders/api.py`, no HTTP):
 - `create_from_cycle(session, cycle: ApprovedCycle) -> Order` — M3 calls it in the approve transaction (so the customer's answer carries `order_id` and a full slot is refused on the spot; `subscriptions.box_approved` is published alongside for M11 and analytics); idempotent per `cycle_id`. **When the order already exists and is still `approved`, a higher `version` replaces its box lines and totals (add-ons are kept)**: an edit after approval re-publishes the event. `ApprovedCycle` carries `cycle_id, household_id, hub_id, society_id, delivery_date, slot_id, lines [ { product_id, qty, unit_price_paise, reason_code, reason_params } ], version`. Box line prices are frozen here; `total_paise` = Σ qty × unit price.
 - `cancel_from_cycle(session, cycle_id, reason="skipped")` — a skip before the cut-off cancels the order.
-- `transition(session, order_id, to, *, actor, payload=None)` — M6/M7 move fulfilment statuses; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event.
-- `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",)) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later).
+- `transition(session, order_id, to, *, actor, actor_user_id=None, payload=None)` — M6/M7/M8 (and the cut-off jobs) move statuses along the order kind's state machine above; `actor` is the kind of actor (`customer | system | hub | packer | rider | captain | kitchen`) and `actor_user_id` the person who made the move (none for `system`), recorded on the `order_events` row and never shown to customers or exported; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event with `kind` and `actor`.
+- `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",), kinds=None) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later); `kinds` narrows the list (say `("tiffin",)` for M8, `("box", "addon")` for hub packing), every kind by default.
 - `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None)` — M6 packing; a refund for the short steps goes through `billing.api.refund_to_wallet(reason="shortage")`.
 
 **Error codes**
@@ -223,7 +246,7 @@ A `damaged` issue without a photo is still accepted (201) and is never rejected 
 |---|---|
 | `orders.orders` | id, household_id, hub_id, society_id, kind (box, tiffin, addon), cycle_id (unique), delivery_date, slot_id, cutoff_at, status, subtotal_paise, fees_paise, discount_paise, total_paise, version, locked_at, data_source, created_at |
 | `orders.order_lines` | order_id, product_id, kind (box, addon), qty, step_qty, step_unit, unit_price_paise, reason_code, reason_params jsonb, substituted_from, shortage_qty |
-| `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
+| `orders.order_events` | id, order_id, from_status, to_status, actor (customer, system, hub, packer, rider, captain, kitchen), actor_user_id (nullable; the person, never shown to customers), payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
 | `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
@@ -255,14 +278,14 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 **Mobile:** Orders list, order detail with timeline and live tracking, add-ons. **Console:** orders board (by status/slot), cut-off monitor, slot configuration.
 
 ## 9. Tests required
-- Unit: state machine transitions (all illegal transitions rejected).
+- Unit: state machine transitions per order kind and actor (every move in the table allowed for exactly its actors, all others rejected).
 - Property (hypothesis): random sequences of edits/cancels/locks never yield an order in two states or a negative total.
 - Integration: cut-off idempotency (run twice → no double lock or debit).
 - Load (k6): cut-off with 2,000 orders under 60 s.
 - E2E: approve → lock → status stream to delivered.
 
 ## 10. Dependencies
-M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7 call `orders.api` for fulfilment transitions.
+M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7/M8 call `orders.api` for fulfilment transitions (ADR-0026).
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
