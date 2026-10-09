@@ -56,6 +56,15 @@ TAGS = (
     "root",
 )
 FESTIVAL_SOURCES = ("panchang", "manual")
+# State and union territory codes a festival day may be limited to (or "all"), spec §3.3.
+REGIONS = (
+    "andhra_pradesh", "arunachal_pradesh", "assam", "bihar", "chhattisgarh", "goa", "gujarat",
+    "haryana", "himachal_pradesh", "jharkhand", "karnataka", "kerala", "madhya_pradesh",
+    "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland", "odisha", "punjab",
+    "rajasthan", "sikkim", "tamil_nadu", "telangana", "tripura", "uttar_pradesh", "uttarakhand",
+    "west_bengal", "andaman_nicobar", "chandigarh", "dadra_nagar_haveli_daman_diu", "delhi",
+    "jammu_kashmir", "ladakh", "lakshadweep", "puducherry",
+)  # fmt: skip
 # Nutrition sources by the names the seed file uses; products store the codes (§3.3).
 NUTRITION_SOURCES = {"IFCT 2017": "ifct2017", "NIN Nutritive Value of Indian Foods": "nin_nvif"}
 

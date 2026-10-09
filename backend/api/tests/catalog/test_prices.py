@@ -168,6 +168,7 @@ async def test_a_hub_manager_publishes_once_and_a_retry_replays(
         "hub_id": str(SEED_HUB_ID),
         "valid_from": body["valid_from"],
         "items_count": 2,
+        "replaced": False,
     }
     audit = (
         await db_session.execute(select(AuditEntry).where(AuditEntry.entity_id == list_id))

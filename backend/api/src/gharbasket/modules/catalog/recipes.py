@@ -210,10 +210,14 @@ async def save_festival(
     rules: dict[str, bool],
     verified: bool,
 ) -> None:
+    """Add or refresh a generated day; days added, verified or edited in the console are kept
+    (spec §3.3)."""
     festival = await session.get(Festival, (day, code, region))
     if festival is None:
         festival = Festival(day=day, code=code, region=region)
         session.add(festival)
+    elif festival.source == "manual" or festival.verified or festival.updated_by is not None:
+        return
     festival.names = names
     festival.rules = rules
     festival.verified = verified
