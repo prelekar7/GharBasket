@@ -1,6 +1,6 @@
 # M1 — Identity & Household
 
-**Status:** Draft v1.1. §3.1 (auth) and §3.2 (household, consents, address) are frozen; the rest is refined at phase start (spec-first).
+**Status:** Draft v1.1. §3.1 (auth) and §3.2 (household, consents, address) are frozen; §3.3 (data export) frozen on 2026-10-08; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `identity` · **Python package:** `gharbasket.modules.identity`
@@ -29,13 +29,15 @@ Who the user is and what household they belong to: phone-OTP login exchange, ses
 | GET / PATCH | `/v1/me` | Authenticated | — | Name, locale, senior mode |
 | GET | `/v1/me/roles` | Authenticated | — | Roles with scope and status |
 | GET / DELETE | `/v1/me/devices`, `/v1/me/devices/{id}` | Authenticated | — | |
+| PUT | `/v1/me/push-token` | Authenticated | — | `{push_token: string \| null}` → 204: sets or clears the FCM token of the calling session; contract in M11 §3.1 |
 | POST | `/v1/households` | customer | Required | Onboarding in one call: household, members, address and consents in one transaction (§3.2). One per owner (v1) |
 | GET | `/v1/households/me` | customer | — | The caller's household, or 404 `identity.household_not_found` |
 | GET / PATCH | `/v1/households/{id}` | owner, hub_manager (read) | — | `ETag` / `If-Match` on `version` |
 | POST / PATCH / DELETE | `/v1/households/{id}/members[/{mid}]` | owner | — | Age band, fasting rules, health tags (consent-gated) |
 | GET / PATCH | `/v1/addresses[/{id}]` | owner | — | Society, tower, flat, location. The first address is created by `POST /v1/households` |
 | GET / POST | `/v1/consents` | Authenticated | — | Grant or revoke one purpose |
-| GET | `/v1/me/data-export` | Authenticated | — | Async; link via notification |
+| POST | `/v1/me/data-export` | Authenticated | One per user per IST day | Ask for a copy of your data; 202, built in the background (§3.3) |
+| GET | `/v1/me/data-export` | Authenticated | — | Status of the latest export and, when ready, a 5-minute download link; the notification comes after M11 |
 | DELETE | `/v1/me` | Authenticated | — | Account deletion flow |
 | POST | `/v1/admin/user-roles` | admin | Required | Grant staff roles |
 
@@ -161,7 +163,7 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 - **Jain.** A Jain member (`fasting_rules.jain`) requires `diet = "veg"`.
 - **Consent purposes.** These follow handbook 13 §DPDP:
   - `service_delivery` and `personalisation` are required for Autopilot; onboarding must grant both.
-  - `health_personalisation`, `marketing` and `research_anonymised` are optional opt-ins.
+  - `health_personalisation`, `marketing`, `research_anonymised` and `whatsapp` (updates on WhatsApp, M11 §3.1; added 2026-10-09) are optional opt-ins.
   - The current notice version is `v1` for every purpose. A version other than the current one is refused, so the app has to show the new notice.
 - **Granting and revoking.**
   - Granting inserts a row. Revoking sets `revoked_at` on the active row.
@@ -191,6 +193,44 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 | 422 | `request.idempotency_mismatch` | Same key, different body (M0) |
 | 422 | `request.invalid` | Shape or range validation (M0) |
 
+### 3.3 Data export contract (frozen on 2026-10-08)
+The DPDP right of access (handbook 13 §13.6). The Profile screen's "Download my data" and the backend build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
+
+```
+DataExport : { "id", "status": "queued" | "building" | "ready" | "failed" | "expired",
+               "requested_at", "ready_at": "…" | null, "expires_at": "…" | null,   file kept 7 days
+               "ready_within_hours": 24,
+               "download": { "url": "<signed GET>", "expires_at": "…", "size_bytes": 48211 } | null }
+                                       only while ready; a fresh 5-minute link on every GET
+
+POST /v1/me/data-export    no body; no Idempotency-Key: the day is the key
+  202 DataExport           one export per user per IST day: asking again the same day answers that
+                           day's export (a failed one is queued again); publishes
+                           identity.data_export_requested { export_id, user_id } for the build job
+GET  /v1/me/data-export    200 DataExport (the latest) | 404 "identity.export_not_found"
+                           the app polls this (every 10 s while the screen is open)
+```
+
+**What the file holds** (contents, including leaving out ML predictions, confirmed by the owner on 2026-10-08). One JSON document, `{ "format": "gharbasket-export/v1", "generated_at", "user_id", "sections": { … } }`. Each module returns its own section from `export_for_user(session, user_id) -> dict` in its `api.py`, read-only; M1 only puts them together and stores the file (M0 purpose `data_export`, private bucket):
+- `identity`: the user, roles, devices (platform and dates, no tokens), the household with members (diet, fasting rules, consented health tags), the address with its pin, the consent history.
+- `subscriptions`: the subscription, every cycle with its meal plan and lines, Budget Locks, edit and pantry feedback.
+- `orders`: orders with lines and timelines, and issues (the photos are counted, not included).
+- `billing`: wallet entries and top-ups (Razorpay ids only; no card or UPI details ever reach us).
+- `notifications` (M11): inbox messages with event type, category, English text, dates and delivery status per channel (no push tokens).
+- Added by each module when it ships: assistant conversations (M13), donations and referrals (M9), the partner application with masked KYC references (M8).
+- Not included: tokens and secrets, uploaded files, the audit log, other people's data (captains, riders), and derived ML data (`intel.predictions`).
+
+**Delivery.** Until M11 ships, polling `GET` is the only path. After M11 the build job also publishes `identity.data_export_ready { export_id, user_id }`, which M11 turns into a "your data is ready" notification that opens Profile; the notification never carries the link. Every request and every download link minted is audit-logged. `DELETE /v1/me` deletes pending exports and their files.
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `identity.export_not_found` | `GET` before any export was asked for |
+| 429 | `identity.export_rate_limited` | More than 5 `POST`s in a day (the same day's export is still answered by `GET`) |
+
+| Mock today (`mocks/profile.js`) | Contract |
+|---|---|
+| `GET /v1/me/data-export` starts the export: 202 `{ status: "queued", ready_within_hours: 24 }` | `POST` starts it (202 `DataExport`, which keeps `status` and `ready_within_hours`); `GET` polls it and carries `download` when ready |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -202,9 +242,10 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 | `identity.household_members` | id, household_id, age_band, sex null, health_tags[] (empty unless `health_personalisation` is granted), fasting_rules jsonb `{jain, fasts[], no_onion_garlic_on_fast_days}`, created_at |
 | `identity.addresses` | id, household_id, society_id → community.societies, tower_id, flat, location geography(Point, 4326) null, h3_r9 null, created_at, updated_at |
 | `identity.consents` | id, user_id, purpose, version, granted_at, revoked_at; at most one active row per (user, purpose) (partial unique index where revoked_at is null) |
+| `identity.data_exports` | id, user_id, requested_on (IST date; unique with user_id), status (queued, building, ready, failed, expired), object_key (M0 `data_export`), size_bytes, attempts, error, requested_at, ready_at, expires_at |
 
 ## 5. Events
-**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`.
+**Published:** `identity.household_created`, `identity.household_updated`, `identity.user_deleted`, `identity.data_export_requested` (`{export_id, user_id}`; M1's `build_data_export` job takes the queued row), `identity.data_export_ready` (`{export_id, user_id}`, published by `build_data_export` when the file is written; M11 notifies).
 - `identity.household_created` `{household_id, owner_user_id, society_id, hub_id, size, budget_paise, data_source}`. M3 uses `budget_paise` to open the first Budget Lock; M9 recounts the society's unlock bar.
 - `identity.household_updated` `{household_id, version, changed: [field names]}`.
 - No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
@@ -213,7 +254,8 @@ ConsentOut : { "purpose", "version", "granted": bool, "granted_at": "<ts> | null
 ## 6. Jobs
 | Job | Trigger | Notes |
 |---|---|---|
-| `build_data_export` | On request | Writes JSON to private S3, notifies user |
+| `build_data_export` | Every 10 minutes (cron-job.org); takes `queued` exports | Gathers each module's `export_for_user`, writes one JSON file to the private bucket (§3.3); 3 attempts, then `failed`; publishes `identity.data_export_ready` for M11. A job rather than the consumer of `identity.data_export_requested`, because outbox consumers get no object storage |
+| `expire_data_exports` | Daily (04:23 IST, before `sweep_uploads` the next night) | Marks exports past `expires_at` (7 days) `expired`; M0's `sweep_uploads` deletes the file (`delete_after`) |
 | `purge_deleted_users` | Daily | Completes deletion after grace period |
 
 ## 7. Permissions

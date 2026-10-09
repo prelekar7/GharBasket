@@ -2,11 +2,20 @@
 
 import uuid
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity.models import Household, HouseholdMember
+from gharbasket.modules.identity import households
+from gharbasket.modules.identity.models import (
+    Consent,
+    Household,
+    HouseholdMember,
+    LoginSession,
+    User,
+    UserRole,
+)
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
@@ -126,3 +135,30 @@ async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uu
         .order_by(Household.id)
     )
     return list(rows.scalars())
+
+
+async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
+    """M1's section of the user's data export (spec §3.3), read-only: no tokens, and health tags
+    only while health_personalisation is granted."""
+    user = await session.get(User, user_id)
+    if user is None:
+        return {}
+
+    async def rows(model: Any, *where: Any) -> list[Any]:
+        return list(
+            (await session.execute(select(model).where(*where).order_by(model.id))).scalars()
+        )
+
+    household = await households.household_of(session, user_id)
+    return {
+        "user": user.as_dict(exclude={"data_source"}),
+        "roles": [role.as_dict() for role in await rows(UserRole, UserRole.user_id == user_id)],
+        "devices": [  # no push token, no refresh token
+            device.as_dict(exclude={"push_token"})
+            for device in await rows(LoginSession, LoginSession.user_id == user_id)
+        ],
+        "household": None
+        if household is None
+        else (await households.view(session, household)).model_dump(mode="json"),
+        "consents": [c.as_dict() for c in await rows(Consent, Consent.user_id == user_id)],
+    }
