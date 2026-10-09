@@ -149,6 +149,9 @@ class PlanRecipe:
             "no_cook": "no_cook" in self.tags,
             "cost_per_serving_paise": self.cost_per_serving_paise or 0,
             "perishables": list(self.perishables),
+            "nutrition_per_serving": self.nutrition_per_serving,
+            "sides": list(self.sides),
+            "is_side": self.is_side,
         }
 
 

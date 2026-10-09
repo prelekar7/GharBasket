@@ -135,7 +135,8 @@ def _household(
     fruits = catalog.fruits()
     shares = [rng.gammavariate(1.5, 1) for _ in fruits]
     for slug, s in zip(fruits, shares, strict=True):
-        daily_use[slug] = config.fruit_per_adult_week_g * ae * s / sum(shares)
+        grams = config.fruit_per_adult_week_g * ae * s / sum(shares)
+        daily_use[slug] = catalog.products[slug].base_units(grams)
     taste = {
         r["slug"]: (1.0 if r["cuisine"] in cuisines else -0.5) + rng.gauss(0, 1)
         for r in catalog.recipes
