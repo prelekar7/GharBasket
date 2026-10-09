@@ -1,6 +1,6 @@
-"""Procurement plans (M6 §3.3): the plan from the cut-off's orders plus a buffer (or M10's
-forecast), rebuilt at 21:10, 23:05 and on a new forecast without losing the hub manager's edits,
-and audited line edits, for the hub's own managers."""
+"""Procurement plans and purchase orders (M6 §3.3): the plan from the cut-off's orders plus a
+buffer (or M10's forecast), rebuilt at 21:10, 23:05 and on a new forecast without losing the hub
+manager's edits; audited line edits; one draft purchase order per vendor, sent by hand."""
 
 import uuid
 from datetime import UTC, date, datetime, time
@@ -411,6 +411,165 @@ async def test_line_edits_need_the_version_and_a_reason_and_are_audited(
     assert job.summary == {"delivery_date": "2026-10-13", "hubs": 2, "closed": 1, "built": 1}
 
 
+# --- purchase orders -----------------------------------------------------------------------------
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_purchase_orders_per_vendor_are_drafts_until_sent_by_hand(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await order(db_session, "locked", {"tomato": 2, "palak": 3, "toor-dal": 2, "onion": 1})
+    api = clients()
+    manager = await as_user(api, google, VIKRAM)
+    plan = (await build(api, manager)).json()
+    vendors = await vendor_ids(db_session)
+    for slug, body in (
+        ("palak", {"vendor_id": vendors["kharghar"]}),
+        ("toor-dal", {"vendor_id": vendors["patil"], "unit_cost_paise": 12_000}),
+        ("tomato", {"order_qty": 0.1, "reason": "Stock left", "unit_cost_paise": 3205}),
+        ("onion", {"vendor_id": None}),
+    ):
+        plan = (await patch(api, manager, plan, slug, **body)).json()
+    generate = f"/v1/procurement-plans/{plan['id']}/purchase-orders"
+    await db_session.commit()
+
+    missing = await api.post(generate, headers={**manager, **key()})
+    assert (missing.status_code, missing.json()["code"]) == (422, "hub_ops.vendor_missing")
+    assert missing.json()["product_ids"] == [lines_by_slug(plan)["onion"]["product_id"]]
+    plan = (await patch(api, manager, plan, "onion", vendor_id=vendors["shinde"])).json()
+    once = {**manager, **key()}
+    made = await api.post(generate, headers=once)
+    replay = await api.post(generate, headers=once)
+    remade = await api.post(generate, headers={**manager, **key()})
+
+    assert made.status_code == 200, made.text
+    assert replay.json() == made.json()
+    pos = remade.json()["purchase_orders"]
+    assert {po["id"] for po in pos}.isdisjoint(po["id"] for po in made.json()["purchase_orders"])
+    assert [(po["vendor"]["name"], [x["slug"] for x in po["lines"]]) for po in pos] == [
+        ("Kharghar Kisan FPO", ["palak"]),
+        ("Patil Wholesale", ["toor-dal"]),
+        ("Shinde Traders", ["onion", "tomato"]),
+    ]
+    shinde = pos[2]
+    assert (shinde["status"], shinde["number"], shinde["stale"]) == ("draft", None, False)
+    assert (shinde["total_paise"], shinde["unpriced_lines"]) == (321, 1)
+    assert shinde["share_text"] == (
+        "GharBasket Kharghar hub · PO draft\n"
+        "Deliver by 04:00 on Tue 13 Oct 2026 to Plot 12, Sector 19, Kharghar, Navi Mumbai 410210\n"
+        "1. Onion: 1.1 kg (no price agreed)\n"
+        "2. Tomato: 0.1 kg @ ₹32.05/kg = ₹3.21\n"
+        "Total ₹3.21 + 1 item at market price"
+    )
+    assert shinde["whatsapp_url"].startswith("https://wa.me/919800002001?text=GharBasket%20")
+    assert pos[1]["total_paise"] == 13_200 and pos[1]["share_text"].endswith("Total ₹132.00")
+    await db_session.execute(
+        update(Vendor).where(Vendor.name == "Patil Wholesale").values(whatsapp=False)
+    )
+    plan = (await patch(api, manager, plan, "palak", note="Tie in tens")).json()
+    await db_session.commit()
+
+    old = (await api.get(f"/v1/purchase-orders/{shinde['id']}", headers=manager)).json()
+    assert old["stale"] is True
+    stale = await api.post(f"/v1/purchase-orders/{shinde['id']}/send", headers={**manager, **key()})
+    assert (stale.status_code, stale.json()["code"]) == (409, "hub_ops.po_stale")
+    pos = (await api.post(generate, headers={**manager, **key()})).json()["purchase_orders"]
+    assert pos[1]["whatsapp_url"] is None  # the wholesaler takes no WhatsApp
+    send = f"/v1/purchase-orders/{pos[2]['id']}/send"
+    sent = await api.post(send, headers={**manager, **key()})
+    second = await api.post(
+        f"/v1/purchase-orders/{pos[0]['id']}/send", headers={**manager, **key()}
+    )
+
+    assert sent.status_code == 200, sent.text
+    assert (sent.json()["status"], sent.json()["number"]) == ("sent", "KHARGHAR-261013-01")
+    assert sent.json()["share_text"].startswith("GharBasket Kharghar hub · PO KHARGHAR-261013-01\n")
+    assert second.json()["number"] == "KHARGHAR-261013-02"  # sending one never stales the others
+    again = await api.post(send, headers={**manager, **key()})
+    assert (again.status_code, again.json()["code"]) == (409, "hub_ops.po_not_draft")
+    plan = (await api.get(f"/v1/procurement-plans/{plan['id']}", headers=manager)).json()
+    assert plan["status"] == "ordered"
+    assert lines_by_slug(plan)["tomato"]["purchase_order"] == {
+        "id": pos[2]["id"],
+        "number": "KHARGHAR-261013-01",
+        "status": "sent",
+    }
+    ordered = await patch(api, manager, plan, "tomato", note="more")
+    assert (ordered.status_code, ordered.json()["code"]) == (409, "hub_ops.line_ordered")
+    sent_events = (
+        await db_session.execute(
+            select(OutboxEvent.payload).where(
+                OutboxEvent.event_type == "hub_ops.purchase_order_sent"
+            )
+        )
+    ).scalars()
+    assert [(e["number"], e["lines_count"], e["total_paise"]) for e in sent_events] == [
+        ("KHARGHAR-261013-01", 2, 321),
+        ("KHARGHAR-261013-02", 1, 0),
+    ]
+    # Regenerating leaves sent lines alone: only the wholesaler's draft is left.
+    left = (await api.post(generate, headers={**manager, **key()})).json()["purchase_orders"]
+    assert [(po["vendor"]["name"], po["status"]) for po in left] == [
+        ("Kharghar Kisan FPO", "sent"),
+        ("Patil Wholesale", "draft"),
+        ("Shinde Traders", "sent"),
+    ]
+    listed = await api.get(
+        f"/v1/hubs/{SEED_HUB_ID}/purchase-orders",
+        params={"date": "2026-10-13", "status": "sent"},
+        headers=manager,
+    )
+    assert [po["number"] for po in listed.json()["items"]] == [
+        "KHARGHAR-261013-02",
+        "KHARGHAR-261013-01",
+    ]
+
+    for po in (pos[0], pos[2]):
+        cancel = await api.post(
+            f"/v1/purchase-orders/{po['id']}/cancel",
+            json={"reason": "Rain at APMC"},
+            headers={**manager, **key()},
+        )
+        assert (
+            cancel.json()["status"] == "cancelled"
+            and cancel.json()["cancel_reason"] == "Rain at APMC"
+        )
+    plan = (await api.get(f"/v1/procurement-plans/{plan['id']}", headers=manager)).json()
+    assert plan["status"] == "draft"  # no sent PO left
+    twice = await api.post(
+        f"/v1/purchase-orders/{pos[2]['id']}/cancel",
+        json={"reason": "again"},
+        headers={**manager, **key()},
+    )
+    assert (twice.status_code, twice.json()["code"]) == (409, "hub_ops.po_not_cancellable")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_nothing_to_order_and_a_new_line_takes_the_last_vendor(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await order(db_session, "payment_failed", {"tomato": 2})
+    api = clients()
+    manager = await as_user(api, google, VIKRAM)
+    plan = (await build(api, manager)).json()
+    await db_session.commit()
+    empty = await api.post(
+        f"/v1/procurement-plans/{plan['id']}/purchase-orders", headers={**manager, **key()}
+    )
+    assert (empty.status_code, empty.json()["code"]) == (409, "hub_ops.nothing_to_order")
+
+    vendors = await vendor_ids(db_session)
+    await order(db_session, "locked", {"tomato": 2})
+    plan = (await build(api, manager)).json()
+    plan = (await patch(api, manager, plan, "tomato", vendor_id=vendors["kharghar"])).json()
+    await api.post(
+        f"/v1/procurement-plans/{plan['id']}/purchase-orders", headers={**manager, **key()}
+    )
+    await order(db_session, "locked", {"tomato": 1}, day=date(2026, 10, 14))
+    tomorrow = (await build(api, manager, date="2026-10-14")).json()
+    assert lines_by_slug(tomorrow)["tomato"]["vendor"]["name"] == "Kharghar Kisan FPO"
+
+
 @time_machine.travel(NOW, tick=False)
 async def test_hub_staff_reach_only_their_own_hub(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
@@ -426,15 +585,27 @@ async def test_hub_staff_reach_only_their_own_hub(
     )
     await order(db_session, "locked", {"tomato": 2})
     plan = (await build(api, admin)).json()
+    po = (
+        await api.post(
+            f"/v1/procurement-plans/{plan['id']}/purchase-orders", headers={**admin, **key()}
+        )
+    ).json()["purchase_orders"][0]
     await db_session.commit()
     elsewhere = await as_user(api, google, ARJUN)
 
     assert (await api.get(PLANS, headers=elsewhere)).status_code == 403
     assert (await build(api, elsewhere)).status_code == 403
+    assert (
+        await api.get(f"/v1/hubs/{SEED_HUB_ID}/purchase-orders", headers=elsewhere)
+    ).status_code == 403
     hidden = await api.get(f"/v1/procurement-plans/{plan['id']}", headers=elsewhere)
     assert (hidden.status_code, hidden.json()["code"]) == (404, "hub_ops.plan_not_found")
     edit = await patch(api, elsewhere, plan, "tomato", note="x")
     assert edit.json()["code"] == "hub_ops.plan_not_found"
+    for path in (f"/v1/purchase-orders/{po['id']}", f"/v1/purchase-orders/{po['id']}/send"):
+        method = "GET" if path.endswith(po["id"]) else "POST"
+        refused = await api.request(method, path, headers={**elsewhere, **key()})
+        assert refused.json()["code"] == "hub_ops.po_not_found"
     own = await api.post(
         f"/v1/hubs/{other['id']}/procurement-plans/build",
         json={"date": "2026-10-13"},
@@ -443,7 +614,7 @@ async def test_hub_staff_reach_only_their_own_hub(
     assert (own.status_code, own.json()["lines"]) == (200, [])
 
     owner = await as_user(api, google, SANJAY)  # the franchise owner reads, never writes
-    assert (await api.get(f"/v1/procurement-plans/{plan['id']}", headers=owner)).status_code == 200
+    assert (await api.get(f"/v1/purchase-orders/{po['id']}", headers=owner)).status_code == 200
     assert (await build(api, owner)).status_code == 403
     for phone in (KAVITA, PRIYA):
         assert (await api.get(PLANS, headers=await as_user(api, google, phone))).status_code == 403

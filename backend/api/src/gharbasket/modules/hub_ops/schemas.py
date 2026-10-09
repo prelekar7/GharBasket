@@ -267,3 +267,59 @@ class ProcurementLinePatch(_Patch):
     reason: str | None = Field(default=None, min_length=3, max_length=200)
 
     _tidy_text = field_validator("note", "reason", mode="before")(_tidy)
+
+
+class PurchaseOrderVendor(BaseModel):
+    id: uuid.UUID
+    name: str
+    phone: str | None
+    whatsapp: bool
+
+
+class PurchaseOrderLineOut(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    unit: OpsUnit
+    qty: float
+    unit_cost_paise: int | None
+    amount_paise: int | None
+    received_qty: float = Field(description="Sum of the receipts (§3.4)")
+    accepted_qty: float
+
+
+class PurchaseOrderOut(BaseModel):
+    id: uuid.UUID
+    number: str | None = Field(description="Given when sent: hub slug, YYMMDD, a number per day")
+    plan_id: uuid.UUID
+    hub_id: uuid.UUID
+    delivery_date: date
+    vendor: PurchaseOrderVendor
+    status: Literal["draft", "sent", "partly_received", "received", "cancelled"]
+    lines: list[PurchaseOrderLineOut]
+    total_paise: int
+    unpriced_lines: int
+    share_text: str = Field(description="Plain text for WhatsApp or print")
+    whatsapp_url: str | None = Field(description="When the vendor has a phone and WhatsApp")
+    stale: bool = Field(description="A draft whose plan changed after it was generated")
+    cancel_reason: str | None
+    created_at: datetime
+    sent_at: datetime | None
+    closed_at: datetime | None
+    version: int
+
+
+class GeneratedPurchaseOrders(BaseModel):
+    purchase_orders: list[PurchaseOrderOut]
+
+
+class PurchaseOrdersOut(BaseModel):
+    items: list[PurchaseOrderOut]
+
+
+class CancelIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=200)
+
+    _tidy_text = field_validator("reason", mode="before")(_tidy)

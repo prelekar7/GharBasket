@@ -1,17 +1,19 @@
-"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), and
-procurement plans (§3.3)."""
+"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), procurement
+plans and purchase orders (§3.3)."""
 
 import uuid
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Response, status
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers jobs)
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.hub_ops import procurement, service
-from gharbasket.modules.hub_ops.models import Hub, ProcurementPlan, Vendor
+from gharbasket.modules.hub_ops import procurement, purchasing, service
+from gharbasket.modules.hub_ops.models import Hub, ProcurementPlan, PurchaseOrder, Vendor
 from gharbasket.modules.hub_ops.schemas import (
+    CancelIn,
+    GeneratedPurchaseOrders,
     GeoPolygon,
     HubIn,
     HubOut,
@@ -21,6 +23,8 @@ from gharbasket.modules.hub_ops.schemas import (
     PlanBuildIn,
     ProcurementLinePatch,
     ProcurementPlanOut,
+    PurchaseOrderOut,
+    PurchaseOrdersOut,
     Timings,
     VendorIn,
     VendorOut,
@@ -297,6 +301,23 @@ async def _plan(
     return plan
 
 
+async def _po(
+    session: DbSession, permit: Permit, po_id: uuid.UUID, *, for_update: bool = False
+) -> PurchaseOrder:
+    po = await purchasing.get_po(session, po_id)
+    if not permit.allows(po.hub_id):
+        raise purchasing.po_not_found()
+    if for_update:  # hub, then plan, then PO: the order every procurement write locks in
+        await service.get_hub(session, po.hub_id, for_update=True)
+        await procurement.get_plan(session, plan_id=po.plan_id, for_update=True)
+        po = await purchasing.get_po(session, po_id, for_update=True)
+    return po
+
+
+async def _po_out(session: DbSession, po: PurchaseOrder, lang: Lang) -> PurchaseOrderOut:
+    return (await purchasing.pos_out(session, [po], lang))[0]
+
+
 @router.get(
     "/hubs/{hub_id}/procurement-plans",
     summary="The hub's procurement plan for a delivery date (ETag = version)",
@@ -403,6 +424,129 @@ async def patch_plan_line(
         actor_user_id=permit.principal.user_id,
     )
     out = await procurement.plan_out(session, plan, lang)
+    await session.commit()
+    set_etag(response, out.version)
+    return out
+
+
+# --- purchase orders (§3.3) ---------------------------------------------------------------------
+
+
+@router.post(
+    "/procurement-plans/{plan_id}/purchase-orders",
+    summary="(Re)generate the plan's draft purchase orders, one per vendor",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.plan_not_found"),
+        409: _problem("hub_ops.plan_not_editable, hub_ops.nothing_to_order"),
+        422: _problem("hub_ops.vendor_missing (product_ids), request.idempotency_mismatch"),
+    },
+)
+async def generate_purchase_orders(
+    plan_id: uuid.UUID,
+    permit: CanWriteProcurement,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> GeneratedPurchaseOrders:
+    plan = await _plan(session, permit, plan_id)
+    await service.get_hub(session, plan.hub_id, for_update=True)
+    plan = await _plan(session, permit, plan_id, for_update=True)
+    await purchasing.generate(session, plan, permit.principal.user_id)
+    pos = await purchasing.pos_out(session, await purchasing.plan_pos(session, plan.id), lang)
+    out = GeneratedPurchaseOrders(purchase_orders=pos)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/purchase-orders",
+    summary="The hub's purchase orders for a delivery date, by vendor name",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range")},
+)
+async def list_purchase_orders(
+    hub_id: uuid.UUID,
+    permit: CanReadProcurement,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    day: Day = None,
+    po_status: Annotated[
+        Literal["draft", "sent", "partly_received", "received", "cancelled"] | None,
+        Query(alias="status"),
+    ] = None,
+) -> PurchaseOrdersOut:
+    permit.ensure(hub_id)
+    pos = await purchasing.hub_pos(session, hub_id, procurement.plan_day(day), po_status)
+    response.headers["Cache-Control"] = "no-store"
+    return PurchaseOrdersOut(items=await purchasing.pos_out(session, pos, lang))
+
+
+@router.get(
+    "/purchase-orders/{po_id}",
+    summary="A purchase order with its share text and WhatsApp link (ETag = version)",
+    responses={**SIGNED_IN, 404: _problem("hub_ops.po_not_found")},
+)
+async def get_purchase_order(
+    po_id: uuid.UUID, permit: CanReadProcurement, session: DbSession, response: Response, lang: Lang
+) -> PurchaseOrderOut:
+    po = await _po(session, permit, po_id)
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, po.version)
+    return await _po_out(session, po, lang)
+
+
+@router.post(
+    "/purchase-orders/{po_id}/send",
+    summary="Mark a draft as sent now (gives its number; nothing is sent automatically)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.po_not_found"),
+        409: _problem("hub_ops.po_not_draft, hub_ops.po_stale"),
+        422: _problem("hub_ops.vendor_inactive, request.idempotency_mismatch"),
+    },
+)
+async def send_purchase_order(
+    po_id: uuid.UUID,
+    permit: CanWriteProcurement,
+    session: DbSession,
+    idem: Idempotent,
+    response: Response,
+    lang: Lang,
+) -> PurchaseOrderOut:
+    po = await _po(session, permit, po_id, for_update=True)
+    await purchasing.send(session, po, permit.principal.user_id)
+    out = await _po_out(session, po, lang)
+    await idem.save(200, out)
+    await session.commit()
+    set_etag(response, out.version)
+    return out
+
+
+@router.post(
+    "/purchase-orders/{po_id}/cancel",
+    summary="Cancel a draft, or a sent purchase order with nothing received",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.po_not_found"),
+        409: _problem("hub_ops.po_not_cancellable"),
+        422: _problem("request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def cancel_purchase_order(
+    po_id: uuid.UUID,
+    body: CancelIn,
+    permit: CanWriteProcurement,
+    session: DbSession,
+    idem: Idempotent,
+    response: Response,
+    lang: Lang,
+) -> PurchaseOrderOut:
+    po = await _po(session, permit, po_id, for_update=True)
+    await purchasing.cancel(session, po, body.reason)
+    out = await _po_out(session, po, lang)
+    await idem.save(200, out)
     await session.commit()
     set_etag(response, out.version)
     return out
