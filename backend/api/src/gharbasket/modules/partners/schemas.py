@@ -92,7 +92,7 @@ class ReinstateIn(BaseModel):
         return _note(value)
 
 
-# --- applications (§3.1) ------------------------------------------------------------------------
+# --- applications (§3.1) and training (§3.2) ----------------------------------------------------
 
 ApplicationStatus = Literal[
     "applied", "kyc_pending", "training", "verified", "rejected", "withdrawn"
@@ -189,3 +189,58 @@ class ApplicationReviewOut(ApplicationOut):
 
     applicant: ApplicantOut
     society: ApplicationSocietyOut | None = Field(description="Captain applications")
+
+
+class TrainingQuestion(BaseModel):
+    id: str = Field(examples=["q1"])
+    text: str
+    options: list[str] = Field(description="Answer with the option's index, from 0")
+
+
+class TrainingModuleOut(BaseModel):
+    code: str = Field(examples=["hygiene"])
+    version: int
+    title: str = Field(examples=["Kitchen hygiene"])
+    summary: str
+    minutes: int
+    video_url: str | None = Field(description="An unlisted video; null for a read-only module")
+    for_kinds: list[PartnerKind]
+    questions: list[TrainingQuestion] = Field(description="The right answers are never sent")
+    pass_score: float = Field(examples=[0.8])
+    status: Literal["todo", "passed", "failed"]
+    best_score: float | None
+    passed_at: datetime | None
+
+
+class TrainingModulesOut(BaseModel):
+    items: list[TrainingModuleOut]
+
+
+class TrainingAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: str = Field(max_length=16, examples=["q1"])
+    option: int = Field(ge=0, le=20, description="The option's index, from 0")
+
+
+class TrainingCompleteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1, le=1000, description="The module version answered")
+    answers: list[TrainingAnswer] = Field(max_length=20, description="One per question")
+
+
+class ApplicationStepOut(BaseModel):
+    id: uuid.UUID
+    status: ApplicationStatus
+    next_step: Literal["documents", "review", "training"] | None
+
+
+class TrainingResultOut(BaseModel):
+    code: str
+    score: float = Field(examples=[0.9])
+    correct: int
+    total: int
+    passed: bool = Field(description="This attempt")
+    status: Literal["passed", "failed"] = Field(description="The module: a pass is kept for good")
+    application: ApplicationStepOut | None = Field(description="Your open application, if any")

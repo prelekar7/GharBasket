@@ -298,6 +298,14 @@ POST /v1/trainings/{code}/complete     Idempotency-Key
 | 422 | `partners.answers_invalid` | A question missing or repeated, or an option out of range |
 | 429 | `partners.training_attempts_exceeded` | A sixth attempt on the same module in one IST day |
 
+**As built (training, S6 build order (b), second PR).**
+- **Content.** Placeholder modules (`app_basics`, `hygiene`, `kitchen_ops`, `captain_handover`, `rider_safety`, `packing`; five questions each) in `data/seeds/trainings/modules.json`, loaded by `just seed` (`partners.training.save_module`). Titles and summaries are in English, Hindi and Marathi; the questions are English only and fall back per field. They are marked as placeholders until Rhythm Thakur and Manish Raje write the real ones and the owner reviews them.
+- **Answers.** `option` is the option's index, from 0. Every question once, else 422 `partners.answers_invalid`.
+- **Order of checks.** Not required or unknown (404), stale version (409, which carries the current `version`), the daily limit (429), then the answers (422). Refused attempts are not counted.
+- **Passes.** The status of a module counts passes of any version, so a new version does not undo a pass; `best_score` is the best over all attempts. The requirement statuses on the application use the same rule.
+- **Required order.** The kinds of the open application first, then the partner records (not `left`), each kind's modules in the table's order, each module once. The current version is the highest active one.
+- **The data export** gains `training_attempts`.
+
 ### 3.3 Partners: verification, roles, pause and suspend (frozen for S6)
 ```
 Partner : { "id", "user_id", "kind", "hub_id",

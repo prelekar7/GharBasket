@@ -637,6 +637,50 @@
         "title": "ApplicationSocietyOut",
         "type": "object"
       },
+      "ApplicationStepOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "documents",
+                  "review",
+                  "training"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Step"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "training",
+              "verified",
+              "rejected",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "next_step"
+        ],
+        "title": "ApplicationStepOut",
+        "type": "object"
+      },
       "BudgetLockIn": {
         "additionalProperties": false,
         "properties": {
@@ -7125,6 +7169,223 @@
         "title": "Tower",
         "type": "object"
       },
+      "TrainingAnswer": {
+        "additionalProperties": false,
+        "properties": {
+          "option": {
+            "description": "The option's index, from 0",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Option",
+            "type": "integer"
+          },
+          "question_id": {
+            "examples": [
+              "q1"
+            ],
+            "maxLength": 16,
+            "title": "Question Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question_id",
+          "option"
+        ],
+        "title": "TrainingAnswer",
+        "type": "object"
+      },
+      "TrainingCompleteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "answers": {
+            "description": "One per question",
+            "items": {
+              "$ref": "#/components/schemas/TrainingAnswer"
+            },
+            "maxItems": 20,
+            "title": "Answers",
+            "type": "array"
+          },
+          "version": {
+            "description": "The module version answered",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "answers"
+        ],
+        "title": "TrainingCompleteIn",
+        "type": "object"
+      },
+      "TrainingModuleOut": {
+        "properties": {
+          "best_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Score"
+          },
+          "code": {
+            "examples": [
+              "hygiene"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "for_kinds": {
+            "items": {
+              "enum": [
+                "kitchen",
+                "captain",
+                "rider",
+                "packer"
+              ],
+              "type": "string"
+            },
+            "title": "For Kinds",
+            "type": "array"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "integer"
+          },
+          "pass_score": {
+            "examples": [
+              0.8
+            ],
+            "title": "Pass Score",
+            "type": "number"
+          },
+          "passed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed At"
+          },
+          "questions": {
+            "description": "The right answers are never sent",
+            "items": {
+              "$ref": "#/components/schemas/TrainingQuestion"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "todo",
+              "passed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "examples": [
+              "Kitchen hygiene"
+            ],
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "video_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An unlisted video; null for a read-only module",
+            "title": "Video Url"
+          }
+        },
+        "required": [
+          "code",
+          "version",
+          "title",
+          "summary",
+          "minutes",
+          "video_url",
+          "for_kinds",
+          "questions",
+          "pass_score",
+          "status",
+          "best_score",
+          "passed_at"
+        ],
+        "title": "TrainingModuleOut",
+        "type": "object"
+      },
+      "TrainingModulesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingModuleOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TrainingModulesOut",
+        "type": "object"
+      },
+      "TrainingQuestion": {
+        "properties": {
+          "id": {
+            "examples": [
+              "q1"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "options": {
+            "description": "Answer with the option's index, from 0",
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "options"
+        ],
+        "title": "TrainingQuestion",
+        "type": "object"
+      },
       "TrainingRequirement": {
         "properties": {
           "code": {
@@ -7149,6 +7410,65 @@
           "status"
         ],
         "title": "TrainingRequirement",
+        "type": "object"
+      },
+      "TrainingResultOut": {
+        "properties": {
+          "application": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationStepOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Your open application, if any"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "correct": {
+            "title": "Correct",
+            "type": "integer"
+          },
+          "passed": {
+            "description": "This attempt",
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "score": {
+            "examples": [
+              0.9
+            ],
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "description": "The module: a pass is kept for good",
+            "enum": [
+              "passed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "score",
+          "correct",
+          "total",
+          "passed",
+          "status",
+          "application"
+        ],
+        "title": "TrainingResultOut",
         "type": "object"
       },
       "UnlockOut": {
@@ -16264,6 +16584,198 @@
         "summary": "Pause or resume, or set auto-approve",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/trainings": {
+      "get": {
+        "operationId": "trainings_v1_trainings_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingModulesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The training modules you need, in the order to take them",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/trainings/{code}/complete": {
+      "post": {
+        "operationId": "complete_training_v1_trainings__code__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "pattern": "^[a-z][a-z_]*$",
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingCompleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.training_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.training_version_stale (with version)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.answers_invalid, request.idempotency_mismatch, request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.training_attempts_exceeded"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Send a module's quiz answers; scored on the server (Idempotency-Key required)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },

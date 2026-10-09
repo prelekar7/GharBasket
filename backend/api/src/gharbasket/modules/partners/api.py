@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import applications, service
+from gharbasket.modules.partners import applications, service, training
 from gharbasket.modules.partners.events import (
     APPLICATION_SUBMITTED,
     REINSTATED,
@@ -88,13 +88,17 @@ async def profile_card(session: AsyncSession, partner_id: uuid.UUID) -> ProfileC
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
-    """M8's section of the user's data export (M1 §3.3), read-only: her applications and her partner
-    records, without staff-only fields (the suspension note, who decided). Masked KYC references,
-    training results and ratings join it when they ship (S6)."""
+    """M8's section of the user's data export (M1 §3.3), read-only: her applications, her training
+    attempts and her partner records, without staff-only fields (the suspension note, who
+    decided). Masked KYC references and ratings join it when they ship (S6)."""
     return {
         "applications": [
             application.as_dict(exclude={"created_by", "decided_by", "data_source"})
             for application in await applications.for_user(session, user_id)
+        ],
+        "training_attempts": [
+            attempt.as_dict(exclude={"user_id"})
+            for attempt in await training.attempts_for_user(session, user_id)
         ],
         "partners": [
             partner.as_dict(exclude={"suspend_note", "photo_key", "data_source"})

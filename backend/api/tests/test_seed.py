@@ -176,6 +176,7 @@ def test_the_seed_command_fills_the_local_database(
         assert f"{len(SOCIETIES)} synthetic societies" in out
         assert f"{len(HOUSEHOLDS)} synthetic households" in out
         assert f"{len(CAPTAINS)} synthetic captain partners" in out
+        assert "6 partner training modules (placeholders)" in out
     finally:
         # The command commits for real, so its rows are removed here (and counted).
         removed = asyncio.run(_remove_seed_rows(local_database))

@@ -1343,6 +1343,40 @@ export interface paths {
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
         trace?: never;
     };
+    "/v1/trainings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The training modules you need, in the order to take them */
+        get: operations["trainings_v1_trainings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trainings/{code}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a module's quiz answers; scored on the server (Idempotency-Key required) */
+        post: operations["complete_training_v1_trainings__code__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet": {
         parameters: {
             query?: never;
@@ -1675,6 +1709,21 @@ export interface components {
             id: string;
             /** Name */
             name: string | null;
+        };
+        /** ApplicationStepOut */
+        ApplicationStepOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Next Step */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
         };
         /** BudgetLockIn */
         BudgetLockIn: {
@@ -4434,6 +4483,97 @@ export interface components {
              */
             label: string;
         };
+        /** TrainingAnswer */
+        TrainingAnswer: {
+            /**
+             * Option
+             * @description The option's index, from 0
+             */
+            option: number;
+            /**
+             * Question Id
+             * @example q1
+             */
+            question_id: string;
+        };
+        /** TrainingCompleteIn */
+        TrainingCompleteIn: {
+            /**
+             * Answers
+             * @description One per question
+             */
+            answers: components["schemas"]["TrainingAnswer"][];
+            /**
+             * Version
+             * @description The module version answered
+             */
+            version: number;
+        };
+        /** TrainingModuleOut */
+        TrainingModuleOut: {
+            /** Best Score */
+            best_score: number | null;
+            /**
+             * Code
+             * @example hygiene
+             */
+            code: string;
+            /** For Kinds */
+            for_kinds: ("kitchen" | "captain" | "rider" | "packer")[];
+            /** Minutes */
+            minutes: number;
+            /**
+             * Pass Score
+             * @example 0.8
+             */
+            pass_score: number;
+            /** Passed At */
+            passed_at: string | null;
+            /**
+             * Questions
+             * @description The right answers are never sent
+             */
+            questions: components["schemas"]["TrainingQuestion"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "todo" | "passed" | "failed";
+            /** Summary */
+            summary: string;
+            /**
+             * Title
+             * @example Kitchen hygiene
+             */
+            title: string;
+            /** Version */
+            version: number;
+            /**
+             * Video Url
+             * @description An unlisted video; null for a read-only module
+             */
+            video_url: string | null;
+        };
+        /** TrainingModulesOut */
+        TrainingModulesOut: {
+            /** Items */
+            items: components["schemas"]["TrainingModuleOut"][];
+        };
+        /** TrainingQuestion */
+        TrainingQuestion: {
+            /**
+             * Id
+             * @example q1
+             */
+            id: string;
+            /**
+             * Options
+             * @description Answer with the option's index, from 0
+             */
+            options: string[];
+            /** Text */
+            text: string;
+        };
         /** TrainingRequirement */
         TrainingRequirement: {
             /**
@@ -4446,6 +4586,33 @@ export interface components {
              * @enum {string}
              */
             status: "todo" | "passed" | "failed";
+        };
+        /** TrainingResultOut */
+        TrainingResultOut: {
+            /** @description Your open application, if any */
+            application: components["schemas"]["ApplicationStepOut"] | null;
+            /** Code */
+            code: string;
+            /** Correct */
+            correct: number;
+            /**
+             * Passed
+             * @description This attempt
+             */
+            passed: boolean;
+            /**
+             * Score
+             * @example 0.9
+             */
+            score: number;
+            /**
+             * Status
+             * @description The module: a pass is kept for good
+             * @enum {string}
+             */
+            status: "passed" | "failed";
+            /** Total */
+            total: number;
         };
         /**
          * UnlockOut
@@ -9752,6 +9919,128 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    trainings_v1_trainings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingModulesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    complete_training_v1_trainings__code__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrainingCompleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingResultOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_version_stale (with version) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.answers_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_attempts_exceeded */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

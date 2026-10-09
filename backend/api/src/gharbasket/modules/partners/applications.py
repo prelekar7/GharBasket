@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.partners import events
+from gharbasket.modules.partners import events, training
 from gharbasket.modules.partners.models import (
     KINDS,
     OPEN_STATUSES,
@@ -279,16 +279,19 @@ def next_step(application: Application, documents: list[dict[str, Any]]) -> str 
 
 
 async def views(session: AsyncSession, applications: list[Application]) -> dict[uuid.UUID, View]:
-    """Requirements and next step of each application. Documents and training arrive with their
-    PRs: until then every required document is missing and every module to do."""
+    """Requirements and next step of each application. Documents arrive with the KYC PR: until
+    then every required type is missing."""
+    states = await training.states_for_users(session, [a.user_id for a in applications])
     out: dict[uuid.UUID, View] = {}
     for application in applications:
         documents: list[dict[str, Any]] = [
             {"doc_type": doc_type, "status": "missing", "document_id": None, "reason": None}
             for doc_type in REQUIRED_DOCUMENTS[application.kind]
         ]
+        mine = states.get(application.user_id, {})
         trainings = [
-            {"code": code, "status": "todo"} for code in REQUIRED_TRAININGS[application.kind]
+            {"code": code, "status": mine[code].status if code in mine else "todo"}
+            for code in REQUIRED_TRAININGS[application.kind]
         ]
         out[application.id] = View(documents, trainings, next_step(application, documents))
     return out

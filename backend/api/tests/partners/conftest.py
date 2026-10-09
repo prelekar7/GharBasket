@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import UserRole
 from gharbasket.modules.identity.service import find_or_create_user
-from gharbasket.tools.seed import seed, seed_households, seed_partners, seed_societies
+from gharbasket.tools.seed import (
+    seed,
+    seed_households,
+    seed_partners,
+    seed_societies,
+    seed_trainings,
+)
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
@@ -32,6 +38,7 @@ async def partners_world(db_session: AsyncSession) -> None:
     await seed_societies(db_session)
     await seed_households(db_session)
     await seed_partners(db_session)
+    await seed_trainings(db_session)
 
 
 async def as_user(

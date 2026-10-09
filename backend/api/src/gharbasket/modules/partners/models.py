@@ -1,27 +1,32 @@
 """Tables of M8 Partner Network. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 The partner core (spec §3.3, build order (a)): one `partners` row per verified person and kind.
-Applications (§3.1): `applications`. KYC documents, training, kitchens, assignments, ratings and the
-rate card follow in S6 (spec §4).
+Applications and training (§3.1, §3.2): `applications`, `training_modules` and
+`training_attempts`. KYC documents, kitchens, assignments, ratings and the rate card follow in S6
+(spec §4).
 """
 
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
     Uuid,
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gharbasket.platform.db import Base
@@ -159,3 +164,52 @@ class Application(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class TrainingModule(Base):
+    """One version of a short training module and its quiz (§3.2). Seed data: texts per locale
+    (en, hi, mr; a missing text falls back to English) and the answers, which are never sent."""
+
+    __tablename__ = "training_modules"
+    __table_args__ = (
+        CheckConstraint("pass_score > 0 AND pass_score <= 1", name="pass_score"),
+        CheckConstraint("minutes BETWEEN 1 AND 120", name="minutes"),
+        CheckConstraint("version >= 1", name="version"),
+        {"schema": SCHEMA},
+    )
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    version: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    for_kinds: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
+    required: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    minutes: Mapped[int] = mapped_column(SmallInteger)
+    # {"en": {"title", "summary", "questions": [{"id", "text", "options": [...]}]}, "hi": …}
+    texts: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    # {"en": "https://…", …}: an unlisted video per locale; null for a read-only module.
+    video_url: Mapped[dict[str, str] | None] = mapped_column(JSONB)
+    # {"q1": 2, …}: the index of the right option per question. Never returned.
+    answers: Mapped[dict[str, int]] = mapped_column(JSONB)
+    pass_score: Mapped[Decimal] = mapped_column(Numeric(3, 2))
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+
+
+class TrainingAttempt(Base):
+    """One quiz attempt (§3.2), per user rather than per partner, because training starts before
+    the partner exists. Her pass of a module is her first passed attempt."""
+
+    __tablename__ = "training_attempts"
+    __table_args__ = (
+        CheckConstraint("score >= 0 AND score <= 1", name="score"),
+        Index("ix_training_attempts_user_id_module_code_at", "user_id", "module_code", "at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    module_code: Mapped[str] = mapped_column(String(32))
+    module_version: Mapped[int] = mapped_column(SmallInteger)
+    score: Mapped[Decimal] = mapped_column(Numeric(4, 3))
+    passed: Mapped[bool] = mapped_column(Boolean)
+    # [{"question_id", "option"}] as sent.
+    answers: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
