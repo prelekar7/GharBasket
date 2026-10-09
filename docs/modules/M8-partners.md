@@ -1,6 +1,6 @@
 # M8 — Partner Network
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) has a frozen shape, but the rates are refined at its PR. §3.7 (payouts and the income certificate) is an outline, refined after MS-B.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7 (payouts and the income certificate) is an outline, refined after MS-B.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S6 (the partner core in S5, see the build order)
 **Postgres schema:** `partners` · **Python package:** `gharbasket.modules.partners`
@@ -14,7 +14,7 @@ What M8 does **not** do:
 - **Rider pickups.** It does not route riders or move orders past `packed` (M7).
 
 **Build order:**
-- (a) **Partner core, in S5 with M9's captains and before M7:** `partners.partners`, `partners.api.get_partner` / `profile_card`, and seeded verified captain partners (synthetic), so M9 can appoint and M7 can hand over before applications exist.
+- (a) **Partner core, in S5 with M9's captains and before M7** (confirmed by the owner, 2026-10-09): `partners.partners`, `partners.api.get_partner` / `profile_card`, and seeded verified captain partners (synthetic), so M9 can appoint and M7 can hand over before applications exist.
 - (b) **Applications, KYC, training, review and verification** (§3.1–§3.3).
 - (c) **Kitchens, capacity and tiffin assignments** (§3.4).
 - (d) **Ratings and the card** (§3.5).
@@ -25,7 +25,7 @@ What M8 does **not** do:
 ## 2. User stories
 | # | Story | Acceptance criteria |
 |---|---|---|
-| US-1 | As a customer, I want to apply to become a Society Captain, kitchen partner, rider or packer from the app so that I can earn. | One open application at a time; the society or hub is filled in from my household; status `applied`. |
+| US-1 | As a customer, I want to apply to become a Society Captain, kitchen partner, rider or packer from the app so that I can earn. | One open application at a time; the society or hub is filled in from my household; status `applied`. A rider or packer without a household gets the application created by a hub manager. |
 | US-2 | As an applicant, I want to upload KYC documents securely so that I can be verified. | Private uploads (M0 `kyc_document`); numbers stored encrypted and shown masked; FSSAI number for kitchens; bank checked by a simulated penny drop; Aadhaar refused. |
 | US-3 | As an applicant, I want short training modules with a quiz so that I learn hygiene and procedures. | Score and pass recorded per module; the answers are checked on the server. |
 | US-4 | As a hub manager, I want to review applications so that only trained, verified people operate. | Approve, ask for a document again, or reject with a reason; audit-logged. Approval plus passed training gives `partners.verified`, and the role appears in the role switcher. |
@@ -41,6 +41,7 @@ What M8 does **not** do:
 | Method | Path | Permission / role | Idempotency | Notes |
 |---|---|---|---|---|
 | POST | `/v1/partner-applications` | customer | Required | §3.1 |
+| POST | `/v1/hubs/{id}/partner-applications` | hub_manager (hub), admin | Required | §3.1; a rider or packer without a household |
 | GET | `/v1/partner-applications/me` | Authenticated | — | §3.1; the open application, else the latest |
 | GET | `/v1/partner-applications/{id}` | applicant (own), hub_manager (hub), admin | — | §3.1 |
 | POST | `/v1/partner-applications/{id}/withdraw` | applicant (own) | Required | §3.1 |
@@ -68,7 +69,7 @@ What M8 does **not** do:
 | POST | `/v1/ratings` · GET `/v1/ratings?order_id=` | customer (own order) | Required (POST) | §3.5 |
 | GET | `/v1/earnings?week=` | partner (own) | — | §3.6, from `billing.api` |
 | GET / PUT | `/v1/hubs/{id}/partner-rates` | hub_manager, franchise_owner (hub, read), admin (write) | — | §3.6 |
-| POST | `/v1/internal/jobs/assign_kitchens` · `assignment_acceptance_timeout` · `prompt_tiffin_ratings` | operator token | — | §6 |
+| POST | `/v1/internal/jobs/assign_kitchens` · `assignment_acceptance_timeout` · `refund_unassigned_tiffins` · `prompt_tiffin_ratings` | operator token | — | §6 |
 
 The old `/v1/partners/{id}/public` becomes `/v1/partners/{id}/card`. `GET /v1/trainings` with `POST …/complete` and the kitchen endpoints replace the draft's rows.
 
@@ -107,6 +108,14 @@ POST /v1/partner-applications          customer; Idempotency-Key
         is 422 partners.captain_not_resident). Others: the household's hub (sending another hub
         is 422 partners.scope_invalid).
         display_name defaults to the M1 name; 422 partners.display_name_invalid if neither exists.
+POST /v1/hubs/{id}/partner-applications     hub_manager (hub), admin; Idempotency-Key
+  request : { "kind": "rider" | "packer", "phone_e164": "+919812345678", "display_name": "Ravi" }
+  201 : Application                      status applied, scope the hub; for a rider or packer
+        without a household (owner, 2026-10-09). The phone must belong to a signed-up user (the
+        person signs in to the app once with OTP), else 422 partners.user_not_found; kitchen or
+        captain is 422 partners.kind_invalid. Audit-logged; publishes
+        partners.application_submitted. The person then uploads documents and takes training from
+        the app, as for any application.
 GET  /v1/partner-applications/me       200 Application (the open one, else the latest)
                                        | 404 "partners.application_not_found"
 GET  /v1/partner-applications/{id}     200 Application & { "documents": [ KycDocument ] } for the
@@ -116,11 +125,10 @@ POST /v1/partner-applications/{id}/withdraw     applicant; Idempotency-Key
 
 KycDocumentIn : {
   "application_id": "<uuid>",
-  "doc_type": "id_proof" | "pan" | "bank" | "fssai" | "driving_licence" | "kitchen_photos"
-            | "society_proof",
+  "doc_type": "id_proof" | "pan" | "bank" | "fssai" | "driving_licence" | "kitchen_photos",
   "id_kind": "voter_id" | "passport" | "driving_licence",       id_proof only; never Aadhaar
   "number": "ABCDE1234F",               id_proof, pan, bank (account number), fssai,
-                                        driving_licence; absent for photos and society_proof
+                                        driving_licence; absent for photos
   "ifsc": "SBIN0001234", "account_holder": "Meena Patil",       bank only
   "valid_until": "2028-03-31",          fssai and driving_licence; must be in the future
   "vehicle_no": "MH46AB1234",           driving_licence, riders only
@@ -147,7 +155,7 @@ POST /v1/kyc-documents                 applicant; Idempotency-Key
 | Kind | Required documents | Required training |
 |---|---|---|
 | `kitchen` | `id_proof`, `pan`, `bank`, `fssai`, `kitchen_photos` | `app_basics`, `hygiene`, `kitchen_ops` |
-| `captain` | `id_proof`, `pan`, `bank`, `society_proof` | `app_basics`, `captain_handover` |
+| `captain` | `id_proof`, `pan`, `bank` | `app_basics`, `captain_handover` |
 | `rider` | `id_proof`, `driving_licence`, `bank` | `app_basics`, `rider_safety` |
 | `packer` | `id_proof`, `bank` | `app_basics`, `hygiene`, `packing` |
 
@@ -155,7 +163,6 @@ A document type that is not on the kind's list gets 422 `partners.doc_type_inval
 
 **Files and numbers by type:**
 - `kitchen_photos`: 2 to 4 files.
-- `society_proof`: 1 or 2 files (a maintenance bill or a letter from the society office).
 - Every other type: 0 to 2 files (for example, a photo of the card).
 
 **Application status** (handbook 06 §6.6, in lower case):
@@ -164,11 +171,11 @@ A document type that is not on the kind's list gets 422 `partners.doc_type_inval
 - **Decision.** The hub manager decides (below).
 - **Ending.** The applicant may withdraw at any time before `verified`. A rejected or withdrawn application is final; the person may apply again with a new application.
 - **One open application per person** (`applied`, `kyc_pending` or `training`), as the app's mock already assumes. A person who is already a partner of a kind (any status except `left`) cannot apply for that kind again: 409 `partners.already_applied`, which carries `application_id` or `partner_id`. Verified partners may apply for another kind.
-- **Applicants need a household.** The society and hub come from it. Without one: 422 `partners.household_required`. A society with no hub yet: 422 `partners.no_hub`.
-- **Captains apply for their own society.** Captains live in the society they serve (M9 §3.1), so the requested society is always the caller's own. It is a request, not an appointment (ADR-0026 §4). An application for a society that already has an active captain is still accepted, and the review queue shows that the society is taken.
+- **Applicants need a household.** The society and hub come from it. Without one: 422 `partners.household_required`. A society with no hub yet: 422 `partners.no_hub`. **Except** riders and packers without a household: a hub manager creates their application with `POST /v1/hubs/{id}/partner-applications` (owner, 2026-10-09); the one-open-application rule and `partners.already_applied` apply as above.
+- **Captains apply for their own society.** Captains live in the society they serve (M9 §3.1), so the requested society is always the caller's own. Residency is the household's society; the prototype asks for no proof of it (no `society_proof` document; owner, 2026-10-09). It is a request, not an appointment (ADR-0026 §4). An application for a society that already has an active captain is still accepted, and the review queue shows that the society is taken.
 
 **KYC rules** (handbook 13 §13.4 and §13.8):
-- **No Aadhaar, ever.** `id_kind` cannot be Aadhaar, and any 12-digit number given as an ID or licence number is refused with 422 `partners.aadhaar_not_accepted`, before anything is stored. Hub staff are told not to accept an Aadhaar image as `society_proof`.
+- **No Aadhaar, ever.** `id_kind` cannot be Aadhaar, and any 12-digit number given as an ID or licence number is refused with 422 `partners.aadhaar_not_accepted`, before anything is stored.
 - **Formats** (422 `partners.number_invalid`, with `field`):
   - PAN: `^[A-Z]{5}[0-9]{4}[A-Z]$`.
   - Voter ID: `^[A-Z]{3}[0-9]{7}$`.
@@ -194,7 +201,7 @@ A document type that is not on the kind's list gets 422 `partners.doc_type_inval
   No endpoint decrypts. The only decryption is `partners.api.payout_account` for M5's payouts (§3.7), and each call is audit-logged. The FSSAI registration number is public by law, so it is stored in clear on the kitchen (§3.4).
 - **Files.**
   - **Claiming.** Each key must be the caller's own `kyc_document` upload with an object behind it (`platform.files.verify` and `claim` in the same transaction); otherwise 422 `partners.file_key_invalid`.
-  - **Reading.** Hub managers of the application's hub and admins read files only through `POST /v1/kyc-documents/{id}/file-links`, which answers `{ "files": [ { "url", "content_type", "expires_at" } ] }` (5-minute signed GETs). Every call writes `platform.audit_log` (action `kyc.file_read`). The applicant never reads the files back.
+  - **Reading.** Hub managers of the application's hub and admins read files only through `POST /v1/kyc-documents/{id}/file-links`, which answers `{ "files": [ { "url", "content_type", "expires_at" } ] }` (5-minute signed GETs). Every call writes `platform.audit_log` (action `kyc.file_read`). The applicant never reads the files back. Decided by the owner (2026-10-09): admins and the hub managers of the application's hub, nobody else (M0 §3.1 changes, §10).
   - **Retention** (M0 §3.1). `delete_after` is set to 30 days after the application is rejected or withdrawn, the document is superseded, or the partner leaves.
 
 **Review** (`POST /v1/partner-applications/{id}/decision`, hub_manager of the application's hub or admin; Idempotency-Key; every decision goes to `platform.audit_log` with the document review states):
@@ -228,7 +235,8 @@ ApplicationReview : Application & {
 |---|---|---|
 | 404 | `partners.application_not_found` | No application yet (`/me`), an unknown id, or someone else's |
 | 409 | `partners.already_applied` | An open application exists, or the caller is already this kind of partner (carries `application_id` or `partner_id`) |
-| 422 | `partners.kind_invalid` | Not one of the four kinds |
+| 422 | `partners.kind_invalid` | Not one of the four kinds, or `kitchen` or `captain` on a hub-created application |
+| 422 | `partners.user_not_found` | A hub-created application whose phone belongs to no signed-up user |
 | 422 | `partners.household_required` | The caller has no household |
 | 422 | `partners.no_hub` | The household's society has no hub yet |
 | 422 | `partners.captain_not_resident` | A captain `scope_id` that is not the caller's own society |
@@ -271,7 +279,7 @@ POST /v1/trainings/{code}/complete     Idempotency-Key
 - **Scoring.** Scored on the server; `passed` when `score ≥ pass_score`. A pass is kept for good: later attempts never undo it. The best score is shown.
 - **Attempts.** Up to 5 per module per IST day (429 `partners.training_attempts_exceeded`). A `version` other than the current one gets 409 `partners.training_version_stale`, and the app reloads the module.
 - **When.** Training is open from `applied` onwards, so it can run in parallel with document review. A pass that completes the requirements of an application already approved by the hub manager verifies it in the same transaction (§3.1). Partners can retake modules at any time, for example after a new version.
-- **Content.** Modules are seed data (`partners.training_modules`, code, version, texts per locale, answers). They are written by Rhythm Thakur and Manish Raje and reviewed by the owner. English is required; Hindi and Marathi texts fall back to English until translated.
+- **Content** (owner, 2026-10-09). Short modules, written by Rhythm Thakur and Manish Raje in English, Hindi and Marathi and reviewed by the owner. They are seed data (`partners.training_modules`, code, version, texts per locale, answers). A text missing in a locale falls back to English.
 
 | Status | Code | When |
 |---|---|---|
@@ -283,8 +291,8 @@ POST /v1/trainings/{code}/complete     Idempotency-Key
 ### 3.3 Partners: verification, roles, pause and suspend (frozen for S6)
 ```
 Partner : { "id", "user_id", "kind", "hub_id",
-            "display_name": "Meena tai", "photo_url": "<5-minute link>" | null,   null until M0 has
-                                                       a partner_photo purpose (§11)
+            "display_name": "Meena tai", "photo_url": null,   always null for now; a partner_photo
+                                                       upload purpose comes later (§11)
             "status": "active" | "paused" | "suspended" | "left",
             "rating": { "average": 4.6, "count": 23 } | null,   kitchens; null under 5 ratings
             "verified_at", "suspension": { "at", "reason_code", "note" } | null, "version" }
@@ -401,7 +409,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
   - A tiffin order needs the skills of its tiffin products: the product tags that are skill codes, from `catalog.api`.
   - A kitchen can take an order when:
     - her skills include all of the order's skills;
-    - her rating is at least the floor (3.8; kitchens with fewer than 5 ratings count as 4.5, the ML default);
+    - her rating is at least the floor (3.8; kitchens with fewer than 5 ratings count as 4.5, the ML default; both confirmed by the owner, 2026-10-09);
     - she is within `max_km` (5 km) of the order's society point;
     - her capacity left for that date and meal covers the order's portions.
   - Portions are the order's tiffin line quantities (one step = one portion).
@@ -437,6 +445,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 
   No new round starts after T 00:00, so the last offers expire at T 00:30. A hub manager can run a round at any time (`POST /v1/hubs/{id}/tiffin-assignments/run { "date" }` → `{ "run_id", "offers": 3, "unassigned": 1 }`).
 - **Manual assignment** (`POST /v1/hubs/{id}/tiffin-assignments/manual { "date", "order_ids", "partner_id", "note" }`). The hub manager agreed with the kitchen by phone. It creates an `accepted` assignment (`source: manual`) and may exceed capacity (the answer carries `over_capacity: true`). It is allowed until the meal's `ready_by` minus 2 hours, and is audit-logged. Orders that are not locked tiffins of the hub and date, or that are already in a live assignment, get 409 `partners.order_not_assignable` (`order_ids`).
+- **Tiffins no kitchen takes** (owner, 2026-10-09). A locked tiffin order that still has no live assignment when manual assignment closes (the meal's `ready_by` minus 2 hours) is refunded in full. The `refund_unassigned_tiffins` job calls `orders.api.transition(order, "refunded", actor="system", payload={"reason": "no_kitchen"})`: a new M4 move `locked → refunded`, tiffin only, that pays the whole paid total back through `billing.api.refund_to_wallet`. This amends ADR-0026 §3 (and §2's transition table); it is an M4 follow-up (§10). The hub managers already know from `partners.tiffins_unassigned`; the household is told by the refund's `billing.refund_issued`.
 - **Cooking.**
   - **Start** (from `accepted`, from T 00:00 onwards): calls `orders.api.transition(order, "picking", actor="kitchen", actor_user_id=…)` for each order. The order shows "Being cooked".
   - **Ready** needs every checklist item true (422 `partners.checklist_incomplete`). For each listed order it moves `locked → picking` if start was skipped, then `picking → packed` (actor `kitchen`). M4 publishes `orders.packed` with `kind: tiffin`.
@@ -467,7 +476,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
-KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": "<5-minute link>" | null,
+KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": null,   null for now (§11)
                 "area": "Sector 20, Kharghar", "since": "2026-12",       month of verification
                 "fssai_reg_no": "11521999000123", "fssai_valid_until": "2028-03-31",
                 "hygiene": { "grade": "A", "inspected_on": "2026-12-20" } | null,
@@ -485,13 +494,13 @@ POST /v1/ratings     customer; Idempotency-Key
 GET  /v1/ratings?order_id=      200 Rating | 404 "partners.rating_not_found"   own orders only
 ```
 
-- **The card.** The app reads `OrderOut.kitchen.partner_id` (M4, ADR-0026 §3) and fetches the card. `photo_url` is a 5-minute signed GET minted on each read.
+- **The card.** The app reads `OrderOut.kitchen.partner_id` (M4, ADR-0026 §3) and fetches the card. `photo_url` is null for now (owner, 2026-10-09); when M0 gains a `partner_photo` purpose later, it becomes a 5-minute signed GET minted on each read.
 - **Who can rate.** Only the household owner of a tiffin order that M8 has a kitchen for, from `delivered` until 48 hours after it (the same window as order issues). Outside it: 409 `partners.rating_window_closed`. A second rating for the same order is 409 `partners.rating_exists`. Not the caller's order, or not a tiffin: 404 `partners.rating_not_found`.
 - **The kitchen's rating.** The mean of her last 50 ratings, recomputed in the same transaction. It is shown from 5 ratings on, and it feeds the rating floor (§3.4).
 - **Prompt.** A rating prompt goes out at T 14:30 (`prompt_tiffin_ratings`), which publishes `partners.rating_requested { order_id, household_id, partner_id }` for M11.
 - **Captains are not rated in v1.** A captain's public face is M9's card `{ display_name, photo_url }`, which M9 builds from `partners.api.profile_card`.
 
-### 3.6 Earnings (view frozen for S6; rates refined at its PR)
+### 3.6 Earnings (frozen for S6)
 Money stays in M5's ledger. M8 only decides **who earns what for which event**, from its rate card, and asks M5 to post it.
 
 ```
@@ -499,7 +508,7 @@ EarningsWeek : {
   "week": "2027-W02", "from": "2027-01-11", "to": "2027-01-17",       ISO week, Monday–Sunday, IST
   "total_paise": 72600,
   "by_kind": [ { "kind": "kitchen", "basis": "tiffin_portion", "units": 118, "amount_paise": 70800 },
-               { "kind": "captain", "basis": "handover", "units": 30, "amount_paise": 1800 } ],
+               { "kind": "captain", "basis": "bag_delivered", "units": 30, "amount_paise": 1800 } ],
   "days": [ { "date": "2027-01-11", "amount_paise": 9600 } ],          7 entries, zeros included
   "entries": [ { "id", "kind", "basis", "units": 2, "amount_paise": 12000,
                  "ref": { "type": "order", "id", "delivery_date" }, "at" } ],   newest first
@@ -515,12 +524,12 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
                                    "valid_from" } ] }; valid_from today or later; audit-logged
 ```
 
-**What earns** (one basis per kind in v1; amounts are the proposals to confirm, §11):
+**What earns** (one basis per kind in v1). The rates were decided by the owner on 2026-10-09: they are seeded as every hub's rate card, and an admin can change them per hub with `PUT /v1/hubs/{id}/partner-rates`. Riders and packers earn per order, not a fixed wage; a captain earns per bag when it is delivered, not at the handover.
 
-| Kind | Basis | Event (consumed by M8) | Units | Proposed rate |
+| Kind | Basis | Event (consumed by M8) | Units | Rate |
 |---|---|---|---|---|
 | kitchen | `tiffin_portion` | `orders.delivered`, kind `tiffin`; the kitchen of the order's assignment | portions | ₹60 (the `paise_per_portion` M10 uses) |
-| captain | `handover` | `orders.at_society` with `actor: captain`; the captain partner of `actor_user_id` | 1 per order | ₹6 (M5 §11 proposed ₹5–8) |
+| captain | `bag_delivered` | `orders.delivered`, kind `box` or `addon`, with `actor: captain`; the captain partner of `actor_user_id` | 1 per bag (one bag per order) | ₹6 |
 | rider | `dispatched_order` | `orders.dispatched` with `actor: rider`; the rider partner of `actor_user_id` | 1 per order | ₹8 |
 | packer | `packed_order` | `orders.packed` with `actor: packer` | 1 per order | ₹4 |
 
@@ -530,7 +539,7 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 - **Statements.** The weekly statement and payouts are M5's (§3.7). The draft's M8 job `weekly_earnings_statement` is dropped.
 
 ### 3.7 Payouts and the income certificate (outline; after MS-B)
-- M5's `weekly_payouts` (Monday 10:00 IST, test mode) pays each partner's payable balance when `partners.api.payout_eligible(partner_id)` holds: status `active` or `paused`, a `bank` document `accepted` with `penny_drop_ok`, not suspended. Otherwise the payout is `held` with the reason.
+- M5's `weekly_payouts` (Monday 10:00 IST) pays each partner's payable balance through M5's simulated payout provider (no real money moves in the prototype; owner, 2026-10-09) when `partners.api.payout_eligible(partner_id)` holds: status `active` or `paused`, a `bank` document `accepted` with `penny_drop_ok`, not suspended. Otherwise the payout is `held` with the reason.
 - The account details come only from `partners.api.payout_account(partner_id)`, which decrypts and is audit-logged.
 - Income certificate: `GET /v1/earnings/certificate?from=&to=` (PDF of the ledger totals per month, for loans). Refined with M5's statement PDF.
 
@@ -546,7 +555,7 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `partners.applications` | id (uuidv7), user_id, kind, scope_type (society, hub), scope_id, hub_id, display_name, status (applied, kyc_pending, training, verified, rejected, withdrawn), docs_approved_at, decided_by, decided_at, reason, partner_id null, verified_at, data_source, version, created_at, updated_at; partial unique (user_id) where status in (applied, kyc_pending, training) |
+| `partners.applications` | id (uuidv7), user_id, kind, scope_type (society, hub), scope_id, hub_id, display_name, created_by null (the hub manager who created it for a rider or packer without a household), status (applied, kyc_pending, training, verified, rejected, withdrawn), docs_approved_at, decided_by, decided_at, reason, partner_id null, verified_at, data_source, version, created_at, updated_at; partial unique (user_id) where status in (applied, kyc_pending, training) |
 | `partners.kyc_documents` | id, application_id → applications, user_id, doc_type, id_kind null, number_enc bytea null (`pgp_sym_encrypt`), key_version, number_masked null, number_hash bytea null (HMAC; indexed), fssai_reg_no null, details jsonb (ifsc, valid_until, vehicle_no; no numbers), file_keys text[], check_status, check_code, checked_at, review_status (pending, accepted, rejected), review_reason, reviewed_by, reviewed_at, superseded_by null, created_at |
 | `partners.training_modules` | code, version, for_kinds text[], required, minutes, texts jsonb (per locale: title, summary, questions, options), video_url jsonb, answers jsonb (never returned), pass_score, active; primary key (code, version) |
 | `partners.training_attempts` | id, user_id, module_code, module_version, score numeric(4,3), passed, answers jsonb, at; the pass of a user and module is the first passed attempt |
@@ -576,10 +585,9 @@ Foreign keys stay inside `partners`. `user_id`, `hub_id`, `order_id`, `slot_id`,
 No event carries KYC data, a number (masked or not), an address or a phone.
 
 **Consumed:**
-- `orders.delivered` (kind `tiffin` → assignment order status, completion, kitchen earning)
+- `orders.delivered` (kind `tiffin` → assignment order status, completion, kitchen earning; kind `box` or `addon` with actor `captain` → captain earning)
 - `orders.delivery_failed` (kind `tiffin` → status, completion)
 - `orders.dispatched` (kind `tiffin` → `picked_up`; actor `rider` → rider earning)
-- `orders.at_society` (actor `captain` → captain earning)
 - `orders.packed` (actor `packer` → packer earning)
 - `identity.user_deleted` (§3.3)
 
@@ -590,6 +598,7 @@ The draft's `intel.assignment_ready` is dropped: the assignment is a synchronous
 |---|---|---|
 | `assign_kitchens` | T-1 21:30 (cron-job.org → `POST /v1/internal/jobs/assign_kitchens`) | Round 1 for every active hub, both meals of T; ML with greedy fallback; idempotent per order (§3.4) |
 | `assignment_acceptance_timeout` | Every 15 min, T-1 21:45 → T 00:30 (cron-job.org) | Expires offers past `respond_by` (22:30 for round 1), then runs the next round for released and late-locked orders; no new round after T 00:00 |
+| `refund_unassigned_tiffins` | T 09:30 for lunch (`ready_by` 11:30 − 2 h), and `ready_by` − 2 h for a dinner slot (cron-job.org) | Locked tiffins of the meal with no live assignment → `refunded` in full (actor `system`, reason `no_kitchen`; §3.4) |
 | `prompt_tiffin_ratings` | T 14:30 (cron-job.org) | `partners.rating_requested` for lunch tiffins delivered today and not yet rated |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day T follows from it), not the run time (ADR-0021, ADR-0025). The weekly statement and payouts are M5's jobs (§3.7).
@@ -597,7 +606,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 ## 7. Permissions
 | Permission | Roles (scope) |
 |---|---|
-| `partner_applications:write` | customer (own) |
+| `partner_applications:write` | customer (own); hub_manager (hub), admin for a rider or packer without a household |
 | `partner_applications:review` | hub_manager (hub), admin |
 | `kyc_files:read` | hub_manager (hub), admin (every read audit-logged) |
 | `trainings:take` | any signed-in user with an open application or a partner record (own) |
@@ -639,6 +648,8 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 ## 9. Tests required
 - **Applications (§3.1):**
   - household-derived scope;
+  - a hub manager creates a rider or packer application for a signed-up user without a household; `kitchen` or `captain` and an unknown phone are refused;
+  - a captain needs no `society_proof`, and the document type is refused;
   - a captain for another society is refused;
   - one open application per person, but another kind after verification;
   - the same key replays;
@@ -680,7 +691,8 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - an incomplete checklist is refused;
   - ready with start skipped moves both steps;
   - an order moved by the hub gives `orders.illegal_transition` and leaves the assignment unchanged;
-  - completion from delivery events.
+  - completion from delivery events;
+  - a locked tiffin still unassigned at `ready_by` − 2 h is refunded in full once, with reason `no_kitchen`; an assigned one is not.
 - **Capacity:** the default and override; locked after T-1 21:00; a paused kitchen counts as 0.
 - **Card and ratings (§3.5):**
   - the card never contains address, location or phone;
@@ -688,6 +700,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - the average is shown from 5 ratings.
 - **Earnings (§3.6):**
   - each basis posts once per order, even when the event is delivered twice;
+  - a captain earns on `delivered` with actor `captain`, not on `at_society`, and nothing for a rider-mode delivery;
   - no earning for `hub` or `system` actors;
   - the rate is the one valid on the delivery date;
   - the week view sums equal the ledger (against M5's facade).
@@ -711,6 +724,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - On `community.captain_assigned`, grant `captain:<society>`; on `community.captain_ended`, revoke it. This needs a `revoked` role status, or deleting the row.
   - `ROLE_STATUSES` drops `applied` and `kyc_pending`: application status lives in M8.
   - New facade `identity.api.household_location(user_id)` (the pin, else None) for a kitchen's default location; names and phones for hub staff.
+  - New facade `identity.api.user_by_phone(phone_e164) -> user_id | None`, for hub-created rider and packer applications.
   - The data export gains the `partners` section (`partners.api.export_for_user`) and M9's captain appointments.
   - Fix §5's "Consumed": the captain role comes from M9's events (ADR-0026 §4).
 - **M3.** `CycleOut.captain` becomes `{ display_name, photo_url } | null`, read through `community.api.captain_card` (ADR-0026 §4).
@@ -719,7 +733,8 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - `orders_for_delivery` returns tiffin lines and `slot_id`;
   - `get_order_ref(order_id)` returns `{ household_id, owner_user_id, kind, status, delivered_at }` for ratings;
   - `POST /v1/orders` (direct tiffin orders, P3) must exist for a tiffin day;
-  - the no-kitchen refund path (§11, question 1).
+  - the move `locked → refunded` for tiffins (actor `system`, `payload.reason: "no_kitchen"`, a full refund through `billing.api.refund_to_wallet`; owner, 2026-10-09, §3.4).
+- **ADR-0026.** Amended with the M4 change above: §3's tiffin table gains `locked → refunded` (system, no kitchen took the order), and §2's transition table the same move.
 - **M5.** New facade functions:
   - `accrue_partner_earning(…)` (journal kind `earning`, partner expense → `partner_payable:<partner>`, keyed `earning:<partner>:<basis>:<order>`);
   - `partner_earnings(session, user_id, from, to)`;
@@ -727,7 +742,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - `payout_status(session, user_id, week)`.
 
   Also: drop the consumption of `orders.delivered` for captain commission and of `partners.assignment_completed` for earnings (M8 posts them); `weekly_payouts` reads `partners.api.payout_eligible` and `payout_account`; the partner part of `/v1/statements`.
-- **M0.** A `partner_photo` purpose if question 3 is approved; KYC file reads by the hub manager of the application's hub (question 4).
+- **M0.** §3.1: KYC files are read by admins and by the hub managers of the application's hub, every link audit-logged (owner, 2026-10-09). A `partner_photo` purpose comes later, not in S6.
 - **M2.** Tiffin products carry skill tags, and `catalog.tiffin_menus` is per hub rather than per partner: fair assignment chooses the kitchen, not the customer.
 - **M7.** Tiffin pickups through `partners.api.tiffin_pickups` and `pickup` (the `GB1A:` QR); `logistics.handovers.captain_id` becomes the captain's `user_id` from `community.api.captain_for_society`.
 - **M9** (outside §3.2). `community.api.society_points(society_ids)` (centroid, else the hub location) for assignment distances.
@@ -758,13 +773,13 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - order locations are society points, never the customer's pin;
   - the FSSAI number is stored and shown in clear (public by law), while every other KYC number is encrypted and masked;
   - the earnings mirror table is dropped (the ledger is the only record).
-- **Open, for the owner:**
-  1. **Tiffins no kitchen takes.** Orders still unassigned after the last round (T 00:30), and not assigned by hand before the meal, have no path in ADR-0026: a `locked` tiffin can only go forward. Recommendation: an M4 move `locked → refunded` (actor `system`, tiffin only, `reason: no_kitchen`, full refund through `billing.api.refund_to_wallet`), run by a new M8 job at `ready_by` minus 2 h. This amends ADR-0026 §3 and M4.
-  2. **Rates** (§3.6): kitchen ₹60 a portion, captain ₹6 a handover, rider ₹8 an order, packer ₹4 an order. Should riders and packers earn per event at all, or are they hub staff on a fixed wage? Should captains earn on `at_society` (as ADR-0026 says) or on `delivered`?
-  3. **Partner photos.** The captain card and the cook card have `photo_url`, but M0 has no `partner_photo` purpose. Add one in S6 (images, 2 MB, kept until the partner leaves + 30 days), or ship `photo_url: null` until later?
-  4. **Who sees KYC files.** M0 §3.1 says admins only. This spec lets the hub manager of the application's hub open them too, audit-logged, because W7 has the hub manager review documents. Confirm, and M0 §3.1 changes.
-  5. **Applicants need a household.** Riders and packers who are not customers would have to onboard as a household first. Alternative: a hub manager creates the application for them in the console.
-  6. **Captain requirements.** Residency in the requested society, plus `society_proof` as a required document. Keep both?
-  7. **The partner core in S5** (build order (a)): seeded verified captain partners so that M9 and M7 work before applications exist. Confirm.
-  8. Training content source and languages (videos in Hindi and Marathi).
-  9. **The rating floor** (3.8, the ML default) and the 4.5 used for kitchens with fewer than 5 ratings.
+- **Decided by the owner (2026-10-09):**
+  1. ~~Tiffins no kitchen takes: orders still unassigned after the last round have no path in ADR-0026.~~ Decided: a new M4 move `locked → refunded` (actor `system`, tiffin only, reason `no_kitchen`, a full refund), run by the `refund_unassigned_tiffins` job at `ready_by` minus 2 h (§3.4, §6). It amends ADR-0026 §3; M4 and ADR-0026 follow-ups in §10.
+  2. ~~Rates: should riders and packers earn per event, and should captains earn on `at_society` or on `delivered`?~~ Decided: as drafted, kitchen ₹60 a portion, captain ₹6 a bag paid at `delivered`, rider ₹8 and packer ₹4 an order; editable per hub through the rate card; payouts are simulated (§3.6, §3.7).
+  3. ~~Partner photos: a `partner_photo` purpose in S6, or `photo_url: null`?~~ Decided: `photo_url` is null for now; an upload purpose comes later (§3.3, §3.5).
+  4. ~~Who sees KYC files?~~ Decided: admins and the hub managers of the application's hub; every link is audit-logged; M0 §3.1 changes (§3.1, §10).
+  5. ~~Riders and packers without a household?~~ Decided: a hub manager can create the application for them (`POST /v1/hubs/{id}/partner-applications`, §3.1).
+  6. ~~Captain requirements: residency plus `society_proof`?~~ Decided: a captain must live in the society; no proof upload in the prototype, so `society_proof` is dropped (§3.1).
+  7. ~~The partner core in S5?~~ Decided: the partner core table and seeded verified captains come in S5, so M9's captains and M7's handover work before applications exist (build order (a)).
+  8. ~~Training content source and languages?~~ Decided: short modules in English, Hindi and Marathi, written by Rhythm Thakur and Manish Raje (§3.2).
+  9. ~~The rating floor and the default for unrated kitchens?~~ Decided: floor 3.8; kitchens with fewer than 5 ratings count as 4.5 (§3.4).

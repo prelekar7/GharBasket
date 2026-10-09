@@ -94,8 +94,8 @@ POST /v1/society-requests     (customer; Idempotency-Key required)
 ```
 Captain : { "id": "<uuid>", "society_id", "hub_id",
             "user_id", "partner_id",
-            "display_name": "Meena tai", "photo_url": "<5-minute link>" | null,   from M8
-                                                      (partners.api.profile_card)
+            "display_name": "Meena tai", "photo_url": null,   from M8 (partners.api.profile_card);
+                                                      null for now (below)
             "status": "active" | "ended",
             "since": "2027-01-12T05:30:00Z", "until": "…" | null,
             "appointed_by": "auto" | "hub",           auto: on partners.verified (below)
@@ -122,7 +122,7 @@ CaptainCard (residents, in SocietyOut.captain, §3.1) : { "display_name", "photo
   - Appointing a partner who is already active elsewhere: 409 `community.already_captain`.
   - A backup captain may come later (owner, 2026-10-09).
 - **Who can be appointed.** A partner of kind `captain` with status `active`, checked through `partners.api.get_partner`, whose `hub_id` is the society's hub. Otherwise: 422 `community.partner_not_eligible`.
-  - Captains live in the society they serve (§3.1), so the partner's household must be in this society (`identity.api.household_for_user`). Otherwise: 422 `community.captain_not_resident`.
+  - Captains live in the society they serve (§3.1), so the partner's household must be in this society (`identity.api.household_for_user`). Otherwise: 422 `community.captain_not_resident`. The household's society is the only check: the prototype asks for no proof of residence (owner, 2026-10-09; M8 §3.1).
 - **Automatic appointment** happens in the consumer of `partners.verified` with `kind: "captain"`. M9 appoints the partner to `requested_society_id` (`appointed_by: "auto"`) when three things hold:
   - the society has no active captain;
   - the partner is not active elsewhere;
@@ -142,8 +142,8 @@ CaptainCard (residents, in SocietyOut.captain, §3.1) : { "display_name", "photo
   - **Never a flat or a phone.** No endpoint, event or facade returns a captain's flat number or phone to customers.
   - **Residents only.** The card `{ display_name, photo_url }` goes only to residents of that society (`SocietyOut.captain`, §3.1).
   - **M3.** M3's `CycleOut.captain` changes from `{ name, flat }` to the same card, read through `captain_card` (ADR-0026 §4). It is `null` today, so no client breaks.
-  - **Photos.** `photo_url` is a 5-minute signed link minted by M8. It is null until M0 has a `partner_photo` purpose (M8 §11).
-- **The seed** (S5, before M8's applications exist) appoints one seeded verified captain partner per live seeded society, so M7's handover can be built and tested (M8 build order (a)).
+  - **Photos.** `photo_url` is null for now (owner, 2026-10-09). A `partner_photo` upload purpose comes later; then it becomes a 5-minute signed link minted by M8 (M8 §11).
+- **The seed** (S5, before M8's applications exist; confirmed by the owner, 2026-10-09) appoints one seeded verified captain partner per live seeded society, so M7's handover can be built and tested (M8 build order (a)).
 
 **Facade** (`gharbasket.modules.community.api`, in addition to §3.1):
 - `captain_for_society(session, society_id) -> CaptainRef | None`. `CaptainRef` is `{ captain_id, user_id, partner_id, display_name }` (ADR-0026 §4). M7 uses it at handover.
@@ -231,3 +231,7 @@ M1 (addresses; `household_for_user` for the captain residency rule), M7 (pickups
 ## 11. Open questions
 - NGO partners for the pilot (Rhythm Thakur and Manish Raje to identify two).
 - Points per item category and drive multipliers.
+- **Decided by the owner (2026-10-09)** (asked in M8 §11):
+  - ~~Does a captain need proof of residence?~~ Decided: a captain must live in the society she serves; no proof upload in the prototype (§3.2).
+  - ~~Partner photos on the captain card?~~ Decided: `photo_url` is null for now; an upload purpose comes later (§3.2).
+  - ~~Captains before M8's applications exist?~~ Decided: M8's partner core table and seeded verified captains come in S5, so M9's captains and M7's handover work first (§3.2, the seed).
