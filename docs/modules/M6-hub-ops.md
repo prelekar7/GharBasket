@@ -218,7 +218,16 @@ POST /v1/packing-tasks/{id}/release        hub_manager; Idempotency-Key
 - **Summary.** `crates` is the highest crate number packed so far in the society (0 before the first bag).
 - **Who.** The franchise owner and admins read the queue (`packing:read`); hub managers and admins build (`packing:manage`). A task of another hub is 404 `hub_ops.task_not_found`; another hub's list, summary or build is 403 `auth.forbidden`.
 - **Facade.** `hub_ops.api.society_loads` and `hub_ops.api.bag_for_order` are built as listed below.
-- The packer's moves (`next`, `start`, `pick`, `shortage`, `complete`, `release`) and `packing:write` follow in the next PR; the `packing_events` table is created here with the other packing tables.
+
+**As built (PR b2, the packer's moves).**
+- **"Never substitute, refund" (ADR-0026 §6)** is not stored by M1 yet. Packing asks the hook `hub_ops.packing.household_allows_substitutes`, which answers yes for every household; when M1 adds the preference, the hook reads it through `identity.api` and a substitute for such a household becomes 422 `hub_ops.substitute_invalid` with `reason: "refund_only"` (the packer then records a refund).
+- **`next`** works on today's tasks (IST). Besides queued tasks it offers started tasks a hub manager released (status `picking`, no packer), by `seq`. A task whose order M4 refuses to move (packed in the console) is passed over and stays `queued`. `204` keeps no `Idempotency-Key` (nothing happened), so a retry asks again.
+- **`start`** by the packer who holds the task returns it unchanged; on a released task it only sets the packer (the order is already `picking`). `bag_qr` is checked before anything else, also on a packed task (`hub_ops.task_packed` wins).
+- **Shortage codes.** M6 checks the ranges first (`hub_ops.qty_invalid`: no substitute, 1 … qty − picked; `hub_ops.substitute_invalid` with `reason: "partial"` for a substitute that is not the whole line or after a pick). M4's refusals are passed on as `hub_ops.substitute_invalid` with M4's `reason` (`not_a_substitute`, `on_order`, `pricier`, `no_price`, or `unknown` for an inactive product); `billing.wallet_limit` and `orders.not_editable` are passed on as they are. A substituted line keeps `short_qty` 0 (nothing was refunded by steps; M4 refunds the price difference) and is done once `qty` steps of the substitute are picked; `pick` takes either the ordered or the substitute's product id.
+- **Complete.** `bags` defaults to the task's (1). Without `crate_no` the crate is `⌊bags already packed in the society today ÷ 3⌋ + 1` (at most 99); a multi-bag task gets the crate of its first bag. Packed tasks keep their packer.
+- **Who.** A hub manager acting on a task is actor `hub` on the order (`actor_user_id` = the manager); a packer is `packer`. Admins may release (`packing:manage`) but not pack (`packing:write` is packer and hub manager only). Another hub's `next` is 403 `auth.forbidden`; its tasks are 404 `hub_ops.task_not_found`.
+- **Events.** Each change writes a `hub_ops.packing_events` row (`start` with the scanned QR, `pick` with the absolute quantity, `shortage`, `complete` with bags and crate, `release` with the previous packer) and `client_at`; a `pick` that changes nothing writes none and keeps the version.
+- **Not tested here:** two packers calling `next` at the same instant on separate database connections (the test database rolls each test back inside one connection); sequential claims by two packers are tested, and the claim uses `FOR UPDATE SKIP LOCKED`.
 
 **Error codes** (in addition to §3.1)
 

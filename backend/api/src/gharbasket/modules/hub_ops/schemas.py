@@ -281,6 +281,14 @@ class PackingSummary(BaseModel):
     societies: list[SocietyLoad]
 
 
+class _PackingAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_at: datetime | None = Field(
+        default=None, description="When the packer tapped (audit only; the server's time decides)"
+    )
+
+
 class BuildIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -290,3 +298,23 @@ class BuildIn(BaseModel):
 class BuildOut(BaseModel):
     created: int
     existing: int
+
+
+class StartIn(_PackingAction):
+    bag_qr: str | None = Field(default=None, max_length=60, description="When scanned")
+
+
+class PickIn(_PackingAction):
+    product_id: uuid.UUID
+    picked_qty: int = Field(description="Absolute, not a delta: 0 to qty - short_qty")
+
+
+class ShortageIn(_PackingAction):
+    product_id: uuid.UUID
+    short_qty: int = Field(examples=[1])
+    substitute_product_id: uuid.UUID | None = None
+
+
+class CompleteIn(_PackingAction):
+    bags: int | None = Field(default=None, ge=1, le=5)
+    crate_no: int | None = Field(default=None, ge=1, le=99)
