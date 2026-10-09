@@ -7,12 +7,14 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community.models import Society
+from gharbasket.modules.community.models import Captain, Society
+from gharbasket.modules.hub_ops.models import Hub, Vendor
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.partners.models import Partner
 from gharbasket.platform.db import create_engine
 from gharbasket.platform.models import AuditEntry, OutboxEvent
+from gharbasket.platform.outbox import relay
 from gharbasket.platform.permissions import ROLE_SCOPE
 from gharbasket.tools.seed import (
     CAPTAINS,
@@ -63,12 +65,12 @@ async def test_seed_creates_one_synthetic_person_for_every_role(db_session: Asyn
     assert all(user.name for user in users)
 
     roles = await _seed_roles(db_session)
-    assert {role.role for role in roles} == set(ROLES)
+    # Every role but the captain's, which follows from M9's appointment (seed_partners, below).
+    assert {role.role for role in roles} == set(ROLES) - {"captain"}
     assert {role.status for role in roles} == {"verified"}
     for role in roles:
         assert role.scope_type == ROLE_SCOPE[role.role]
     scopes = {role.role: role.scope_id for role in roles}
-    assert scopes["captain"] == SEED_SOCIETY_ID
     assert scopes["hub_manager"] == SEED_HUB_ID
 
 
@@ -108,7 +110,7 @@ async def test_seed_societies_are_synthetic_and_seeding_again_adds_none(
     assert not any(created for _, created in again)
     assert len(societies) == len(SOCIETIES)
     assert {society.data_source for society in societies} == {"synthetic"}
-    # The captain's role scope (above) points at a real seed society.
+    # The seed captains' society (seed_partners, below) is a real seed society.
     assert SEED_SOCIETY_ID in {society.id for society in societies}
 
 
@@ -156,10 +158,35 @@ async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
                     OutboxEvent.payload["user_id"].astext.in_(users),
                 )
             )
+            captains = [
+                str(c)
+                for c in (
+                    await cleanup.execute(
+                        delete(Captain).where(Captain.user_id.in_(user_ids)).returning(Captain.id)
+                    )
+                ).scalars()
+            ]
+            await cleanup.execute(delete(AuditEntry).where(AuditEntry.entity_id.in_(captains)))
+            await cleanup.execute(
+                delete(OutboxEvent).where(
+                    OutboxEvent.event_type.in_(
+                        ["community.captain_assigned", "community.captain_ended"]
+                    ),
+                    OutboxEvent.payload["user_id"].astext.in_(users),
+                )
+            )
             await cleanup.execute(delete(Partner).where(Partner.user_id.in_(user_ids)))
             # Households, members, addresses and consents go with their owners.
             await cleanup.execute(delete(User).where(User.phone_e164.in_(PHONES)))
             societies = await cleanup.execute(delete(Society).where(Society.slug.in_(SLUGS)))
+            await cleanup.execute(
+                delete(OutboxEvent).where(
+                    OutboxEvent.event_type.like("hub_ops.hub_%"),
+                    OutboxEvent.payload["hub_id"].astext == str(SEED_HUB_ID),
+                )
+            )
+            await cleanup.execute(delete(Vendor).where(Vendor.hub_id == SEED_HUB_ID))
+            await cleanup.execute(delete(Hub).where(Hub.id == SEED_HUB_ID))
             await cleanup.commit()
             return len(users), societies.rowcount  # pyright: ignore[reportAttributeAccessIssue]
     finally:
@@ -172,6 +199,7 @@ def test_the_seed_command_fills_the_local_database(
     try:
         assert seed_command([]) == 0
         out = capsys.readouterr().out
+        assert f"hub kharghar ({SEED_HUB_ID}) new" in out
         assert f"{len(PEOPLE)} synthetic people" in out
         assert f"{len(SOCIETIES)} synthetic societies" in out
         assert f"{len(HOUSEHOLDS)} synthetic households" in out
@@ -232,3 +260,27 @@ async def test_seed_captains_are_verified_partners_where_they_live(
     assert sorted(
         (e.payload["user_id"], e.payload["requested_society_id"]) for e in verified
     ) == sorted((str(users[phone]), str(society)) for phone, society, _ in CAPTAINS)
+
+
+async def test_seed_captains_are_appointed_and_get_the_captain_role(
+    db_session: AsyncSession,
+) -> None:
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+    await seed_partners(db_session)
+
+    while (await relay(db_session)).sent:  # what `just seed` does once it has committed
+        pass
+
+    users = {user.phone_e164: user.id for user in await _seed_users(db_session)}
+    captains = {
+        (role.user_id, role.scope_id)
+        for role in await _seed_roles(db_session)
+        if role.role == "captain" and role.status == "verified"
+    }
+    assert captains == {(users[phone], society) for phone, society, _ in CAPTAINS}
+    appointed = (await db_session.execute(select(Captain))).scalars().all()
+    assert {(c.user_id, c.society_id, c.appointed_by) for c in appointed} == {
+        (users[phone], society, "auto") for phone, society, _ in CAPTAINS
+    }

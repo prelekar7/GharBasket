@@ -282,9 +282,8 @@ class ApplicantOut(BaseModel):
 class ApplicationSocietyOut(BaseModel):
     id: uuid.UUID
     name: str | None
-    has_active_captain: bool | None = Field(
-        description="Whether the society already has an active captain (M9); null until M9's "
-        "captains are available"
+    has_active_captain: bool = Field(
+        description="Whether the society already has an active captain (M9)"
     )
 
 

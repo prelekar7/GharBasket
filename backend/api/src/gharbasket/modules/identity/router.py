@@ -25,6 +25,7 @@ from gharbasket.modules.identity.schemas import (
     ExchangeOut,
     MeOut,
     MeUpdate,
+    PushTokenIn,
     RefreshIn,
     RoleGrantIn,
     RoleGrantOut,
@@ -328,6 +329,19 @@ async def sign_out_device(
         raise ProblemError(404, "identity.device_not_found", "No such signed-in device.")
     await session.commit()
     await mark_revoked(valkey, [device_id])
+
+
+@router.put(
+    "/me/push-token",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Set or clear this device's FCM token for push notifications (M11 §3.1)",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def put_push_token(
+    body: PushTokenIn, principal: CurrentPrincipal, user: SignedInUser, session: DbSession
+) -> None:
+    await service.set_push_token(session, user.id, principal.session_id, body.push_token)
+    await session.commit()
 
 
 @router.post(

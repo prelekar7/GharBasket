@@ -2,7 +2,7 @@
 (M8 §3.3, §4, build order (a); ADR-0026 §4)
 
 Revision ID: c19ddf09f701
-Revises: 4f1c2a7d9e30
+Revises: 6b1d0c4e9a27
 Create Date: 2026-10-09 05:44:04.689469+00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c19ddf09f701"
-down_revision: str | Sequence[str] | None = "4f1c2a7d9e30"
+down_revision: str | Sequence[str] | None = "6b1d0c4e9a27"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

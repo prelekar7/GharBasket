@@ -1,6 +1,6 @@
 """HTTP endpoints of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery days,
-the weekly cycle (read, edit, swap a meal (§3.2), approve, skip), pantry feedback and the Budget
-Lock."""
+the weekly cycle (read, edit, swap a meal (§3.2), approve, skip, un-skip (§3.3)), pantry feedback
+and the Budget Lock."""
 
 import uuid
 from datetime import datetime, timedelta
@@ -19,6 +19,7 @@ from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription,
 from gharbasket.modules.subscriptions.schemas import (
     BudgetLockIn,
     BudgetLockOut,
+    CaptainOut,
     CycleLineOut,
     CycleOut,
     CycleStep,
@@ -33,6 +34,7 @@ from gharbasket.modules.subscriptions.schemas import (
     MealOut,
     MealPlanOut,
     MealSet,
+    PaymentDueOut,
     PlanOut,
     PlansOut,
     ReplacedOut,
@@ -99,6 +101,15 @@ async def _slot(session: DbSession, slot_id: uuid.UUID) -> SlotRefOut:
     if slot is None:
         raise ProblemError(500, "subscriptions.slot_missing", "The delivery slot no longer exists.")
     return SlotRefOut(id=slot.id, label=slot.label, start=slot.start, end=slot.end)
+
+
+async def _captain(session: DbSession, society_id: uuid.UUID) -> CaptainOut | None:
+    card = await community_api.captain_card(session, society_id)
+    return (
+        None
+        if card is None
+        else CaptainOut(display_name=card.display_name, photo_url=card.photo_url)
+    )
 
 
 async def _budget_out(session: DbSession, household_id: uuid.UUID, on) -> BudgetLockOut | None:
@@ -187,6 +198,7 @@ async def _cycle_out(
     assert on is not None
     budget_out = await _budget_out(session, household.id, on)
     total = sum(line.qty * line.unit_price_paise for line in lines)
+    due = await service.payment_due(session, cycle) if cycle is not None else None
     return CycleOut(
         id=cycle.id if cycle else None,
         household_id=household.id,
@@ -201,10 +213,19 @@ async def _cycle_out(
         total_paise=total,
         highlights=[HighlightOut(code=h["code"], params=h.get("params", {})) for h in highlights],
         budget_lock=budget_out,
-        captain=None,
+        captain=await _captain(session, household.society_id),
         order_id=cycle.order_id if cycle else None,
         generated_at=cycle.generated_at if cycle else None,
         approved_at=cycle.approved_at if cycle else None,
+        payment_due=None
+        if due is None
+        else PaymentDueOut(
+            order_id=due.order_id,
+            total_paise=due.total_paise,
+            wallet_paise=due.wallet_paise,
+            shortfall_paise=due.shortfall_paise,
+            due_at=due.due_at,
+        ),
     )
 
 
@@ -559,7 +580,8 @@ async def approve_cycle(
 
 @router.post(
     "/cycles/{cycle_id}/skip",
-    summary="Skip the week before the cut-off; its order is cancelled (Idempotency-Key)",
+    summary="Skip the week before the cut-off (a payment_failed week until its grace ends); its "
+    "order is cancelled (Idempotency-Key)",
     responses={
         404: _problem("subscriptions.no_cycle"),
         409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
@@ -575,6 +597,38 @@ async def skip_cycle(
 ) -> CycleOut:
     household, cycle = await _owned_cycle(session, permit, cycle_id)
     await service.skip(session, cycle)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/cycles/{cycle_id}/unskip",
+    summary="Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)",
+    description="The week returns with the lines it had (awaiting_approval, or draft if the "
+    "box-ready notice never went out); approving it again creates a new order.",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem(
+            "subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused "
+            "(resume the subscription first)"
+        ),
+        412: _problem("subscriptions.version_conflict"),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def unskip_cycle(
+    cycle_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.unskip(session, cycle, expected_version=expected)
     out = await _answer(session, cycle, household=household, lang=lang, response=response)
     await idem.save(200, out)
     await session.commit()

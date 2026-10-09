@@ -20,6 +20,8 @@ from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
 from gharbasket.platform.valkey import create_valkey
 
+from .commit_guard import CommitGuard
+
 API_DIR = Path(__file__).resolve().parents[1]
 # Local Docker defaults (`just up`); CI sets the same variables.
 LOCAL_TEST_DATABASE_URL = (
@@ -163,20 +165,22 @@ async def db_session(database_url: str) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def api(db_session: AsyncSession) -> AsyncIterator[httpx2.AsyncClient]:
+async def commit_guard(db_session: AsyncSession) -> AsyncIterator[CommitGuard]:
+    """Fails the test if a request wrote through the session and returned without committing.
+
+    Install it with `app.dependency_overrides[get_session] = commit_guard.override()`.
+    """
+    guard = CommitGuard(db_session)
+    yield guard
+    guard.check()
+
+
+@pytest.fixture
+async def api(commit_guard: CommitGuard) -> AsyncIterator[httpx2.AsyncClient]:
     """Async client for the app, with every request using the test's rolled-back session."""
     app = create_app(make_settings())
     add_test_routes(app)
-
-    async def session_override() -> AsyncIterator[AsyncSession]:
-        # Like the real dependency: a request that fails leaves nothing behind.
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
-
-    app.dependency_overrides[get_session] = session_override
+    app.dependency_overrides[get_session] = commit_guard.override()
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
