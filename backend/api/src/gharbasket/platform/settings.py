@@ -103,6 +103,16 @@ class Settings(DatabaseSettings):
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
+    # Private uploads (M0 §3.1): SeaweedFS locally, Cloudflare R2 on staging, over the S3 API.
+    # Unset: POST /v1/files/presign answers 503 platform.storage_unavailable.
+    s3_endpoint_url: str | None = None
+    # The host the apps PUT to and read from; default S3_ENDPOINT_URL. The Android emulator
+    # reaches the laptop as http://10.0.2.2:8333.
+    s3_public_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: SecretStr | None = None
+    s3_region: str = "auto"
+    s3_bucket_private: str = "gb-private"
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -172,6 +182,10 @@ class Settings(DatabaseSettings):
     @property
     def razorpay_enabled(self) -> bool:
         return self.razorpay_key_id is not None and self.razorpay_key_secret is not None
+
+    @property
+    def storage_enabled(self) -> bool:
+        return bool(self.s3_endpoint_url and self.s3_access_key and self.s3_secret_key)
 
     @property
     def docs_enabled(self) -> bool:
