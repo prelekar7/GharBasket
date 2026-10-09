@@ -33,16 +33,23 @@ def json_catalog() -> Catalog:
     """The seed catalog read straight from data/seeds, as `load_catalog` reads it from the
     database after `just seed` (test_run checks the two agree)."""
     raw = json.loads((SEED / "products.json").read_text())["products"]
-    products = {
-        p["slug"]: Product(
-            p["slug"], BASE_UNIT[p["step"]["unit"]][0], p["kind"], frozenset(p["tags"])
-        )
-        for p in raw
-    }
     steps = {p["slug"]: p["step"]["qty"] * BASE_UNIT[p["step"]["unit"]][1] for p in raw}
     shelf = {p["slug"]: p["shelf_life_h"] for p in raw}
     prices = {
         i["slug"]: i["price_paise"] for i in json.loads((SEED / "prices.json").read_text())["items"]
+    }
+    products = {
+        p["slug"]: Product(
+            p["slug"],
+            BASE_UNIT[p["step"]["unit"]][0],
+            p["kind"],
+            frozenset(p["tags"]),
+            steps[p["slug"]],
+            prices.get(p["slug"]),
+            shelf[p["slug"]],
+            p["category"],
+        )
+        for p in raw
     }
     recipes, ingredients = [], {}
     for r in sorted(

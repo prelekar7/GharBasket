@@ -10,6 +10,17 @@
 - meals (household x day x slot): household, week, date, slot, planned, action, final
   (action: accept, edit, tiffin; own or none when there was no plan)
 - consumption (household x week x product): household, week, product, unit, qty
+- boxes (household x week): household, week, ordered, drafted_lines, drafted_paise, lines,
+  total_paise, edits, spiked (products whose price spiked that week)
+- box_lines (the approved box): household, week, product, qty (steps), step, unit_price_paise,
+  reason (meal_plan, daily_use, in_season, added_by_you, swapped_by_you), source (ai, rule,
+  customer), replaces
+- edits (the ranker's labels): household, week, product, action (removed, added, qty_up,
+  qty_down, swapped), reason (taste, stock, price), substitute
+- pantry (household x week x product): household, week, product, unit, start_stock,
+  delivered, used, bought_elsewhere, end_stock, wasted, signal (ran_out, wasted, just_right
+  or null: the tap, when given)
+- prices (week x product): week, product, price_paise, multiplier (shocks.json episodes)
 
 `manifest.json` records the run's arguments and row counts.
 """
