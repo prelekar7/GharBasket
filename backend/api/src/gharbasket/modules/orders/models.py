@@ -173,7 +173,8 @@ class OrderLine(Base):
 
     @property
     def total_paise(self) -> int:
-        return self.qty * self.unit_price_paise
+        """What the delivered steps cost: steps short at packing are refunded (§3.1)."""
+        return (self.qty - (self.shortage_qty or 0)) * self.unit_price_paise
 
 
 class OrderEvent(Base):

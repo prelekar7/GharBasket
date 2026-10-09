@@ -97,6 +97,10 @@ async def mark_shortage(
     shortage_qty: int,
     substitute_product_id: uuid.UUID | None = None,
 ) -> OrderLine:
+    """M6 packing (§3.1, ADR-0026 §6): refund the short steps to the wallet, or replace a
+    whole short line with a same-or-cheaper substitute and refund the difference, in the
+    caller's transaction; once per line. `billing.wallet_limit` is raised as is and then
+    nothing is recorded."""
     order = await service.get(session, order_id, for_update=True)
     return await service.mark_shortage(
         session, order, product_id, shortage_qty, substitute_product_id

@@ -15,7 +15,7 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 | US-2 | As the system, I want all approved orders locked at cut-off so that procurement uses committed demand. | 21:00 job moves orders to `LOCKED` after successful payment in under 60 s for 2,000 orders. |
 | US-3 | As a customer, I want to add add-ons before cut-off so that I get extra items on the same delivery. | Add-on lines priced from the current list; allowed until `LOCKED`. |
 | US-4 | As a customer, I want live order status so that I know when the delivery arrives. | SSE stream emits status changes and ETA. |
-| US-5 | As a customer, I want fair handling of shortages so that I'm not charged for missing items. | Shortage → substitution per preference or partial refund event to M5. |
+| US-5 | As a customer, I want fair handling of shortages so that I'm not charged for missing items. | At packing a whole short line may become a same-or-cheaper substitute, and every short step or price difference is refunded to the wallet at once (`mark_shortage`). |
 | US-6 | As a customer, I want to cancel before cut-off for free so that plans can change. | Cancel allowed before `LOCKED`; refund not needed (no capture yet). |
 | US-7 | As a hub manager, I want slot capacities so that we never overbook a route. | Slot booking fails when capacity is reached. |
 
@@ -64,10 +64,13 @@ OrderLine : {
   "product_id": "<uuid>", "slug": "bhindi", "name": "Bhindi",     name in Accept-Language
   "kind": "box" | "addon",
   "qty": 2, "step": { "qty": 250, "unit": "g", "label": "250 g" },   total = qty x step
-  "unit_price_paise": 2000, "total_paise": 4000,                   priced when the line was made
+  "unit_price_paise": 2000, "total_paise": 4000,                   priced when the line was made, or the
+                                                                   packing substitute's price;
+                                                                   total = (qty − shortage_qty) × unit price
   "reason_code": "price_swap" | "in_season" | … | null, "reason_params": { } | null,
-  "substituted_from": { "product_id", "slug", "name" } | null,     set by packing (M6)
-  "shortage_qty": 0 }                                              steps short at packing
+  "substituted_from": { "product_id", "slug", "name" } | null,     set by packing (M6); product, step and
+                                                                   price are then the substitute's
+  "shortage_qty": 0 }                                              steps short at packing, refunded
 
 OrderOut : {
   "id", "kind": "box" | "addon" | "tiffin", "status",
@@ -76,6 +79,8 @@ OrderOut : {
   "cutoff_at": "2026-11-02T15:30:00Z",                           21:00 IST the day before
   "lines": [ OrderLine ],
   "subtotal_paise": 69000, "fees_paise": 0, "discount_paise": 0, "total_paise": 69000,
+                                                       Σ line totals; after packing, what was paid
+                                                       net of shortage refunds
   "version": 3, "created_at", "locked_at": "…" | null,
   "timeline": [ { "status": "approved", "at": "…",
                  "actor": "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen" } ] }
@@ -114,7 +119,8 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 - `orders.locked { order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, lines: [ { product_id, qty, step_qty, step_unit } ] }`
 - `orders.payment_failed { order_id, household_id, shortfall_paise, grace_until }` (M5's `billing.payment_failed` is for Autopay captures, pilot phase)
 - `orders.cancelled { order_id, household_id, reason: "customer" | "payment" | "skipped" }`
-- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`) are published when M6/M7/M8 call `orders.api.transition`: `{ order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, kind: "box" | "addon" | "tiffin", actor, …the caller's payload }`. `orders.shortage_substituted` is published by `mark_shortage` with its own payload.
+- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`) are published when M6/M7/M8 call `orders.api.transition`: `{ order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, kind: "box" | "addon" | "tiffin", actor, …the caller's payload }`.
+- `orders.shortage_substituted { order_id, product_id, shortage_qty, substitute_product_id | null, refund_paise, total_paise }` is published by `mark_shortage` (`product_id` is the original; `refund_paise` may be 0 for a same-price substitute).
 - **Every event published by a status change** (the three above and the fulfilment events) carries `kind` and `actor` (the kind of actor, never the person's id), so a consumer that cares about tiffins or boxes filters on `kind` (ADR-0026 §3).
 
 **State machine per order kind** (ADR-0026 §2, §3; `orders/state.py`). M4 checks only that the move exists for the order's kind and that this kind of actor may make it; whether *this* packer, rider, captain or kitchen may act on *this* order is checked by the calling module (M6: `packer:<hub>`; M7: the active captain of the order's society through `community.api`, or the rider who owns the route; M8: the kitchen holding the assignment). `hub` is a hub manager acting from the console, an override for every fulfilment move. A move that is not in the table for the order's kind, or by an actor not listed, is 409 `orders.illegal_transition` with `kind`, `from`, `to` (and `actor` when only the actor is wrong).
@@ -142,7 +148,7 @@ Tiffins therefore never reach `at_society` or `redelivery`, and boxes and add-on
 - `cancel_from_cycle(session, cycle_id, reason="skipped")` — a skip before the cut-off cancels the order.
 - `transition(session, order_id, to, *, actor, actor_user_id=None, payload=None)` — M6/M7/M8 (and the cut-off jobs) move statuses along the order kind's state machine above; `actor` is the kind of actor (`customer | system | hub | packer | rider | captain | kitchen`) and `actor_user_id` the person who made the move (none for `system`), recorded on the `order_events` row and never shown to customers or exported; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event with `kind` and `actor`.
 - `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",), kinds=None) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later); `kinds` narrows the list (say `("tiffin",)` for M8, `("box", "addon")` for hub packing), every kind by default.
-- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None)` — M6 packing; a refund for the short steps goes through `billing.api.refund_to_wallet(reason="shortage")`.
+- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None) -> OrderLine` — M6 packing (ADR-0026 §6), while the order is `locked`, `picking` or `packed` (else `orders.not_editable`); `shortage_qty` is 1 to the line's `qty`. A partial shortage is refunded (`shortage_qty` × the line's unit price), never partly substituted. A whole-line shortage may instead name one substitute from `catalog.api.substitute_ids` that is not already on the order and costs no more per step at the hub today: the line takes the substitute's product, step and price (same `qty`, planner reason cleared), `substituted_from` keeps the original, and the difference is refunded; otherwise `orders.substitute_invalid` with `reason` (`partial`, `on_order`, `not_a_substitute`, `no_price`, `pricier`), or `orders.product_unknown`. The refund goes through `billing.api.refund_to_wallet(owner, order_id, amount, reason=f"short_{product_id.hex}")` in the caller's transaction (key `refund:<order>:short_<hex>`), and the order's totals are recomputed from its lines. One shortage per line: the same call again returns the line and moves no money; a different one is `orders.shortage_recorded`. If the wallet cap refuses the refund, `billing.wallet_limit` is raised as is and nothing is recorded (a shortage is never kept without its refund). The household "never substitute, refund" preference arrives with M1.
 
 **Error codes**
 
@@ -150,12 +156,14 @@ Tiffins therefore never reach `at_society` or `redelivery`, and boxes and add-on
 |---|---|---|
 | 404 | `orders.not_found` | Unknown order, or someone else's |
 | 409 | `orders.cutoff_passed` | After 21:00 IST on the day before delivery |
-| 409 | `orders.not_editable` | Add-ons on an order that is not `approved` |
+| 409 | `orders.not_editable` | Add-ons on an order that is not `approved`; a shortage on an order that is not `locked`, `picking` or `packed` |
+| 409 | `orders.shortage_recorded` | A different shortage for a line that already has one (facade) |
 | 409 | `orders.already_locked` | Cancelling after the cut-off job locked it |
 | 409 | `orders.illegal_transition` | A status change the state machine forbids (facade) |
 | 409 | `orders.slot_full` | The slot's capacity for that date is used up (at order creation) |
 | 412 | `request.version_mismatch` | `If-Match` is not the current version |
-| 422 | `orders.product_unknown`, `orders.qty_invalid`, `orders.no_price` | Add-on items |
+| 422 | `orders.product_unknown`, `orders.qty_invalid`, `orders.no_price` | Add-on items; `product_unknown` and `qty_invalid` also for shortages |
+| 422 | `orders.substitute_invalid` | A packing substitute that may not replace the line, with `reason` (facade) |
 | 422 | `orders.date_out_of_range`, `orders.hub_required`, `orders.slot_invalid` | Slots |
 | 403 | `auth.forbidden` | Hub staff outside their hub; a customer on another household's order |
 | 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
@@ -207,7 +215,7 @@ GET  /v1/orders/{id}/issues     200 { "items": [ IssueOut ] }   newest first; ow
 - its kind is `missing`, or `damaged` **with at least one photo** (a valid, claimed `photo_keys` entry); `missing` needs no photo; and
 - its `amount_paise`, plus everything auto-credited to the household in the **last 7 days**, stays within **₹50 (5,000 paise)**.
 
-A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; over what is left of the order's paid total after earlier issue credits on it, `over_order_total`; other kinds are `triage`. All credits on one order, automatic or by the hub, never add up to more than was paid for it. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total, and never more than is left of the order's paid total; above that, `orders.issue_credit_invalid` with `max_paise`) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
+A `damaged` issue without a photo is still accepted (201) and is never rejected for that reason: it stays `open` with `open_reason: "photo_needed"` for console triage. M4 calls `billing.api.refund_to_wallet(session, owner_user_id, order_id, amount_paise, reason=f"issue_{issue_id.hex}")` (the existing facade, exactly once by its key `refund:<order>:issue_<hex>`), sets `status: credited`, `resolution.by: auto` and stores `refund_entry_id`. The rule credits the whole issue or nothing. If the wallet cap refuses the refund (`billing.wallet_limit`), the issue stays open (`open_reason: "wallet_limit"`). Over the ₹50 allowance it is `over_auto_credit_limit`; over what is left of the order's paid total (net of shortage refunds at packing) after earlier issue credits on it, `over_order_total`; other kinds are `triage`. All credits on one order, automatic or by the hub, never add up to more than was paid for it. Everything that stays `open` goes to triage: the M12 console calls `orders.api.resolve_issue(session, issue_id, outcome, credit_paise, actor, note)`, which refunds through the same facade (credit ≤ `amount_paise`, or any amount for `late`/`other` up to the order total, and never more than is left of the order's paid total; above that, `orders.issue_credit_invalid` with `max_paise`) or rejects. Photo triage with an LLM and the trust-and-safety model (handbook 08 M-J) come later and only change who resolves.
 
 **Photos.** Private; a hub reviewer or the owner sees them through 5-minute signed links that M4 mints on demand (the console endpoint comes with M12). Deleted 90 days after the issue is resolved (M0 §3.1).
 
@@ -285,7 +293,7 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 - E2E: approve → lock → status stream to delivered.
 
 ## 10. Dependencies
-M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7/M8 call `orders.api` for fulfilment transitions (ADR-0026).
+M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture, shortage and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7/M8 call `orders.api` for fulfilment transitions (ADR-0026).
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.

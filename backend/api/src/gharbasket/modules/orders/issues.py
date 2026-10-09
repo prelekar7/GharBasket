@@ -178,8 +178,8 @@ async def _publish_resolved(session: AsyncSession, issue: OrderIssue) -> None:
 
 async def _creditable(session: AsyncSession, order: Order) -> int:
     """What may still be refunded on a row-locked order: its paid total minus the issue credits
-    already made on it (M5 refunds nothing else per order yet, and billing.api has no per-order
-    refund total)."""
+    already made on it. Shortage refunds at packing are already out of the total, which follows
+    the lines (`service.mark_shortage`); billing.api has no per-order refund total."""
     credited = (
         await session.execute(
             select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
