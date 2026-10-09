@@ -4,6 +4,7 @@
 just up && just migrate && just seed     # the hub, societies, catalog and prices
 just sim                                 # seed 7: households + 8 weeks of behaviour (~1 min)
 just sim --seed 11 --weeks 4 --planner rules
+just sim --weeks 4 --write-db                # v1b: the weeks go through M3, M4 and M5
 ```
 
 **Deterministic:** the same `--seed` and the same catalog give the same households, plans, choices and consumption. The CP-SAT planner runs in its deterministic mode for this.
@@ -17,13 +18,17 @@ just sim --seed 11 --weeks 4 --planner rules
    - the planner (`cpsat` or the `rules` fallback) plans 21 meals, with festival fasts from the catalog calendar;
    - the household accepts each dish with probability sigmoid(accept bias + taste), or swaps it for its favourite allowed dish under the same rules;
    - sometimes it skips the week's box but still eats.
-3. **Ground truth** goes to `data/sim_truth/seed-<n>/` (git-ignored) as Parquet:
+3. **The box and the pantry (v1a).** Each week the household's box is drafted the way M3 drafts it (the planned dishes' ingredients plus the family-size rule table, in steps at this week's prices), then the household edits it: ingredients of dishes it rejected go and its own dishes' come in (`taste`), items its pantry still holds go or shrink (`stock`), items whose price spiked are swapped for a cheaper one or cut (`price`, by the cohort's `price_sensitivity`), sometimes a liked fruit is added. The approved box is delivered into a pantry; the week's cooking draws it down; what runs short is bought elsewhere, perishables left over are waste, and on some items (`feedback_rate`) the household taps *ran out*, *wasted* or *just right*.
+4. **Prices** follow [`shocks.json`](shocks.json): episodes such as tomato ×1.8 for three weeks (`--no-shocks` for flat prices).
+5. **Ground truth** goes to `data/sim_truth/seed-<n>/` (git-ignored) as Parquet:
    - the latent daily-use rates and tastes;
    - the plans and actions;
-   - weekly consumption per product.
+   - weekly consumption per product;
+   - boxes, box lines, edits, pantry rows with the taps, and prices (v1a).
    - The columns are listed in [`truth.py`](src/gharbasket_sim/truth.py).
 
-## Not yet (v0)
-- **Through M3 and M4:** the weeks reach the database through those modules (boxes, edits, skips, orders) once they exist; until then they live only in the truth files.
-- **Later:** price shocks, churn, partners and donations (handbook 05 §5.11, items 5–6).
-- **Review:** cohort numbers are assumptions until Rhythm Thakur and Manish Raje check them against the UX interviews.
+6. **Through the modules (`--write-db`, v1b).** Each household subscribes (wallet); a week at a time, M3 generates the week's cycle at T-3 18:00 IST once the week before has been replayed, so its carry-over counts what was delivered (the CP-SAT planner runs in process behind the gateway for `cpsat`, the rules fallback for `rules`), and the household's behaviour runs against *that* plan and *those* lines: its box edits become `PATCH` line ops (with `edit_feedback`), it approves (an M4 order) or skips, its wallet is topped up to cover the box (one week in twenty is left short), the cut-off (the cycle's `cutoff_at`) debits and locks or fails and cancels, the outbox is relayed so M3's consumers mirror the order on the cycle, the order goes packed → dispatched → at society → delivered, and the pantry taps become `pantry_feedback`. The modules' clocks are set to the simulated instant for each step. `outcomes.parquet` records the cycle, order, statuses, ops and refusals per household-week. Prices through the modules are the hub's list prices (the shock episodes shape behaviour, not the price list).
+
+## Not yet
+- **Later:** real Vashi price episodes replayed from the mandi history (M10 F19), churn, partners and donations (handbook 05 §5.11, item 6).
+- **Review:** cohort numbers, `price_sensitivity`, `feedback_rate` and the shock episodes are assumptions until Rhythm Thakur and Manish Raje check them against the UX interviews and the 2023–25 APMC prices.
