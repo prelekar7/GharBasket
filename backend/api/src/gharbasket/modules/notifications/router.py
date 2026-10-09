@@ -1,20 +1,34 @@
-"""HTTP endpoints of M11 Notifications: the inbox and preferences (spec §3.1). Any signed-in
-person has an inbox, whatever their role, so these need a token but no permission."""
+"""HTTP endpoints of M11 Notifications: the inbox and preferences (spec §3.1), which any signed-in
+person has whatever their role, and the console's templates and delivery log (§3.2)."""
 
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Query, Response, status
 
+from gharbasket.modules.notifications import admin, service
 from gharbasket.modules.notifications import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
-from gharbasket.modules.notifications import service
-from gharbasket.modules.notifications.schemas import InboxOut, PreferencesIn, PreferencesOut
+from gharbasket.modules.notifications import permissions as _permissions  # noqa: F401 (rules)
+from gharbasket.modules.notifications.schemas import (
+    DeliveryLogOut,
+    InboxOut,
+    PreferencesIn,
+    PreferencesOut,
+    PreviewOut,
+    SavedTemplatesOut,
+    TemplateIn,
+    TemplatesOut,
+)
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.locale import Lang
 from gharbasket.platform.pagination import Cursor, Limit
+from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["notifications"])
+
+CanWriteTemplates = Annotated[Permit, require("templates:write")]
+CanSupport = Annotated[Permit, require("notifications:support")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -89,3 +103,59 @@ async def put_preferences(
     saved = await service.save_preferences(session, principal.user_id, body)
     await session.commit()
     return saved
+
+
+# --- the console (§3.2) ------------------------------------------------------------------------
+
+TEMPLATES = "/admin/notification-templates"
+
+
+@router.get(TEMPLATES, summary="Notification templates: the active versions, or every version")
+async def list_templates(
+    permit: CanWriteTemplates,
+    session: DbSession,
+    kind: Annotated[str | None, Query(max_length=64)] = None,
+    channel: Annotated[str | None, Query(max_length=8)] = None,
+    locale: Annotated[str | None, Query(max_length=5)] = None,
+    history: bool = False,
+) -> TemplatesOut:
+    return await admin.templates(session, kind, channel, locale, history)
+
+
+@router.put(
+    TEMPLATES,
+    summary="Save a template in all three locales as a new active version",
+    responses={422: _problem("notifications.template_invalid")},
+)
+async def put_templates(
+    body: TemplateIn, permit: CanWriteTemplates, session: DbSession
+) -> SavedTemplatesOut:
+    return SavedTemplatesOut(items=await admin.save(session, body, permit.principal.user_id))
+
+
+@router.post(
+    f"{TEMPLATES}/preview",
+    summary="Render a template in all three locales with sample values (nothing is saved)",
+    responses={422: _problem("notifications.template_invalid")},
+)
+async def preview_templates(body: TemplateIn, permit: CanWriteTemplates) -> PreviewOut:
+    return PreviewOut(items=admin.preview(body))
+
+
+@router.get(
+    "/admin/notifications",
+    summary="Delivery log: a person's messages with their delivery attempts",
+    responses={422: _problem("request.invalid_cursor")},
+)
+async def delivery_log(
+    user_id: uuid.UUID,
+    permit: CanSupport,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> DeliveryLogOut:
+    items, next_cursor = await admin.delivery_log(session, permit, user_id, lang, cursor, limit)
+    response.headers["Cache-Control"] = "no-store"
+    return DeliveryLogOut(items=items, next_cursor=next_cursor)

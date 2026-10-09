@@ -38,6 +38,58 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/notification-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notification templates: the active versions, or every version */
+        get: operations["list_templates_v1_admin_notification_templates_get"];
+        /** Save a template in all three locales as a new active version */
+        put: operations["put_templates_v1_admin_notification_templates_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notification-templates/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render a template in all three locales with sample values (nothing is saved) */
+        post: operations["preview_templates_v1_admin_notification_templates_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery log: a person's messages with their delivery attempts */
+        get: operations["delivery_log_v1_admin_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/order-issues": {
         parameters: {
             query?: never;
@@ -1645,6 +1697,36 @@ export interface components {
             /** Items */
             items: components["schemas"]["DeliveryDayOut"][];
         };
+        /** DeliveryLogOut */
+        DeliveryLogOut: {
+            /** Items */
+            items: components["schemas"]["LogEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Channel
+             * @example push
+             */
+            channel: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Next Attempt At */
+            next_attempt_at: string | null;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @description queued, held, sent, delivered, read, failed or skipped
+             */
+            status: string;
+        };
         /** DeviceIn */
         DeviceIn: {
             /**
@@ -2416,6 +2498,26 @@ export interface components {
              */
             scheduled_for?: string | null;
         };
+        /** KindOut */
+        KindOut: {
+            /** Category */
+            category: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Placeholders
+             * @description What its templates may use
+             * @example [
+             *       "total"
+             *     ]
+             */
+            placeholders: string[];
+        };
         /**
          * LatLng
          * @description A pin on the map, as every API shape carries it.
@@ -2507,6 +2609,54 @@ export interface components {
              * @description Applied in order
              */
             ops: (components["schemas"]["LineRemoveOp"] | components["schemas"]["LineAddOp"] | components["schemas"]["LineQtyOp"] | components["schemas"]["LineSubstituteOp"])[];
+        };
+        /** LogEntry */
+        LogEntry: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deliveries */
+            deliveries: components["schemas"]["DeliveryOut"][];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
         };
         /** MeOut */
         MeOut: {
@@ -3092,6 +3242,25 @@ export interface components {
              */
             url: string;
         };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Items */
+            items: components["schemas"]["PreviewText"][];
+        };
+        /** PreviewText */
+        PreviewText: {
+            /** Body */
+            body: string;
+            /** Locale */
+            locale: string;
+            /**
+             * Params
+             * @description The body's values in order (WhatsApp's {{1}}, {{2}} …)
+             */
+            params: string[];
+            /** Title */
+            title: string;
+        };
         /** Price */
         Price: {
             /**
@@ -3540,6 +3709,14 @@ export interface components {
              * @enum {string}
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
+        };
+        /** SavedTemplatesOut */
+        SavedTemplatesOut: {
+            /**
+             * Items
+             * @description The new active version in each locale
+             */
+            items: components["schemas"]["TemplateOut"][];
         };
         /** SearchItem */
         SearchItem: {
@@ -4027,6 +4204,96 @@ export interface components {
             /** Items */
             items: components["schemas"]["SubstituteOut"][];
         };
+        /** TemplateIn */
+        TemplateIn: {
+            /**
+             * Channel
+             * @example app
+             */
+            channel: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Texts
+             * @description en-IN, hi-IN and mr-IN, once each
+             */
+            texts: components["schemas"]["TemplateText"][];
+            /** Wa Template Name */
+            wa_template_name?: string | null;
+        };
+        /** TemplateOut */
+        TemplateOut: {
+            /** Active */
+            active: boolean;
+            /** Body */
+            body: string;
+            /**
+             * Channel
+             * @description app (inbox and push) or whatsapp
+             */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+            /**
+             * Wa Template Name
+             * @description Meta's approved template (whatsapp)
+             */
+            wa_template_name: string | null;
+        };
+        /** TemplateText */
+        TemplateText: {
+            /**
+             * Body
+             * @example {total} was paid from your wallet.
+             */
+            body: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /**
+             * Title
+             * @description Empty for whatsapp
+             */
+            title: string;
+        };
+        /** TemplatesOut */
+        TemplatesOut: {
+            /** Items */
+            items: components["schemas"]["TemplateOut"][];
+            /** Kinds */
+            kinds: components["schemas"]["KindOut"][];
+        };
         /** TimelineEntry */
         TimelineEntry: {
             /**
@@ -4332,6 +4599,240 @@ export interface operations {
                 };
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_templates_v1_admin_notification_templates_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                channel?: string | null;
+                locale?: string | null;
+                history?: boolean;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_templates_v1_admin_notification_templates_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedTemplatesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_templates_v1_admin_notification_templates_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delivery_log_v1_admin_notifications_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -53,3 +53,83 @@ class PreferencesIn(BaseModel):
         default=None, max_length=5, description="IST, HH:MM in 15-minute steps"
     )
     quiet_end: str | None = Field(default=None, max_length=5)
+
+
+# --- admin: templates and the delivery log (§3.2) ----------------------------------------------
+
+
+class KindOut(BaseModel):
+    kind: str = Field(examples=["orders.locked"])
+    event_type: str
+    category: str
+    placeholders: list[str] = Field(description="What its templates may use", examples=[["total"]])
+
+
+class TemplateOut(BaseModel):
+    id: uuid.UUID
+    kind: str = Field(examples=["orders.locked"])
+    event_type: str
+    channel: str = Field(description="app (inbox and push) or whatsapp")
+    locale: str = Field(examples=["en-IN"])
+    version: int
+    title: str
+    body: str
+    wa_template_name: str | None = Field(description="Meta's approved template (whatsapp)")
+    active: bool
+    created_by: uuid.UUID | None
+    created_at: datetime
+
+
+class TemplatesOut(BaseModel):
+    kinds: list[KindOut]
+    items: list[TemplateOut]
+
+
+class SavedTemplatesOut(BaseModel):
+    items: list[TemplateOut] = Field(description="The new active version in each locale")
+
+
+class TemplateText(BaseModel):
+    locale: str = Field(max_length=5, examples=["en-IN"])
+    title: str = Field(max_length=120, description="Empty for whatsapp")
+    body: str = Field(min_length=1, max_length=500, examples=["{total} was paid from your wallet."])
+
+
+class TemplateIn(BaseModel):
+    # Plain strings so an unknown kind or channel gets `notifications.template_invalid`.
+    kind: str = Field(max_length=64, examples=["orders.locked"])
+    channel: str = Field(max_length=8, examples=["app"])
+    wa_template_name: str | None = Field(default=None, max_length=100)
+    texts: list[TemplateText] = Field(max_length=6, description="en-IN, hi-IN and mr-IN, once each")
+
+
+class PreviewText(BaseModel):
+    locale: str
+    title: str
+    body: str
+    params: list[str] = Field(description="The body's values in order (WhatsApp's {{1}}, {{2}} …)")
+
+
+class PreviewOut(BaseModel):
+    items: list[PreviewText]
+
+
+class DeliveryOut(BaseModel):
+    channel: str = Field(examples=["push"])
+    status: str = Field(description="queued, held, sent, delivered, read, failed or skipped")
+    attempts: int
+    last_error: str | None
+    provider_ref: str | None
+    next_attempt_at: datetime | None
+    sent_at: datetime | None
+
+
+class LogEntry(NotificationOut):
+    event_id: uuid.UUID
+    kind: str
+    deliveries: list[DeliveryOut]
+
+
+class DeliveryLogOut(BaseModel):
+    items: list[LogEntry]
+    next_cursor: str | None
