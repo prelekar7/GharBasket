@@ -327,7 +327,7 @@ POST  /v1/partners/{id}/reinstate  hub_manager (hub), admin; Idempotency-Key; { 
   - M9 ends an active captain appointment, and M1 then removes `captain:<society>`.
   - Suspending twice is 409 `partners.already_suspended`.
 - **Reinstate** sets `active` and publishes `partners.reinstated { partner_id, user_id, kind, hub_id }`. M1 marks the hub role `verified` again. A reinstated captain is **not** re-appointed automatically: the hub manager appoints her in M9.
-- **Leaving.** On `identity.user_deleted`, every partner record of the user becomes `left`, and M8 publishes `partners.suspended` with `reason_code: "left"`, so M9 and M1 clean up the same way. KYC files get `delete_after` set to 30 days later.
+- **Leaving.** On `identity.deletion_requested` (M1 §3.5: the request, not the purge 30 days later, because the person can no longer sign in), every partner record of the user becomes `left`; her offered and accepted assignments are cancelled as for a suspension, and M8 publishes `partners.suspended` with `reason_code: "left"`, so M9 and M1 clean up the same way. Cancelling the deletion does not undo it (M1 §3.5): she applies again or a hub manager reinstates her. KYC files get `delete_after` set to 30 days later. What she earned is still paid out (§3.7).
 
 | Status | Code | When |
 |---|---|---|
@@ -419,18 +419,19 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
   - A `PUT` for date T after T-1 21:00 IST gets 409 `partners.capacity_locked`. Lowering capacity never takes away portions already offered.
   - A paused kitchen counts as 0.
 - **The 21:30 round** (`assign_kitchens`, T-1 21:30 IST, every active hub, both meals of T):
-  1. **Orders.** `orders.api.orders_for_delivery(hub, T, statuses=("locked",), kinds=("tiffin",))`, less orders already in a live assignment (`assigned` or later). Live means one of `offered`, `accepted`, `preparing` or `ready`.
+  1. **Orders.** `orders.api.orders_for_delivery(hub, T, statuses=("locked",), kinds=("tiffin",))`, less orders already in a live assignment (`assigned` or later). Live means one of `offered`, `accepted`, `preparing` or `ready`. Each tiffin order carries `preferred_partner_id`: the kitchen whose menu the customer booked (M4 §3.5, `catalog.tiffin_menus` per kitchen, M2 §4).
   2. **Kitchens.** The hub's `active` kitchens with capacity left. Each one's rolling earnings are her `tiffin_portion` earnings over the last 28 days, from `billing.api.partner_rolling_earnings` (§3.6).
-  3. **One request per meal** to `intel_gateway.api.assign_kitchens` (M10 §3.5):
+  3. **The preferred cook first** ([ADR-0027](../adr/0027-operations-contract-amendments.md); owner, 2026-10-09: the cook on the menu is a preference, not a hard choice). Before the solve, each order goes to its `preferred_partner_id` when that kitchen is eligible for it (the rules above) and still has room, largest orders first, then by order id; her capacity left and her rolling earnings (+ portions × `paise_per_portion`) are reduced and raised by what she took. Only the orders left over (her capacity ran out, or she is ineligible, paused, or declined or let expire an offer for that date and meal) go to the solve or the fallback below. M10's `POST /assign/kitchens` takes no preference today (its request forbids extra fields), so the preference is applied here; a per-portion bonus for the preferred kitchen inside the solver is a later M10 option (§11).
+  4. **One request per meal** for the left-over orders to `intel_gateway.api.assign_kitchens` (M10 §3.5):
      - `orders[]`: `{id: order_id, lat, lng: the society point, portions, skills}`;
      - `kitchens[]`: `{id: partner_id, lat, lng, max_portions: capacity left, skills, rating, earnings_paise}`;
      - `fairness_lambda` from `PARTNERS_FAIRNESS_LAMBDA` (default 300, M10's knee);
      - `rating_floor: 3.8`, `max_km: 5`, `time_limit_s: 5`;
      - `paise_per_portion` from the hub's kitchen `tiffin_portion` rate (§3.6).
-  4. **Greedy fallback** when the gateway returns `None` (the service is down, slow or not configured). M8 assigns the orders itself, largest portions first, then by order id. Each order goes to the eligible kitchen with the least `(km, rolling earnings, partner_id)`. Haversine distances; `source: fallback`, model `greedy-m8`. The result is deterministic, so tests pin it. ML's own greedy (`status: fallback` in the response) is still `source: ml`.
-  5. **Offers.** Orders are grouped per kitchen into **one offer per (kitchen, date, meal, round)**, status `offered`, with `respond_by` = T-1 22:30 IST. Each offer publishes `partners.assignment_created`, and M11 pushes it ("12 portions of Diet thali for tomorrow lunch").
-  6. **The run is recorded.** Each run is a `partners.assignment_runs` row: hub, date, meal, round, source, model, status, portions, the unassigned orders with reasons, and the `summary` (km per portion, Gini, Gini of eligible kitchens). This feeds the fairness dashboard and the eval harness.
-  7. **Unassigned orders** are published once per run as `partners.tiffins_unassigned { hub_id, date, meal, order_ids, reasons }`. M11 tells the hub managers.
+  5. **Greedy fallback** when the gateway returns `None` (the service is down, slow or not configured). M8 assigns the left-over orders itself, largest portions first, then by order id. Each order goes to the eligible kitchen with the least `(km, rolling earnings, partner_id)`. Haversine distances; `source: fallback`, model `greedy-m8`. The result is deterministic, so tests pin it. ML's own greedy (`status: fallback` in the response) is still `source: ml`.
+  6. **Offers.** Orders are grouped per kitchen into **one offer per (kitchen, date, meal, round)**, status `offered`, with `respond_by` = T-1 22:30 IST. Each offer publishes `partners.assignment_created`, and M11 pushes it ("12 portions of Diet thali for tomorrow lunch").
+  7. **The run is recorded.** Each run is a `partners.assignment_runs` row: hub, date, meal, round, source, model, status, portions, the unassigned orders with reasons, and the `summary` (km per portion, Gini, Gini of eligible kitchens). This feeds the fairness dashboard and the eval harness.
+  8. **Unassigned orders** are published once per run as `partners.tiffins_unassigned { hub_id, date, meal, order_ids, reasons }`. M11 tells the hub managers.
 
   A second run for the same (hub, date) only adds orders without a live assignment, so the job is idempotent.
 - **Accept, decline, expire.** Only while `offered` and before `respond_by`; otherwise 409 `partners.assignment_closed`.
@@ -445,7 +446,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 
   No new round starts after T 00:00, so the last offers expire at T 00:30. A hub manager can run a round at any time (`POST /v1/hubs/{id}/tiffin-assignments/run { "date" }` → `{ "run_id", "offers": 3, "unassigned": 1 }`).
 - **Manual assignment** (`POST /v1/hubs/{id}/tiffin-assignments/manual { "date", "order_ids", "partner_id", "note" }`). The hub manager agreed with the kitchen by phone. It creates an `accepted` assignment (`source: manual`) and may exceed capacity (the answer carries `over_capacity: true`). It is allowed until the meal's `ready_by` minus 2 hours, and is audit-logged. Orders that are not locked tiffins of the hub and date, or that are already in a live assignment, get 409 `partners.order_not_assignable` (`order_ids`).
-- **Tiffins no kitchen takes** (owner, 2026-10-09). A locked tiffin order that still has no live assignment when manual assignment closes (the meal's `ready_by` minus 2 hours) is refunded in full. The `refund_unassigned_tiffins` job calls `orders.api.transition(order, "refunded", actor="system", payload={"reason": "no_kitchen"})`: a new M4 move `locked → refunded`, tiffin only, that pays the whole paid total back through `billing.api.refund_to_wallet`. This amends ADR-0026 §3 (and §2's transition table); it is an M4 follow-up (§10). The hub managers already know from `partners.tiffins_unassigned`; the household is told by the refund's `billing.refund_issued`.
+- **Tiffins no kitchen takes** (owner, 2026-10-09). A locked tiffin order that still has no live assignment when manual assignment closes (the meal's `ready_by` minus 2 hours) is refunded in full. The `refund_unassigned_tiffins` job calls `orders.api.transition(order, "refunded", actor="system", payload={"reason": "no_kitchen"})`: a new M4 move `locked → refunded`, tiffin only, that pays the whole paid total back through `billing.api.refund_to_wallet`. It is recorded in [ADR-0027](../adr/0027-operations-contract-amendments.md), which amends ADR-0026 §2 and §3; it is an M4 follow-up (§10). The hub managers already know from `partners.tiffins_unassigned`; the household is told by the refund's `billing.refund_issued`.
 - **Cooking.**
   - **Start** (from `accepted`, from T 00:00 onwards): calls `orders.api.transition(order, "picking", actor="kitchen", actor_user_id=…)` for each order. The order shows "Being cooked".
   - **Ready** needs every checklist item true (422 `partners.checklist_incomplete`). For each listed order it moves `locked → picking` if start was skipped, then `picking → packed` (actor `kitchen`). M4 publishes `orders.packed` with `kind: tiffin`.
@@ -511,9 +512,11 @@ EarningsWeek : {
                { "kind": "captain", "basis": "bag_delivered", "units": 30, "amount_paise": 1800 } ],
   "days": [ { "date": "2027-01-11", "amount_paise": 9600 } ],          7 entries, zeros included
   "entries": [ { "id", "kind", "basis", "units": 2, "amount_paise": 12000,
-                 "ref": { "type": "order", "id", "delivery_date" }, "at" } ],   newest first
-  "payout": { "status": "pending" | "scheduled" | "paid" | "held", "amount_paise",
-              "paid_at": "…" | null, "held_reason": "kyc" | "suspended" | null } | null,  §3.7
+                 "ref": { "type": "order", "id" }, "at" } ],                newest first
+  "payouts": [ PayoutOut & { "kind": "kitchen" } ],   M5's PayoutOut (M5 §3.5), one per partner
+                                        record: status held | pending | processing | processed |
+                                        failed, hold_reason kyc_incomplete | suspended |
+                                        no_payout_account | null; [] until the week is paid out (§3.7)
   "generated_at" }
 GET /v1/earnings?week=2027-W02     partner (own; every kind the caller has); default this week
   200 EarningsWeek | 422 "partners.week_invalid" (not YYYY-Www, or a week after the current one)
@@ -529,18 +532,19 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 | Kind | Basis | Event (consumed by M8) | Units | Rate |
 |---|---|---|---|---|
 | kitchen | `tiffin_portion` | `orders.delivered`, kind `tiffin`; the kitchen of the order's assignment | portions | ₹60 (the `paise_per_portion` M10 uses) |
-| captain | `bag_delivered` | `orders.delivered`, kind `box` or `addon`, with `actor: captain`; the captain partner of `actor_user_id` | 1 per bag (one bag per order) | ₹6 |
+| captain | `bag_delivered` | `orders.delivered`, kind `box` or `addon`, with `actor: captain`; the captain partner of `actor_user_id` | 1 per bag (one bag per order) | ₹6 (not for tiffins, below) |
 | rider | `dispatched_order` | `orders.dispatched` with `actor: rider`; the rider partner of `actor_user_id` | 1 per order | ₹8 |
 | packer | `packed_order` | `orders.packed` with `actor: packer` | 1 per order | ₹4 |
 
-- **Posting.** In the consumer's transaction, M8 calls `billing.api.accrue_partner_earning(session, partner_id, user_id, basis, ref_type="order", ref_id, units, amount_paise, on_date)`. It is keyed `earning:<partner>:<basis>:<order>`, so a redelivered event never pays twice. No partner record, or a `hub` or `system` actor, means no earning.
+- **Posting.** In the consumer's transaction, M8 calls `billing.api.accrue_earning(session, partner_id=…, basis=…, ref_type="order", ref_id=order_id, units=…, amount_paise=units × rate, earned_at=the event's time)` (M5 §3.5). It is keyed `earning:<partner>:<basis>:<order>`, so a redelivered event never pays twice. No partner record, or a `hub` or `system` actor, means no earning.
+- **Tiffins a captain delivers** (ADR-0026 §2 lets a captain move a tiffin `dispatched → delivered`; M7 §3.7) earn her nothing in the prototype: `bag_delivered` counts box and add-on bags only, and the rider is paid for the tiffin's pickup (`dispatched_order`). This is a default ([ADR-0027](../adr/0027-operations-contract-amendments.md)) the owner may change by adding a basis to the rate card.
 - **Rates.** The rate is the one valid on the order's delivery date at its hub. A later refund or issue on the order does not claw back the earning in v1.
-- **Reading back.** The view comes from `billing.api.partner_earnings(session, user_id, from, to)` and `billing.api.payout_status(session, user_id, week)`. M8 keeps no earnings table: the draft's `partners.earnings` mirror is dropped.
+- **Reading back.** The view comes from `billing.api.partner_week(session, partner_ids, week)` (M5 §3.5) with the caller's partner ids; M8 adds each partner's `kind`. M8 keeps no earnings table: the draft's `partners.earnings` mirror is dropped.
 - **Statements.** The weekly statement and payouts are M5's (§3.7). The draft's M8 job `weekly_earnings_statement` is dropped.
 
 ### 3.7 Payouts and the income certificate (outline; after MS-B)
-- M5's `weekly_payouts` (Monday 10:00 IST) pays each partner's payable balance through M5's simulated payout provider (no real money moves in the prototype; owner, 2026-10-09) when `partners.api.payout_eligible(partner_id)` holds: status `active` or `paused`, a `bank` document `accepted` with `penny_drop_ok`, not suspended. Otherwise the payout is `held` with the reason.
-- The account details come only from `partners.api.payout_account(partner_id)`, which decrypts and is audit-logged.
+- M5's `weekly_payouts` (Monday 10:00 IST) pays each partner's payable balance through M5's simulated payout provider (no real money moves in the prototype; owner, 2026-10-09) when `partners.api.payout_eligibility(partner_id)` answers `eligible`: status `active`, `paused` or `left` (a partner who left is still paid what she earned; `suspended` is held with reason `suspended`), the KYC documents accepted (else `kyc_incomplete`), and a `bank` document `accepted` with `penny_drop_ok` (else `no_payout_account`). Otherwise the payout is `held` with that reason (M5 §3.5).
+- The account details come only from `partners.api.payout_account(partner_id)`, which decrypts and is audit-logged; only a real provider (pilot) calls it, never the simulated one.
 - Income certificate: `GET /v1/earnings/certificate?from=&to=` (PDF of the ledger totals per month, for loans). Refined with M5's statement PDF.
 
 ### Facade for other modules (`gharbasket.modules.partners.api`)
@@ -549,7 +553,7 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 - `profile_card(session, partner_id) -> { display_name, photo_url } | None` — M9's captain card.
 - `tiffin_pickups(session, hub_id, date, meal) -> list[PickupRef]` — `{ assignment_id, partner_id, display_name, address, lat, lng, ready_by, status, order_ids }` for M7's tiffin routes.
 - `pickup(session, pickup_qr, hub_id) -> PickupRef` — the orders ready at that kitchen; raises `partners.pickup_invalid` for an unknown or other hub's code.
-- `payout_eligible(session, partner_id) -> Eligibility { ok, reason }` and `payout_account(session, partner_id) -> { account_number, ifsc, holder }` (M5, §3.7).
+- `payout_eligibility(session, partner_id) -> { eligible, reason: "kyc_incomplete" | "suspended" | "no_payout_account" | None }` and `payout_account(session, partner_id) -> { account_number, ifsc, holder }` (M5 §3.5, §3.7 here).
 - `export_for_user(session, user_id) -> dict` — the M1 data export (§3.3 of M1): applications with masked KYC references and check and review states (no files, no hashes), training results, partner records, ratings given.
 
 ## 4. Tables owned
@@ -589,7 +593,7 @@ No event carries KYC data, a number (masked or not), an address or a phone.
 - `orders.delivery_failed` (kind `tiffin` → status, completion)
 - `orders.dispatched` (kind `tiffin` → `picked_up`; actor `rider` → rider earning)
 - `orders.packed` (actor `packer` → packer earning)
-- `identity.user_deleted` (§3.3)
+- `identity.deletion_requested` (§3.3)
 
 The draft's `intel.assignment_ready` is dropped: the assignment is a synchronous gateway call inside M8's job. So is `orders.locked`: late locks are picked up by the next round.
 
@@ -681,6 +685,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **Assignment (§3.4):**
   - the gateway is mocked to answer, to time out (greedy fallback, deterministic), and to answer `partial`;
   - eligibility: skills, rating floor (with the unrated default), distance, capacity;
+  - an order goes to its `preferred_partner_id` while that kitchen is eligible and has room, largest orders first; only the rest reach the gateway or the fallback, with her capacity and rolling earnings updated; an ineligible, full or declining kitchen loses the preference;
   - one offer per kitchen and meal;
   - a re-run adds only orders without a live assignment;
   - decline and expiry release orders, and the next round excludes those kitchens;
@@ -700,7 +705,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - the average is shown from 5 ratings.
 - **Earnings (§3.6):**
   - each basis posts once per order, even when the event is delivered twice;
-  - a captain earns on `delivered` with actor `captain`, not on `at_society`, and nothing for a rider-mode delivery;
+  - a captain earns on `delivered` with actor `captain`, not on `at_society`, and nothing for a rider-mode delivery or a tiffin she delivers;
   - no earning for `hub` or `system` actors;
   - the rate is the one valid on the delivery date;
   - the week view sums equal the ledger (against M5's facade).
@@ -712,7 +717,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **M4** (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with actor `kitchen` and `actor_user_id`, `set_kitchen`, `get_order_ref` for ratings; fulfilment events with `kind`, `actor` and `actor_user_id`).
 - **M10** (`intel_gateway.api.assign_kitchens`, M10 §3.5 on `feat/M10-assign-kitchens`).
 - **M2** (`catalog.api`: tiffin products and their skill tags).
-- **M5** (`billing.api`: `accrue_partner_earning`, `partner_earnings`, `partner_rolling_earnings`, `payout_status`).
+- **M5** (`billing.api`: `accrue_earning`, `partner_week`, `partner_rolling_earnings`; M5 §3.5).
 - **M0** (`platform.files` for `kyc_document`, audit log, jobs).
 - **M7** (rider pickup through `partners.api.pickup`).
 - **M11** (notifications for the events above).
@@ -730,22 +735,21 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 - **M3.** `CycleOut.captain` becomes `{ display_name, photo_url } | null`, read through `community.api.captain_card` (ADR-0026 §4).
 - **M4.** As listed in ADR-0026: the actors, `kinds` on `orders_for_delivery`, `set_kitchen`, and `kitchen` on `OrderOut`. In addition:
   - fulfilment events carry `actor` and `actor_user_id` (internal; for earnings, §3.6) beside `kind`;
-  - `orders_for_delivery` returns tiffin lines and `slot_id`;
+  - `orders_for_delivery` returns tiffin lines, `slot_id` and `preferred_partner_id` (the booked menu's kitchen, copied to the order at booking, M4 §3.5);
   - `get_order_ref(order_id)` returns `{ household_id, owner_user_id, kind, status, delivered_at }` for ratings;
   - `POST /v1/orders` (direct tiffin orders, P3) must exist for a tiffin day;
   - the move `locked → refunded` for tiffins (actor `system`, `payload.reason: "no_kitchen"`, a full refund through `billing.api.refund_to_wallet`; owner, 2026-10-09, §3.4).
-- **ADR-0026.** Amended with the M4 change above: §3's tiffin table gains `locked → refunded` (system, no kitchen took the order), and §2's transition table the same move.
-- **M5.** New facade functions:
-  - `accrue_partner_earning(…)` (journal kind `earning`, partner expense → `partner_payable:<partner>`, keyed `earning:<partner>:<basis>:<order>`);
-  - `partner_earnings(session, user_id, from, to)`;
-  - `partner_rolling_earnings(session, partner_ids, basis, since)`;
-  - `payout_status(session, user_id, week)`.
+- **ADR-0026.** Amended by [ADR-0027](../adr/0027-operations-contract-amendments.md) with the M4 change above: §3's tiffin table gains `locked → refunded` (system, no kitchen took the order), and §2's transition table the same move.
+- **M5** (drafted in M5 §3.5 on `docs/leftovers-contract`; the names agree with it). Facade functions:
+  - `accrue_earning(session, *, partner_id, basis, ref_type, ref_id, units, amount_paise, earned_at)` (journal kind `earning`, `fulfilment_expense` → `partner_payable:<partner>`, keyed `earning:<partner>:<basis>:<order>`) and `reverse_earning(…)` (not called by M8 in v1);
+  - `partner_week(session, partner_ids, week)`;
+  - `partner_rolling_earnings(session, partner_ids, basis, since)`.
 
-  Also: drop the consumption of `orders.delivered` for captain commission and of `partners.assignment_completed` for earnings (M8 posts them); `weekly_payouts` reads `partners.api.payout_eligible` and `payout_account`; the partner part of `/v1/statements`.
+  Also: M5 consumes neither `orders.delivered` for captain pay nor `partners.assignment_completed` for earnings (M8 posts them); `weekly_payouts` reads `partners.api.payout_eligibility` and, for a real provider only, `payout_account`; the partner's statement is `GET /v1/statements?account=earnings`.
 - **M0.** §3.1: KYC files are read by admins and by the hub managers of the application's hub, every link audit-logged (owner, 2026-10-09). A `partner_photo` purpose comes later, not in S6.
-- **M2.** Tiffin products carry skill tags, and `catalog.tiffin_menus` is per hub rather than per partner: fair assignment chooses the kitchen, not the customer.
-- **M7.** Tiffin pickups through `partners.api.tiffin_pickups` and `pickup` (the `GB1A:` QR); `logistics.handovers.captain_id` becomes the captain's `user_id` from `community.api.captain_for_society`.
-- **M9** (outside §3.2). `community.api.society_points(society_ids)` (centroid, else the hub location) for assignment distances.
+- **M2.** Tiffin products carry skill tags. `catalog.tiffin_menus` stays per kitchen partner, as in M2 §4: one menu per kitchen, date and meal, with its tiffin `product_id`, shown to the customers of her hub once a hub manager approves it (`tiffin_menus:write`). The customer books a menu (M4 §3.5); its kitchen is the order's `preferred_partner_id`, a preference the assignment honours while that kitchen can take the order (§3.4), not a hard choice.
+- **M7.** Tiffin pickups through `partners.api.tiffin_pickups` and `pickup` (the `GB1A:` QR, M7 §3.7); the handover records the captain's `user_id` and `partner_id` from `community.api.captain_for_society` (M7 §4, done in M7 v2).
+- **M9** (outside §3.2). `community.api.society_points(society_ids)` for assignment distances, the same facade M7 needs (M7 §10): the society's gate point, else a point inside its boundary. A society with neither has no point, and its tiffin orders stay unassigned with the reason `no_location`.
 - **M11.** Event map:
   - `partners.application_decided` and `partners.verified` (to the applicant);
   - `partners.assignment_created` (to the kitchen);
@@ -774,7 +778,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - the FSSAI number is stored and shown in clear (public by law), while every other KYC number is encrypted and masked;
   - the earnings mirror table is dropped (the ledger is the only record).
 - **Decided by the owner (2026-10-09):**
-  1. ~~Tiffins no kitchen takes: orders still unassigned after the last round have no path in ADR-0026.~~ Decided: a new M4 move `locked → refunded` (actor `system`, tiffin only, reason `no_kitchen`, a full refund), run by the `refund_unassigned_tiffins` job at `ready_by` minus 2 h (§3.4, §6). It amends ADR-0026 §3; M4 and ADR-0026 follow-ups in §10.
+  1. ~~Tiffins no kitchen takes: orders still unassigned after the last round have no path in ADR-0026.~~ Decided: a new M4 move `locked → refunded` (actor `system`, tiffin only, reason `no_kitchen`, a full refund), run by the `refund_unassigned_tiffins` job at `ready_by` minus 2 h (§3.4, §6). Recorded in [ADR-0027](../adr/0027-operations-contract-amendments.md), which amends ADR-0026 §2 and §3; the M4 follow-up is in §10.
   2. ~~Rates: should riders and packers earn per event, and should captains earn on `at_society` or on `delivered`?~~ Decided: as drafted, kitchen ₹60 a portion, captain ₹6 a bag paid at `delivered`, rider ₹8 and packer ₹4 an order; editable per hub through the rate card; payouts are simulated (§3.6, §3.7).
   3. ~~Partner photos: a `partner_photo` purpose in S6, or `photo_url: null`?~~ Decided: `photo_url` is null for now; an upload purpose comes later (§3.3, §3.5).
   4. ~~Who sees KYC files?~~ Decided: admins and the hub managers of the application's hub; every link is audit-logged; M0 §3.1 changes (§3.1, §10).
@@ -783,3 +787,6 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   7. ~~The partner core in S5?~~ Decided: the partner core table and seeded verified captains come in S5, so M9's captains and M7's handover work before applications exist (build order (a)).
   8. ~~Training content source and languages?~~ Decided: short modules in English, Hindi and Marathi, written by Rhythm Thakur and Manish Raje (§3.2).
   9. ~~The rating floor and the default for unrated kitchens?~~ Decided: floor 3.8; kitchens with fewer than 5 ratings count as 4.5 (§3.4).
+- **Defaults set by [ADR-0027](../adr/0027-operations-contract-amendments.md) (2026-10-09), which the owner may change:**
+  - the booked menu's kitchen gets the order first, while she is eligible and has room; only the rest is fair-assigned (§3.4, step 3). A soft per-portion bonus inside M10's solver instead (so fairness can outweigh the preference) needs an M10 change to `POST /assign/kitchens` and is not planned for S6;
+  - a captain earns nothing for a tiffin she delivers (§3.6).
