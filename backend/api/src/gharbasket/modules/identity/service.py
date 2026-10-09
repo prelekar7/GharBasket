@@ -144,7 +144,37 @@ async def start_session(
     )
     session.add(login)
     await session.flush()
+    if push_token is not None:
+        await _release_token(session, user.id, push_token, keep=login.id)
     return await _issue(session, settings, user=user, login=login, parent_id=None, now=at)
+
+
+async def _release_token(
+    session: AsyncSession, user_id: uuid.UUID, token: str, *, keep: uuid.UUID
+) -> None:
+    """A phone has one FCM token: after a reinstall it belongs to the new session only."""
+    await session.execute(
+        update(LoginSession)
+        .where(
+            LoginSession.user_id == user_id,
+            LoginSession.push_token == token,
+            LoginSession.id != keep,
+        )
+        .values(push_token=None)
+    )
+
+
+async def set_push_token(
+    session: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID, token: str | None
+) -> None:
+    """Set or clear the FCM token of the calling device (M11 §3.1)."""
+    await session.execute(
+        update(LoginSession)
+        .where(LoginSession.id == session_id, LoginSession.user_id == user_id)
+        .values(push_token=token)
+    )
+    if token is not None:
+        await _release_token(session, user_id, token, keep=session_id)
 
 
 async def rotate(

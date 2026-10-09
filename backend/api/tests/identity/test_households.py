@@ -438,6 +438,7 @@ async def test_consents_list_every_purpose(clients: ClientFactory, google: FakeG
         "health_personalisation": True,
         "marketing": False,
         "research_anonymised": False,
+        "whatsapp": False,
     }
     never = next(consent for consent in consents if consent["purpose"] == "marketing")
     assert never == {

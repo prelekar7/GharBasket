@@ -659,6 +659,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear this device's FCM token for push notifications (M11 §3.1) */
+        put: operations["put_push_token_v1_me_push_token_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/roles": {
         parameters: {
             query?: never;
@@ -670,6 +687,75 @@ export interface paths {
         get: operations["my_roles_v1_me_roles_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's inbox, newest first, in the request language */
+        get: operations["list_notifications_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Push and WhatsApp per category, and quiet hours */
+        get: operations["get_preferences_v1_notifications_preferences_get"];
+        /** Save push and WhatsApp per category, and optionally quiet hours */
+        put: operations["put_preferences_v1_notifications_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark the whole inbox read */
+        post: operations["read_all_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one message read (the first read time is kept) */
+        post: operations["read_one_v1_notifications__notification_id__read_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1278,6 +1364,18 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** CategoryPreference */
+        CategoryPreference: {
+            /**
+             * Category
+             * @example weekly_box
+             */
+            category: string;
+            /** Push */
+            push: boolean;
+            /** Whatsapp */
+            whatsapp: boolean;
+        };
         /** CategoryRef */
         CategoryRef: {
             /**
@@ -1304,7 +1402,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /**
              * Version
              * @example v1
@@ -1321,7 +1419,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /** Revoked At */
             revoked_at: string | null;
             /** Version */
@@ -1857,6 +1955,18 @@ export interface components {
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
         };
+        /** InboxOut */
+        InboxOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Unread
+             * @description Unread messages in the whole inbox, not only this page
+             */
+            unread: number;
+        };
         /** IngredientOut */
         IngredientOut: {
             /**
@@ -2344,6 +2454,45 @@ export interface components {
             /** Mr */
             mr: string;
         };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
+        };
         /** OrderLineOut */
         OrderLineOut: {
             /**
@@ -2379,11 +2528,14 @@ export interface components {
             slug: string;
             step: components["schemas"]["OrderStep"];
             substituted_from: components["schemas"]["ProductRef"] | null;
-            /** Total Paise */
+            /**
+             * Total Paise
+             * @description (qty - shortage_qty) x unit_price_paise
+             */
             total_paise: number;
             /**
              * Unit Price Paise
-             * @description Per step, frozen when the line was made
+             * @description Per step, frozen when the line was made; a packing substitute's price
              */
             unit_price_paise: number;
         };
@@ -2609,6 +2761,41 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /** PreferencesIn */
+        PreferencesIn: {
+            /**
+             * Categories
+             * @description Categories left out keep their value
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /** Quiet End */
+            quiet_end?: string | null;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM in 15-minute steps
+             */
+            quiet_start?: string | null;
+        };
+        /** PreferencesOut */
+        PreferencesOut: {
+            /**
+             * Categories
+             * @description All five, in the order weekly_box, delivery, money, kindness, offers
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /**
+             * Quiet End
+             * @description IST, HH:MM
+             * @example 07:00
+             */
+            quiet_end: string;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM
+             * @example 22:00
+             */
+            quiet_start: string;
         };
         /** PresignIn */
         PresignIn: {
@@ -2875,6 +3062,14 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
+        };
+        /** PushTokenIn */
+        PushTokenIn: {
+            /**
+             * Push Token
+             * @description The FCM registration token of this device; null when notifications are off
+             */
+            push_token: string | null;
         };
         /** Ready */
         Ready: {
@@ -6434,6 +6629,55 @@ export interface operations {
             };
         };
     };
+    put_push_token_v1_me_push_token_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     my_roles_v1_me_roles_get: {
         parameters: {
             query?: never;
@@ -6454,6 +6698,214 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_notifications_v1_notifications_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_preferences_v1_notifications_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_preferences_v1_notifications_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_consent_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.category_unknown, notifications.quiet_hours_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_all_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_one_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
