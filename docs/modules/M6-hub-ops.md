@@ -1,6 +1,6 @@
 # M6 — Hub Operations
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 when this spec and ADR-0026 are approved; §3.3 (procurement), §3.4 (receiving and inventory) and §3.5 (waste and surplus) are outlines, refined in the PR that builds each.
+**Status:** Draft v3 (with [ADR-0026](../adr/0026-operations-contract.md) and [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 and built. §3.3 (procurement plans and purchase orders), §3.4 (goods receipt, lots and stock) and §3.5 (waste, the surplus cascade and kept items) were refined on 2026-10-09 and are **frozen on approval**; §3.5's kept items and returned bags are built with M7's redelivery PR (ADR-0027 §2).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S4
 **Postgres schema:** `hub_ops` · **Python package:** `gharbasket.modules.hub_ops`
@@ -8,7 +8,7 @@
 ## 1. Purpose
 Everything inside the hub (the franchise fulfilment centre): **hubs** and their service areas (M6 is the owner of hub ids, ADR-0026), vendors, procurement plans (committed demand plus a forecast buffer), purchase orders, goods receipt with QC grading, inventory lots with expiry, **packing tasks** with bag labels and shortage handling, waste logging and the surplus cascade. M6 moves orders only through `orders.api` (M4 owns the order and its states), takes forecasts from M10 through `intel_gateway.api`, and hands crates to M7. It does not route, pay anyone or list products for sale.
 
-**Build order for MS-B:** (a) hubs, service areas, vendors → (b) packing → (c) procurement plan and purchase orders → (d) goods receipt and lots → (e) waste and surplus cascade. (a) and (b) are frozen below; (c)–(e) wait for inputs that are still moving (the forecast from PRs #118/#122, the inventory model, M8/M9 consumers).
+**Build order for MS-B:** (a) hubs, service areas, vendors → (b) packing → (c) procurement plan and purchase orders → (d) goods receipt and lots → (e) waste and surplus cascade. (a) and (b) are frozen and built; (c)–(e) are frozen on approval below. They do not wait for the ML chain: with no forecast every plan line uses the rule-based buffer, and the forecast (PRs #118/#122) changes a line's `basis`, never a shape. Surplus is settled by the hub manager until M8 and M9 consume offers.
 
 ## 2. User stories
 | # | Story | Acceptance criteria |
@@ -19,10 +19,11 @@ Everything inside the hub (the franchise fulfilment centre): **hubs** and their 
 | US-4 | As a packer, I want to scan a bag, pick each line and flag shortages so that customers are treated fairly. | Start → pick → complete moves the order `locked → picking → packed`; a shortage refunds or substitutes through `orders.api.mark_shortage`. |
 | US-5 | As a packer on a weak network, I want my taps saved and sent later so that I never pack twice. | Every action has an `Idempotency-Key` made when tapped; replays return the first answer. |
 | US-6 | As a hub manager, I want a procurement plan right after cut-off so that I buy only what's needed. | At T-1 21:10 a plan lists committed qty, forecast q50/qτ (or the rule-based buffer), order qty and vendor per item. |
-| US-7 | As a hub manager, I want to adjust lines and send purchase orders so that vendors know what to deliver. | Edits audited; one PO per vendor with a WhatsApp-ready text. |
-| US-8 | As a hub manager, I want to record goods received with weight and grade so that inventory and vendor scores are accurate. | A goods receipt creates lots with expiry; rejects feed vendor scores. |
-| US-9 | As a hub manager, I want surplus routed through the cascade so that waste is minimised. | 12:30 job offers lots to Imperfect Sabzi, kitchens, NGOs, then compost; each step logged. |
+| US-7 | As a hub manager, I want to adjust lines and send purchase orders so that vendors know what to deliver. | Edits need a reason and are audited; one PO per vendor, sent by a WhatsApp link or printed. |
+| US-8 | As a hub manager, I want to record goods received with weight and grade so that inventory and vendor scores are accurate. | A goods receipt creates lots with a best-before; rejects go back to the vendor and feed vendor scores. |
+| US-9 | As a hub manager, I want surplus routed through the cascade so that waste is minimised. | At 12:30 lots that cannot be packed tomorrow are offered to kitchens, then NGOs, then compost; each step logged. |
 | US-10 | As an analyst, I want kg wasted per 100 kg sold so that the zero-waste claim is measurable. | Computed per hub and day from waste logs and packed quantities. |
+| US-11 | As a hub manager, I want the non-perishables of a box missed twice kept for the family so that they ride on its next delivery (ADR-0027). | Scanning the returned bag keeps them per household; packing picks them from the shelf; perishables go to the cascade. |
 
 ## 3. API endpoints
 | Method | Path | Permission / role | Idempotency | Notes |
@@ -40,15 +41,23 @@ Everything inside the hub (the franchise fulfilment centre): **hubs** and their 
 | GET | `/v1/packing-tasks/{id}` | packer, hub_manager (hub) | — | §3.2 |
 | POST | `/v1/packing-tasks/{id}/start` · `/pick` · `/shortage` · `/complete` | packer (hub), hub_manager | Required | §3.2; offline-safe |
 | POST | `/v1/packing-tasks/{id}/release` | hub_manager (hub) | Required | §3.2 |
-| GET | `/v1/hubs/{id}/procurement-plans?date=` | hub_manager, franchise_owner (hub) | — | §3.3 (outline) |
-| POST | `/v1/hubs/{id}/procurement-plans/build` | hub_manager (hub) | Required | §3.3 |
-| PATCH | `/v1/procurement-plans/{id}/lines/{product_id}` | hub_manager (hub) | `If-Match` | §3.3 |
-| POST | `/v1/procurement-plans/{id}/purchase-orders` | hub_manager (hub) | Required | §3.3 |
-| GET | `/v1/hubs/{id}/purchase-orders?date=` | hub_manager, franchise_owner (hub) | — | §3.3 |
-| POST | `/v1/hubs/{id}/goods-receipts` | hub_manager, packer (hub) | Required | §3.4 (outline) |
-| GET | `/v1/hubs/{id}/inventory` | hub_manager, packer (hub) | — | §3.4 |
-| GET / POST | `/v1/hubs/{id}/waste-logs` | hub_manager, packer (hub) | Required (POST) | §3.5 (outline) |
-| GET | `/v1/hubs/{id}/waste-summary?from=&to=` | hub_manager, franchise_owner (hub), admin | — | §3.5 |
+| GET | `/v1/hubs/{id}/procurement-plans?date=` · `/v1/procurement-plans/{id}` | hub_manager, franchise_owner (hub), admin | — | §3.3; ETag |
+| POST | `/v1/hubs/{id}/procurement-plans/build` | hub_manager (hub), admin | Required | §3.3; same work as the 21:10 job |
+| PATCH | `/v1/procurement-plans/{id}/lines/{product_id}` | hub_manager (hub), admin | `If-Match` | §3.3; reason required for a quantity |
+| POST | `/v1/procurement-plans/{id}/purchase-orders` | hub_manager (hub), admin | Required | §3.3; (re)generates draft POs |
+| GET | `/v1/hubs/{id}/purchase-orders?date=&status=` · `/v1/purchase-orders/{id}` | hub_manager, franchise_owner (hub), admin | — | §3.3; ETag |
+| POST | `/v1/purchase-orders/{id}/send` · `/cancel` | hub_manager (hub), admin | Required | §3.3 |
+| POST | `/v1/hubs/{id}/goods-receipts` | hub_manager, packer (hub) | Required | §3.4 |
+| GET | `/v1/hubs/{id}/goods-receipts?date=` · `/v1/goods-receipts/{id}` | hub_manager, packer, franchise_owner (hub), admin | — | §3.4 |
+| GET | `/v1/hubs/{id}/inventory` · `/v1/lots/{id}` | hub_manager, packer, franchise_owner (hub), admin | — | §3.4 |
+| POST | `/v1/lots/{id}/count` | hub_manager (hub), admin | Required | §3.4; absolute stock count |
+| GET / POST | `/v1/hubs/{id}/waste-logs` | hub_manager, packer (hub); franchise_owner, admin read | Required (POST) | §3.5 |
+| GET | `/v1/hubs/{id}/surplus-offers?date=&status=` | hub_manager, packer, franchise_owner (hub), admin | — | §3.5 |
+| POST | `/v1/surplus-offers/{id}/settle` | hub_manager (hub), admin | Required | §3.5 |
+| POST | `/v1/hubs/{id}/surplus/run` | hub_manager (hub), admin | Required | §3.5; same work as the 12:30 job |
+| POST | `/v1/hubs/{id}/returned-bags` | hub_manager, packer (hub) | Required | §3.5; a bag back after a second miss |
+| GET | `/v1/hubs/{id}/kept-items?status=` | hub_manager, packer, franchise_owner (hub), admin | — | §3.5 |
+| GET | `/v1/hubs/{id}/waste-summary?from=&to=` | hub_manager, packer, franchise_owner (hub), admin | — | §3.5 |
 | POST | `/v1/internal/jobs/build_packing_tasks` · `build_procurement_plan` · `refresh_procurement_plan` · `surplus_cascade` · `compute_vendor_scores` | operator token | — | §6 |
 
 **For every section.** Every endpoint needs sign-in (M1 §3.1). Hub staff act in one hub: the grant `packer:<hub_id>` or `hub_manager:<hub_id>` (`X-Active-Role`, M0 permissions); a request for another hub is 403 `auth.forbidden`. Dates are IST calendar dates (`date` defaults to today in IST and may be today − 7 … today + 2, else 422 `hub_ops.date_out_of_range`); clock times are IST `HH:MM`; timestamps are UTC. Money is integer paise. Quantities shown to packers are **steps** (as on the order line); operations quantities (§3.3–§3.5) are `NUMERIC(10,3)` in the product's **operations unit** (`kg`, `l`, `piece`, `bunch` or `pack`; ADR-0026 §1). Reads send `Cache-Control: no-store`.
@@ -227,90 +236,363 @@ POST /v1/packing-tasks/{id}/release        hub_manager; Idempotency-Key
 | 422 | `hub_ops.bag_mismatch` | The scanned `bag_qr` is not this task's |
 | 409 | `orders.illegal_transition` | The order is not in the status the step needs (from M4) |
 
-### 3.3 Procurement plan and purchase orders (outline; refined at its PR)
-The forecast arrives with the ML chain (PRs #118/#122): `intel_gateway.api.hub_forecast(session, hub_id, delivery_date)` returns `items[{ product_id, committed, uncommitted_q50, uncommitted_qtau, order_qty, model }]` in **steps** (M10 §3.6), or `None` when the job has not run.
+### 3.3 Procurement plans and purchase orders (frozen on approval)
+The console's Procurement screen (plan table, line edit sheet, purchase orders with the WhatsApp link and print view) and the backend build against this. Same review rule as §3.1.
+
+**What M6 buys.** Products of kind `veg`, `fruit`, `staple` and `salad` (the **stocked kinds**). Tiffins are cooked by kitchens (M8) and kits are not built yet (M2), so neither gets a plan line. All quantities below are operations quantities (ADR-0026 §1): `NUMERIC(10,3)` in the product's operations unit, sent as JSON numbers with at most 3 decimals (more is 422 `hub_ops.qty_invalid`); `piece`, `bunch` and `pack` quantities are whole numbers. Steps convert as `steps × step_qty`, divided by 1000 for `g` and `ml`.
 
 ```
-ProcurementLine : { "product_id", "slug", "name", "unit": "kg",
-  "committed_qty": 42.5,        Σ locked order lines for the date, in the operations unit
-  "at_risk_qty": 1.5,           Σ payment_failed lines (still in the 2 h grace)
-  "forecast_q50": 3.0 | null, "forecast_qtau": 5.0 | null,   uncommitted, converted from steps
-  "on_hand_qty": 0.0,           usable lots expiring after the delivery day (0 until §3.4)
-  "suggested_qty": 47.5,        see below
-  "order_qty": 50.0,            suggested, or the hub manager's edit
-  "vendor": { "id", "name" } | null, "unit_cost_paise": 3200 | null,   per operations unit
-  "note": "…" | null, "edited": false }
-ProcurementPlan : { "id", "hub_id", "delivery_date", "status": "draft" | "ordered" | "closed",
-  "source": "ml" | "fallback", "model": "AutoETS" | null, "built_at", "version",
-  "lines": [ ProcurementLine ], "total_paise": 152300 }
-PurchaseOrder : { "id", "plan_id", "vendor": { "id", "name", "phone" }, "delivery_date",
-  "status": "sent" | "received" | "cancelled",
-  "lines": [ { "product_id", "name", "qty", "unit", "unit_cost_paise", "amount_paise" } ],
-  "total_paise", "share_text": "…", "created_at" }
+ProcurementLine : {
+  "product_id", "slug", "name",            name in Accept-Language
+  "unit": "kg",                            the operations unit
+  "shelf_life_h": 48 | null,               from the catalog
+  "committed_qty": 42.5,                   paid demand for the date (rules)
+  "at_risk_qty": 1.5,                      payment_failed orders still in the grace; shown, not bought
+  "forecast_q50": 3.0 | null,              M10's uncommitted demand, converted from steps
+  "forecast_qtau": 5.0 | null,
+  "basis": "forecast" | "buffer",          which rule made buffer_qty
+  "buffer_qty": 4.3,
+  "on_hand_qty": 0.0,                      usable stock for the date (§3.4)
+  "suggested_qty": 46.8,                   committed + buffer − on hand, rounded up
+  "order_qty": 50.0,                       suggested, or the hub manager's edit
+  "edited": true, "edit_reason": "Vendor sells in 10 kg crates" | null,
+  "vendor": { "id", "name" } | null,
+  "unit_cost_paise": 3200 | null,          expected cost per operations unit
+  "amount_paise": 160000 | null,           order_qty × unit_cost_paise, rounded half up
+  "purchase_order": { "id", "number", "status" } | null,   the line's PO (not cancelled)
+  "note": "…" | null }
+
+ProcurementPlan : {
+  "id", "hub_id", "delivery_date",
+  "status": "draft" | "ordered" | "closed",   ordered once any PO is sent; closed at T 12:30 (§3.5)
+  "source": "ml" | "fallback",              ml when M10 had a forecast for the hub and date
+  "model": "AutoETS" | null,                the forecast's model
+  "buffer_pct": 10,                         the hub's procurement_buffer_pct when built
+  "totals": { "lines": 38, "order_paise": 152300, "unpriced_lines": 4 },
+  "lines": [ ProcurementLine ],             by catalog category (shelf), then name
+  "built_at", "refreshed_at", "version" }
+
+GET /v1/hubs/{id}/procurement-plans?date=   200 ProcurementPlan (ETag = version)
+                                            | 404 "hub_ops.plan_not_found" (not built yet)
+GET /v1/procurement-plans/{id}              200 ProcurementPlan | 404 "hub_ops.plan_not_found"
+POST /v1/hubs/{id}/procurement-plans/build  hub_manager; Idempotency-Key
+  request : { "date": "2026-12-15" }        today … today + 2
+  200 : ProcurementPlan                     builds it, or rebuilds it (rules); the 21:10 job's work
+PATCH /v1/procurement-plans/{id}/lines/{product_id}     hub_manager; If-Match (the plan's version)
+  request : any of { "order_qty": 50.0 | null,      null: follow suggested_qty again (edited false)
+                     "vendor_id": "<uuid>" | null,
+                     "unit_cost_paise": 3100 | null, 0 to 10,000,000
+                     "note": "…" | null,            up to 200
+                     "reason": "…" }                3 to 200; required when order_qty changes
+  200 : ProcurementPlan (version + 1)
+
+PurchaseOrder : {
+  "id", "number": "KHARGHAR-261215-02" | null,    given when sent: hub slug, YYMMDD, a number per hub and day
+  "plan_id", "hub_id", "delivery_date",
+  "vendor": { "id", "name", "phone": "+919800002001" | null, "whatsapp": true },
+  "status": "draft" | "sent" | "partly_received" | "received" | "cancelled",
+  "lines": [ { "product_id", "slug", "name", "unit", "qty": 50.0,
+               "unit_cost_paise": 3200 | null, "amount_paise": 160000 | null,
+               "received_qty": 0.0, "accepted_qty": 0.0 } ],     sums of the receipts (§3.4)
+  "total_paise": 98000, "unpriced_lines": 1,
+  "share_text": "…",                         plain text for WhatsApp or print (below)
+  "whatsapp_url": "https://wa.me/919800002001?text=…" | null,   when the vendor has a phone and WhatsApp
+  "stale": false,                            a draft whose plan changed after it was generated
+  "cancel_reason": "…" | null,
+  "created_at", "sent_at" | null, "closed_at" | null, "version" }
+
+POST /v1/procurement-plans/{id}/purchase-orders    hub_manager; Idempotency-Key; no body
+  200 : { "purchase_orders": [ PurchaseOrder ] }   every PO of the plan that is not cancelled
+GET  /v1/hubs/{id}/purchase-orders?date=&status=   200 { "items": [ PurchaseOrder ] } by vendor name
+GET  /v1/purchase-orders/{id}                      200 PurchaseOrder (ETag) | 404 "hub_ops.po_not_found"
+POST /v1/purchase-orders/{id}/send                 hub_manager; Idempotency-Key; no body
+  200 : PurchaseOrder                              draft → sent; number given; publishes
+                                                   hub_ops.purchase_order_sent
+POST /v1/purchase-orders/{id}/cancel               hub_manager; Idempotency-Key
+  request : { "reason": "…" }                      3 to 200
+  200 : PurchaseOrder                              draft, or sent with nothing received → cancelled
 ```
 
-- **Quantity.** With a forecast: `suggested = committed + forecast_qtau − on_hand` (the newsvendor rule; τ is M10's). **Rule-based fallback** when `hub_forecast` returns `None` or the product has no forecast line: `suggested = committed × (1 + procurement_buffer_pct / 100)` (default 10 %) `− on_hand`. Never below `committed − on_hand`, never negative; products with `shelf_life_h` under 48 h get no buffer beyond 5 %. Rounded up to 0.1 kg or l, or to whole pieces, bunches and packs. `source` says which rule built the plan, and the console shows it.
-- **When.** `build_procurement_plan` at T-1 21:10 for delivery day T. A consumer of `intel.forecast_ready` rebuilds a **draft** plan when the forecast lands; `refresh_procurement_plan` at T-1 23:05 (after M4's `payment_grace_expiry`) updates `committed_qty` and `at_risk_qty`. A rebuild keeps edited lines' `order_qty`.
-- **Edit** (`PATCH`, `If-Match`): `order_qty` (≥ 0), `vendor_id`, `note`; only while `draft` (409 `hub_ops.plan_not_editable`); each edit goes to `platform.audit_log` with old and new values.
-- **Purchase orders** (`POST …/purchase-orders`, Idempotency-Key): one PO per vendor for lines with `order_qty > 0`; lines without a vendor → 422 `hub_ops.vendor_missing` (`product_ids`); the plan becomes `ordered`. `unit_cost_paise` is the last accepted receipt's cost for that product at the hub, else null; `amount_paise = round(qty × unit_cost_paise)` (half up). `share_text` is a plain-text PO for WhatsApp or print; nothing is sent automatically in v1. Event `hub_ops.purchase_orders_sent`.
-- **Vendor suggestion:** the vendor of the product's last purchase order at the hub, else the hub's default vendor.
+**Quantity rules** (per line; the plan keeps every input, so the console can show the sum)
+- **Committed:** `orders.api.orders_for_delivery(hub, date, statuses=("locked", "picking", "packed"), kinds=("box", "addon"))`, Σ `(qty − shortage_qty) × step` of each line's current product (a substituted line counts the substitute). Carried-over lines (`carried_from_order_id`, §3.5) are left out: they are packed from kept items, not bought. **At risk:** the same over `payment_failed` orders. A line exists for every stocked product with committed, at-risk or forecast quantity above 0.
+- **Buffer.** When `intel_gateway.api.hub_forecast(hub, date)` returns a forecast and it has an item for the product: `basis: "forecast"`, `buffer_qty = max(0, uncommitted_qtau) × step` (M10 §3.6; M10's `committed` and `order_qty` are ignored, because the cut-off gives the exact count). Otherwise, or when `hub_forecast` returns `None`: `basis: "buffer"`, `buffer_qty = committed × buffer_pct / 100` (the hub's `procurement_buffer_pct`, default 10). **Short-life cap:** for a product with `shelf_life_h ≤ 48` (leafy greens and milk in the seed catalog) `buffer_qty` is at most `committed × min(buffer_pct, 5) / 100`, whatever the basis. `source` is `ml` when a forecast was found for the hub and date (even if some lines use the buffer), else `fallback`.
+- **Suggested:** `max(0, committed + buffer − on_hand)`, rounded **up** to 0.1 for `kg` and `l` and to a whole number otherwise. It is never below `committed − on_hand`, because the buffer is never negative.
+- **Order quantity** follows `suggested_qty` until the hub manager sets it (`edited: true`); then rebuilds keep it until `order_qty: null` is sent.
+- **Vendor and cost** for a new line: the vendor of the product's last purchase order at the hub that was not cancelled, if still active, else the hub's default vendor, else null; `unit_cost_paise` from the product's latest goods receipt line at the hub with a cost (§3.4), else null. Rebuilds keep a line's vendor, cost and note. Money: `amount_paise = round_half_up(order_qty × unit_cost_paise)`; lines with no cost are counted in `unpriced_lines` and left out of the totals. Costs are recorded for the hub's books and vendor scores only; M6 posts no ledger entries and pays no vendor (vendors are paid outside the platform in the prototype, §11).
 
-### 3.4 Goods receipt and inventory lots (outline; refined at its PR)
-- `POST /v1/hubs/{id}/goods-receipts` (Idempotency-Key): `{ "purchase_order_id" | null, "vendor_id", "lines": [ { "product_id", "received_qty", "accepted_qty", "grade": "A" | "B" | "C", "reject_reason"?, "unit_cost_paise", "expires_at"? } ] }` in operations units; `accepted_qty ≤ received_qty`; the rest goes back to the vendor (not waste) and counts against the vendor's score. Each accepted line becomes an **inventory lot** (`expires_at` defaults to received + `shelf_life_h`); grade B lots are first in line for Imperfect Sabzi. The PO becomes `received`. Event `hub_ops.goods_received`.
-- **Packing consumes lots** first-expiry-first-out at `complete` (steps × step size); a pick with no lot left is recorded as unlotted, never refused, so packing never waits for receiving data.
-- `compute_vendor_scores` (weekly): freshness (share of grade A) 40 %, price against the hub's median 20 %, reliability (received ÷ ordered, on time) 20 %, defects (rejected share) 20 %.
+**Building, rebuilding and refreshing.** One plan per hub and delivery date (unique). `build_procurement_plan` (T-1 21:10, §6) creates the plan for T for every active hub, or rebuilds it if it exists. M10's forecast job runs at the same minute, so the 21:10 build normally uses the forecast stored by the previous evening's run (it covers 7 days ahead) or the buffer; the consumer of **`intel.forecast_ready`** then rebuilds the listed dates that already have a plan that is not closed. `refresh_procurement_plan` (T-1 23:05, after M4's `payment_grace_expiry`) rebuilds existing plans only. A rebuild recomputes `committed_qty`, `at_risk_qty`, the forecast, `buffer_qty`, `on_hand_qty` and `suggested_qty` of every line; `order_qty` follows only on lines that are not edited and not on a sent purchase order; new products get lines; a line whose committed, at-risk and forecast quantities all fell to 0 is removed unless it is edited or on a sent PO. A rebuild that changes anything bumps `version` and sets `refreshed_at`. Builds of one hub run one after the other (the hub row is locked). A closed plan is never rebuilt.
 
-### 3.5 Waste and the surplus cascade (outline; refined at its PR)
-- `POST /v1/hubs/{id}/waste-logs` (Idempotency-Key): `{ "lot_id" | null, "product_id", "qty", "reason": "spoilage" | "damage" | "surplus", "cascade_to": "imperfect" | "kitchen" | "ngo" | "bin" }`; it reduces the lot. Event `hub_ops.waste_logged`.
-- `surplus_cascade` at T 12:30: every lot with stock left after packing is offered in order: shelf life ≥ 24 h → **Imperfect Sabzi** add-on for the next day; usable for cooking today → **kitchens** as ingredient credit; fit for donation → **NGO**; otherwise **compost** (`bin`). Each offer is a `hub_ops.surplus_offers` row and an event `hub_ops.surplus_offered`; the consumers (M2/M4 for the Imperfect listing, M8 for kitchen credits, M9 for NGO hand-offs) come later and report the outcome through `hub_ops.api.settle_surplus(offer_id, outcome)`. Until then the hub manager settles offers in the console. Every outcome is a waste log with `cascade_to`.
-- **KPI:** kg wasted per 100 kg sold = Σ waste logs with `cascade_to ∈ {ngo, bin}` ÷ Σ packed quantity × 100, per hub and day (`waste-summary`; M12 charts it).
+**Editing.** A line may be changed while the plan is not `closed` (409 `hub_ops.plan_not_editable`) and the line is not on a sent, partly received or received PO (409 `hub_ops.line_ordered`; cancel the PO first). `vendor_id` must be an active vendor of the hub (404 `hub_ops.vendor_not_found`, 422 `hub_ops.vendor_inactive`). Every change goes to `platform.audit_log` with the old and new values and the reason. A product not on the plan is 404 `hub_ops.line_not_found` (lines are not added by hand in v1).
+
+**Purchase orders.**
+- **Generate** (`POST …/purchase-orders`): one **draft** PO per vendor for the lines with `order_qty > 0` that are not on a sent PO, at the lines' `order_qty`, vendor and cost; the plan's earlier drafts are replaced (drafts never left the hub, so they are deleted). Lines without a vendor → 422 `hub_ops.vendor_missing` with `product_ids`, and nothing changes; no line to order → 409 `hub_ops.nothing_to_order`.
+- **Send** marks that the hub manager is sending it now: she opens `whatsapp_url` (or prints `share_text`); nothing is sent automatically in v1. It needs a draft (409 `hub_ops.po_not_draft`) generated from the plan's current version (409 `hub_ops.po_stale`: regenerate), and an active vendor (422 `hub_ops.vendor_inactive`). The PO gets its `number`, the plan becomes `ordered`, and `hub_ops.purchase_order_sent` is published.
+- **Lifecycle:** `draft → sent → partly_received → received`; `draft` or `sent` (nothing received) `→ cancelled` (409 `hub_ops.po_not_cancellable` otherwise). Receipts move it (§3.4): every line's `received_qty ≥ qty` → `received`, else `partly_received`. The 12:30 run on the delivery day closes the day's buying (§3.5): `partly_received → received` and `sent → cancelled` with `cancel_reason: "not_delivered"`, which counts against the vendor's reliability. A plan whose sent POs are all cancelled returns to `draft`.
+- **`share_text`** (English in v1), for example:
+
+```
+GharBasket Kharghar hub · PO KHARGHAR-261215-02
+Deliver by 04:00 on Tue 15 Dec 2026 to Plot 12, Sector 19, Kharghar
+1. Tomato: 50 kg @ ₹32.00/kg = ₹1,600.00
+2. Palak: 40 bunch (no price agreed)
+Total ₹1,600.00 + 1 item at market price
+```
+
+**Error codes** (in addition to §3.1 and §3.2)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `hub_ops.plan_not_found` | No plan for the hub and date, unknown id, or another hub's |
+| 404 | `hub_ops.po_not_found` | Unknown purchase order, or another hub's |
+| 404 | `hub_ops.line_not_found` | A product that is not on the plan |
+| 409 | `hub_ops.plan_not_editable` | Building, editing or generating POs for a closed plan |
+| 409 | `hub_ops.line_ordered` | Editing a line that is on a sent, partly received or received PO |
+| 409 | `hub_ops.nothing_to_order` | No line with `order_qty > 0` left to put on a PO |
+| 409 | `hub_ops.po_not_draft` | `send` on a PO that is not a draft |
+| 409 | `hub_ops.po_stale` | `send` on a draft generated before the plan's last change |
+| 409 | `hub_ops.po_not_cancellable` | `cancel` on a PO with goods received, or already received or cancelled |
+| 412 | `request.version_mismatch` | `If-Match` is not the plan's version |
+| 422 | `hub_ops.vendor_missing` | Generating POs while lines with `order_qty > 0` have no vendor (`product_ids`) |
+| 422 | `hub_ops.vendor_inactive` | An inactive vendor on a line or a PO being sent |
+| 422 | `hub_ops.reason_required` | `order_qty` changed without a `reason` |
+| 422 | `hub_ops.qty_invalid` | Negative, more than 3 decimals, over 9,999,999.999, or not whole for `piece`, `bunch`, `pack` |
+
+### 3.4 Goods receipt, lots and stock (frozen on approval)
+The console's Receiving/QC screen (on a tablet at the hub at 04:00) and Inventory screen build against this. Same review rule as §3.1.
+
+```
+POST /v1/hubs/{id}/goods-receipts       hub_manager, packer; Idempotency-Key
+  request : { "purchase_order_id": "<uuid>" | null,   null: an ad hoc purchase (a market buy)
+              "vendor_id": "<uuid>",                   required without a PO; with one, omitted or the PO's
+              "received_at"?: "…",                     default now; at most 24 h back, never ahead
+              "lines": [ {                             1 to 100, one per product
+                "product_id",
+                "received_qty": 52.0,                  weighed or counted at the dock, > 0
+                "accepted_qty": 50.0,                  0 … received_qty; the rest goes back to the vendor
+                "grade": "A" | "B" | "C",              of the accepted part (rules)
+                "reject_reason"?: "rotten" | "damaged" | "undersized" | "wrong_item" | "other",
+                                                       required when accepted < received
+                "unit_cost_paise"?: 3100 | null,       per operations unit; default the PO line's
+                "best_before"?: "…",                   default received_at + shelf_life_h
+                "note"? } ] }                          up to 200
+  201 : GoodsReceipt                                   publishes hub_ops.goods_received
+
+GoodsReceipt : {
+  "id", "hub_id", "vendor": { "id", "name" },
+  "purchase_order": { "id", "number", "status" } | null,   status after this receipt
+  "received_at", "received_by": { "user_id", "name" },
+  "lines": [ { "product_id", "slug", "name", "unit",
+               "received_qty", "accepted_qty", "rejected_qty", "grade", "reject_reason",
+               "unit_cost_paise" | null, "amount_paise" | null,   accepted_qty × cost, half up
+               "ordered": true,                     false: not on the PO (or no PO)
+               "lot_id": "<uuid>" | null,           null when nothing was accepted
+               "best_before" } ],
+  "total_paise", "unpriced_lines", "created_at" }
+GET /v1/hubs/{id}/goods-receipts?date=     200 { "items": [ GoodsReceipt ] }   newest first
+GET /v1/goods-receipts/{id}                200 GoodsReceipt | 404 "hub_ops.receipt_not_found"
+
+Lot : {
+  "id", "hub_id", "product_id", "slug", "name", "unit",
+  "source": "receipt" | "returned",          returned: from a bag back after a second miss (§3.5)
+  "grade": "A" | "B" | "C",
+  "qty_in": 50.0, "qty_on_hand": 12.5,
+  "unit_cost_paise": 3100 | null,
+  "received_at", "best_before",
+  "receipt_id": "<uuid>" | null, "vendor": { "id", "name" } | null }
+StockMove : { "kind": "receive" | "return" | "pack" | "waste" | "offer" | "count",
+              "qty": -3.0, "ref_id", "by": { "user_id", "name" } | null, "at" }
+
+GET /v1/hubs/{id}/inventory?product_id=&expiring_before=
+  200 : { "as_of",
+          "items": [ { "product_id", "slug", "name", "unit", "shelf_life_h",
+                       "on_hand_qty": 12.5,          Σ lots' qty_on_hand
+                       "packed_not_drawn_qty": 3.0,  packed and not yet drawn down (rules)
+                       "lots": [ Lot ] } ] }         lots with stock, by best_before
+GET  /v1/lots/{id}                         200 Lot & { "moves": [ StockMove ] } | 404 "hub_ops.lot_not_found"
+POST /v1/lots/{id}/count                   hub_manager; Idempotency-Key
+  request : { "qty_on_hand": 10.0, "reason": "…" }   absolute; reason 3 to 200
+  200 : Lot                                 a count move for the difference; audited
+```
+
+**Rules**
+- **Receipts are facts.** A receipt is never edited or deleted; a wrong quantity is corrected by a stock count on the lot. Each product must be a stocked kind and active (422 `hub_ops.product_not_stocked`). Quantities follow §3.3's rules (`hub_ops.qty_invalid`); `accepted_qty > received_qty`, a missing `reject_reason`, a product twice, a `vendor_id` that is not the PO's, `received_at` in the future or more than 24 h back, or `best_before` not after `received_at` or more than a year after it are 422 `hub_ops.receipt_invalid` with `reason`. With a PO: it must be the hub's and `sent` or `partly_received` (409 `hub_ops.po_not_receivable`); several receipts may follow one PO (a vendor delivering in two trips); a product not on the PO is accepted with `ordered: false`; each PO line adds the receipt's `received_qty` and `accepted_qty`, and the PO's status follows (§3.3). Without a PO the vendor must be an active vendor of the hub (404 `hub_ops.vendor_not_found`, 422 `hub_ops.vendor_inactive`).
+- **Rejected goods** go back to the vendor: they are neither stock nor waste, and count only in the vendor's score.
+- **Lots.** Each line with `accepted_qty > 0` creates one lot: `qty_in = qty_on_hand = accepted_qty`, the line's grade and cost, `best_before` as sent or `received_at + shelf_life_h` (a product with no shelf life: one year). **Grades:** `A` fresh, `B` packable with cosmetic faults (both are packed and netted in plans; B only lowers the vendor's freshness score), `C` accepted for kitchens or donation only: never packed or netted, offered by the next surplus run (§3.5).
+- **Stock moves.** Every change to a lot is a `hub_ops.stock_moves` row (`receive`, `return`, `pack`, `waste`, `offer`, `count`) in the same transaction, and `qty_on_hand` (never below 0) equals the sum of its lot's moves. Moves are unique per kind, source row, product and lot, so a replayed job or request never moves stock twice.
+- **Usable stock for a date D** (the plan's `on_hand_qty`): Σ `qty_on_hand` of the product's grade A and B lots at the hub whose `best_before` is after the end of D (IST), so what is packed on D lasts the day.
+- **Packing draws stock down once a day, not at `complete`.** The 12:30 run (§3.5, also `POST …/surplus/run`) first draws down every packed task of the hub not drawn yet (`packing_tasks.drawn_at` null, any date up to today): for each line, the picked steps of the picked product (the substitute when there is one) in the operations unit, from that product's grade A and B lots with stock, **first expiry first out** (`best_before`, then `received_at`, then id). What no lot covers is a `pack` move without a lot (**unlotted**), so packing never waits for receiving data and the gap shows on the inventory screen. Carried lines draw from kept items instead (§3.5). The task's `drawn_at` is set in the same transaction. Packing itself (§3.2) is unchanged and never checks stock: a shortage is what the packer finds on the shelf. `packed_not_drawn_qty` shows what is packed and not yet drawn down.
+- **Counts** (`POST /v1/lots/{id}/count`) set a lot's stock after a physical count (hub manager only) and write a `count` move with the difference and the reason, plus `platform.audit_log`.
+
+**Vendor scores** (`compute_vendor_scores`, Monday 03:33 IST for the IST week Monday to Sunday before it; one `hub_ops.vendor_scores` row per vendor with a sent PO or a receipt that week; `Vendor.score` shows the latest):
+- **freshness** (weight 40 %) = accepted grade A lines ÷ accepted lines;
+- **price** (20 %) = mean over the vendor's receipt lines with a cost of `min(1, median ÷ cost)`, where the median is the hub's median cost of that product that week over every vendor (a lone vendor scores 1);
+- **reliability** (20 %) = ½ × the fill rate (mean over its POs' lines of `min(1, received_qty ÷ qty)`, a cancelled `not_delivered` PO counting 0) + ½ × the share of its POs whose first receipt came by the hub's `timings.packing` on the delivery day;
+- **defects** (stored as the rejected share: the mean over its receipt lines of rejected ÷ received; it counts 20 % as `1 − defects`);
+- `score` = the weighted sum over the components that have data, divided by their weights; rounded to 2 decimals.
+
+**Error codes** (in addition to §3.1–§3.3)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `hub_ops.receipt_not_found`, `hub_ops.lot_not_found` | Unknown id, or another hub's |
+| 409 | `hub_ops.po_not_receivable` | A receipt against a PO that is a draft, received or cancelled |
+| 422 | `hub_ops.product_not_stocked` | A product that is unknown, inactive, or not of a stocked kind |
+| 422 | `hub_ops.receipt_invalid` | As in the rules, with `reason` (`accepted_over_received`, `reject_reason_missing`, `duplicate_product`, `vendor_mismatch`, `received_at`, `best_before`) |
+
+### 3.5 Waste, the surplus cascade and kept items (frozen on approval)
+The console's Waste and cascade screen and the packer app's "Returned bag" scan build against this. Same review rule as §3.1.
+
+```
+WasteLog : {
+  "id", "hub_id", "lot_id": "<uuid>" | null, "product_id", "slug", "name",
+  "qty": 2.5, "unit": "kg",
+  "kg": 2.5 | null,                         weight for the KPI (rules); null when unknown
+  "reason": "spoiled" | "damaged" | "expired" | "pest" | "surplus" | "returned" | "other",
+  "cascade_to": "kitchen" | "ngo" | "bin",
+  "offer_id": "<uuid>" | null,
+  "taken_by": { "kind": "kitchen", "partner_id", "name" } | { "kind": "ngo", "name" } | null,
+  "note": "…" | null, "logged_by": { "user_id", "name" } | null,   null: the 12:30 job
+  "at" }
+GET  /v1/hubs/{id}/waste-logs?from=&to=&cascade_to=&cursor=&limit=   200 Page[WasteLog], newest first
+POST /v1/hubs/{id}/waste-logs             hub_manager, packer; Idempotency-Key
+  request : { "lot_id": "<uuid>" } or { "product_id": "<uuid>" },   exactly one
+            & { "qty": 2.5, "reason": "spoiled" | "damaged" | "expired" | "pest" | "other", "note"? }
+  201 : WasteLog                            cascade_to "bin"; publishes hub_ops.waste_logged
+
+SurplusOffer : {
+  "id", "hub_id", "lot_id", "product_id", "slug", "name", "unit", "grade", "best_before",
+  "qty": 6.0,
+  "offered_to": "kitchen" | "ngo",
+  "status": "open" | "taken" | "declined" | "expired",
+  "taken_qty": 4.0 | null, "taken_by": … | null,      as on WasteLog
+  "previous_offer_id": "<uuid>" | null,              the offer it follows in the cascade
+  "expires_at",                                      the next day's 12:30 run
+  "created_at", "settled_at" | null }
+GET  /v1/hubs/{id}/surplus-offers?date=&status=      200 { "items": [ SurplusOffer ] }
+POST /v1/surplus-offers/{id}/settle                  hub_manager; Idempotency-Key
+  request : { "outcome": "taken" | "declined",
+              "qty"?: 4.0,                           taken only; default all of it
+              "taken_by"?: { "kind": "kitchen", "partner_id" } | { "kind": "ngo", "name" },
+              "note"? }
+  200 : { "offer": SurplusOffer, "next": SurplusOffer | null, "waste_logs": [ WasteLog ] }
+POST /v1/hubs/{id}/surplus/run                       hub_manager; Idempotency-Key; no body
+  200 : { "drawn_tasks": 140, "closed_purchase_orders": 3, "offers": 9, "binned": 2 }   the 12:30 run
+
+KeptItem : {
+  "id", "from_order_id", "society": { "id", "name" }, "flat_label": "B wing, B-402",
+  "product_id", "slug", "name", "step": { "qty": 5, "unit": "kg", "label": "5 kg" },
+  "qty": 1,                                  steps
+  "status": "kept" | "packed" | "released",
+  "kept_at", "packed_task_id": "<uuid>" | null, "settled_at" | null }
+GET  /v1/hubs/{id}/kept-items?status=kept           200 { "items": [ KeptItem ] }   by society, flat
+POST /v1/hubs/{id}/returned-bags                    packer, hub_manager; Idempotency-Key
+  request : { "bag_qr": "GB1:…" }
+  200 : { "order_id", "society", "flat_label", "kept": [ KeptItem ], "lots": [ Lot ] }
+                                                    the same answer again for the same bag
+```
+
+**Waste logs.** Every quantity that leaves stock other than by packing is a waste log: written off by hub staff (`spoiled`, `damaged`, `expired`, `pest`, `other`; always `cascade_to: "bin"`) or settled by the cascade (`surplus`, or `returned` for a returned lot; `cascade_to` = where it went). A log with `lot_id` writes a `waste` move on the lot (`qty` above the lot's stock is 409 `hub_ops.qty_exceeds_stock`); one with only `product_id` is unlotted (stock that was never received in the system). `kg` is the weight: the quantity itself for `kg` and `l` (1 l counted as 1 kg), else `qty × unit_g ÷ 1000` from the catalog's nutrition data, else null. Each log publishes `hub_ops.waste_logged`.
+
+**The 12:30 run** (`surplus_cascade` at T 12:30 for every active hub, and `POST …/surplus/run` for one hub on demand; idempotent):
+1. **Draw down packing** (§3.4).
+2. **Close the day's buying:** today's `partly_received` POs → `received`, `sent` POs → `cancelled` (`not_delivered`); today's plan → `closed`.
+3. **Open offers whose `expires_at` has passed** (made by an earlier run and not settled): status `expired`, and their quantity moves on (step 5).
+4. **New surplus:** every lot with stock that is grade C, or whose `best_before` is before the end of tomorrow (IST), so it cannot be packed tomorrow (the same line as §3.4's usable stock). Its whole `qty_on_hand` leaves the lot (an `offer` move) and moves on (step 5); it never returns to stock.
+5. **Next destination:** a quantity past its lot's `best_before` goes to **bin** (a waste log, reason `expired`). Otherwise new surplus is offered to **kitchens**; what leaves a kitchen offer is offered to an **NGO**; what leaves an NGO offer goes to **bin** (reason `surplus`, or `returned` for a returned lot). Each offer publishes `hub_ops.surplus_offered`; `expires_at` is the next day's 12:30.
+
+**Settling.** `taken` writes a waste log with `cascade_to` = the offer's `offered_to` and `taken_by`, and any quantity not taken moves on as in step 5; `declined` moves the whole quantity on at once (so a declined NGO offer is binned). Only an open offer can be settled (409 `hub_ops.offer_settled`). A kitchen taker must be an active kitchen partner of the hub (`partners.api.get_partner`; else 422 `hub_ops.taker_invalid`); an NGO is a name (up to 80) until M9 lists NGOs through `community.api`. In v1 the **hub manager settles** every offer in the console, after a phone call; M8 (kitchens) and M9 (NGOs) later consume `hub_ops.surplus_offered` and call `hub_ops.api.settle_surplus` with the same rules. Surplus is given free in v1: no ingredient credit, no money (§11).
+
+**Imperfect Sabzi is not offered in v1.** Listing a lot for sale as a discounted add-on for the next day needs a discounted product and price in M2 and add-on rules in M4 (add-ons ride only on a box). Until then the cascade starts at kitchens; the handbook's first step is a later option (§11).
+
+**Kept items and returned bags** (ADR-0027 §2 and §6; built with M7's redelivery PR):
+- **Returned bag.** After a box's second miss, M7 refunds its perishables (`undelivered → refunded`) and calls `orders.api.carry_over` with its non-perishable lines; the bag reaches the hub with the van or on a return-leg pickup. Hub staff scan its label at `POST …/returned-bags`. The order must be the hub's box or add-on order with a packed task (else 404 `hub_ops.bag_unknown`) and `refunded` (else 409 `hub_ops.bag_not_returned` with the order's `status`: a bag after a first miss waits for the next van and nothing is unpacked). The lines M4 carried (`orders.api.carried_lines(order_id)`, product and steps) become **kept items** of the household, labelled with its society and flat (`identity.api.delivery_labels`); everything else in the bag (the task's picked steps minus the carried steps) becomes one **returned lot** per product: grade C, no cost, `best_before` = the task's `packed_at` + `shelf_life_h`. Returned food is never packed for another customer; the next 12:30 run offers it. A second scan of the same bag answers the first scan's result.
+- **Packing a carried line.** When M4 adds a carried line to the household's next order (`carried_from_order_id`), the packing task copies it as its own line with `"carried": true` (an additive field on §3.2's `PackingLine`, and part of the line's key, so it never merges with a paid line of the same product). The app shows "Kept item: from the shelf, B-402"; the packer picks it as usual. A carried line takes no shortage (422 `hub_ops.qty_invalid`, `reason: "carried"`); a lost kept item is a hub manager's case (M4 follow-up). The day's draw-down marks the household's oldest `kept` item of that product `packed`; with none, the move is unlotted.
+- **Expiry.** On `orders.carry_over_expired { order_id, household_id, hub_id, lines }` (M4's daily job after 14 days, ADR-0027 §6) the order's items still `kept` become `released`, each into a returned lot for the next 12:30 run. M1's erase hook releases a household's kept items the same way.
+
+**KPI: kg wasted per 100 kg sold.**
+
+```
+GET /v1/hubs/{id}/waste-summary?from=&to=    at most 31 days; default the last 7 up to yesterday
+  200 : { "hub_id", "from", "to",
+          "days": [ { "date",
+                      "sold_kg": 412.6,                    packed that day
+                      "wasted_kg": 6.1,                    cascade_to bin
+                      "rescued_kg": { "kitchen": 8.0, "ngo": 3.5 },
+                      "waste_per_100kg": 1.48 | null,      null when nothing was sold
+                      "stockout_pct": 0.9 | null,          steps short or substituted ÷ steps ordered
+                      "unweighed_lines": 3 } ],            lines with no weight, left out
+          "totals": { "sold_kg", "wasted_kg", "rescued_kg", "waste_per_100kg", "stockout_pct",
+                      "unweighed_lines" } }
+```
+
+- **Sold** = the picked steps of the packed tasks with that delivery date, weighed as for waste logs. **Wasted** = the `kg` of waste logs with `cascade_to: "bin"` logged that IST day. **Rescued** (kitchen, NGO) is reported but is not waste: food eaten by people is the cascade working. `waste_per_100kg = wasted_kg ÷ sold_kg × 100`, rounded to 2 decimals. `stockout_pct` is the stock-out metric of M-E (handbook 08 §8.3, §8.5).
+- The same numbers are served to M10's `monitor_drift` and M12's KPI tiles through `hub_ops.api.waste_summary`.
+
+**Error codes** (in addition to §3.1–§3.4)
+
+| Status | Code | When |
+|---|---|---|
+| 404 | `hub_ops.offer_not_found` | Unknown offer, or another hub's |
+| 404 | `hub_ops.bag_unknown` | Not a `GB1:` code, or not a packed box or add-on order of this hub |
+| 409 | `hub_ops.qty_exceeds_stock` | A waste log above the lot's stock |
+| 409 | `hub_ops.offer_settled` | Settling an offer that is not open |
+| 409 | `hub_ops.bag_not_returned` | A returned-bag scan for an order that is not `refunded` (`status`) |
+| 422 | `hub_ops.taker_invalid` | A kitchen that is not an active kitchen partner of the hub; `taken_by` on a decline |
+| 422 | `hub_ops.qty_invalid` | Also: taken `qty` above the offer, or a shortage on a carried line (`reason: "carried"`) |
 
 ### Facade for other modules (`gharbasket.modules.hub_ops.api`)
 - `get_hub(session, hub_id) -> HubRef | None` — `{ id, slug, name, status, lat, lng, timings }`.
 - `active_hub_ids(session) -> list[UUID]` — for jobs that run per hub.
 - `society_loads(session, hub_id, delivery_date) -> list[SocietyLoad]` — `{ society_id, bags, packed_bags, crates }` per society, for M7's vehicle loads and the captain's handover counts.
 - `bag_for_order(session, order_id) -> BagRef | None` — `{ bag_qr, bags, crate_no, status }`, for M7's door scan.
-- `settle_surplus(session, offer_id, outcome)` — §3.5, later.
+- `settle_surplus(session, offer_id, outcome, *, qty=None, taken_by=None, actor_user_id=None) -> SettleResult` — `{ offer, next, waste_logs }` with §3.5's rules and errors; for M8 (kitchens) and M9 (NGOs) when they consume `hub_ops.surplus_offered`; the console's settle endpoint calls it today.
+- `waste_summary(session, hub_id, date_from, date_to) -> list[WasteDay]` — §3.5's daily rows (`sold_kg`, `wasted_kg`, `rescued_kg`, `waste_per_100kg`, `stockout_pct`), for M10's `monitor_drift` and M12's KPI tiles.
 
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
 | `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, data_source, version, created_at, updated_at |
 | `hub_ops.vendors` | id, hub_id → hubs, name (unique per hub, case-insensitive), kind (apmc_trader, fpo, farmer, wholesaler), phone_e164 null, whatsapp, is_default (partial unique per hub), notes, active, version, created_at |
-| `hub_ops.packing_tasks` | id, hub_id → hubs, order_id (unique), order_kind, delivery_date, slot_id, society_id, tower_id, flat, seq, route_id null, stop_seq null, status (queued, picking, packed), packer_user_id null, bags, crate_no null, started_at, packed_at, version, created_at; index (hub_id, delivery_date, status, seq) |
-| `hub_ops.packing_lines` | task_id → packing_tasks, product_id (the ordered product), step_qty, step_unit, qty, picked_qty, short_qty, substitute_product_id null, updated_at; primary key (task_id, product_id) |
+| `hub_ops.packing_tasks` | id, hub_id → hubs, order_id (unique), order_kind, delivery_date, slot_id, society_id, tower_id, flat, seq, route_id null, stop_seq null, status (queued, picking, packed), packer_user_id null, bags, crate_no null, started_at, packed_at, drawn_at null (§3.4, added with the draw-down), version, created_at; index (hub_id, delivery_date, status, seq) |
+| `hub_ops.packing_lines` | task_id → packing_tasks, product_id (the ordered product), carried (bool, default false; §3.5, added with kept items), step_qty, step_unit, qty, picked_qty, short_qty, substitute_product_id null, updated_at; primary key (task_id, product_id), becoming (task_id, product_id, carried) with kept items |
 | `hub_ops.packing_events` | id, task_id, action (start, pick, shortage, complete, release), user_id, payload jsonb, client_at null, at |
-| `hub_ops.procurement_plans` / `procurement_lines` | (§3.3) id, hub_id, delivery_date (unique per hub), status, source, model, built_at, version / plan_id, product_id, unit, committed_qty, at_risk_qty, forecast_q50, forecast_qtau, on_hand_qty, suggested_qty, order_qty `NUMERIC(10,3)`, vendor_id, unit_cost_paise, note, edited |
-| `hub_ops.purchase_orders` / `purchase_order_lines` | (§3.3) id, plan_id, hub_id, vendor_id, delivery_date, status, total_paise, share_text, created_by, created_at / po_id, product_id, qty, unit, unit_cost_paise, amount_paise |
-| `hub_ops.goods_receipts` / `goods_receipt_lines` | (§3.4) id, hub_id, vendor_id, purchase_order_id null, received_by, received_at / receipt_id, product_id, received_qty, accepted_qty, grade, reject_reason, unit_cost_paise |
-| `hub_ops.inventory_lots` | (§3.4) id, hub_id, product_id, receipt_line_id null, unit, qty_received, qty_on_hand, grade, cost_paise (per unit), received_at, expires_at |
-| `hub_ops.waste_logs` | (§3.5) id, hub_id, lot_id null, product_id, qty, unit, reason, cascade_to, logged_by, at |
-| `hub_ops.surplus_offers` | (§3.5) id, hub_id, lot_id, product_id, qty, unit, offered_to (imperfect, kitchen, ngo), status (open, taken, expired), expires_at, settled_at |
-| `hub_ops.vendor_scores` | (§3.4) vendor_id, week, freshness, price, reliability, defects, score |
+| `hub_ops.procurement_plans` | (§3.3) id (uuidv7), hub_id → hubs, delivery_date, unique (hub_id, delivery_date), status (draft, ordered, closed), source (ml, fallback), model null, buffer_pct smallint, built_at, refreshed_at null, version, created_at |
+| `hub_ops.procurement_lines` | (§3.3) plan_id → procurement_plans, product_id, unit, shelf_life_h null, committed_qty, at_risk_qty, forecast_q50 null, forecast_qtau null, basis (forecast, buffer), buffer_qty, on_hand_qty, suggested_qty, order_qty (all `NUMERIC(10,3)`, ≥ 0), edited, edit_reason null, vendor_id → vendors null, unit_cost_paise BIGINT null, note null, updated_at; primary key (plan_id, product_id) |
+| `hub_ops.purchase_orders` | (§3.3) id, number null (unique; set when sent), plan_id → procurement_plans, hub_id → hubs, vendor_id → vendors, delivery_date, status (draft, sent, partly_received, received, cancelled), plan_version, total_paise BIGINT, unpriced_lines, share_text, cancel_reason null, created_by, created_at, sent_at null, sent_by null, closed_at null, version; partial unique (plan_id, vendor_id) where status = 'draft' |
+| `hub_ops.purchase_order_lines` | (§3.3) po_id → purchase_orders, product_id, unit, qty, unit_cost_paise BIGINT null, amount_paise BIGINT null, received_qty, accepted_qty; primary key (po_id, product_id) |
+| `hub_ops.goods_receipts` | (§3.4) id, hub_id → hubs, vendor_id → vendors, purchase_order_id → purchase_orders null, received_at, received_by, total_paise BIGINT, unpriced_lines, created_at; index (hub_id, received_at) |
+| `hub_ops.goods_receipt_lines` | (§3.4) id, receipt_id → goods_receipts, product_id, unit, received_qty, accepted_qty (≤ received_qty), grade (A, B, C), reject_reason null (rotten, damaged, undersized, wrong_item, other; set when accepted < received), unit_cost_paise BIGINT null, amount_paise BIGINT null, best_before, ordered, note null; unique (receipt_id, product_id) |
+| `hub_ops.inventory_lots` | (§3.4) id, hub_id → hubs, product_id, unit, source (receipt, returned), receipt_line_id → goods_receipt_lines null, order_id null (returned), grade (A, B, C), qty_in, qty_on_hand (≥ 0), unit_cost_paise BIGINT null, received_at, best_before; partial index (hub_id, product_id, best_before) where qty_on_hand > 0 |
+| `hub_ops.stock_moves` | (§3.4) id, hub_id, lot_id → inventory_lots null (null: unlotted), kept_item_id → kept_items null, product_id, unit, qty (signed), kind (receive, return, pack, waste, offer, count), ref_id (receipt line, packing task, waste log, offer or count), reason null, by_user_id null, at; unique (kind, ref_id, product_id, lot_id) nulls not distinct |
+| `hub_ops.waste_logs` | (§3.5) id, hub_id → hubs, lot_id → inventory_lots null, product_id, qty, unit, kg `NUMERIC(10,3)` null, reason (spoiled, damaged, expired, pest, surplus, returned, other), cascade_to (kitchen, ngo, bin), offer_id → surplus_offers null, taken_by_kind null, taken_by_partner_id null, taken_by_name null, note null, logged_by null, at; index (hub_id, at) |
+| `hub_ops.surplus_offers` | (§3.5) id, hub_id → hubs, lot_id → inventory_lots, product_id, qty, unit, offered_to (kitchen, ngo), status (open, taken, declined, expired), taken_qty null, previous_offer_id → surplus_offers null, expires_at, settled_by null, settled_at null, created_at; index (hub_id, status) |
+| `hub_ops.kept_items` | (§3.5) id, hub_id → hubs, household_id, from_order_id, society_id, tower_id null, flat null, product_id, step_qty, step_unit, qty (steps), status (kept, packed, released), packed_task_id → packing_tasks null, kept_at, settled_at null; unique (from_order_id, product_id) |
+| `hub_ops.returned_bags` | (§3.5) order_id (primary key), hub_id → hubs, scanned_by, scanned_at: one unpacking per bag |
+| `hub_ops.vendor_scores` | (§3.4) vendor_id → vendors, week (the Monday), freshness, price, reliability, defects `NUMERIC(4,3)` null each, score `NUMERIC(4,3)`, pos_count, receipt_lines_count; primary key (vendor_id, week) |
 
-Foreign keys stay inside `hub_ops`; `order_id`, `slot_id`, `society_id`, `product_id` and user ids are plain UUIDs (ADR-0026 §5).
+Foreign keys stay inside `hub_ops`; `order_id`, `slot_id`, `society_id`, `household_id`, `product_id`, partner ids and user ids are plain UUIDs (ADR-0026 §5). Operations quantities are `NUMERIC(10,3)` everywhere above; money is `BIGINT` paise.
 
 ## 5. Events
 **Published:**
 - `hub_ops.hub_created { hub_id, slug, name }` · `hub_ops.hub_updated { hub_id, changed }` (§3.1)
-- `hub_ops.procurement_plan_ready { plan_id, hub_id, delivery_date, source, lines_count, total_paise }` (§3.3)
-- `hub_ops.purchase_orders_sent { plan_id, hub_id, delivery_date, purchase_order_ids, total_paise }` (§3.3)
-- `hub_ops.goods_received { receipt_id, hub_id, vendor_id, purchase_order_id, accepted_lines, rejected_lines }` (§3.4)
-- `hub_ops.waste_logged { waste_log_id, hub_id, product_id, qty, unit, reason, cascade_to }` (§3.5)
-- `hub_ops.surplus_offered { offer_id, hub_id, lot_id, product_id, qty, unit, offered_to, expires_at }` (§3.5)
+- `hub_ops.procurement_plan_ready { plan_id, hub_id, delivery_date, source, model, lines_count, order_paise, unpriced_lines, version }` (§3.3) — when a plan is built, and again when a rebuild changes it; M11 may tell the hub manager (nobody consumes it yet)
+- `hub_ops.purchase_order_sent { purchase_order_id, number, plan_id, hub_id, vendor_id, delivery_date, lines_count, total_paise }` (§3.3) — one per PO (replaces the outline's `purchase_orders_sent`)
+- `hub_ops.goods_received { receipt_id, hub_id, vendor_id, purchase_order_id, lines_count, rejected_lines, total_paise }` (§3.4)
+- `hub_ops.waste_logged { waste_log_id, hub_id, lot_id, product_id, qty, unit, kg, reason, cascade_to }` (§3.5) — M10 (waste in `monitor_drift`), M12
+- `hub_ops.surplus_offered { offer_id, hub_id, lot_id, product_id, qty, unit, grade, best_before, offered_to, expires_at }` (§3.5) — M8 (kitchens) and M9 (NGOs) later
 
-Packing publishes nothing of its own: M4 publishes `orders.packed` and `orders.shortage_substituted` when M6 calls `orders.api` (the old `hub_ops.shortage_detected` is dropped).
+Packing publishes nothing of its own: M4 publishes `orders.packed` and `orders.shortage_substituted` when M6 calls `orders.api` (the old `hub_ops.shortage_detected` is dropped). Stock moves, counts and kept items publish nothing.
 
-**Consumed:** `intel.forecast_ready` (rebuild draft plans, §3.3), `logistics.route_published` (re-sequence queued tasks, §3.2).
+**Consumed:** `intel.forecast_ready { hub_id, delivery_dates, model, data_source }` (rebuild the listed dates' plans that are not closed, §3.3), `logistics.route_published` (re-sequence queued tasks, §3.2), `orders.carry_over_expired` (release kept items, §3.5; with M4's carry-over).
 
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |
 |---|---|---|
 | `build_packing_tasks` | T 05:00 (cron-job.org → `POST /v1/internal/jobs/build_packing_tasks`) | Every active hub; idempotent per order; §3.2 |
-| `build_procurement_plan` | T-1 21:10 (cron-job.org) | Every active hub; forecast or rule-based fallback; §3.3 |
-| `refresh_procurement_plan` | T-1 23:05 (cron-job.org) | Draft plans only: committed and at-risk after the payment grace |
-| `surplus_cascade` | T 12:30 (cron-job.org) | §3.5 |
-| `compute_vendor_scores` | Monday 03:33 (GitHub Actions) | §3.4 |
+| `build_procurement_plan` | T-1 21:10 (cron-job.org) | Every active hub: builds or rebuilds T's plan with the stored forecast or the buffer; §3.3 |
+| `refresh_procurement_plan` | T-1 23:05 (cron-job.org) | Rebuilds T's existing plans that are not closed, after `payment_grace_expiry` (23:00); §3.3 |
+| `surplus_cascade` | T 12:30 (cron-job.org) | Every active hub: draws down packing (§3.4), closes the day's POs and plan, moves open offers on, offers new surplus (§3.5) |
+| `compute_vendor_scores` | Monday 03:33 (GitHub Actions) | The previous IST week; §3.4 |
 
 Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the delivery day follows from it), not the run time (ADR-0021, ADR-0025).
 
@@ -323,12 +605,14 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `packing:read` | packer, hub_manager, franchise_owner (hub), admin |
 | `packing:write` | packer (hub), hub_manager (hub) |
 | `packing:manage` | hub_manager (hub), admin (build, release) |
-| `procurement:read` · `procurement:write` | hub_manager (hub), admin · franchise_owner reads |
-| `receiving:write` | hub_manager, packer (hub) |
+| `procurement:read` · `procurement:write` | hub_manager (hub), admin · franchise_owner reads (plans, lines, purchase orders) |
+| `inventory:read` | packer, hub_manager, franchise_owner (hub), admin (receipts, lots, waste logs, offers, kept items, waste summary) |
+| `receiving:write` | hub_manager, packer (hub) (goods receipts, returned bags) |
+| `inventory:manage` | hub_manager (hub), admin (counts, surplus run, settling offers) |
 | `waste:write` | hub_manager, packer (hub) |
 
 ## 8. Screens
-**Mobile (packer):** Queue (with "Next task"), Pick/Pack (scan the bag label, step through lines, shortage sheet with substitutes), offline indicator for queued actions. The packer route on `main` is a placeholder (`FieldShell`), so no mock shapes need mapping yet. **Console:** Ops board (today: packing summary per society, plan and PO status), Packing board, Hubs admin (map with terra-draw for the service area), Vendors, Procurement, Receiving/QC, Waste and cascade, bag label sheet (printed from the task list).
+**Mobile (packer):** Queue (with "Next task"), Pick/Pack (scan the bag label, step through lines, shortage sheet with substitutes), offline indicator for queued actions; with kept items, a "Kept item: from the shelf" hint on carried lines and a "Returned bag" scan. The packer route on `main` is a placeholder (`FieldShell`), so no mock shapes need mapping yet. **Console:** Ops board (today: packing summary per society, plan and PO status, open offers), Packing board, Hubs admin (map with terra-draw for the service area), Vendors (with the weekly score), **Procurement** (the plan table with `basis` and at-risk chips, the line sheet with a required reason, "Generate POs", each PO's "Send on WhatsApp" link and print view), **Receiving/QC** (tablet-sized: pick a sent PO or "ad hoc", weigh, grade, reject reason, cost), **Inventory** (lots by product, expiring soon, unlotted packing, count), **Waste and cascade** (write-off form, open offers with settle, the waste summary), kept items shelf list, bag label sheet (printed from the task list). Receiving stays in the console in v1 (a tablet at the dock); a mobile receiving screen is a later option.
 
 ## 9. Tests required
 - Hubs (§3.1): slug unique and immutable; polygon validation (open ring, self-intersection, holes); `If-Match`; hub staff see only their hubs; `hub_created` once per hub; the seed creates `SEED_HUB_ID` and every hub id in the seed world exists.
@@ -340,15 +624,56 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
   - shortage without substitute refunds exactly once (replay and a second shortage); whole-line substitute only from the listed substitutes, never dearer; partial substitute refused;
   - complete with open lines refused; crate numbering three bags to a crate;
   - offline replay: the same key returns the same answer, a changed body is `request.idempotency_mismatch`, an absolute pick under a new key changes nothing.
-- Procurement (§3.3, at its PR): fallback quantity with and without buffer; forecast conversion from steps; rebuild keeps edits; PO totals in paise.
-- E2E (MS-B): seeded hub → cut-off → plan → receipt → packing → `orders.packed` for every order, on the simulator seed.
+- Procurement (§3.3):
+  - committed counts locked, picking and packed box and add-on lines at `qty − shortage_qty`, the substitute's product for a substituted line, never tiffins, kits or carried lines; at-risk counts `payment_failed` and is not bought;
+  - the buffer basis at 0 %, 10 % and 50 %; the short-life cap (`shelf_life_h` 48 capped at 5 %, 49 not); the forecast basis converts steps to kg (`g` steps), l (`ml` steps) and pieces; a product missing from the forecast falls back to the buffer while `source` stays `ml`; `hub_forecast` returning `None` gives `fallback`;
+  - on-hand netting uses only grade A/B lots lasting past the delivery day; suggested never negative; rounding up to 0.1 kg and to whole pieces (hypothesis: suggested ≥ committed − on hand, and ≤ committed × (1 + buffer) − on hand + one rounding unit);
+  - a rebuild (job twice, `intel.forecast_ready`, the 23:05 refresh) keeps edited quantities, vendors, costs and sent lines and creates no duplicate plan; `order_qty: null` un-edits; an edit without a reason, on a sent line or a closed plan is refused; every edit is audited;
+  - PO generation groups by vendor, replaces drafts, refuses lines without a vendor (`product_ids`) and changes nothing then; a stale draft cannot be sent; amounts round half up (`0.1 kg × 3205` → 321 paise) and unpriced lines stay out of totals; `whatsapp_url` only with a phone and WhatsApp; the same Idempotency-Key replays.
+- Receiving and stock (§3.4):
+  - a receipt against a PO adds to its lines and moves it to `partly_received`, then `received`; a second receipt, an unordered product and an ad hoc receipt; every `hub_ops.receipt_invalid` reason; rejected goods create no lot;
+  - each accepted line makes one lot with the default or given `best_before`; grade C is never netted or drawn;
+  - the draw-down is FEFO across lots, draws a substitute's product, records unlotted quantity, sets `drawn_at` and never moves stock twice when the run repeats; `qty_on_hand` always equals the sum of its moves and never goes below 0 (property test over random receipts, packs, waste and counts);
+  - vendor scores on a hand-made week: each component, a lone vendor's price score of 1, a `not_delivered` PO, missing components re-weighted.
+- Waste and surplus (§3.5):
+  - a write-off with and without a lot; above stock refused; `kg` from kg, l and `unit_g`;
+  - the run closes the day's POs (`not_delivered`) and plan, offers grade C and short-dated lots exactly once, bins what is past `best_before`, and moves yesterday's open offers on (kitchen → NGO → bin); a repeated run changes nothing;
+  - settle: taken in full and in part (the rest moves on), declined, a settled offer refused, a kitchen taker that is not the hub's active kitchen partner refused;
+  - the KPI on a hand-made day: bin counts as waste, kitchen and NGO as rescued, unweighed lines counted, no sales gives `null`.
+  - kept items (with M7's PR): a refunded bag splits into kept items (M4's carried lines) and grade C returned lots; a bag after a first miss is refused; a second scan replays; a carried line is packed from the household's kept item and takes no shortage; `orders.carry_over_expired` releases kept items into returned lots.
+- E2E (MS-B): seeded hub → cut-off → 21:10 plan (buffer basis) → generate and send POs → goods receipt against them → packing → `orders.packed` for every order → 12:30 run draws stock down and offers the leftovers → the waste summary shows the day, on the simulator seed.
 
 ## 10. Dependencies
-M4 (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with the new actors, `mark_shortage` with refunds and substitutes; ADR-0026 §2, §6), M2 (`catalog.api`: products, steps, shelf life, substitutes, prices), M1 (`identity.api.delivery_labels`), M9 (`community.api`: society names and tower labels), M10 (`intel_gateway.api.hub_forecast`, PRs #118/#122), M7 (`logistics.route_published`; reads `society_loads`), M8 and M9 later for surplus offers.
+M4 (`orders.api`: `orders_for_delivery` with `kinds`, `transition` with the new actors, `mark_shortage` with refunds and substitutes; ADR-0026 §2, §6; for §3.5 `carried_lines`, `carried_from_order_id` on summary lines and `orders.carry_over_expired`, ADR-0027), M2 (`catalog.api`: products, steps, kinds, shelf life, `unit_g`, substitutes, prices; `stock_products` below), M1 (`identity.api.delivery_labels`; the erase hook for kept items), M9 (`community.api`: society names and tower labels; NGOs later), M10 (`intel_gateway.api.hub_forecast` and `intel.forecast_ready`, PRs #118/#122; optional: plans fall back to the buffer without them), M7 (`logistics.route_published`; reads `society_loads`; the second miss that leads to returned bags), M8 (`partners.api.get_partner` to check a kitchen taker; later a consumer of `hub_ops.surplus_offered`), M9 later for NGO offers. **Not** M5: purchase orders and receipts record costs but post no ledger entries.
 
 ## 11. Open questions and decisions
 - **Decided (ADR-0026):** M6 owns hubs; hub ids elsewhere have no foreign key; crates are counted, not tracked; operations quantities in kg, l, piece, bunch, pack; packing does not wait for routes.
 - **Decided (this spec):** a substitute replaces a whole line only, at a price no higher than the line's; partial shortages are refunded.
 - **Decided by the owner (2026-10-09, ADR-0026):** substitute by default, but never for households that chose "never substitute, refund" (M1 preference, read through `identity.api`); routes are solved at T-1 23:15, so packing at 05:00 normally follows route order; one captain per society; a missed hold window gets one free redelivery the next morning (M7).
-- Real vendor list and APMC Vashi timings for the pilot (Rhythm Thakur, Manish Raje).
-- Labels: printed sheet from the console in the prototype; a thermal label printer at the pilot.
+- **Decided (this spec, §3.3–§3.5, 2026-10-09; the owner may change any of them before approval):**
+  - **Plan lines carry their own basis.** A line uses M10's `uncommitted_qtau` when the forecast has the product, else the hub's buffer; the cut-off's exact count replaces M10's `committed`. MS-B runs on the buffer; MS-C's "forecast-driven procurement" only changes `basis`.
+  - **At-risk demand is shown, not bought.** Orders in the payment grace are listed (`at_risk_qty`); the 23:05 refresh moves the paid ones into `committed_qty` on lines not yet sent. This keeps the outline's rule (locked lines × (1 + buffer) − stock).
+  - **Purchase orders start as drafts** that the hub manager sends herself (WhatsApp link or print); nothing reaches a vendor automatically, and a draft made before the plan's last change cannot be sent.
+  - **Packing draws stock down once a day, in the 12:30 run, not at `complete`** (FEFO, unlotted when no lot covers it). It leaves the built packing code (§3.2) untouched, keeps lot row locks out of the packing rush, and still gives the 12:30 cascade and the 21:10 plan the right stock. The cost: on-hand during the morning is "received minus written off", with `packed_not_drawn_qty` beside it.
+  - **Every stock change is a stock move** (a small stock ledger), so on-hand is auditable and replays never move stock twice.
+  - **Grade C and returned food are never packed for a customer**; they go to kitchens, NGOs or compost.
+  - **The cascade in v1 is kitchens → NGO → compost, settled by the hub manager.** Offers wait until the next day's run, which moves them on.
+  - **The KPI counts only compost (`bin`) as waste**; kitchen and NGO quantities are "rescued" and reported beside it. This changes the outline, which counted NGO hand-offs as waste.
+  - **Costs without money movement.** Purchase orders and receipts record expected and actual costs in paise for the books and vendor scores; no ledger entry, no vendor payout.
+- **Open questions for the owner** (each with a recommendation):
+  1. **Real vendors and APMC Vashi timings** (Rhythm Thakur, Manish Raje): which traders, FPOs and wholesalers, when they deliver, whether they take WhatsApp POs. *Recommendation:* seed three vendors for the demo (an APMC trader for vegetables and fruit, an FPO for leafy greens, a wholesaler for staples) and keep receiving 04:00–05:00; confirm on the hub visit before the pilot.
+  2. **Does packing draw down lots in the prototype, and when?** *Recommendation:* yes, once a day in the 12:30 run (above). Not drawing down at all would leave sold stock on the books, so the plan would net it out and under-buy; drawing at `complete` is exact in real time but changes the built packing code and locks lots during packing.
+  3. **The short-life cap line.** The outline said "under 48 h", but the seed's shortest shelf life is exactly 48 h (palak, methi, coriander, milk), so the cap would never apply. *Recommendation:* `shelf_life_h ≤ 48`, as written in §3.3.
+  4. **What the forecast means after the cut-off.** M10 forecasts add-on-order and tiffin demand (M10 §3.6), but add-ons now ride only on boxes (M4, 2026-10-09) and tiffins are not bought by the hub, so for most groceries the forecast will have no line and the buffer will apply. *Recommendation:* keep this contract (per-line basis), and ask M10 to redefine the M-E target for MS-C, for example as the gap between ordered and accepted quantity (receiving yield and stock-outs from §3.4) or as total demand for staples bought ahead.
+  5. **Imperfect Sabzi.** *Recommendation:* leave it out of the prototype (it needs a discounted product per lot in M2 and an add-on rule in M4) and add it as the cascade's first step at the pilot, if the KPI shows enough grade B surplus to sell.
+  6. **Kitchen surplus: free, or an ingredient credit?** *Recommendation:* free in the prototype; a credit needs a price, an M5 ledger account and M8's rate card, which no flow needs before the pilot.
+  7. **Paying vendors.** *Recommendation:* outside the platform for the prototype (cash or UPI by the hub, as APMC trade works); vendor payables and inventory accounting in M5 are a pilot-phase decision.
+  8. **Labels:** printed sheet from the console in the prototype; a thermal label printer at the pilot.
+- **Follow-ups for other specs** (made in the PRs that need them, reviewed by both owners):
+  - **M4:** `orders.api.carried_lines(session, order_id) -> list[(product_id, qty)]`; `carried_from_order_id` on `OrderSummary` lines; a carried line kept as its own line (never merged with a paid line of the same product) and refused by `mark_shortage`; the event `orders.carry_over_expired { order_id, household_id, hub_id, lines }` from the 14-day job; how a hub manager refunds a lost kept item (ADR-0027 §2, §6).
+  - **M2:** `catalog.api.stock_products(session, product_ids) -> {id: StockProduct}` with `kind`, `step_qty`, `step_unit`, `shelf_life_h`, `unit_g` (from nutrition), names and shelf; additive. When kits are built: whether the hub assembles them from ingredient lots (then plans buy the ingredients).
+  - **M10:** the endpoint table's `/forecast/run` row says the API writes `hub_ops.procurement_lines`; M6 builds its own lines from `hub_forecast` (M10 §3.6 already says so), so that row should drop it. `monitor_drift`'s "waste waits for M6" reads `hub_ops.api.waste_summary`. Open question 4 above.
+  - **M7:** §3.6 says M6 consumes `logistics.pickup_completed` for returned bags; M6 instead relies on the hub's scan (`POST /v1/hubs/{id}/returned-bags`), so M7's consumer list should drop M6.
+  - **M8, M9:** consumers of `hub_ops.surplus_offered` calling `hub_ops.api.settle_surplus` (later); M9 `community.api` NGO lookup so `taken_by` can name a listed NGO.
+  - **M1:** the erase hook releases a household's kept items (§3.5).
+  - **Handbook:** 05 §5.5 (the `hub_ops` ERD: `best_before`, stock moves, purchase orders, receipts, offers, kept items; the schema is `hub_ops`, not `ops`); 06 (purchase order and lot lifecycles); 07 W4 (the 21:10 plan and its rebuild, draft and sent POs, receiving at 04:00) and W9 (kitchens → NGO → compost in v1, the draw-down at 12:30, Imperfect Sabzi later, compost-only waste in the KPI).
