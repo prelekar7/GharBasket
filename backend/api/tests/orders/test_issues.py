@@ -49,9 +49,11 @@ async def placed_order(
     reach: Reach = DELIVERED,
     box: dict[str, tuple[int, int]] = BOX,
     extra_topup: int = 0,
+    short: dict[str, int] | None = None,
 ) -> tuple[uuid.UUID, dict[str, uuid.UUID]]:
     """A box paid from the owner's wallet and moved along to `reach[-1]`, delivered at
-    DELIVERED_AT; committed, so failing requests later do not undo it."""
+    DELIVERED_AT, with the `short` steps marked (and refunded) while picking; committed, so
+    failing requests later do not undo it."""
     household = await identity_api.household_for_user(db, owner)
     assert household is not None
     slot = await service.create_slot(
@@ -85,6 +87,9 @@ async def placed_order(
         )
     for to in reach:
         await orders_api.transition(db, order_id, to, actor="system" if to == "locked" else "hub")
+        if to == "picking":
+            for slug, qty in (short or {}).items():
+                await orders_api.mark_shortage(db, order_id, ids[slug], qty)
     await db.execute(
         update(OrderEvent)
         .where(OrderEvent.order_id == order_id, OrderEvent.to_status == "delivered")
@@ -223,9 +228,7 @@ async def test_each_kind_and_the_checks_on_items_and_the_count(
 ) -> None:
     api = clients()
     priya, priya_id = await as_user(api, google, PRIYA)
-    order_id, ids = await placed_order(db_session, priya_id)
-    await orders_api.mark_shortage(db_session, order_id, ids["onion"], 1)
-    await db_session.commit()
+    order_id, ids = await placed_order(db_session, priya_id, short={"onion": 1})
 
     def code(answer: httpx2.Response) -> tuple[int, str]:
         return answer.status_code, answer.json()["code"]

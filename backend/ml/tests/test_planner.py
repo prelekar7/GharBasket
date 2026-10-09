@@ -1,10 +1,22 @@
 """The CP-SAT meal planner (M10 §3.1): valid plans, the comfort-rule fallback, and the checker."""
 
-import pytest
-from gharbasket_ml.planner import FALLBACK, Week, check, plan_week, relaxations
-from gharbasket_ml.schemas import PlanRequest, PlanResponse
+import time
+from collections.abc import Callable
+from typing import Any
 
-from .seed_weeks import request
+import pytest
+from gharbasket_ml.planner import (
+    FALLBACK,
+    Week,
+    adherent_days,
+    check,
+    plan_week,
+    relaxations,
+    scored_days,
+)
+from gharbasket_ml.schemas import PlanRequest, PlanResponse, Weights
+
+from .seed_weeks import request, v1_request
 
 NAVRATRI = [{"day": d, "no_onion_garlic": True} for d in range(7)]
 
@@ -160,3 +172,100 @@ def test_the_checker_catches_a_missing_slot_and_the_budget() -> None:
 
     assert any("nothing planned" in p for p in problems)
     assert any("over the budget" in p for p in problems)
+
+
+# --- v1 (M10 §3.2): nutrition, sides, price spikes ---------------------------------------------
+
+
+def with_body(req: PlanRequest, change: Callable[[dict[str, Any]], None]) -> PlanRequest:
+    body = req.model_dump()
+    change(body)
+    return PlanRequest.model_validate(body)
+
+
+def no_nutrition(body: dict[str, Any]) -> None:
+    body["weights"] = Weights(nutrition=0).model_dump()
+
+
+def test_v1_scores_nutrition_adherence_and_echoes_sides_and_reasons() -> None:
+    req = v1_request(fasting_days=[{"day": 1, "no_onion_garlic": True}])
+
+    response = plan_week(req)
+
+    plan = verify(req, response)
+    assert response.score is not None and response.score.nutrition is not None
+    # Sunday is a no-cook day: its tiffins carry no nutrition, so only six days are scored.
+    week = Week.of(req)
+    assert scored_days(week) == [0, 1, 2, 3, 4, 5]
+    days = adherent_days(week, plan)
+    assert days is not None and sorted(days) == [0, 1, 2, 3, 4, 5]
+    assert response.score.nutrition == round(sum(days.values()) / 6, 3)
+    sides = {r.slug for r in req.recipes if r.is_side}
+    assert not sides & set(plan.values())  # a side is never a meal
+    by_slug = {r.slug: r for r in req.recipes}
+    for m in response.plan or []:
+        assert m.sides == (by_slug[m.recipe].sides if m.recipe else [])
+    meals = {(m.day, m.slot): m for m in response.plan or []}
+    assert "FESTIVAL" in meals[1, "lunch"].reasons and "TIFFIN" in meals[6, "dinner"].reasons
+    v0 = plan_week(request())
+    assert v0.score is not None and v0.score.nutrition is None  # a v0 request gets a v0 answer
+
+
+def test_v1_nutrition_raises_adherence_over_an_ablation_without_it() -> None:
+    req = v1_request()
+
+    on = plan_week(req, deterministic=True)
+    off = plan_week(with_body(req, no_nutrition), deterministic=True)
+
+    assert on.score is not None and off.score is not None
+    assert on.score.nutrition is not None and off.score.nutrition is not None
+    assert on.score.nutrition > off.score.nutrition
+
+
+def test_a_representative_v1_week_answers_well_inside_the_gateway_timeout() -> None:
+    # The gateway waits 3 s (ml_timeout_s) and gives the solver at most half; the default limit
+    # is 1 s for the whole request, so the answer leaves room for the network and the JSON.
+    req = v1_request()
+    assert req.time_limit_s == 1.0
+
+    started = time.perf_counter()
+    response = plan_week(req)
+    elapsed = time.perf_counter() - started
+
+    verify(req, response)
+    assert response.status in ("optimal", "feasible")
+    assert elapsed < 1.5, elapsed
+
+
+def test_a_small_price_spike_does_not_erase_cuisine_preference() -> None:
+    # Every preferred-cuisine dish 3 % above its index costs 0.03 x the price weight per meal,
+    # far less than the cuisine match it brings (nutrition off to compare exact optima).
+    req = with_body(v1_request(), no_nutrition)
+    cuisines = set(req.household.cuisines)
+
+    def spike(body: dict[str, Any]) -> None:
+        for r in body["recipes"]:
+            if r["cuisine"] in cuisines and not r["is_side"]:
+                r["price_spike"] = 0.03
+
+    calm = plan_week(req, deterministic=True)
+    spiked = plan_week(with_body(req, spike), deterministic=True)
+
+    assert calm.status == spiked.status == "optimal"
+    assert calm.score is not None and spiked.score is not None
+    assert spiked.score.preference == calm.score.preference > 0
+
+
+def test_v1_drops_a_spiked_dish_for_an_unspiked_one() -> None:
+    req = with_body(v1_request(), no_nutrition)
+    calm = plan_week(req, deterministic=True)
+    chosen = next(s for s in as_plan(calm).values() if s)
+
+    def spike(body: dict[str, Any]) -> None:
+        next(r for r in body["recipes"] if r["slug"] == chosen)["price_spike"] = 0.8
+
+    spiked = plan_week(with_body(req, spike), deterministic=True)
+
+    assert chosen in as_plan(calm).values() and chosen not in as_plan(spiked).values()
+    assert spiked.score is not None and spiked.score.price_penalty is None
+    assert calm.score is not None and calm.score.price_penalty is None

@@ -25,9 +25,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.intel_gateway import api as intel_api
-from gharbasket.modules.intel_gateway.api import PlanRequest
+from gharbasket.modules.intel_gateway.api import (
+    PantryItem,
+    PantryObservation,
+    PantryRequest,
+    PlanRequest,
+)
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.subscriptions import events, planning
+from gharbasket.modules.subscriptions import events, planning, rules
 from gharbasket.modules.subscriptions.models import (
     BoxLine,
     BudgetLock,
@@ -38,6 +43,7 @@ from gharbasket.modules.subscriptions.models import (
     Subscription,
     WeeklyCycle,
 )
+from gharbasket.modules.subscriptions.rules import Member
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.settings import Settings
@@ -238,11 +244,15 @@ async def draft(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    pantry_twin: bool = True,
 ) -> tuple[planning.Draft, str, uuid.UUID | None]:
-    """A box for the week of `delivery_date`: (draft, plan source, prediction id)."""
+    """A box for the week of `delivery_date`: (draft, plan source, prediction id).
+    `pantry_twin=False` (the customer-facing preview) keeps the rule table for daily use, so
+    the preview waits on at most one ML call (the planner's, bounded by `ml_timeout_s`)."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
-    request = planning.plan_request(profile, catalog, monday, festivals)
+    price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
+    request = planning.plan_request(profile, catalog, monday, festivals, price_index)
     plan = await intel_api.plan_week(
         http,
         settings,
@@ -252,7 +262,17 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    lines = planning.lines_from_plan(profile, catalog, meals, fallback=plan.plan is None)
+    bought = await bought_recently(session, profile.id, delivery_date, catalog)
+    quantities = (
+        await twin_quantities(
+            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+        )
+        if pantry_twin
+        else {}
+    )
+    lines = planning.lines_from_plan(
+        profile, catalog, meals, fallback=plan.plan is None, bought=bought, quantities=quantities
+    )
     monthly_budget = profile.budget_paise
     budget_near = (
         monthly_budget is not None
@@ -270,6 +290,163 @@ async def draft(
         )
         prediction = kept.id if kept else None
     return draft_box, plan.source, prediction
+
+
+OBSERVED_WEEKS = 12  # how far back the twin looks at boxes and taps
+
+
+async def pantry_observations(
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
+) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
+    """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
+    that carried it, oldest first, as (daily-use share in base units, the household's tap). The
+    share is what the box delivered minus what that week's planned recipes needed, computed the
+    way the draft computes it, so the twin learns daily use and never the recipes on top."""
+    since = delivery_date - timedelta(weeks=OBSERVED_WEEKS)
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .where(
+                    WeeklyCycle.household_id == profile.id,
+                    WeeklyCycle.delivery_date >= since,
+                    WeeklyCycle.delivery_date < delivery_date,
+                    WeeklyCycle.status == "locked",
+                )
+                .order_by(WeeklyCycle.delivery_date)
+            )
+        ).scalars()
+    )
+    products = [p for p in catalog.products.values() if planning.twin_product(p)]
+    if not cycles or not products:
+        return {}
+    ids = [c.id for c in cycles]
+    wanted = [p.id for p in products]
+    delivered: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
+    for line in (
+        await session.execute(
+            select(BoxLine).where(BoxLine.cycle_id.in_(ids), BoxLine.product_id.in_(wanted))
+        )
+    ).scalars():
+        key = (line.cycle_id, line.product_id)
+        delivered[key] = delivered.get(key, 0.0) + (
+            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        )
+    taps = {
+        (cycle_id, product_id): signal
+        for cycle_id, product_id, signal in await session.execute(
+            select(PantryFeedback.cycle_id, PantryFeedback.product_id, PantryFeedback.signal).where(
+                PantryFeedback.cycle_id.in_(ids), PantryFeedback.product_id.in_(wanted)
+            )
+        )
+    }
+    out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
+    for cycle in cycles:
+        need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
+        for product in products:
+            units = delivered.get((cycle.id, product.id))
+            if not units:
+                continue  # not in that week's box: nothing observed
+            share = max(0.0, units - need.get(product.id, 0.0))
+            out.setdefault(product.id, []).append((share, taps.get((cycle.id, product.id))))
+    return out
+
+
+async def twin_quantities(
+    session: AsyncSession,
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
+    *,
+    record_for: uuid.UUID | None,
+) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
+    """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
+    rule table is the cohort prior, the daily-use share of the household's locked boxes and its
+    taps are the observations. Empty when the twin is switched off (`pantry_twin_enabled`) or
+    the household has no observed week yet, so the rule table drafts those boxes."""
+    if not settings.pantry_twin_enabled:
+        return {}
+    observed = await pantry_observations(session, profile, catalog, delivery_date)
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    items = []
+    for slug, prior in rules.daily_use_plan(equivalents).items():
+        product = catalog.product_by_slug(slug)
+        if product is None or product.id not in observed:
+            continue
+        items.append(
+            PantryItem(
+                product=slug,
+                step=product.step_qty * planning.BASE_FACTOR[product.step_unit],
+                prior_mean=prior,
+                observations=[
+                    PantryObservation(qty=qty, signal=signal)  # pyright: ignore[reportArgumentType]
+                    for qty, signal in observed[product.id]
+                ],
+            )
+        )
+    if not items:
+        return {}
+    answer = await intel_api.pantry_quantities(
+        http,
+        settings,
+        PantryRequest(items=items),
+        session=session if record_for else None,
+        household_id=record_for,
+        for_date=delivery_date,
+    )
+    by_slug = {item.product: item for item in answer.items}
+    return {
+        product.id: (
+            by_slug[slug].mean,
+            {
+                "mean": by_slug[slug].mean,
+                "p10": by_slug[slug].p10,
+                "p90": by_slug[slug].p90,
+                "weeks": by_slug[slug].weeks_observed,
+                "source": answer.source,
+            },
+        )
+        for slug in by_slug
+        if (product := catalog.product_by_slug(slug)) is not None
+    }
+
+
+async def bought_recently(
+    session: AsyncSession,
+    household_id: uuid.UUID,
+    delivery_date: date,
+    catalog: catalog_api.PlanCatalog,
+) -> dict[uuid.UUID, list[tuple[float, float]]]:
+    """Per dry staple, (weeks before `delivery_date`, base units) of each approved or locked box
+    of the last CARRY_WEEKS weeks: the deliveries the next draft's cupboard is made of."""
+    since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
+    rows = await session.execute(
+        select(BoxLine, WeeklyCycle.delivery_date)
+        .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+        .where(
+            WeeklyCycle.household_id == household_id,
+            WeeklyCycle.delivery_date >= since,
+            WeeklyCycle.delivery_date < delivery_date,
+            WeeklyCycle.status.in_(("approved", "locked")),
+        )
+    )
+    bought: dict[uuid.UUID, list[tuple[float, float]]] = {}
+    for line, delivered in rows.all():
+        product = catalog.products.get(line.product_id)
+        if product is None or not planning.carries_over(product):
+            continue
+        bought.setdefault(line.product_id, []).append(
+            (
+                (delivery_date - delivered).days / 7,
+                line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit],
+            )
+        )
+    return bought
 
 
 async def generate_cycle(
@@ -330,6 +507,7 @@ async def generate_cycle(
         highlights=box.highlights,
         status="draft",
         generated_at=now(),
+        data_source=profile.data_source,
     )
     try:
         async with session.begin_nested():

@@ -1,6 +1,6 @@
 # M11 — Notifications
 
-**Status:** v1.1. §3.1 (inbox, preferences, push token, event map) frozen on 2026-10-09; the admin and webhook parts (§3.2) are refined when B5 starts.
+**Status:** v1.1. §3.1 (inbox, preferences, push token, event map) frozen on 2026-10-08; the admin and webhook parts (§3.2) are refined when B5 starts.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also template copy and translations)
 **Phase / Sprint:** P2 / S3
 **Postgres schema:** `notifications` · **Python package:** `gharbasket.modules.notifications`
@@ -31,7 +31,7 @@ Turns domain events into the right message, in the right language, on the right 
 | GET | `/v1/admin/notifications?user_id=` | admin, hub_manager (support) | — | Delivery log: messages with their delivery attempts (§3.2) |
 | GET / POST | `/v1/webhooks/whatsapp` | Meta (verify token / signature) | Event id dedupe | Subscription handshake and delivery receipts (§3.2) |
 
-### 3.1 Inbox, preferences and push token contract (frozen on 2026-10-09)
+### 3.1 Inbox, preferences and push token contract (frozen on 2026-10-08)
 The mobile Inbox and Notification preferences screens (`feat/mobile-notifications`) and the backend build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 
 ```
@@ -160,5 +160,5 @@ M0 (outbox, jobs, pagination), M1 (users, locale, sessions with push tokens, con
 ## 11. Open questions
 - WhatsApp template approval timelines for real (non-test) numbers after the pilot.
 - ~~Whether SMS is needed at all in v1~~ Decided: no SMS in v1.
-- ~~Templates in Jinja2?~~ Decided 2026-10-09: plain `{placeholders}`, no template engine.
+- ~~Templates in Jinja2?~~ Decided 2026-10-08: plain `{placeholders}`, no template engine.
 - ~~Where push tokens live~~ Decided 2026-10-08: on `identity.sessions`; M11 has no devices table.

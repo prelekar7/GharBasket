@@ -1,7 +1,7 @@
 """subscriptions: weekly_cycles gains reminded_at, so the cut-off reminder goes once (M3 §6)
 
 Revision ID: 08c4162139bc
-Revises: a8e9dd07f72c
+Revises: 7c3e91b2d5a4
 Create Date: 2026-10-09 09:00:00.000000+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "08c4162139bc"
-down_revision: str | Sequence[str] | None = "a8e9dd07f72c"
+down_revision: str | Sequence[str] | None = "7c3e91b2d5a4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -21,6 +21,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity import events
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport
+from gharbasket.modules.notifications import api as notifications_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.platform import files
@@ -35,6 +36,7 @@ SECTIONS: dict[str, Callable[[AsyncSession, uuid.UUID], Awaitable[dict[str, Any]
     "subscriptions": subscriptions_api.export_for_user,
     "orders": orders_api.export_for_user,
     "billing": billing_api.export_for_user,
+    "notifications": notifications_api.export_for_user,
 }
 
 
