@@ -194,6 +194,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every recipe for the console, active or not, alphabetical (without steps) */
+        get: operations["list_admin_recipes_v1_admin_recipes_get"];
+        put?: never;
+        /** Add a recipe (admin; Idempotency-Key; audit-logged) */
+        post: operations["create_recipe_v1_admin_recipes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/recipes/{recipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recipe for the console (ETag: its version) */
+        get: operations["get_admin_recipe_v1_admin_recipes__recipe_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a recipe, or deactivate or reactivate it (admin; a catalog editor changes only the names and the fasting and diabetic flags; If-Match; audit-logged) */
+        patch: operations["edit_recipe_v1_admin_recipes__recipe_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/recipes/{recipe_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who changed a recipe and what, newest first (from the audit log) */
+        get: operations["recipe_history_v1_admin_recipes__recipe_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -1526,6 +1579,70 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** AdminRecipe */
+        AdminRecipe: {
+            /** Active */
+            active: boolean;
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /**
+             * Diet
+             * @enum {string}
+             */
+            diet: "veg" | "egg";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ingredients */
+            ingredients: components["schemas"]["IngredientOut"][];
+            /**
+             * Is Side
+             * @description Eaten with a main (chapati, rice); never planned alone
+             */
+            is_side: boolean;
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            reviews: components["schemas"]["Reviews"];
+            rules: components["schemas"]["RecipeRules"];
+            /** Servings */
+            servings: number;
+            /**
+             * Sides
+             * @description Slugs of side recipes this one is eaten with
+             */
+            sides: string[];
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /**
+             * Slug
+             * @example sabudana-khichdi
+             */
+            slug: string;
+            /**
+             * Steps
+             * @description Left out (null) in the list
+             */
+            steps: components["schemas"]["RecipeStep"][] | null;
+            /** Tags */
+            tags: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Who last edited it in the console */
+            updated_by: components["schemas"]["UserRef"] | null;
+            /** Version */
+            version: number;
+        };
         /** BudgetLockIn */
         BudgetLockIn: {
             /**
@@ -2240,6 +2357,30 @@ export interface components {
              * @description Unread messages in the whole inbox, not only this page
              */
             unread: number;
+        };
+        /** IngredientIn */
+        IngredientIn: {
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @example 50
+             */
+            qty: number | string;
+            /**
+             * Unit
+             * @description Fits the product's step (catalog.unit_mismatch)
+             * @enum {string}
+             */
+            unit: "g" | "ml" | "piece" | "bunch";
         };
         /** IngredientOut */
         IngredientOut: {
@@ -3315,6 +3456,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[AdminRecipe] */
+        Page_AdminRecipe_: {
+            /** Items */
+            items: components["schemas"]["AdminRecipe"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[Entry] */
         Page_Entry_: {
             /** Items */
@@ -3836,6 +3984,49 @@ export interface components {
              */
             status: "ok";
         };
+        /**
+         * RecipeIn
+         * @description The derived rules (diet, jain_ok, no_onion_garlic) are calculated, never sent.
+         */
+        RecipeIn: {
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /** Diabetic Ok */
+            diabetic_ok: boolean;
+            /** Fasting Ok */
+            fasting_ok: boolean;
+            /** Ingredients */
+            ingredients: components["schemas"]["IngredientIn"][];
+            /**
+             * Is Side
+             * @default false
+             */
+            is_side: boolean;
+            names: components["schemas"]["NamesIn"];
+            /** Servings */
+            servings: number;
+            /**
+             * Sides
+             * @default []
+             */
+            sides: string[];
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /** Slug */
+            slug: string;
+            /** Steps */
+            steps?: components["schemas"]["RecipeStep"][] | null;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+        };
         /** RecipeOut */
         RecipeOut: {
             /** Cook Minutes */
@@ -3888,6 +4079,43 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /**
+         * RecipePatch
+         * @description Only the fields sent change; ingredients and steps are replaced whole. A catalog editor
+         *     may send only names, fasting_ok and diabetic_ok.
+         */
+        RecipePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Cook Minutes */
+            cook_minutes?: number | null;
+            /** Cuisine */
+            cuisine?: ("maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common") | null;
+            /** Diabetic Ok */
+            diabetic_ok?: boolean | null;
+            /** Fasting Ok */
+            fasting_ok?: boolean | null;
+            /** Ingredients */
+            ingredients?: components["schemas"]["IngredientIn"][] | null;
+            /** Is Side */
+            is_side?: boolean | null;
+            names?: components["schemas"]["NamesIn"] | null;
+            /** Servings */
+            servings?: number | null;
+            /** Sides */
+            sides?: string[] | null;
+            /** Slots */
+            slots?: ("breakfast" | "lunch" | "dinner")[] | null;
+            /**
+             * Slug
+             * @description Refused: catalog.field_immutable
+             */
+            slug?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["RecipeStep"][] | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
         /** RecipeRules */
         RecipeRules: {
             /**
@@ -3910,6 +4138,15 @@ export interface components {
              * @description Derived: no onion or garlic ingredient
              */
             no_onion_garlic: boolean;
+        };
+        /** RecipeStep */
+        RecipeStep: {
+            /**
+             * N
+             * @description 1, 2, 3 … in order
+             */
+            n: number;
+            text: components["schemas"]["StepTextIn"];
         };
         /** RecipeSummary */
         RecipeSummary: {
@@ -3996,6 +4233,21 @@ export interface components {
              * @enum {string}
              */
             outcome: "credit" | "reject";
+        };
+        /** Review */
+        Review: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["UserRef"] | null;
+        };
+        /** Reviews */
+        Reviews: {
+            diabetic_ok: components["schemas"]["Review"] | null;
+            /** @description Who last set the flag, and when */
+            fasting_ok: components["schemas"]["Review"] | null;
         };
         /**
          * RoleGrantIn
@@ -4448,6 +4700,15 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** StepTextIn */
+        StepTextIn: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi?: string | null;
+            /** Mr */
+            mr?: string | null;
         };
         /** SubscriptionIn */
         SubscriptionIn: {
@@ -5759,6 +6020,363 @@ export interface operations {
                 };
             };
             /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_admin_recipes_v1_admin_recipes_get: {
+        parameters: {
+            query?: {
+                /** @description In the slug or a name */
+                q?: string | null;
+                cuisine?: ("maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common") | null;
+                slot?: ("breakfast" | "lunch" | "dinner") | null;
+                /** @description Leave out for both */
+                active?: boolean | null;
+                is_side?: boolean | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminRecipe_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_recipe_v1_admin_recipes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_admin_recipe_v1_admin_recipes__recipe_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_recipe_v1_admin_recipes__recipe_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (fields: what a catalog editor may not change) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_in_use (recipes) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    recipe_history_v1_admin_recipes__recipe_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["History"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;

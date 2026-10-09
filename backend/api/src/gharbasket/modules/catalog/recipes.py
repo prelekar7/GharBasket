@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import delete, select, tuple_
+from sqlalchemy import Select, delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import events
@@ -28,6 +28,7 @@ BASE_UNIT = {
     "ml": ("ml", 1),
     "l": ("ml", 1000),
     "piece": ("piece", 1),
+    "pack": ("piece", 1),  # a recipe counts packs as pieces (M2 §3.3)
     "bunch": ("bunch", 1),
 }
 
@@ -234,7 +235,6 @@ async def list_recipes(
     limit: int,
     is_side: bool | None = None,
 ) -> tuple[list[Recipe], str | None]:
-    english = Recipe.names["en"].astext
     stmt = select(Recipe).where(Recipe.active)
     if is_side is not None:
         stmt = stmt.where(Recipe.is_side == is_side)
@@ -247,6 +247,14 @@ async def list_recipes(
     for rule, wanted in (("jain_ok", jain_ok), ("fasting_ok", fasting_ok)):
         if wanted is not None:
             stmt = stmt.where(Recipe.rules[rule].as_boolean() == wanted)
+    return await page_recipes(session, stmt, cursor, limit)
+
+
+async def page_recipes(
+    session: AsyncSession, stmt: Select[Recipe], cursor: str | None, limit: int
+) -> tuple[list[Recipe], str | None]:
+    """One page of recipes, alphabetical by English name, then id."""
+    english = Recipe.names["en"].astext
     if cursor is not None:
         after = decode_cursor(cursor).get("after")
         if not (isinstance(after, list) and len(after) == 2 and isinstance(after[0], str)):  # pyright: ignore[reportUnknownArgumentType]
