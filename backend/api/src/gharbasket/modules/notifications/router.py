@@ -49,6 +49,7 @@ async def list_notifications(
 )
 async def read_all(principal: CurrentPrincipal, session: DbSession) -> None:
     await service.mark_all_read(session, principal.user_id)
+    await session.commit()
 
 
 @router.post(
@@ -61,6 +62,7 @@ async def read_one(
     notification_id: uuid.UUID, principal: CurrentPrincipal, session: DbSession
 ) -> None:
     await service.mark_read(session, principal.user_id, notification_id)
+    await session.commit()
 
 
 @router.get(
@@ -84,4 +86,6 @@ async def get_preferences(principal: CurrentPrincipal, session: DbSession) -> Pr
 async def put_preferences(
     body: PreferencesIn, principal: CurrentPrincipal, session: DbSession
 ) -> PreferencesOut:
-    return await service.save_preferences(session, principal.user_id, body)
+    saved = await service.save_preferences(session, principal.user_id, body)
+    await session.commit()
+    return saved
