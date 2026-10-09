@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import refunds, service
-from gharbasket.modules.billing.events import WALLET_TOPPED_UP
+from gharbasket.modules.billing.events import REFUND_TO_SOURCE_SETTLED, WALLET_TOPPED_UP
 from gharbasket.modules.billing.models import JournalEntry, Payment, Posting
 from gharbasket.modules.billing.refunds import wallet_closed
 from gharbasket.modules.billing.schemas import RefundOut
@@ -27,6 +27,7 @@ from gharbasket.modules.billing.wallet import (
 from gharbasket.platform.settings import Settings, get_settings
 
 __all__ = [
+    "REFUND_TO_SOURCE_SETTLED",
     "WALLET_TOPPED_UP",
     "InsufficientBalance",
     "RefundOut",

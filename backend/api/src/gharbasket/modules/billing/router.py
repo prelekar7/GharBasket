@@ -9,8 +9,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
+from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs)
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.billing import refunds, statements, topups, wallet
+from gharbasket.modules.billing import refunds, settlement, statements, topups, wallet
 from gharbasket.modules.billing.models import Payment, PaymentWebhook
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
@@ -265,7 +266,10 @@ async def razorpay_webhook(
     ).scalar_one_or_none()
     if stored is None:
         return WebhookAck(outcome="duplicate")
-    outcome = await topups.handle_event(session, event, razorpay)
+    if str(event.get("event", "")).startswith("refund."):
+        outcome = await settlement.handle_event(session, event, settings)
+    else:
+        outcome = await topups.handle_event(session, event, razorpay)
     webhook = await session.get(PaymentWebhook, stored)
     if webhook is not None:
         webhook.outcome = outcome
