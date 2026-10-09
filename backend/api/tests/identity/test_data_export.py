@@ -334,6 +334,10 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         select(AuditEntry).where(AuditEntry.action == "identity.data_export_link_minted")
     )
     assert len(minted.scalars().all()) == 1
+    told = await db_session.execute(
+        select(OutboxEvent.payload).where(OutboxEvent.event_type == "identity.data_export_ready")
+    )
+    assert told.scalars().all() == [{"export_id": export_id, "user_id": str(user_id)}]
 
 
 async def test_tokens_and_other_households_are_left_out(
@@ -455,6 +459,8 @@ async def test_a_failing_build_retries_three_times_then_asking_again_queues_it(
     failed = (await api.get(EXPORT, headers=headers)).json()
     assert failed["status"] == "failed" and failed["download"] is None
     assert await db_session.get(Upload, f"data_export/{user_id}/{export_id}.json") is None
+    ready_events = select(OutboxEvent).where(OutboxEvent.event_type == "identity.data_export_ready")
+    assert (await db_session.execute(ready_events)).scalars().all() == []  # no file, no notice
 
     again = (await api.post(EXPORT, headers=headers)).json()
     assert again["id"] == export_id and again["status"] == "queued"
@@ -464,6 +470,7 @@ async def test_a_failing_build_retries_three_times_then_asking_again_queues_it(
         select(OutboxEvent).where(OutboxEvent.event_type == "identity.data_export_requested")
     )
     assert len(events.scalars().all()) == 2
+    assert len((await db_session.execute(ready_events)).scalars().all()) == 1
 
 
 async def test_the_build_needs_storage(db_session: AsyncSession) -> None:

@@ -76,6 +76,7 @@ async def test_a_cheaper_substitute_replaces_the_line_and_the_difference_is_refu
     assert await events(db_session, SHORTAGE) == [
         {
             "order_id": str(order_id),
+            "household_id": str(order.household_id),  # M11 tells the household (M11 §3.1)
             "product_id": str(ids["tomato"]),
             "shortage_qty": 2,
             "substitute_product_id": str(gourd),

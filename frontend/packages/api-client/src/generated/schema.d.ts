@@ -642,6 +642,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear this device's FCM token for push notifications (M11 §3.1) */
+        put: operations["put_push_token_v1_me_push_token_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/roles": {
         parameters: {
             query?: never;
@@ -1368,7 +1385,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /**
              * Version
              * @example v1
@@ -1385,7 +1402,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /** Revoked At */
             revoked_at: string | null;
             /** Version */
@@ -3010,6 +3027,14 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
+        };
+        /** PushTokenIn */
+        PushTokenIn: {
+            /**
+             * Push Token
+             * @description The FCM registration token of this device; null when notifications are off
+             */
+            push_token: string | null;
         };
         /** Ready */
         Ready: {
@@ -6500,6 +6525,55 @@ export interface operations {
             };
             /** @description identity.device_not_found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_push_token_v1_me_push_token_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
