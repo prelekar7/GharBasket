@@ -134,3 +134,7 @@ gen-api: openapi
 # Simulate synthetic households and write their ground truth (after `just seed`), e.g. `just sim --seed 11`
 sim *args:
     uv run python -m gharbasket_sim {{args}}
+
+# Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
+eval *args:
+    uv run python -m gharbasket_training.eval {{args}}

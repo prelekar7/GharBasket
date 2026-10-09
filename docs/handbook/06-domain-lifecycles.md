@@ -237,6 +237,6 @@ Kindness points expire (daily expiry job) and are never convertible to cash (D4)
 - **D4** closed-loop wallet and UPI Autopay rules ([ADR-0004](../adr/0004-closed-loop-wallet-and-upi-autopay.md)) — pre-debit notice and posting rules.
 - **D8** `data_source` on orders ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
 - Open: confirm cut-off time (21:00) and the 2-hour payment grace window against real APMC Vashi buying times during Phase P0 interviews.
-- Open: decide whether to keep a `TRIAL` subscription state or handle trials as a promotion only (Yash Salunkhe, M3 spec).
+- Open: decide whether to keep a `TRIAL` subscription state or handle trials as a promotion only (Prathamesh Relekar, M3 spec).
 
 Related: [05 — Data architecture](05-data-architecture.md) · [07 — Workflows](07-workflows.md) · [10 — API and integration](10-api-and-integration.md)

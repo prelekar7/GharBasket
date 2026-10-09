@@ -12,9 +12,9 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, registry
+from gharbasket_ml import __version__, pantry, registry
 from gharbasket_ml.planner import plan_week
-from gharbasket_ml.schemas import PlanRequest, PlanResponse
+from gharbasket_ml.schemas import PantryRequest, PantryResponse, PlanRequest, PlanResponse
 from gharbasket_ml.settings import Settings, get_settings
 
 _bearer = HTTPBearer(auto_error=False)
@@ -78,6 +78,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
         return registry.health(settings.models_manifest)
+
+    @app.post(
+        "/pantry/quantities",
+        dependencies=[Depends(require_service_token)],
+        summary="Weekly use per item with an 80 % interval (the pantry twin, M10 §3.3)",
+    )
+    async def pantry_quantities(body: PantryRequest) -> PantryResponse:
+        return pantry.quantities(body)
 
     @app.post(
         "/plan/week",
