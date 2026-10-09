@@ -2330,11 +2330,14 @@ export interface components {
             slug: string;
             step: components["schemas"]["OrderStep"];
             substituted_from: components["schemas"]["ProductRef"] | null;
-            /** Total Paise */
+            /**
+             * Total Paise
+             * @description (qty - shortage_qty) x unit_price_paise
+             */
             total_paise: number;
             /**
              * Unit Price Paise
-             * @description Per step, frozen when the line was made
+             * @description Per step, frozen when the line was made; a packing substitute's price
              */
             unit_price_paise: number;
         };
