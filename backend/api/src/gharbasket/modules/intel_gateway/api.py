@@ -6,7 +6,9 @@ slow, failing or refuses the token, a rule-based answer is returned instead, mar
 """
 
 import uuid
+from collections.abc import Callable
 from datetime import date
+from typing import Any
 
 import httpx2
 import structlog
@@ -14,8 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
-from gharbasket.modules.intel_gateway.schemas import PlanRequest, WeekPlan  # re-exported
+from gharbasket.modules.intel_gateway.schemas import (  # re-exported
+    PantryItem,
+    PantryObservation,
+    PantryQuantities,
+    PantryRequest,
+    PlanRequest,
+    WeekPlan,
+)
 from gharbasket.modules.intel_gateway.service import (
+    latest_metrics,
     latest_prediction,
     price_spikes,
     record_metrics,
@@ -26,10 +36,16 @@ log = structlog.get_logger("gharbasket.intel_gateway")
 
 __all__ = [
     "HardRule",
+    "PantryItem",
+    "PantryObservation",
+    "PantryQuantities",
+    "PantryRequest",
     "PlanRequest",
     "WeekPlan",
+    "latest_metrics",
     "latest_prediction",
     "next_recipe",
+    "pantry_quantities",
     "plan_week",
     "price_spikes",
     "record_metrics",
@@ -51,7 +67,15 @@ async def plan_week(
     With `session`, `household_id` and `week_monday` the answer is also kept in
     `intel.predictions` (kind `weekly_plan`, source `ml` or `fallback`); the caller commits.
     """
-    plan = await _plan_week(http, settings, request)
+    plan = await _call(
+        http,
+        settings,
+        "/plan/week",
+        request.model_dump(mode="json") | {"time_limit_s": _solver_budget(settings, request)},
+        parse=lambda body: WeekPlan.model_validate({**body, "source": "ml"}),
+        fallback_to=lambda: fallback.plan_week(request),
+        call="plan_week",
+    )
     if session is not None and household_id is not None and week_monday is not None:
         await service.record_prediction(
             session,
@@ -66,11 +90,55 @@ async def plan_week(
     return plan
 
 
-async def _plan_week(
-    http: httpx2.AsyncClient, settings: Settings, request: PlanRequest
-) -> WeekPlan:
+async def pantry_quantities(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: PantryRequest,
+    *,
+    session: AsyncSession | None = None,
+    household_id: uuid.UUID | None = None,
+    for_date: date | None = None,
+) -> PantryQuantities:
+    """Weekly use per item from the pantry twin (M10 §3.3): the ML service if reachable, else
+    the same closed form in plain arithmetic. With `session`, `household_id` and `for_date` the
+    answer is kept in `intel.predictions` (kind `pantry`); the caller commits."""
+    answer = await _call(
+        http,
+        settings,
+        "/pantry/quantities",
+        request.model_dump(mode="json"),
+        parse=lambda body: PantryQuantities.model_validate({**body, "source": "ml"}),
+        fallback_to=lambda: fallback.pantry_quantities(request),
+        call="pantry_quantities",
+    )
+    if session is not None and household_id is not None and for_date is not None:
+        await service.record_prediction(
+            session,
+            kind="pantry",
+            subject_type="household",
+            subject_id=household_id,
+            for_date=for_date,
+            source=answer.source,
+            payload=answer.model_dump(mode="json", exclude={"source", "model"}),
+            model_name=answer.model,
+        )
+    return answer
+
+
+async def _call[T](
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    path: str,
+    body: dict[str, Any],
+    *,
+    parse: Callable[[dict[str, Any]], T],
+    fallback_to: Callable[[], T],
+    call: str,
+) -> T:
+    """POST `body` to the ML service at `path` within `ml_timeout_s` and `parse` the answer; on
+    no service, a timeout, an HTTP error or a malformed body, `fallback_to()` answers instead."""
     if not settings.ml_service_url:
-        return fallback.plan_week(request)
+        return fallback_to()
     headers = {}
     if settings.ml_service_token is not None:
         headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
@@ -79,14 +147,23 @@ async def _plan_week(
         headers["X-Request-ID"] = str(request_id)
     try:
         response = await http.post(
-            f"{settings.ml_service_url.rstrip('/')}/plan/week",
-            json=request.model_dump(mode="json"),
+            f"{settings.ml_service_url.rstrip('/')}{path}",
+            json=body,
             headers=headers,
             timeout=settings.ml_timeout_s,
         )
         response.raise_for_status()
-        answer = response.json()
-        return WeekPlan.model_validate({**answer, "source": "ml"})
-    except (httpx2.HTTPError, ValueError) as exc:
-        log.warning("ml_fallback", call="plan_week", reason=type(exc).__name__)
-        return fallback.plan_week(request)
+        return parse(response.json())
+    except (httpx2.HTTPError, ValueError, TypeError) as exc:  # pydantic errors are ValueErrors
+        log.warning("ml_fallback", call=call, reason=type(exc).__name__)
+        return fallback_to()
+
+
+# The solver gets at most this share of the HTTP timeout; the rest covers the network, the
+# model build and the JSON both ways, so a slow solve still answers before the gateway gives up.
+SOLVER_SHARE_OF_TIMEOUT = 0.5
+
+
+def _solver_budget(settings: Settings, request: PlanRequest) -> float:
+    """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
+    return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))

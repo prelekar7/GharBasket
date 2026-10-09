@@ -3,6 +3,7 @@ token (ADR-0025). Customers never call these.
 """
 
 from datetime import date
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -44,3 +45,42 @@ async def put_price_index(body: PriceIndexIn, session: DbSession) -> PriceIndexO
     )
     await session.commit()
     return PriceIndexOut(accepted=accepted, unknown_slugs=[s for s in slugs if s not in ids])
+
+
+class ModelMetricIn(BaseModel):
+    model_name: str = Field(min_length=1, max_length=60)
+    version: str = Field(min_length=1, max_length=40)
+    metric: str = Field(min_length=1, max_length=40)
+    value: float
+    split: Literal["train", "holdout", "backtest", "live"]
+    data_source: Literal["synthetic", "pilot", "live", "mixed"]
+    details: dict[str, Any] | None = None
+
+
+class ModelMetricsIn(BaseModel):
+    items: list[ModelMetricIn] = Field(min_length=1, max_length=2000)
+
+
+class ModelMetricsOut(BaseModel):
+    accepted: int
+
+
+@router.post(
+    "/internal/intel/model-metrics",
+    summary="Store an evaluation run's metrics (the eval harness, training jobs; operator token)",
+)
+async def put_model_metrics(body: ModelMetricsIn, session: DbSession) -> ModelMetricsOut:
+    accepted = 0
+    for item in body.items:
+        rows = await service.record_metrics(
+            session,
+            model_name=item.model_name,
+            version=item.version,
+            metrics={item.metric: item.value},
+            split=item.split,
+            data_source=item.data_source,
+            details=item.details,
+        )
+        accepted += len(rows)
+    await session.commit()
+    return ModelMetricsOut(accepted=accepted)

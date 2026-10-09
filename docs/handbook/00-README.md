@@ -5,7 +5,7 @@
 > - It supersedes the older documents in `Major project/` (files `01`–`07` and `04_UML_Diagrams.md`), which assumed Flutter and 18 microservices. Those files are kept only for history.
 > - Every behaviour-changing pull request must update the relevant chapter (this is a checklist item in the PR template).
 > - AI coding assistants used by the team (Claude Code, Cursor, Gemini, etc.) are pointed here via `AGENTS.md`, so every session starts with full context.
-> - Status: **v1, October 2026**, written at the end of Phase 0 planning. Decisions D1–D17 are final unless changed through an ADR.
+> - Status: **v1, October 2026**, written at the end of Phase 0 planning. Decisions D1–D25 are final unless changed through an ADR.
 
 ---
 
@@ -73,7 +73,7 @@ mindmap
 | Preparing for the viva | 01 → 04 → 08 → 15 |
 
 Conventions used throughout:
-- **D-numbers** (D1–D17) refer to agreed decisions; each has an ADR in `docs/adr/` (`0001` = D1 … `0017` = D17).
+- **D-numbers** (D1–D25) refer to agreed decisions; each has an ADR in `docs/adr/` (`0001` = D1 … `0025` = D25).
 - **M-numbers** (M0–M13) refer to software modules; each has a spec in `docs/modules/`.
 - **P-numbers** (P0–P7) are project phases; **S-numbers** (S0–S12) are two-week sprints.
 - Money is always in **₹**; inside the system it is stored as integer **paise**.
@@ -83,13 +83,15 @@ Conventions used throughout:
 
 | Member | Tracks | Owns |
 |---|---|---|
-| **Yash Salunkhe** | A — Customer Experience; B — Commerce Core | Mobile app (`frontend/mobile`), design system (`frontend/packages/ui`), modules M1 Identity, M2 Catalog, M3 Subscriptions, M4 Orders, M5 Billing, M11 Notifications |
-| **Prathamesh Relekar** | C — Operations; D — Intelligence | Console (`frontend/console`), modules M6 Hub Operations, M7 Logistics, M8 Partners, M9 Community (backend), M10 Intelligence (ML service), M12 Analytics, M13 Assistant, data simulator, IEEE paper results |
+| **Prathamesh Relekar** | Backend, infrastructure, ML | All of `backend/` (every module M0–M13, the ML service and training), `infra/`, `data/` (simulator), `.github/`, `scripts/` and root configuration; ML and the research results (IEEE paper) |
+| **Yash Salunkhe** | Frontend and design | All of `frontend/`: the mobile app (`frontend/mobile`, every role), the console UI (`frontend/console`), `frontend/packages/ui` and `frontend/packages/domain`; design in Claude Design |
 | **Rhythm Thakur** | Documentation, QA, pilot | Handbook and report upkeep, UML, test plans and E2E tests (Playwright), translations and copy review, UX interviews, pilot operations, presentation |
 | **Manish Raje** | Documentation, QA, pilot | Same as Rhythm (shared ownership), assistant evaluation dataset, load and accessibility testing, research-paper writing |
 | **Prof. Kranti Bade** | Guide | Reviews every phase gate and milestone demo |
 
-Cross-review rule: Yash reviews Prathamesh's backend pull requests and vice versa, so that both can explain the whole system in the viva.
+Ownership follows [ADR-0023](../adr/0023-ownership-backend-and-frontend.md), which superseded the track split of ADR-0009; `CODEOWNERS` follows this table. The generated client in `frontend/packages/api-client/src/generated/` comes only from `just gen-api` and is never hand-edited; its small runtime (`src/index.js`) is reviewed by both owners.
+
+Cross-review rule: each owner reviews the other's contract changes (module specs §3 and the generated API client), so that both can explain the whole system in the viva.
 
 ## 4. Chapter index
 
@@ -107,7 +109,7 @@ Cross-review rule: Yash reviews Prathamesh's backend pull requests and vice vers
 | 09 | [Frontend and design](09-frontend-and-design.md) | Design system, screens, navigation, libraries |
 | 10 | [API and integration](10-api-and-integration.md) | API conventions, auth, events, jobs, external services |
 | 11 | [Engineering process](11-engineering-process.md) | Repository, Git rules, CI/CD, testing |
-| 12 | [Deployment and operations](12-deployment-and-operations.md) | Free-tier topology (Render, Vercel, Neon, R2), monitoring, runbooks |
+| 12 | [Deployment and operations](12-deployment-and-operations.md) | Free-tier topology (Render, Vercel, Neon, R2, the ML Space), scheduled jobs, monitoring, runbooks |
 | 13 | [Security and compliance](13-security-and-compliance.md) | Auth, DPDP, RBI wallet rules, FSSAI, KYC |
 | 14 | [Project plan](14-project-plan.md) | Phases, milestones, sprints, responsibilities, budget |
 | 15 | [Risks and decisions](15-risks-and-decisions.md) | Risk register, decision log, open questions |
@@ -144,7 +146,7 @@ Companion documents: `docs/TDD.md` (technical design document), `docs/FRONTEND_D
 
 ## Decisions & open questions
 
-- All decisions D1–D24 are summarised in [Chapter 15](15-risks-and-decisions.md) and recorded in `docs/adr/0001`–`0024`.
-- Open (non-blocking): exam dates and final submission deadline; United Brothers Global's role and IP terms; whether the pilot database stays on Neon (Singapore) or moves to a paid Postgres in Mumbai, and which paid plans the pilot needs (decide before Phase 6); hosting for the ML service, OSRM and MLflow (decide before P3/P4).
+- All decisions D1–D25 are summarised in [Chapter 15](15-risks-and-decisions.md) and recorded in `docs/adr/0001`–`0025`.
+- Open (non-blocking): exam dates and final submission deadline; United Brothers Global's role and IP terms; whether the pilot database stays on Neon (Singapore) or moves to a paid Postgres in Mumbai, and which paid plans the pilot needs (decide before Phase 6). Hosting for the ML service, OSRM and MLflow is decided in [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md).
 
 Related: [01 Vision and scope](01-vision-and-scope.md) · [14 Project plan](14-project-plan.md) · [Appendix: diagram index](appendix-diagram-index.md)

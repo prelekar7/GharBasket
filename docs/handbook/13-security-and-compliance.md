@@ -33,8 +33,11 @@ flowchart LR
 
     subgraph Trusted["Trusted zone: Render service (Singapore)"]
         API["api: FastAPI\nJWT check, CSRF check, role + scope check,\nrate limits, idempotency, validation,\noutbox relay, internal job endpoints"]
-        ML["ml service\n(internal only; hosting decided before P3)"]
         VK[("Valkey (Render Key Value)\nrate-limit counters, sign-out deny-list")]
+    end
+
+    subgraph Space["Hugging Face Space (D25)"]
+        ML["ml service\nstateless; service token required;\nno personal data sent to it"]
     end
 
     subgraph Data["Data stores"]
@@ -56,7 +59,7 @@ flowchart LR
     API --> PG
     API --> VK
     API -- "presigned URLs only" --> S3
-    API -- "internal network, no public port" --> ML
+    API -- "HTTPS + service token, no household ids" --> ML
     MOB -- "OTP" --> FB
     API -- "verify ID token" --> FB
     RZP -- "signed webhooks" --> RTLS
@@ -64,7 +67,7 @@ flowchart LR
     API -- "templated messages" --> WA
     API -- "scrubbed prompts, user-scoped tools" --> LLM
 ```
-*Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the ML service and data stores are never exposed publicly.*
+*Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the data stores are never exposed publicly. The ML service runs on a Hugging Face Space (D25): it answers only calls that carry the service token, and no household ids or other personal data are sent to it.*
 
 ## 13.3 Authentication
 

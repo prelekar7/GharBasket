@@ -125,7 +125,7 @@ GharBasket is a 4-person B.Tech major project (accepted 13 Aug 2026), built coll
   └──────────────────┘  └────────┘  └───────────┘         └──────────┘  └──────────┘
 ```
 
-Staging runs on free tiers (ADR-0020): the API is a Render free web service (Singapore) with Render Free Key Value for Valkey; Postgres is on Neon (Singapore); files are on Cloudflare R2; the PWA and console are on Vercel. Hosting for the ML service, MLflow and OSRM is to be decided before P3/P4; locally everything runs under Docker Compose.
+Staging runs on free tiers (ADR-0020): the API is a Render free web service (Singapore) with Render Free Key Value for Valkey; Postgres is on Neon (Singapore); files are on Cloudflare R2; the PWA and console are on Vercel. The ML service and OSRM run on a Hugging Face Space, training and data jobs in GitHub Actions (`backend/training`), models and the lake on R2, and MLflow stays local (ADR-0025); locally everything runs under Docker Compose.
 
 ### 2.3 Architecture principles
 
@@ -231,7 +231,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Optimisation | OR-Tools ✓ — routing (CVRPTW + pickup-and-delivery ✓) and CP-SAT |
 | Embeddings | sentence-transformers with BAAI bge-m3 (multilingual), batch on CPU → pgvector (validate in S7 spike) |
 | LLM | anthropic Python SDK |
-| Experiment tracking | MLflow 3 ✓ (registry alias `@champion` ✓), artifacts in S3-API object storage (host to be decided before P4) |
+| Experiment tracking | MLflow 3 ✓, local only (Docker Compose) for experiment tracking; the registry of record is R2 (`s3://gb-mlflow/models/<name>/<version>/` with a `latest.json` pointer per model, ADR-0025) |
 | Hyperparameters | Optuna |
 | Data validation | pandera |
 | Notebooks | marimo ✓ (stored as `.py`) |
@@ -245,7 +245,7 @@ Staging runs on free tiers (ADR-0020): the API is a Render free web service (Sin
 | Hosted Postgres | Neon (Singapore): one shared database for the Infisical `dev` and `staging` environments, no branch per PR. Migrations reach it only from the deploy workflow after merge (`GB_ALLOW_REMOTE_MIGRATIONS=1`); remote downgrades are refused; tests and `just seed` refuse non-local databases; synthetic rows carry `data_source='synthetic'`. Daily work uses local Docker Postgres. |
 | Cache | Valkey 8 locally; Render Free Key Value on staging (in-memory, may lose data on restart; holds only rate-limit counters and the sign-out deny-list; the API works without it) |
 | Jobs | Postgres outbox + GitHub Actions schedule calling `POST /v1/internal/jobs/<name>` (ADR-0021) |
-| Files and data lake | Cloudflare R2 (S3 API, region `auto`, `gb-staging-*` buckets); SeaweedFS locally. Code uses the S3 API only. Data lake and MLflow artifact storage are decided with the ML hosting before P3/P4 |
+| Files and data lake | Cloudflare R2 (S3 API, region `auto`, `gb-staging-*` buckets); SeaweedFS locally. Code uses the S3 API only. The data lake (`gb-lake`) and the model registry (`gb-mlflow`) are on R2 too (ADR-0025) |
 | Road network | OSRM with OpenStreetMap clipped to the Mumbai Metropolitan Region (osmium) |
 | API hosting | Render free web service (Singapore); Render builds the Docker image from the repo; UptimeRobot calls `/v1/health` every 10 minutes to keep it awake (750 free hours a month cover 24×7) |
 | ML service, MLflow, OSRM hosting | ML service + OSRM on a Hugging Face Space (free CPU, Docker); training, forecasts and snapshots in GitHub Actions (`backend/training`); R2 as lake and model registry; MLflow local only (ADR-0025). Locally they run in Docker Compose |
@@ -448,25 +448,25 @@ No GPU is required in v1; the models are statistical, tabular and solver-based.
 
 | Model / engine | Type | Runs where | Frequency | Typical time |
 |---|---|---|---|---|
-| Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | ML service (CPU; host to be decided before P4); laptops for development | Weekly fit; online update per order/feedback | 1–5 min |
-| Next-basket ranker | LightGBM LambdaRank | ML service (batch) | Weekly | < 2 min |
-| Demand forecast | StatsForecast + MLForecast + reconciliation | ML service (batch) | Nightly | < 5 min |
-| Chronos-2 | Pretrained, zero-shot (no training) | ML service CPU inference | Nightly, new hubs | seconds–minutes |
+| Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | `backend/training` in GitHub Actions (CPU, ADR-0025); laptops for development | Weekly fit; online update per order/feedback | 1–5 min |
+| Next-basket ranker | LightGBM LambdaRank | `backend/training` (GitHub Actions) | Weekly | < 2 min |
+| Demand forecast | StatsForecast + MLForecast + reconciliation | `backend/training` (GitHub Actions) | Nightly | < 5 min |
+| Chronos-2 | Pretrained, zero-shot (no training) | CPU inference in a `backend/training` job (optional torch extra) | Nightly, new hubs | seconds–minutes |
 | Meal planner, routing, kitchen assignment, kit selection | OR-Tools solvers (no training) | ml service | Per cycle / per slot | 1–30 s |
-| Churn + uplift | LightGBM + T-learner | ML service (batch) | Monthly | < 1 min |
+| Churn + uplift | LightGBM + T-learner | `backend/training` (GitHub Actions) | Monthly | < 1 min |
 | Embeddings (bge-m3) | Pretrained (no training) | One-off batch on a laptop or free Colab/Kaggle GPU | On catalog change | minutes |
 | Assistant | Claude API — prompting + tools, no fine-tuning | Anthropic API | — | — |
 | Optional research fine-tune of Chronos | Fine-tune | Free Kaggle/Colab GPU | Once | ~1 h |
 
-Experiments run in marimo notebooks on laptops and are logged to a shared MLflow server (host to be decided before P4; artifacts in S3-API object storage).
+Experiments run in marimo notebooks on laptops and are logged to a local MLflow (Docker Compose; never hosted, ADR-0025).
 
 ### 6.2 Training pipeline
 1. 02:00 `export_snapshots`: DuckDB reads Postgres → Parquet in `s3://gb-lake/snapshots/date=…/`.
 2. pandera validation of training frames.
 3. Feature build (Polars/DuckDB), point-in-time as of cut-off (no leakage).
 4. Train challenger; evaluate on a time-based holdout (last 2–4 weeks, never random splits).
-5. Promote only if the challenger beats `@champion` on the primary metric and guardrails; register in MLflow and move the alias.
-6. The ml service hot-reloads `models:/<name>@champion` (checks every 10 minutes).
+5. Promote only if the challenger beats the current model on the primary metric and guardrails; upload the version to R2 and move the model's `latest.json` (`just promote <name> <version>`, manual in v1, ADR-0025).
+6. The ml service polls `latest.json` every 10 minutes and hot-reloads when the version changes.
 
 Training uses synthetic + pilot + live data; metrics are reported separately for pilot/live. A daily job compares forecast vs actual (WAPE), plan acceptance and waste; drift beyond thresholds raises an alert and appears on the console "AI health" page.
 
@@ -647,7 +647,7 @@ Only `ci.yml` and `claude.yml` exist today; the other workflows are planned and 
 |---|---|---|---|---|
 | Local | Docker Postgres (tests and `just seed` refuse any non-local database) | `just dev`; ML, MLflow, OSRM in Docker Compose | `next dev` / Vite | Vite / Android emulator |
 | Preview (PR) | Shared Neon database (no branch per PR) | Shared staging API | Vercel preview | Debug APK |
-| Staging | Neon (Singapore), one database for the Infisical `dev` and `staging` environments | Render free web service; ML host to be decided before P3/P4 | Vercel | Internal track |
+| Staging | Neon (Singapore), one database for the Infisical `dev` and `staging` environments | Render free web service; ML service and OSRM on a Hugging Face Space (ADR-0025) | Vercel | Internal track |
 | Production (pilot) | Decided before P6 (Section 19) | Paid plans decided before P6 | Vercel | Internal / closed testing |
 
 ### 10.6 Definitions
@@ -790,7 +790,7 @@ GharBasket uses a **service-based architecture**: one modular monolith plus a sm
 | Auth / push | Firebase Phone Auth + FCM; own JWT sessions (PyJWT, rotating refresh tokens, httpOnly cookies for browsers) | ADR-0024 |
 | Payments | Razorpay (Checkout top-ups, Route; UPI Autopay in the pilot phase) — test mode, own thin client | |
 | Maps / routing | MapLibre + OpenFreeMap/MapTiler; self-hosted OSRM | No Google Maps billing |
-| Hosting | Render (API, Key Value) + Vercel (PWA, console) + Neon + Cloudflare R2; Infisical for secrets | Free tiers, no bill possible (ADR-0020); ML, OSRM and MLflow hosts decided before P3/P4 |
+| Hosting | Render (API, Key Value) + Vercel (PWA, console) + Neon + Cloudflare R2; Infisical for secrets | Free tiers, no bill possible (ADR-0020); ML service and OSRM on a Hugging Face Space, training in GitHub Actions, MLflow local only (ADR-0025) |
 | CI/CD | GitHub Actions (CI; migrations then the Render deploy hook; job schedule); Docker Compose locally | |
 | Observability | structlog, OpenTelemetry → Grafana Cloud, UptimeRobot, PostHog | |
 | Architecture | Service-based: modular monolith + ML service + scheduled jobs (workers at the pilot) | Not microservices (Section 17) |
@@ -804,5 +804,4 @@ GharBasket uses a **service-based architecture**: one modular monolith plus a sm
 | Exam dates and final submission deadline (moves the buffer sprint) | As soon as the department publishes them |
 | United Brothers Global — involvement and IP terms | Before P2 |
 | Pilot database placement (Q3): Neon Singapore (~60 ms round trip — to be verified) or a paid Mumbai Postgres; and paid plans (Render Starter, a worker, Firebase Blaze for real OTPs) | Before P6 |
-| Hosting for the ML service, OSRM and MLflow | Before P3/P4 |
 | Inform Prof. Kranti Bade of the Flutter → Capacitor change and update the report | P0 |
