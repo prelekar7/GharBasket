@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 import httpx2
 import structlog
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, func, not_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -457,10 +457,10 @@ async def generate_cycle(
     household_id: uuid.UUID,
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
-    notice_now: bool = True,
 ) -> Generated | None:
-    """The household's cycle for `delivery_date`, created once; None when nothing applies
-    (no subscription, paused, no delivery day for the society, no household)."""
+    """The household's cycle for `delivery_date`, created once as a `draft`; None when nothing
+    applies (no subscription, paused, no delivery day for the society, no household). The
+    customer hears of it, and may edit it, once `send_box_ready_notices` has run."""
     existing = await cycle_for(session, household_id, delivery_date)
     if existing is not None:
         lines = list(
@@ -505,9 +505,8 @@ async def generate_cycle(
         plan_source=source,
         meal_plan=box.meal_plan,
         highlights=box.highlights,
-        status="awaiting_approval" if notice_now else "draft",
+        status="draft",
         generated_at=now(),
-        notice_sent_at=now() if notice_now else None,
         data_source=profile.data_source,
     )
     try:
@@ -1060,8 +1059,17 @@ def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.Appro
     )
 
 
-async def _hand_over(session: AsyncSession, cycle: WeeklyCycle, lines: list[BoxLine]) -> None:
-    """Create (or refresh) the M4 order and publish `box_approved` with the same lines."""
+async def _hand_over(
+    session: AsyncSession,
+    cycle: WeeklyCycle,
+    lines: list[BoxLine],
+    *,
+    auto_approved: bool = False,
+) -> None:
+    """Create (or refresh) the M4 order and publish `box_approved` with the same lines.
+
+    `auto_approved` is true only on the system's approval itself, so M11 tells the customer
+    once; an edit to that box afterwards sends the event again without it."""
     if not lines:
         raise ProblemError(422, "subscriptions.qty_invalid", "The box is empty; add something.")
     handed = approved_cycle(cycle, lines)
@@ -1089,6 +1097,7 @@ async def _hand_over(session: AsyncSession, cycle: WeeklyCycle, lines: list[BoxL
                 for line in handed.lines
             ],
             "total_paise": sum(line.qty * line.unit_price_paise for line in handed.lines),
+            "auto_approved": auto_approved,
         },
     )
 
@@ -1110,7 +1119,9 @@ async def approve(
     cycle.auto_approved = actor == "system"
     cycle.version += 1
     await session.flush()
-    await _hand_over(session, cycle, await lines_of(session, cycle.id))
+    await _hand_over(
+        session, cycle, await lines_of(session, cycle.id), auto_approved=cycle.auto_approved
+    )
     await session.flush()
     return cycle
 
@@ -1145,6 +1156,103 @@ async def mark_locked(session: AsyncSession, cycle: WeeklyCycle, order_id: uuid.
         await session.flush()
 
 
+# --- the time-of-day notices and auto-approve (spec §6) -----------------------------------------
+
+
+def auto_approvable() -> ColumnElement[bool]:
+    """What `apply_auto_approve` takes: the household asked for it and the box-ready notice went
+    out at least 24 h before the cut-off (the pre-debit notice rule, handbook 06). Needs the
+    query joined to `Subscription`."""
+    return and_(
+        Subscription.auto_approve.is_(True),
+        WeeklyCycle.notice_sent_at.is_not(None),
+        WeeklyCycle.notice_sent_at <= WeeklyCycle.cutoff_at - timedelta(hours=24),
+    )
+
+
+async def _totals(session: AsyncSession, cycle_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    rows = await session.execute(
+        select(BoxLine.cycle_id, func.sum(BoxLine.qty * BoxLine.unit_price_paise))
+        .where(BoxLine.cycle_id.in_(cycle_ids))
+        .group_by(BoxLine.cycle_id)
+    )
+    return {cycle_id: int(total) for cycle_id, total in rows}
+
+
+def _notice(cycle: WeeklyCycle, total_paise: int) -> dict[str, Any]:
+    """The payload of `box_ready` and `cutoff_reminder` (spec §5): what M11's message says."""
+    return {
+        "cycle_id": str(cycle.id),
+        "household_id": str(cycle.household_id),
+        "delivery_date": cycle.delivery_date.isoformat(),
+        "cutoff_at": cycle.cutoff_at.isoformat(),
+        "total_paise": total_paise,
+    }
+
+
+async def send_box_ready_notices(
+    session: AsyncSession, delivery_date: date, at: datetime
+) -> dict[str, int]:
+    """The `send_box_ready_notices` job's body: `draft` → `awaiting_approval`, `notice_sent_at`
+    and one `subscriptions.box_ready` per cycle. Only drafts are taken, so a rerun sends nothing
+    twice. An earlier delivery day's draft still before its cut-off is taken too: a generation
+    run that came after its notice run would otherwise leave that box a draft for good.
+
+    The version stays: the box the customer may now edit is the one generated."""
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .where(
+                    WeeklyCycle.status == "draft",
+                    WeeklyCycle.delivery_date <= delivery_date,
+                    WeeklyCycle.cutoff_at > at,
+                )
+                .order_by(WeeklyCycle.delivery_date, WeeklyCycle.id)
+            )
+        ).scalars()
+    )
+    totals = await _totals(session, [cycle.id for cycle in cycles])
+    for cycle in cycles:
+        # The real moment, not `at`: auto-approve measures the 24 h from when it went out.
+        cycle.notice_sent_at = now()
+        cycle.status = "awaiting_approval"
+        await publish(session, events.BOX_READY, _notice(cycle, totals.get(cycle.id, 0)))
+    await session.flush()
+    return {"sent": len(cycles)}
+
+
+async def remind_unapproved(
+    session: AsyncSession, delivery_date: date, at: datetime
+) -> dict[str, int]:
+    """The `remind_unapproved` job's body: one `subscriptions.cutoff_reminder` per cycle still
+    `awaiting_approval` that `apply_auto_approve` will not take; `reminded_at` keeps a rerun
+    from sending it twice. A household on auto-approve whose notice came too late to count is
+    reminded too, since nothing else will approve its box."""
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .join(Subscription, Subscription.id == WeeklyCycle.subscription_id)
+                .where(
+                    WeeklyCycle.delivery_date == delivery_date,
+                    WeeklyCycle.status == "awaiting_approval",
+                    WeeklyCycle.reminded_at.is_(None),
+                    WeeklyCycle.cutoff_at > at,
+                    not_(auto_approvable()),
+                )
+                .order_by(WeeklyCycle.id)
+            )
+        ).scalars()
+    )
+    totals = await _totals(session, [cycle.id for cycle in cycles])
+    for cycle in cycles:
+        cycle.reminded_at = now()
+        await publish(session, events.CUTOFF_REMINDER, _notice(cycle, totals.get(cycle.id, 0)))
+    await session.flush()
+    return {"reminded": len(cycles)}
+
+
 async def auto_approve_due(session: AsyncSession, delivery_date: date) -> dict[str, int]:
     """The `apply_auto_approve` job's body: approve what the household asked us to, when the
     box-ready notice went out at least 24 h before the cut-off."""
@@ -1154,9 +1262,7 @@ async def auto_approve_due(session: AsyncSession, delivery_date: date) -> dict[s
         .where(
             WeeklyCycle.delivery_date == delivery_date,
             WeeklyCycle.status == "awaiting_approval",
-            Subscription.auto_approve.is_(True),
-            WeeklyCycle.notice_sent_at.is_not(None),
-            WeeklyCycle.notice_sent_at <= WeeklyCycle.cutoff_at - timedelta(hours=24),
+            auto_approvable(),
         )
         .order_by(WeeklyCycle.id)
     )
