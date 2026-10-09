@@ -336,6 +336,20 @@ POST  /v1/partners/{id}/reinstate  hub_manager (hub), admin; Idempotency-Key; { 
 | 409 | `partners.already_suspended` · `partners.not_suspended` | Suspend twice · reinstate an active partner |
 | 412 / 428 | `request.version_mismatch` · `request.precondition_required` | `If-Match` wrong · missing |
 
+**As built (the partner core, S5; build order (a)).**
+- **Endpoints.** `GET /v1/partners/me`, `GET /v1/hubs/{id}/partners`, `GET /v1/partners/{id}`, `POST …/suspend`, `…/reinstate`, `…/pause` and `…/resume`. `PATCH /v1/partners/{id}` comes with S6.
+- **The suspension note is staff-only.** In the partner's own `Partner`, `suspension.note` is always null, while `reason_code` is shown; `PartnerStaff` carries the note. The data export leaves the note out too.
+- **Until applications exist** (S6), `application_id` and `requested_society` are null on `PartnerStaff`.
+- **Edge cases.**
+  - Suspending a partner who left is 409 `partners.already_suspended`.
+  - Pausing a paused partner, or resuming an active one, answers 200 and changes nothing.
+  - Cancelling assignments on suspension comes with §3.4.
+- **Verification.** `service.verify` (called by S6's review and training, and by the seed) creates the record and publishes `partners.verified` in the caller's transaction. A partner who `left` comes back on her old record (unique (user_id, kind)); anyone else gets 409 `partners.already_applied` with `partner_id`.
+- **M1.** Names and phones for `PartnerStaff` come from the new `identity.api.user_contacts(user_ids)`. M1's data export has the `partners` section (the partner records).
+- **The seed.** It verifies one captain partner per live seed society, each living there (`partners.verified` with `requested_society_id`):
+  - Meena Jadhav for Sunrise Towers;
+  - Savita Naik for Krishna Kunj, a new seed person (+91 98000 01012) with a household there.
+
 ### 3.4 Kitchens, capacity and tiffin assignments (frozen for S6)
 The kitchen screens in the mobile app (Today's counts, Capacity, Prep and ready), the console's tiffin board and the backend build against this. Tiffin orders are M4 orders with `kind = 'tiffin'`, and they take the existing statuses (ADR-0026 §3):
 - **`locked`**: the kitchen is being assigned, or has been assigned (this section);
