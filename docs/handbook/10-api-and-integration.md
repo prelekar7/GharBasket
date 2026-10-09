@@ -23,7 +23,7 @@
 | Time | ISO-8601 with offset. Business dates as `YYYY-MM-DD` in Asia/Kolkata. |
 | Webhooks in | Signature verified → raw payload stored (`billing.payment_webhooks`) → processed idempotently by a job. |
 | Realtime | Server-Sent Events: `GET /v1/orders/{id}/events`, `GET /v1/routes/{id}/live`. |
-| Files | `POST /v1/files/presign` → direct upload to object storage over the S3 API (Cloudflare R2; SeaweedFS locally). The API stores only the key and metadata. |
+| Files | `POST /v1/files/presign` (purpose, type, size) → direct upload to the private bucket over the S3 API (Cloudflare R2; SeaweedFS locally). The API stores only the key and metadata; reads use 5-minute signed links (M0 §3.1). |
 
 **Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `frontend/packages/api-client` (openapi-typescript `schema.d.ts` types + openapi-fetch client + openapi-react-query TanStack Query hooks, D22); it is never edited by hand. CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
 
@@ -122,8 +122,9 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | When | Job | Module |
 |---|---|---|
 | T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_and_pre_debit_notices` | notify / billing |
-| T-1 19:00 | `remind_unapproved` | notify |
+| T-3 18:30 | `send_box_ready_notices` (publishes `subscriptions.box_ready`; M11 notifies) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder`) | subscriptions → notify |
+| every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
 | T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
@@ -135,22 +136,23 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | ml |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
+| Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
 
 ## 10.5 Key endpoints per module (v1)
 
 | Module | Endpoints |
 |---|---|
-| M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `GET /me/data-export`, `DELETE /me` |
+| M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `POST/GET /me/data-export`, `DELETE /me` |
 | M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals` |
-| M3 subscriptions | `/subscriptions`, `/cycles/current`, `PATCH /cycles/{id}/lines`, `POST /cycles/{id}/approve`, `/skip`, `/budget-lock` |
-| M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/slots`, `/addons` |
-| M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements` |
+| M3 subscriptions | `/subscriptions`, `/cycles/current`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/budget-lock` |
+| M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/orders/{id}/issues`, `/slots`, `/addons` |
+| M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements?period=` |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact` |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
-| M11 notify | `/notifications` (inbox), `/preferences`, `/devices` |
+| M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
 | M12 analytics | `/analytics/*` (KPIs, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (SSE stream), `/assistant/confirm/{proposal}` |
 
@@ -182,7 +184,7 @@ flowchart LR
 | Integration | Purpose | Prototype mode | Notes |
 |---|---|---|---|
 | Firebase Auth | Phone OTP | Free tier (test numbers) | Avoids TRAI DLT SMS registration in the prototype; ID tokens verified with PyJWT; real OTPs need the Blaze plan at the pilot |
-| FCM | Push notifications | Free | Device tokens in `notify` |
+| FCM | Push notifications | Free | HTTP v1 API with a service-account key; tokens on M1's `identity.sessions` |
 | WhatsApp Cloud API | Order/box notifications | Test number | Template messages only |
 | Razorpay | Top-ups, UPI Autopay, partner payouts (Route) | Test mode | Our own thin async client on httpx2 (not the official SDK); webhook signatures verified; hourly reconciliation; UPI Autopay from the pilot phase |
 | OSRM | Road distance/time matrix | Self-hosted (MMR extract) | No Google Maps bills |

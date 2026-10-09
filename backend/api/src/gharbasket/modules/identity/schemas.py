@@ -388,3 +388,24 @@ class AddressUpdate(BaseModel):
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
         return self
+
+
+# --- data export (§3.3) -------------------------------------------------------------------------
+
+
+class DataExportDownload(BaseModel):
+    url: str = Field(description="A signed GET link, valid 5 minutes; GET again for a fresh one")
+    expires_at: datetime
+    size_bytes: int = Field(examples=[48211])
+
+
+class DataExportOut(BaseModel):
+    """A copy of your data: one JSON file, built within a day and kept 7 days."""
+
+    id: uuid.UUID
+    status: Literal["queued", "building", "ready", "failed", "expired"]
+    requested_at: datetime
+    ready_at: datetime | None
+    expires_at: datetime | None = Field(description="When the file is deleted (7 days after ready)")
+    ready_within_hours: int = Field(examples=[24])
+    download: DataExportDownload | None = Field(description="Only while ready")
