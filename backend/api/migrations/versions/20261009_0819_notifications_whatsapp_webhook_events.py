@@ -2,7 +2,7 @@
 receipts on deliveries, found by provider_ref (M11 §3.2, §4)
 
 Revision ID: c7e3a1f05d92
-Revises: 9b2e5d1c7a40
+Revises: a424ab7287c6
 Create Date: 2026-10-09 08:19:02.248376+00:00
 """
 
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 OLD_STATUSES = "status IN ('queued', 'held', 'sent', 'failed', 'skipped')"
 NEW_STATUSES = "status IN ('queued', 'held', 'sent', 'delivered', 'read', 'failed', 'skipped')"
 revision: str = "c7e3a1f05d92"
-down_revision: str | Sequence[str] | None = "9b2e5d1c7a40"
+down_revision: str | Sequence[str] | None = "a424ab7287c6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
