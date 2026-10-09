@@ -20,7 +20,7 @@ BOX_MOVES = {
     ("approved", "locked"): {"system"},
     ("approved", "payment_failed"): {"system"},
     ("approved", "cancelled"): {"customer", "system"},
-    ("payment_failed", "locked"): {"system"},
+    ("payment_failed", "locked"): {"system", "customer"},  # pay during the grace (M4 §3.4)
     ("payment_failed", "cancelled"): {"customer", "system"},
     ("locked", "picking"): {"packer", "hub"},
     ("picking", "packed"): {"packer", "hub"},
@@ -37,7 +37,7 @@ TIFFIN_MOVES = {
     ("approved", "locked"): {"system"},
     ("approved", "payment_failed"): {"system"},
     ("approved", "cancelled"): {"customer", "system"},
-    ("payment_failed", "locked"): {"system"},
+    ("payment_failed", "locked"): {"system", "customer"},  # pay during the grace (M4 §3.4)
     ("payment_failed", "cancelled"): {"customer", "system"},
     ("locked", "picking"): {"kitchen", "hub"},
     ("picking", "packed"): {"kitchen", "hub"},
