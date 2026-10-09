@@ -1041,6 +1041,352 @@
         "food": "Egg, poultry, whole, raw"
       },
       "unit_g": 50
+    },
+    {
+      "slug": "urad-dal",
+      "per_100g": {
+        "kcal": 324,
+        "protein_g": 23.1,
+        "fat_g": 1.7,
+        "carb_g": 51.0,
+        "fibre_g": 11.9
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B003",
+        "food": "Black gram, dal"
+      }
+    },
+    {
+      "slug": "whole-moong",
+      "per_100g": {
+        "kcal": 294,
+        "protein_g": 22.5,
+        "fat_g": 1.1,
+        "carb_g": 46.1,
+        "fibre_g": 17.0
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B011",
+        "food": "Green gram, whole"
+      }
+    },
+    {
+      "slug": "kabuli-chana",
+      "per_100g": {
+        "kcal": 287,
+        "protein_g": 18.8,
+        "fat_g": 5.1,
+        "carb_g": 39.6,
+        "fibre_g": 25.2
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B002",
+        "food": "Bengal gram, whole"
+      }
+    },
+    {
+      "slug": "rajma",
+      "per_100g": {
+        "kcal": 299,
+        "protein_g": 19.9,
+        "fat_g": 1.8,
+        "carb_g": 48.6,
+        "fibre_g": 16.6
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B020",
+        "food": "Rajmah, red"
+      }
+    },
+    {
+      "slug": "rava",
+      "per_100g": {
+        "kcal": 334,
+        "protein_g": 11.4,
+        "fat_g": 0.7,
+        "carb_g": 68.4,
+        "fibre_g": 9.7
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "A022",
+        "food": "Wheat, semolina"
+      }
+    },
+    {
+      "slug": "rajgira-atta",
+      "per_100g": {
+        "kcal": 356,
+        "protein_g": 13.3,
+        "fat_g": 5.6,
+        "carb_g": 61.5,
+        "fibre_g": 7.5
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "A002",
+        "food": "Amaranth seed, pale brown"
+      }
+    },
+    {
+      "slug": "varai",
+      "per_100g": {
+        "kcal": 346,
+        "protein_g": 10.1,
+        "fat_g": 3.9,
+        "carb_g": 65.5,
+        "fibre_g": 7.7
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "A016",
+        "food": "Samai"
+      }
+    },
+    {
+      "slug": "oats",
+      "per_100g": {
+        "kcal": 374,
+        "protein_g": 13.6,
+        "fat_g": 7.6,
+        "carb_g": 62.8,
+        "fibre_g": 10.1
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "oats"
+      }
+    },
+    {
+      "slug": "coconut",
+      "per_100g": {
+        "kcal": 409,
+        "protein_g": 3.8,
+        "fat_g": 41.4,
+        "carb_g": 6.3,
+        "fibre_g": 10.4
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "H007",
+        "food": "Coconut, kernel, fresh"
+      },
+      "unit_g": 350
+    },
+    {
+      "slug": "tamarind",
+      "per_100g": {
+        "kcal": 288,
+        "protein_g": 2.9,
+        "fat_g": 0.1,
+        "carb_g": 67.3,
+        "fibre_g": 5.3
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "E064",
+        "food": "Tamarind, pulp"
+      }
+    },
+    {
+      "slug": "mustard-seeds",
+      "per_100g": {
+        "kcal": 510,
+        "protein_g": 19.5,
+        "fat_g": 40.2,
+        "carb_g": 16.8,
+        "fibre_g": 14.1
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "H013",
+        "food": "Mustard seeds"
+      }
+    },
+    {
+      "slug": "cumin-seeds",
+      "per_100g": {
+        "kcal": 304,
+        "protein_g": 13.9,
+        "fat_g": 16.6,
+        "carb_g": 22.6,
+        "fibre_g": 30.4
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "G025",
+        "food": "Cumin seeds"
+      }
+    },
+    {
+      "slug": "coriander-powder",
+      "per_100g": {
+        "kcal": 269,
+        "protein_g": 10.7,
+        "fat_g": 17.5,
+        "carb_g": 13.0,
+        "fibre_g": 44.8
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "G024",
+        "food": "Coriander seeds"
+      }
+    },
+    {
+      "slug": "garam-masala",
+      "per_100g": {
+        "kcal": 330,
+        "protein_g": 12.0,
+        "fat_g": 12.0,
+        "carb_g": 38.0,
+        "fibre_g": 25.0
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "garam-masala"
+      }
+    },
+    {
+      "slug": "sambar-masala",
+      "per_100g": {
+        "kcal": 320,
+        "protein_g": 12.0,
+        "fat_g": 10.0,
+        "carb_g": 40.0,
+        "fibre_g": 28.0
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "sambar-masala"
+      }
+    },
+    {
+      "slug": "rock-salt",
+      "per_100g": {
+        "kcal": 0,
+        "protein_g": 0,
+        "fat_g": 0,
+        "carb_g": 0,
+        "fibre_g": 0
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "rock-salt"
+      }
+    },
+    {
+      "slug": "goda-masala",
+      "per_100g": {
+        "kcal": 380,
+        "protein_g": 11.0,
+        "fat_g": 18.0,
+        "carb_g": 36.0,
+        "fibre_g": 22.0
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "goda-masala"
+      }
+    },
+    {
+      "slug": "matki",
+      "per_100g": {
+        "kcal": 309,
+        "protein_g": 19.8,
+        "fat_g": 1.8,
+        "carb_g": 52.1,
+        "fibre_g": 15.1
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B016",
+        "food": "Moth bean"
+      }
+    },
+    {
+      "slug": "sabut-urad",
+      "per_100g": {
+        "kcal": 291,
+        "protein_g": 22.0,
+        "fat_g": 1.6,
+        "carb_g": 44.0,
+        "fibre_g": 20.4
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "B004",
+        "food": "Black gram, whole"
+      }
+    },
+    {
+      "slug": "dalia",
+      "per_100g": {
+        "kcal": 322,
+        "protein_g": 10.6,
+        "fat_g": 1.5,
+        "carb_g": 64.7,
+        "fibre_g": 11.2
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "A020",
+        "food": "Wheat, whole"
+      }
+    },
+    {
+      "slug": "black-pepper",
+      "per_100g": {
+        "kcal": 217,
+        "protein_g": 10.1,
+        "fat_g": 2.7,
+        "carb_g": 36.2,
+        "fibre_g": 33.2
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "G031",
+        "food": "Pepper, black"
+      }
+    },
+    {
+      "slug": "hing",
+      "per_100g": {
+        "kcal": 297,
+        "protein_g": 4.0,
+        "fat_g": 1.1,
+        "carb_g": 67.8,
+        "fibre_g": 4.1
+      },
+      "source": {
+        "name": "NIN Nutritive Value of Indian Foods",
+        "code": null,
+        "food": "hing"
+      }
+    },
+    {
+      "slug": "sesame-seeds",
+      "per_100g": {
+        "kcal": 520,
+        "protein_g": 21.7,
+        "fat_g": 43.0,
+        "carb_g": 10.8,
+        "fibre_g": 17.0
+      },
+      "source": {
+        "name": "IFCT 2017",
+        "code": "H011",
+        "food": "Gingelly seeds, white"
+      }
     }
   ]
 }

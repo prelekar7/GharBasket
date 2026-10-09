@@ -121,7 +121,7 @@ def ml_transport() -> httpx2.ASGITransport:
                 "no_cook_days": [],
                 "weekly_budget_paise": 92379,
             },
-            ["repeat"],
+            [],  # recipe batch 1 added enough quick diabetic mains: no relaxation needed
         ),
         (
             [{"day": d, "no_onion_garlic": True} for d in range(7)],
@@ -133,7 +133,7 @@ def ml_transport() -> httpx2.ASGITransport:
                 "no_cook_days": [],
                 "weekly_budget_paise": 115473,
             },
-            ["repeat"],
+            [],  # and enough Jain fasting dishes
         ),
     ],
     ids=["family", "tuesday-fast", "diabetic-quick", "jain-navratri"],
@@ -225,3 +225,78 @@ async def test_the_request_id_and_token_are_sent() -> None:
     assert str(seen[0].url) == "http://ml.test/plan/week"
     assert seen[0].headers["authorization"] == f"Bearer {TOKEN}"
     assert seen[0].headers["x-request-id"] == "req-123"
+
+
+@pytest.mark.parametrize(("asked", "ml_timeout_s", "sent"), [(1.0, 3.0, 1.0), (5.0, 3.0, 1.5)])
+async def test_the_solver_budget_stays_inside_the_http_timeout(
+    asked: float, ml_timeout_s: float, sent: float
+) -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(json.loads(request.content))
+        return httpx2.Response(500)
+
+    settings = make_settings(
+        ml_service_url="http://ml.test", ml_service_token=TOKEN, ml_timeout_s=ml_timeout_s
+    )
+    req = plan_request().model_copy(update={"time_limit_s": asked})
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
+        await api.plan_week(http, settings, req)
+
+    assert seen[0]["time_limit_s"] == sent
+
+
+def test_the_fallback_pairs_sides_and_never_plans_one_as_a_meal() -> None:
+    req = PlanRequest.model_validate(
+        {
+            "household": {
+                "size": 4,
+                "diet": "veg",
+                "cuisines": ["maharashtrian"],
+                "weekday_cook_minutes": 30,
+                "weekend_cook_minutes": 60,
+                "no_cook_days": [6],
+            },
+            "recipes": [
+                {
+                    "slug": f"dish-{i}",
+                    "cuisine": "maharashtrian",
+                    "slots": ["breakfast", "lunch", "dinner"],
+                    "cook_minutes": 20,
+                    "diet": "veg",
+                    "jain_ok": True,
+                    "no_onion_garlic": True,
+                    "fasting_ok": True,
+                    "diabetic_ok": True,
+                    "cost_per_serving_paise": 1000 + i,
+                    "no_cook": True,  # Sunday breakfast needs one
+                    "sides": ["chapati"],
+                }
+                for i in range(6)
+            ]
+            + [
+                {
+                    "slug": "chapati",
+                    "cuisine": "common",
+                    "slots": ["lunch", "dinner"],
+                    "cook_minutes": 20,
+                    "diet": "veg",
+                    "jain_ok": True,
+                    "no_onion_garlic": True,
+                    "fasting_ok": False,
+                    "diabetic_ok": True,
+                    "cost_per_serving_paise": 300,
+                    "is_side": True,
+                }
+            ],
+        }
+    )
+
+    answer = fallback.plan_week(req)
+
+    assert answer.plan is not None and answer.status == "feasible"
+    meals = {(m.day, m.slot): m for m in answer.plan}
+    assert all(m.recipe != "chapati" for m in answer.plan)
+    assert meals[0, "lunch"].sides == ["chapati"] and "FALLBACK" in meals[0, "lunch"].reasons
+    assert meals[6, "dinner"].recipe is None and "TIFFIN" in meals[6, "dinner"].reasons

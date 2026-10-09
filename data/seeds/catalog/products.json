@@ -1155,6 +1155,397 @@
       "shelf_life_h": 336,
       "tags": ["egg", "high_protein"],
       "synonyms": ["anda", "ande", "andi", "egg"]
+    },
+    {
+      "slug": "urad-dal",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Urad dal",
+        "hi": "उड़द दाल",
+        "mr": "उडीद डाळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein"],
+      "synonyms": ["udad dal", "black gram dal", "udid dal"]
+    },
+    {
+      "slug": "whole-moong",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Whole moong (green gram)",
+        "hi": "साबुत मूंग",
+        "mr": "अख्खे मूग"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein", "high_fibre"],
+      "synonyms": ["sabut moong", "green moong", "hirve mug", "moong sprouts"]
+    },
+    {
+      "slug": "kabuli-chana",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Kabuli chana (chickpeas)",
+        "hi": "काबुली चना",
+        "mr": "काबुली चणा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein", "high_fibre"],
+      "synonyms": ["chole", "chickpeas", "chhole", "safed chana"]
+    },
+    {
+      "slug": "rajma",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Rajma (kidney beans)",
+        "hi": "राजमा",
+        "mr": "राजमा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein", "high_fibre"],
+      "synonyms": ["kidney beans", "rajmah"]
+    },
+    {
+      "slug": "rava",
+      "kind": "staple",
+      "category": "flours",
+      "names": {
+        "en": "Rava (sooji)",
+        "hi": "सूजी",
+        "mr": "रवा"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["sooji", "suji", "semolina", "upma rava"]
+    },
+    {
+      "slug": "rajgira-atta",
+      "kind": "staple",
+      "category": "flours",
+      "names": {
+        "en": "Rajgira atta (amaranth flour)",
+        "hi": "राजगिरा आटा",
+        "mr": "राजगिरा पीठ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 2160,
+      "tags": ["fasting_ok"],
+      "synonyms": ["rajgeera", "amaranth flour", "ramdana atta"]
+    },
+    {
+      "slug": "varai",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Varai (bhagar, samo rice)",
+        "hi": "समा के चावल",
+        "mr": "वरी तांदूळ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["fasting_ok"],
+      "synonyms": ["bhagar", "samo", "sama rice", "vrat rice", "moraiyo", "varicha tandul"]
+    },
+    {
+      "slug": "oats",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Rolled oats",
+        "hi": "ओट्स",
+        "mr": "ओट्स"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_fibre"],
+      "synonyms": ["rolled oats", "oatmeal"]
+    },
+    {
+      "slug": "coconut",
+      "kind": "veg",
+      "category": "vegetables",
+      "names": {
+        "en": "Coconut (fresh)",
+        "hi": "नारियल",
+        "mr": "नारळ"
+      },
+      "step": {
+        "qty": 1,
+        "unit": "piece"
+      },
+      "shelf_life_h": 168,
+      "tags": ["fasting_ok"],
+      "synonyms": ["nariyal", "naral", "fresh coconut", "khobra"]
+    },
+    {
+      "slug": "tamarind",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Tamarind",
+        "hi": "इमली",
+        "mr": "चिंच"
+      },
+      "step": {
+        "qty": 200,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["imli", "chinch", "chincha"]
+    },
+    {
+      "slug": "mustard-seeds",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Mustard seeds",
+        "hi": "राई",
+        "mr": "मोहरी"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["rai", "mohri", "sarson"]
+    },
+    {
+      "slug": "cumin-seeds",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Cumin seeds",
+        "hi": "जीरा",
+        "mr": "जिरे"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["jeera", "jira", "jire"]
+    },
+    {
+      "slug": "coriander-powder",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Coriander powder",
+        "hi": "धनिया पाउडर",
+        "mr": "धणे पूड"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["dhania powder", "dhane pud", "dhaniya"]
+    },
+    {
+      "slug": "garam-masala",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Garam masala",
+        "hi": "गरम मसाला",
+        "mr": "गरम मसाला"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["garam masala powder"]
+    },
+    {
+      "slug": "sambar-masala",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Sambar masala",
+        "hi": "सांबर मसाला",
+        "mr": "सांबार मसाला"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["sambar powder", "sambhar masala"]
+    },
+    {
+      "slug": "rock-salt",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Rock salt (sendha namak)",
+        "hi": "सेंधा नमक",
+        "mr": "सैंधव मीठ"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 87600,
+      "tags": ["fasting_ok"],
+      "synonyms": ["sendha namak", "upvas salt", "saindhav", "vrat salt"]
+    },
+    {
+      "slug": "goda-masala",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Goda masala",
+        "hi": "गोडा मसाला",
+        "mr": "गोडा मसाला"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["kala masala", "maharashtrian masala"]
+    },
+    {
+      "slug": "matki",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Matki (moth beans)",
+        "hi": "मोठ",
+        "mr": "मटकी"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein", "high_fibre"],
+      "synonyms": ["moth beans", "moth dal", "matki sprouts"]
+    },
+    {
+      "slug": "sabut-urad",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Whole urad (black gram)",
+        "hi": "साबुत उड़द",
+        "mr": "अख्खे उडीद"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein"],
+      "synonyms": ["whole urad", "kali dal", "sabut udad"]
+    },
+    {
+      "slug": "dalia",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Dalia (broken wheat)",
+        "hi": "दलिया",
+        "mr": "दलिया"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_fibre"],
+      "synonyms": ["broken wheat", "lapsi", "cracked wheat"]
+    },
+    {
+      "slug": "black-pepper",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Black pepper",
+        "hi": "काली मिर्च",
+        "mr": "काळी मिरी"
+      },
+      "step": {
+        "qty": 50,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["kali mirch", "miri", "pepper"]
+    },
+    {
+      "slug": "hing",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Hing (asafoetida)",
+        "hi": "हींग",
+        "mr": "हिंग"
+      },
+      "step": {
+        "qty": 25,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["asafoetida", "heeng"]
+    },
+    {
+      "slug": "sesame-seeds",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Sesame seeds (til)",
+        "hi": "तिल",
+        "mr": "तीळ"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["til", "teel", "sesame"]
     }
   ]
 }

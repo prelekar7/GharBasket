@@ -100,7 +100,7 @@ async def test_the_current_list_is_the_newest_on_or_before_the_date(
 
     now, then, before = await on(None), await on(later), await on(date(2026, 9, 30))
 
-    assert now.json()["valid_from"] == "2026-10-01" and len(now.json()["items"]) == 68
+    assert now.json()["valid_from"] == "2026-10-01" and len(now.json()["items"]) == 91
     assert then.json()["valid_from"] == later.isoformat()
     assert then.json()["items"] == [
         {"product_id": str(okra), "price_paise": 2400, "mrp_paise": None}

@@ -67,3 +67,26 @@ milk,L002,,cow milk
 curd,,,manual: curd is not in IFCT 2017; NIN Nutritive Value of Indian Foods (cow milk curd)
 paneer,L003,,
 eggs,M001,50,one egg ~50 g
+urad-dal,B003,,IFCT Black gram dal
+whole-moong,B011,,
+kabuli-chana,B002,,IFCT Bengal gram whole (closest row)
+rajma,B020,,red rajmah
+rava,A022,,IFCT Wheat semolina
+rajgira-atta,A002,,amaranth seed, pale brown (flour)
+varai,A016,,IFCT Samai (little millet; barnyard millet is not listed)
+oats,,,manual: oats are not in IFCT 2017; NIN NVIF
+coconut,H007,350,one coconut ~350 g kernel
+tamarind,E064,,pulp
+mustard-seeds,H013,,
+cumin-seeds,G025,,
+coriander-powder,G024,,coriander seeds
+garam-masala,,,manual: a spice blend; NIN NVIF average of its seeds
+sambar-masala,,,manual: a spice blend; coriander-seed based
+rock-salt,,,manual: no energy or macronutrients
+goda-masala,,,manual: a spice blend; coriander and sesame based
+matki,B016,,IFCT Moth beans
+sabut-urad,B004,,IFCT Black gram whole
+dalia,A020,,IFCT Wheat whole (dalia is the cracked grain)
+black-pepper,G031,,IFCT Pepper black
+hing,,,manual: asafoetida; NIN NVIF
+sesame-seeds,H011,,IFCT Gingelly seeds white (til)

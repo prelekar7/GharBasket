@@ -4,12 +4,14 @@ Batch work that must not run inside an API request or the serving image: it runs
 
 ```
 uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi --out data/external/mandi
+just eval --smoke                      # the harness, one seed and one week (CI); `just eval` for the five seeds
 uv run --directory backend/training pytest --cov
 ```
 
 ## Jobs
 | Job | Schedule | What it does |
 |---|---|---|
+| `eval` | by hand (`workflow_dispatch` job `eval`) and `just eval` locally | The evaluation harness (docs/research/eval-protocol.md): planner A/B and the pantry baseline over five simulator seeds, an HTML + JSON report in `docs/eval`, rows to `POST /v1/internal/intel/model-metrics` |
 | `collect_mandi` | daily 18:33 IST (Actions) | Pulls today's wholesale prices for Maharashtra markets from data.gov.in (Agmarknet), maps commodities to our product slugs, writes `external/mandi/date=<day>/maharashtra.parquet` to the lake, and pushes a 4-week price index per product to `POST /v1/internal/intel/price-index` |
 
 The data.gov.in resource keeps no history, so this collector is the history: it has run every day since 4 Oct 2026. The 2019–2025 bulk history (India Data Portal) is imported separately in January (forecast v0).

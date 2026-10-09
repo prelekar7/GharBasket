@@ -46,7 +46,7 @@ async def test_products_are_alphabetical_and_pages_join_up(
     everything = await _all_pages(api, headers, limit=100)
     paged = await _all_pages(api, headers, limit=7)
 
-    assert len(everything) == 68
+    assert len(everything) == 91
     assert paged == everything
     english = [item["names"]["en"] for item in everything]
     assert english == sorted(english)
