@@ -404,6 +404,7 @@ async def test_the_facade_serves_fulfilment_and_shortages(
         "shortage_qty": 1,
         "substitute_product_id": None,
         "refund_paise": line.unit_price_paise,
+        "total_paise": order.total_paise,  # after the refund (#142)
     }
     with pytest.raises(ProblemError) as too_many:
         await orders_api.mark_shortage(db_session, order_id, tomato_id, 5, None)

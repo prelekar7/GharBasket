@@ -310,6 +310,7 @@ async def test_a_staple_left_from_last_week_lowers_the_next_box_but_does_not_ski
     fresh_qty = atta_on(fresh.lines)
 
     await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT})
+    await api.post("/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT})
     week_one = (await api.get("/v1/cycles/current", headers=priya)).json()
     drafted = sum(line["qty"] for line in week_one["lines"] if line["product_id"] == str(atta.id))
     assert drafted == fresh_qty == 3  # the week's need n is over 2 kg and at most 3 kg
