@@ -18,16 +18,21 @@ from zoneinfo import ZoneInfo
 
 import httpx2
 import structlog
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, func, not_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.intel_gateway import api as intel_api
-from gharbasket.modules.intel_gateway.api import PlanRequest
+from gharbasket.modules.intel_gateway.api import (
+    PantryItem,
+    PantryObservation,
+    PantryRequest,
+    PlanRequest,
+)
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.subscriptions import events, planning
+from gharbasket.modules.subscriptions import events, planning, rules
 from gharbasket.modules.subscriptions.models import (
     BoxLine,
     BudgetLock,
@@ -38,6 +43,7 @@ from gharbasket.modules.subscriptions.models import (
     Subscription,
     WeeklyCycle,
 )
+from gharbasket.modules.subscriptions.rules import Member
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.settings import Settings
@@ -238,11 +244,15 @@ async def draft(
     delivery_date: date,
     *,
     record_for: uuid.UUID | None,
+    pantry_twin: bool = True,
 ) -> tuple[planning.Draft, str, uuid.UUID | None]:
-    """A box for the week of `delivery_date`: (draft, plan source, prediction id)."""
+    """A box for the week of `delivery_date`: (draft, plan source, prediction id).
+    `pantry_twin=False` (the customer-facing preview) keeps the rule table for daily use, so
+    the preview waits on at most one ML call (the planner's, bounded by `ml_timeout_s`)."""
     monday = monday_of(delivery_date)
     festivals = await catalog_api.festivals_between(session, monday, monday + timedelta(days=6))
-    request = planning.plan_request(profile, catalog, monday, festivals)
+    price_index = await intel_api.price_spikes(session, list(catalog.products), monday)
+    request = planning.plan_request(profile, catalog, monday, festivals, price_index)
     plan = await intel_api.plan_week(
         http,
         settings,
@@ -252,7 +262,17 @@ async def draft(
         week_monday=monday,
     )
     meals = [m.model_dump() for m in plan.plan] if plan.plan else None
-    lines = planning.lines_from_plan(profile, catalog, meals, fallback=plan.plan is None)
+    bought = await bought_recently(session, profile.id, delivery_date, catalog)
+    quantities = (
+        await twin_quantities(
+            session, http, settings, profile, catalog, delivery_date, record_for=record_for
+        )
+        if pantry_twin
+        else {}
+    )
+    lines = planning.lines_from_plan(
+        profile, catalog, meals, fallback=plan.plan is None, bought=bought, quantities=quantities
+    )
     monthly_budget = profile.budget_paise
     budget_near = (
         monthly_budget is not None
@@ -272,6 +292,163 @@ async def draft(
     return draft_box, plan.source, prediction
 
 
+OBSERVED_WEEKS = 12  # how far back the twin looks at boxes and taps
+
+
+async def pantry_observations(
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
+) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
+    """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
+    that carried it, oldest first, as (daily-use share in base units, the household's tap). The
+    share is what the box delivered minus what that week's planned recipes needed, computed the
+    way the draft computes it, so the twin learns daily use and never the recipes on top."""
+    since = delivery_date - timedelta(weeks=OBSERVED_WEEKS)
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .where(
+                    WeeklyCycle.household_id == profile.id,
+                    WeeklyCycle.delivery_date >= since,
+                    WeeklyCycle.delivery_date < delivery_date,
+                    WeeklyCycle.status == "locked",
+                )
+                .order_by(WeeklyCycle.delivery_date)
+            )
+        ).scalars()
+    )
+    products = [p for p in catalog.products.values() if planning.twin_product(p)]
+    if not cycles or not products:
+        return {}
+    ids = [c.id for c in cycles]
+    wanted = [p.id for p in products]
+    delivered: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
+    for line in (
+        await session.execute(
+            select(BoxLine).where(BoxLine.cycle_id.in_(ids), BoxLine.product_id.in_(wanted))
+        )
+    ).scalars():
+        key = (line.cycle_id, line.product_id)
+        delivered[key] = delivered.get(key, 0.0) + (
+            line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit]
+        )
+    taps = {
+        (cycle_id, product_id): signal
+        for cycle_id, product_id, signal in await session.execute(
+            select(PantryFeedback.cycle_id, PantryFeedback.product_id, PantryFeedback.signal).where(
+                PantryFeedback.cycle_id.in_(ids), PantryFeedback.product_id.in_(wanted)
+            )
+        )
+    }
+    out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
+    for cycle in cycles:
+        need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
+        for product in products:
+            units = delivered.get((cycle.id, product.id))
+            if not units:
+                continue  # not in that week's box: nothing observed
+            share = max(0.0, units - need.get(product.id, 0.0))
+            out.setdefault(product.id, []).append((share, taps.get((cycle.id, product.id))))
+    return out
+
+
+async def twin_quantities(
+    session: AsyncSession,
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
+    *,
+    record_for: uuid.UUID | None,
+) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
+    """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
+    rule table is the cohort prior, the daily-use share of the household's locked boxes and its
+    taps are the observations. Empty when the twin is switched off (`pantry_twin_enabled`) or
+    the household has no observed week yet, so the rule table drafts those boxes."""
+    if not settings.pantry_twin_enabled:
+        return {}
+    observed = await pantry_observations(session, profile, catalog, delivery_date)
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    items = []
+    for slug, prior in rules.daily_use_plan(equivalents).items():
+        product = catalog.product_by_slug(slug)
+        if product is None or product.id not in observed:
+            continue
+        items.append(
+            PantryItem(
+                product=slug,
+                step=product.step_qty * planning.BASE_FACTOR[product.step_unit],
+                prior_mean=prior,
+                observations=[
+                    PantryObservation(qty=qty, signal=signal)  # pyright: ignore[reportArgumentType]
+                    for qty, signal in observed[product.id]
+                ],
+            )
+        )
+    if not items:
+        return {}
+    answer = await intel_api.pantry_quantities(
+        http,
+        settings,
+        PantryRequest(items=items),
+        session=session if record_for else None,
+        household_id=record_for,
+        for_date=delivery_date,
+    )
+    by_slug = {item.product: item for item in answer.items}
+    return {
+        product.id: (
+            by_slug[slug].mean,
+            {
+                "mean": by_slug[slug].mean,
+                "p10": by_slug[slug].p10,
+                "p90": by_slug[slug].p90,
+                "weeks": by_slug[slug].weeks_observed,
+                "source": answer.source,
+            },
+        )
+        for slug in by_slug
+        if (product := catalog.product_by_slug(slug)) is not None
+    }
+
+
+async def bought_recently(
+    session: AsyncSession,
+    household_id: uuid.UUID,
+    delivery_date: date,
+    catalog: catalog_api.PlanCatalog,
+) -> dict[uuid.UUID, list[tuple[float, float]]]:
+    """Per dry staple, (weeks before `delivery_date`, base units) of each approved or locked box
+    of the last CARRY_WEEKS weeks: the deliveries the next draft's cupboard is made of."""
+    since = delivery_date - timedelta(weeks=planning.CARRY_WEEKS)
+    rows = await session.execute(
+        select(BoxLine, WeeklyCycle.delivery_date)
+        .join(WeeklyCycle, WeeklyCycle.id == BoxLine.cycle_id)
+        .where(
+            WeeklyCycle.household_id == household_id,
+            WeeklyCycle.delivery_date >= since,
+            WeeklyCycle.delivery_date < delivery_date,
+            WeeklyCycle.status.in_(("approved", "locked")),
+        )
+    )
+    bought: dict[uuid.UUID, list[tuple[float, float]]] = {}
+    for line, delivered in rows.all():
+        product = catalog.products.get(line.product_id)
+        if product is None or not planning.carries_over(product):
+            continue
+        bought.setdefault(line.product_id, []).append(
+            (
+                (delivery_date - delivered).days / 7,
+                line.qty * line.step_qty * planning.BASE_FACTOR[line.step_unit],
+            )
+        )
+    return bought
+
+
 async def generate_cycle(
     session: AsyncSession,
     http: httpx2.AsyncClient,
@@ -280,10 +457,10 @@ async def generate_cycle(
     household_id: uuid.UUID,
     delivery_date: date,
     catalog: catalog_api.PlanCatalog,
-    notice_now: bool = True,
 ) -> Generated | None:
-    """The household's cycle for `delivery_date`, created once; None when nothing applies
-    (no subscription, paused, no delivery day for the society, no household)."""
+    """The household's cycle for `delivery_date`, created once as a `draft`; None when nothing
+    applies (no subscription, paused, no delivery day for the society, no household). The
+    customer hears of it, and may edit it, once `send_box_ready_notices` has run."""
     existing = await cycle_for(session, household_id, delivery_date)
     if existing is not None:
         lines = list(
@@ -328,9 +505,9 @@ async def generate_cycle(
         plan_source=source,
         meal_plan=box.meal_plan,
         highlights=box.highlights,
-        status="awaiting_approval" if notice_now else "draft",
+        status="draft",
         generated_at=now(),
-        notice_sent_at=now() if notice_now else None,
+        data_source=profile.data_source,
     )
     try:
         async with session.begin_nested():
@@ -882,8 +1059,17 @@ def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.Appro
     )
 
 
-async def _hand_over(session: AsyncSession, cycle: WeeklyCycle, lines: list[BoxLine]) -> None:
-    """Create (or refresh) the M4 order and publish `box_approved` with the same lines."""
+async def _hand_over(
+    session: AsyncSession,
+    cycle: WeeklyCycle,
+    lines: list[BoxLine],
+    *,
+    auto_approved: bool = False,
+) -> None:
+    """Create (or refresh) the M4 order and publish `box_approved` with the same lines.
+
+    `auto_approved` is true only on the system's approval itself, so M11 tells the customer
+    once; an edit to that box afterwards sends the event again without it."""
     if not lines:
         raise ProblemError(422, "subscriptions.qty_invalid", "The box is empty; add something.")
     handed = approved_cycle(cycle, lines)
@@ -911,6 +1097,7 @@ async def _hand_over(session: AsyncSession, cycle: WeeklyCycle, lines: list[BoxL
                 for line in handed.lines
             ],
             "total_paise": sum(line.qty * line.unit_price_paise for line in handed.lines),
+            "auto_approved": auto_approved,
         },
     )
 
@@ -932,7 +1119,9 @@ async def approve(
     cycle.auto_approved = actor == "system"
     cycle.version += 1
     await session.flush()
-    await _hand_over(session, cycle, await lines_of(session, cycle.id))
+    await _hand_over(
+        session, cycle, await lines_of(session, cycle.id), auto_approved=cycle.auto_approved
+    )
     await session.flush()
     return cycle
 
@@ -967,6 +1156,103 @@ async def mark_locked(session: AsyncSession, cycle: WeeklyCycle, order_id: uuid.
         await session.flush()
 
 
+# --- the time-of-day notices and auto-approve (spec §6) -----------------------------------------
+
+
+def auto_approvable() -> ColumnElement[bool]:
+    """What `apply_auto_approve` takes: the household asked for it and the box-ready notice went
+    out at least 24 h before the cut-off (the pre-debit notice rule, handbook 06). Needs the
+    query joined to `Subscription`."""
+    return and_(
+        Subscription.auto_approve.is_(True),
+        WeeklyCycle.notice_sent_at.is_not(None),
+        WeeklyCycle.notice_sent_at <= WeeklyCycle.cutoff_at - timedelta(hours=24),
+    )
+
+
+async def _totals(session: AsyncSession, cycle_ids: list[uuid.UUID]) -> dict[uuid.UUID, int]:
+    rows = await session.execute(
+        select(BoxLine.cycle_id, func.sum(BoxLine.qty * BoxLine.unit_price_paise))
+        .where(BoxLine.cycle_id.in_(cycle_ids))
+        .group_by(BoxLine.cycle_id)
+    )
+    return {cycle_id: int(total) for cycle_id, total in rows}
+
+
+def _notice(cycle: WeeklyCycle, total_paise: int) -> dict[str, Any]:
+    """The payload of `box_ready` and `cutoff_reminder` (spec §5): what M11's message says."""
+    return {
+        "cycle_id": str(cycle.id),
+        "household_id": str(cycle.household_id),
+        "delivery_date": cycle.delivery_date.isoformat(),
+        "cutoff_at": cycle.cutoff_at.isoformat(),
+        "total_paise": total_paise,
+    }
+
+
+async def send_box_ready_notices(
+    session: AsyncSession, delivery_date: date, at: datetime
+) -> dict[str, int]:
+    """The `send_box_ready_notices` job's body: `draft` → `awaiting_approval`, `notice_sent_at`
+    and one `subscriptions.box_ready` per cycle. Only drafts are taken, so a rerun sends nothing
+    twice. An earlier delivery day's draft still before its cut-off is taken too: a generation
+    run that came after its notice run would otherwise leave that box a draft for good.
+
+    The version stays: the box the customer may now edit is the one generated."""
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .where(
+                    WeeklyCycle.status == "draft",
+                    WeeklyCycle.delivery_date <= delivery_date,
+                    WeeklyCycle.cutoff_at > at,
+                )
+                .order_by(WeeklyCycle.delivery_date, WeeklyCycle.id)
+            )
+        ).scalars()
+    )
+    totals = await _totals(session, [cycle.id for cycle in cycles])
+    for cycle in cycles:
+        # The real moment, not `at`: auto-approve measures the 24 h from when it went out.
+        cycle.notice_sent_at = now()
+        cycle.status = "awaiting_approval"
+        await publish(session, events.BOX_READY, _notice(cycle, totals.get(cycle.id, 0)))
+    await session.flush()
+    return {"sent": len(cycles)}
+
+
+async def remind_unapproved(
+    session: AsyncSession, delivery_date: date, at: datetime
+) -> dict[str, int]:
+    """The `remind_unapproved` job's body: one `subscriptions.cutoff_reminder` per cycle still
+    `awaiting_approval` that `apply_auto_approve` will not take; `reminded_at` keeps a rerun
+    from sending it twice. A household on auto-approve whose notice came too late to count is
+    reminded too, since nothing else will approve its box."""
+    cycles = list(
+        (
+            await session.execute(
+                select(WeeklyCycle)
+                .join(Subscription, Subscription.id == WeeklyCycle.subscription_id)
+                .where(
+                    WeeklyCycle.delivery_date == delivery_date,
+                    WeeklyCycle.status == "awaiting_approval",
+                    WeeklyCycle.reminded_at.is_(None),
+                    WeeklyCycle.cutoff_at > at,
+                    not_(auto_approvable()),
+                )
+                .order_by(WeeklyCycle.id)
+            )
+        ).scalars()
+    )
+    totals = await _totals(session, [cycle.id for cycle in cycles])
+    for cycle in cycles:
+        cycle.reminded_at = now()
+        await publish(session, events.CUTOFF_REMINDER, _notice(cycle, totals.get(cycle.id, 0)))
+    await session.flush()
+    return {"reminded": len(cycles)}
+
+
 async def auto_approve_due(session: AsyncSession, delivery_date: date) -> dict[str, int]:
     """The `apply_auto_approve` job's body: approve what the household asked us to, when the
     box-ready notice went out at least 24 h before the cut-off."""
@@ -976,9 +1262,7 @@ async def auto_approve_due(session: AsyncSession, delivery_date: date) -> dict[s
         .where(
             WeeklyCycle.delivery_date == delivery_date,
             WeeklyCycle.status == "awaiting_approval",
-            Subscription.auto_approve.is_(True),
-            WeeklyCycle.notice_sent_at.is_not(None),
-            WeeklyCycle.notice_sent_at <= WeeklyCycle.cutoff_at - timedelta(hours=24),
+            auto_approvable(),
         )
         .order_by(WeeklyCycle.id)
     )

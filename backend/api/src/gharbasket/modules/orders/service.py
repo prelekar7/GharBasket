@@ -15,8 +15,11 @@ from sqlalchemy import func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import state
+from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
 from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot, SlotBooking
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
@@ -557,6 +560,32 @@ async def orders_for_delivery(
     return [OrderSummary(o, by_order[o.id]) for o in orders]
 
 
+# Packing may record a shortage while the paid order is still at the hub.
+PACKING = frozenset({"locked", "picking", "packed"})
+
+
+def _substitute_invalid(reason: str) -> ProblemError:
+    return ProblemError(
+        422,
+        "orders.substitute_invalid",
+        "This product cannot replace the line.",
+        extra={"reason": reason},
+    )
+
+
+async def _shortage_refund(
+    session: AsyncSession, order: Order, product_id: uuid.UUID, amount_paise: int
+) -> None:
+    """Money back for a short line, once per line by M5's key `refund:<order>:short_<hex>`."""
+    owner = await identity_api.owner_of_household(session, order.household_id)
+    if owner is None:
+        raise ValueError(f"order {order.id} has no household owner")
+    async with session.begin_nested():  # a refused refund leaves nothing behind
+        await billing_api.refund_to_wallet(
+            session, owner, order.id, amount_paise, reason=f"short_{product_id.hex}"
+        )
+
+
 async def mark_shortage(
     session: AsyncSession,
     order: Order,
@@ -564,33 +593,96 @@ async def mark_shortage(
     shortage_qty: int,
     substitute_product_id: uuid.UUID | None,
 ) -> OrderLine:
-    """Packing found fewer steps than ordered (M6): record it on the line; money moves via M5."""
-    line = next(
-        (line for line in await lines_of(session, order.id) if line.product_id == product_id), None
+    """Packing found fewer steps than ordered (M6, ADR-0026 §6), on a row-locked order that is
+    still at the hub (`locked`, `picking`, `packed`; else `orders.not_editable`).
+
+    A partial shortage is refunded (shortage_qty x the line's paid unit price), never partly
+    substituted. A whole-line shortage may instead be replaced by one substitute from the
+    catalog's list (`catalog.api.substitute_ids`) that is not already on the order and costs no
+    more per step at the hub today: the line takes the substitute's product, step and price and
+    keeps its qty, `substituted_from` names the original, and the difference is refunded.
+    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record.
+
+    The refund goes through `billing.api.refund_to_wallet(reason=f"short_{product_id.hex}")` in
+    the caller's transaction, and the order's totals follow its lines (a line counts
+    qty - shortage_qty steps), so they show what was paid net of refunds. A line takes one
+    shortage: the same call again returns the line and moves no money (M5's key backs this up);
+    a different one is `orders.shortage_recorded`. If the wallet cap refuses the refund,
+    `billing.wallet_limit` is raised as is (as `resolve_issue` does) and nothing is recorded:
+    a shortage is never kept without its refund.
+    """
+    lines = await lines_of(session, order.id)
+    line = next((ln for ln in lines if ln.product_id == product_id), None) or next(
+        (ln for ln in lines if ln.substituted_from == product_id), None
     )
     if line is None:
         raise order_not_found()
-    if not 0 <= shortage_qty <= line.qty:
-        raise ProblemError(422, "orders.qty_invalid", "Shortage cannot exceed the quantity.")
-    line.shortage_qty = shortage_qty
-    if substitute_product_id is not None:
-        products = await catalog_api.line_products(session, [substitute_product_id])
-        if substitute_product_id not in products:
+    if not 1 <= shortage_qty <= line.qty:
+        raise ProblemError(
+            422, "orders.qty_invalid", "A shortage is from 1 step to the line's quantity."
+        )
+    if line.shortage_qty or line.substituted_from is not None:
+        same = (
+            line.substituted_from == product_id
+            and substitute_product_id == line.product_id
+            and shortage_qty == line.qty
+        ) or (substitute_product_id is None and shortage_qty == line.shortage_qty)
+        if not same:
+            raise ProblemError(
+                409, "orders.shortage_recorded", "A shortage is already recorded for this line."
+            )
+        return line
+    if order.status not in PACKING:
+        raise ProblemError(
+            409, "orders.not_editable", "Shortages are recorded while the order is being packed."
+        )
+
+    substitute: catalog_api.LineProduct | None = None
+    if substitute_product_id is None:
+        refund = shortage_qty * line.unit_price_paise
+    else:
+        found = await catalog_api.line_products(
+            session, [substitute_product_id], hub_id=order.hub_id
+        )
+        substitute = found.get(substitute_product_id)
+        if substitute is None:
             raise ProblemError(422, "orders.product_unknown", "Unknown substitute.")
+        if shortage_qty != line.qty:
+            raise _substitute_invalid("partial")
+        if any(substitute.id in (ln.product_id, ln.substituted_from) for ln in lines):
+            raise _substitute_invalid("on_order")
+        if substitute.id not in await catalog_api.substitute_ids(session, product_id, order.hub_id):
+            raise _substitute_invalid("not_a_substitute")
+        if substitute.price_paise is None:
+            raise _substitute_invalid("no_price")
+        if substitute.price_paise > line.unit_price_paise:
+            raise _substitute_invalid("pricier")
+        refund = line.qty * (line.unit_price_paise - substitute.price_paise)
+    if refund > 0:
+        await _shortage_refund(session, order, product_id, refund)
+
+    if substitute is None:
+        line.shortage_qty = shortage_qty
+    else:
         line.substituted_from = line.product_id
+        line.product_id = substitute.id
+        line.step_qty, line.step_unit = substitute.step_qty, substitute.step_unit
+        line.unit_price_paise = substitute.price_paise or 0
+        line.reason_code = line.reason_params = None  # the planner's reason was the original's
+    _totals(order, lines)
     order.version += 1
     await session.flush()
     await publish(
         session,
-        "orders.shortage_substituted",
+        SHORTAGE_SUBSTITUTED,
         {
             "order_id": str(order.id),
+            "household_id": str(order.household_id),  # who M11 tells
             "product_id": str(product_id),
             "shortage_qty": shortage_qty,
-            "substitute_product_id": None
-            if substitute_product_id is None
-            else str(substitute_product_id),
-            "refund_paise": shortage_qty * line.unit_price_paise,
+            "substitute_product_id": None if substitute is None else str(substitute.id),
+            "refund_paise": refund,
+            "total_paise": order.total_paise,
         },
     )
     return line

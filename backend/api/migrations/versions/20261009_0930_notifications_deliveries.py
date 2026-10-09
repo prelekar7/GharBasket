@@ -2,7 +2,7 @@
 attempts, for send_deliveries (M11 §4, §6)
 
 Revision ID: 9b2e5d1c7a40
-Revises: 7c3e91b2d5a4
+Revises: 08c4162139bc
 Create Date: 2026-10-09 09:30:00.000000+00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "9b2e5d1c7a40"
-down_revision: str | Sequence[str] | None = "7c3e91b2d5a4"
+down_revision: str | Sequence[str] | None = "08c4162139bc"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

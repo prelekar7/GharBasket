@@ -81,6 +81,7 @@ class HouseholdPlanProfile:
     member_age_bands: tuple[str, ...]
     autopilot_enabled: bool
     auto_approve: bool
+    data_source: str = "real"  # ADR-0008: what the household's cycles and orders inherit
 
 
 async def household_plan_profile(
@@ -122,6 +123,7 @@ async def household_plan_profile(
         member_age_bands=tuple(m.age_band for m in members),
         autopilot_enabled=household.autopilot_enabled,
         auto_approve=household.auto_approve,
+        data_source=household.data_source,
     )
 
 

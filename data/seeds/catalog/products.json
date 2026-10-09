@@ -1427,6 +1427,125 @@
       "shelf_life_h": 87600,
       "tags": ["fasting_ok"],
       "synonyms": ["sendha namak", "upvas salt", "saindhav", "vrat salt"]
+    },
+    {
+      "slug": "goda-masala",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Goda masala",
+        "hi": "गोडा मसाला",
+        "mr": "गोडा मसाला"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["kala masala", "maharashtrian masala"]
+    },
+    {
+      "slug": "matki",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Matki (moth beans)",
+        "hi": "मोठ",
+        "mr": "मटकी"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein", "high_fibre"],
+      "synonyms": ["moth beans", "moth dal", "matki sprouts"]
+    },
+    {
+      "slug": "sabut-urad",
+      "kind": "staple",
+      "category": "dals-pulses",
+      "names": {
+        "en": "Whole urad (black gram)",
+        "hi": "साबुत उड़द",
+        "mr": "अख्खे उडीद"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": ["high_protein"],
+      "synonyms": ["whole urad", "kali dal", "sabut udad"]
+    },
+    {
+      "slug": "dalia",
+      "kind": "staple",
+      "category": "rice-grains",
+      "names": {
+        "en": "Dalia (broken wheat)",
+        "hi": "दलिया",
+        "mr": "दलिया"
+      },
+      "step": {
+        "qty": 500,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": ["high_fibre"],
+      "synonyms": ["broken wheat", "lapsi", "cracked wheat"]
+    },
+    {
+      "slug": "black-pepper",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Black pepper",
+        "hi": "काली मिर्च",
+        "mr": "काळी मिरी"
+      },
+      "step": {
+        "qty": 50,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["kali mirch", "miri", "pepper"]
+    },
+    {
+      "slug": "hing",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Hing (asafoetida)",
+        "hi": "हींग",
+        "mr": "हिंग"
+      },
+      "step": {
+        "qty": 25,
+        "unit": "g"
+      },
+      "shelf_life_h": 8760,
+      "tags": [],
+      "synonyms": ["asafoetida", "heeng"]
+    },
+    {
+      "slug": "sesame-seeds",
+      "kind": "staple",
+      "category": "spices-salt-sugar",
+      "names": {
+        "en": "Sesame seeds (til)",
+        "hi": "तिल",
+        "mr": "तीळ"
+      },
+      "step": {
+        "qty": 100,
+        "unit": "g"
+      },
+      "shelf_life_h": 4320,
+      "tags": [],
+      "synonyms": ["til", "teel", "sesame"]
     }
   ]
 }

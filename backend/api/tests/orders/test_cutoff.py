@@ -20,7 +20,15 @@ from gharbasket.platform.outbox import relay
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..subscriptions.test_cycles import GENERATE_AT, MEENA, NOW, PRIYA, as_user, subscribe
+from ..subscriptions.test_cycles import (
+    GENERATE_AT,
+    MEENA,
+    NOTICE_AT,
+    NOW,
+    PRIYA,
+    as_user,
+    subscribe,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("delivery")]
 
@@ -32,10 +40,9 @@ GRACE_END = "2026-10-12T17:30:00Z"
 async def approved_box(api: httpx2.AsyncClient, auth: dict) -> tuple[uuid.UUID, uuid.UUID, int]:
     """Subscribe, take this week's box as drafted and approve it: (cycle, order, total)."""
     await subscribe(api, auth)
-    answer = await api.post(
-        "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT}
-    )
-    assert answer.status_code == 200, answer.text
+    for name, at in (("generate_weekly_plans", GENERATE_AT), ("send_box_ready_notices", NOTICE_AT)):
+        answer = await api.post(f"/v1/internal/jobs/{name}", json={"scheduled_for": at})
+        assert answer.status_code == 200, answer.text
     box = (await api.get("/v1/cycles/current", headers=auth)).json()
     approved = await api.post(
         f"/v1/cycles/{box['id']}/approve",

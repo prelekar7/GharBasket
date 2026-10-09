@@ -85,6 +85,10 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # The pantry twin (M10 §3.3) drafts the perishable daily-use quantities only when this is on
+    # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
+    # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
+    pantry_twin_enabled: bool = False
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

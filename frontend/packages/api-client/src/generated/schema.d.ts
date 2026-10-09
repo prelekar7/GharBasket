@@ -504,6 +504,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/model-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store an evaluation run's metrics (the eval harness, training jobs; operator token) */
+        post: operations["put_model_metrics_v1_internal_intel_model_metrics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/price-index": {
         parameters: {
             query?: never;
@@ -2344,6 +2361,41 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** ModelMetricIn */
+        ModelMetricIn: {
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /** Metric */
+            metric: string;
+            /** Model Name */
+            model_name: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "train" | "holdout" | "backtest" | "live";
+            /** Value */
+            value: number;
+            /** Version */
+            version: string;
+        };
+        /** ModelMetricsIn */
+        ModelMetricsIn: {
+            /** Items */
+            items: components["schemas"]["ModelMetricIn"][];
+        };
+        /** ModelMetricsOut */
+        ModelMetricsOut: {
+            /** Accepted */
+            accepted: number;
+        };
         /** Names */
         Names: {
             /** En */
@@ -2427,11 +2479,14 @@ export interface components {
             slug: string;
             step: components["schemas"]["OrderStep"];
             substituted_from: components["schemas"]["ProductRef"] | null;
-            /** Total Paise */
+            /**
+             * Total Paise
+             * @description (qty - shortage_qty) x unit_price_paise
+             */
             total_paise: number;
             /**
              * Unit Price Paise
-             * @description Per step, frozen when the line was made
+             * @description Per step, frozen when the line was made; a packing substitute's price
              */
             unit_price_paise: number;
         };
@@ -6021,6 +6076,57 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_model_metrics_v1_internal_intel_model_metrics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelMetricsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelMetricsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -158,6 +158,8 @@ class WeeklyCycle(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When `remind_unapproved` sent the cut-off reminder: at most one per cycle.
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     auto_approved: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M4

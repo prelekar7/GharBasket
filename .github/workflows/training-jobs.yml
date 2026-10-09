@@ -11,12 +11,12 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: Job module (e.g. collect_mandi)
+        description: Job module (collect_mandi or eval)
         required: true
         type: string
         default: collect_mandi
       args:
-        description: Extra arguments
+        description: Extra arguments (blank = the job's default; collect_mandi --push-index)
         required: false
         type: string
 
@@ -68,5 +68,12 @@ jobs:
         if: steps.configured.outputs.ready == 'true'
         env:
           JOB: ${{ inputs.job || 'collect_mandi' }}
-          ARGS: ${{ inputs.args || '--push-index' }}
-        run: uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
+          ARGS: ${{ inputs.args }}
+        run: |
+          # Blank args take the job's own default (eval has none: it adds --push itself).
+          if [ -z "$ARGS" ]; then
+            case "$JOB" in
+              collect_mandi) ARGS="--push-index" ;;
+            esac
+          fi
+          uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS
