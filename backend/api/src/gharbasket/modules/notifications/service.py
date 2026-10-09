@@ -68,6 +68,20 @@ async def active_templates(
     return {(t.kind, t.locale): t for t in rows.scalars()}
 
 
+async def whatsapp_template(session: AsyncSession, kind: str, locale: str) -> Template | None:
+    """The active WhatsApp template of this kind in the person's locale, else in English."""
+    rows = await session.execute(
+        select(Template).where(
+            Template.channel == "whatsapp",
+            Template.active,
+            Template.kind == kind,
+            Template.locale.in_({locale, FALLBACK_LOCALE}),
+        )
+    )
+    found = {t.locale: t for t in rows.scalars()}
+    return found.get(locale) or found.get(FALLBACK_LOCALE)
+
+
 def rendered(
     message: Message, templates: dict[tuple[str, str], Template], lang: Language
 ) -> NotificationOut:

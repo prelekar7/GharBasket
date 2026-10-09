@@ -37,8 +37,9 @@ CHANNELS = ("app", "whatsapp")  # a template's channel: `app` is the inbox and t
 LOCALES = ("en-IN", "hi-IN", "mr-IN")
 DELIVERY_CHANNELS = ("push", "whatsapp")
 # queued: due at next_attempt_at · held: the same, until quiet hours end · then sent, failed or
-# skipped (nowhere to send it: no device, FCM not set up, WhatsApp not built yet).
-DELIVERY_STATUSES = ("queued", "held", "sent", "failed", "skipped")
+# skipped (nowhere to send it: no device, no consent, FCM or WhatsApp not set up). WhatsApp's
+# receipts then move a sent message on to delivered and read (the webhook).
+DELIVERY_STATUSES = ("queued", "held", "sent", "delivered", "read", "failed", "skipped")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -104,6 +105,7 @@ class Delivery(Base):
         CheckConstraint(_one_of("channel", DELIVERY_CHANNELS), name="channel"),
         CheckConstraint(_one_of("status", DELIVERY_STATUSES), name="status"),
         UniqueConstraint("message_id", "channel"),  # once per channel, however often the event
+        Index("ix_deliveries_provider_ref", "provider_ref"),  # WhatsApp's receipts find theirs
         # What send_deliveries picks up.
         Index(
             "ix_deliveries_due",
@@ -118,11 +120,12 @@ class Delivery(Base):
         ForeignKey(f"{SCHEMA}.messages.id", ondelete="CASCADE")
     )
     channel: Mapped[str] = mapped_column(String(8))
-    status: Mapped[str] = mapped_column(String(8))
+    status: Mapped[str] = mapped_column(String(10))
     attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(String(300))
-    provider_ref: Mapped[str | None] = mapped_column(String(200))  # FCM's message name
+    # FCM's message name, or WhatsApp's message id (wamid…) that its receipts name.
+    provider_ref: Mapped[str | None] = mapped_column(String(200))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -149,3 +152,19 @@ class QuietHours(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
     start_time: Mapped[time] = mapped_column(Time)  # IST clock time
     end_time: Mapped[time] = mapped_column(Time)
+
+
+class WebhookEvent(Base):
+    """Each WhatsApp status update, stored once by its event id (`<wamid>:<status>`, §3.2)."""
+
+    __tablename__ = "webhook_events"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    provider: Mapped[str] = mapped_column(String(16))
+    provider_event_id: Mapped[str] = mapped_column(String(200), unique=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    outcome: Mapped[str | None] = mapped_column(String(20))  # applied, stale, unknown_delivery
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

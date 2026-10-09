@@ -114,6 +114,12 @@ class Settings(DatabaseSettings):
     # Firebase Cloud Messaging (M11 pushes): the service account key file's JSON, as one value.
     # Unset: pushes are skipped (the inbox still gets every message).
     fcm_service_account: SecretStr | None = None
+    # WhatsApp Cloud API (M11): off unless all four are set; until then WhatsApp is skipped. The
+    # webhook needs the app secret (signatures) and the verify token (Meta's handshake).
+    whatsapp_token: SecretStr | None = None
+    whatsapp_phone_number_id: str | None = Field(default=None, pattern=r"^[0-9]{5,30}$")
+    whatsapp_app_secret: SecretStr | None = None
+    whatsapp_verify_token: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -189,6 +195,15 @@ class Settings(DatabaseSettings):
     @property
     def fcm_enabled(self) -> bool:
         return self.fcm_service_account is not None
+
+    @property
+    def whatsapp_enabled(self) -> bool:
+        return None not in (
+            self.whatsapp_token,
+            self.whatsapp_phone_number_id,
+            self.whatsapp_app_secret,
+            self.whatsapp_verify_token,
+        )
 
     @property
     def fcm_credentials(self) -> dict[str, Any]:
