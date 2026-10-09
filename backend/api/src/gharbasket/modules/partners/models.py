@@ -131,6 +131,10 @@ class Application(Base):
             "status <> 'verified' OR (partner_id IS NOT NULL AND verified_at IS NOT NULL)",
             name="verified",
         ),
+        CheckConstraint(
+            f"hygiene_grade IS NULL OR {_one_of('hygiene_grade', ('A', 'B', 'C'))}",
+            name="hygiene_grade",
+        ),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         # One open application per person (§3.1).
         Index(
@@ -161,6 +165,8 @@ class Application(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Why it was rejected or sent back (shown to the applicant).
     reason: Mapped[str | None] = mapped_column(String(300))
+    # A kitchen's hygiene grade from her photos, given at approval (§3.1), for her kitchen (§3.4).
+    hygiene_grade: Mapped[str | None] = mapped_column(String(1))
     partner_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.partners.id"))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")

@@ -14,20 +14,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners import applications, kyc, service, training
 from gharbasket.modules.partners.events import (
+    APPLICATION_DECIDED,
     APPLICATION_SUBMITTED,
     REINSTATED,
     SUSPENDED,
     VERIFIED,
 )
-from gharbasket.modules.partners.models import Partner
+from gharbasket.modules.partners.models import Application, Partner
 
 __all__ = [
+    "APPLICATION_DECIDED",
     "APPLICATION_SUBMITTED",
     "REINSTATED",
     "SUSPENDED",
     "VERIFIED",
     "PartnerRef",
     "ProfileCard",
+    "application_reason",
     "export_for_user",
     "get_partner",
     "partner_for_user",
@@ -91,6 +94,13 @@ async def profile_card(session: AsyncSession, partner_id: uuid.UUID) -> ProfileC
     partner_photo upload purpose exists (§11)."""
     partner = await session.get(Partner, partner_id)
     return None if partner is None else ProfileCard(partner.display_name, None)
+
+
+async def application_reason(session: AsyncSession, application_id: uuid.UUID) -> str | None:
+    """Why an application was rejected (M11's notification of `partners.application_decided`;
+    the event carries no text). For `resubmit`, the reasons are on the documents."""
+    application = await session.get(Application, application_id)
+    return None if application is None else application.reason
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

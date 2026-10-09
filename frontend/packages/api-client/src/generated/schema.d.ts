@@ -934,6 +934,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/partner-applications/{application_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve, ask for documents again, or reject (hub staff of its hub, admin; Idempotency-Key required; audit-logged) */
+        post: operations["decide_v1_partner_applications__application_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/partner-applications/{application_id}/withdraw": {
         parameters: {
             query?: never;
@@ -2096,6 +2113,29 @@ export interface components {
             date: string;
             /** Meals */
             meals: components["schemas"]["MealOut"][];
+        };
+        /** DecisionIn */
+        DecisionIn: {
+            /**
+             * Document Ids
+             * @description resubmit: the documents to redo
+             */
+            document_ids?: string[];
+            /**
+             * Hygiene Grade
+             * @description Approving a kitchen: required (from its photos)
+             */
+            hygiene_grade?: ("A" | "B" | "C") | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "approve" | "resubmit" | "reject";
+            /**
+             * Reason
+             * @description Required for resubmit and reject; shown to the applicant
+             */
+            reason?: string | null;
         };
         /** DeliveryDayIn */
         DeliveryDayIn: {
@@ -8777,6 +8817,89 @@ export interface operations {
             };
         };
     };
+    decide_v1_partner_applications__application_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationReviewOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found, partners.document_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.not_reviewable, partners.documents_missing (with doc_types), partners.already_applied */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.reason_required, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     withdraw_v1_partner_applications__application_id__withdraw_post: {
         parameters: {
             query?: never;
@@ -10422,7 +10545,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description partners.training_version_stale (with version) */
+            /** @description partners.training_version_stale (with version), partners.already_applied */
             409: {
                 headers: {
                     [name: string]: unknown;

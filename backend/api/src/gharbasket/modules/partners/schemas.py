@@ -241,6 +241,28 @@ class ApplicationDetailOut(ApplicationOut):
     documents: list[KycDocumentOut]
 
 
+class DecisionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["approve", "resubmit", "reject"]
+    reason: str | None = Field(
+        default=None,
+        max_length=300,
+        description="Required for resubmit and reject; shown to the applicant",
+    )
+    document_ids: list[uuid.UUID] = Field(
+        default_factory=list, max_length=10, description="resubmit: the documents to redo"
+    )
+    hygiene_grade: Literal["A", "B", "C"] | None = Field(
+        default=None, description="Approving a kitchen: required (from its photos)"
+    )
+
+    @field_validator("reason")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
 class FileLinkOut(BaseModel):
     url: str
     content_type: str

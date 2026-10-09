@@ -274,6 +274,15 @@ ApplicationReview : Application & {
 - **File links** answer `{ files: [{ url, content_type, expires_at }] }` and write `kyc.file_read` (actor, document, application id, file count) on every call; a document outside the caller's hubs is 404 `partners.document_not_found`. Permission `kyc_files:read` (hub_manager, admin).
 - **The data export** gains `kyc_documents` (masked references with check and review states; no files, hashes, encrypted numbers, key versions or reviewers).
 
+**As built (the decision and verification, S6 build order (b), fourth PR).**
+- **Endpoint.** `POST /v1/partner-applications/{id}/decision` (`partner_applications:review`). Hub staff of another hub get 403 `auth.forbidden` (reading an application of another hub is 404). Checks: reason, documents and grade (422) before the status (409).
+- **Outcomes.** `approve` accepts every current document. `resubmit` sets the reason on the listed documents only (unknown or other applications' ids are 404 `partners.document_not_found`). `reject` sets `reason` on the application and `delete_after` (30 days) on its documents' files. A kitchen's `hygiene_grade` is stored on the application (`applications.hygiene_grade`) until the kitchen record (§3.4) takes it.
+- **Audit.** `partners.application_decided` holds the outcome, status, reason, grade and every current document's review state.
+- **Uploads in `training`** are accepted as `pending` replacements; the approval stays.
+- **Verification** (`review.verify_if_complete`) runs at approval and after a passed training attempt of an approved (`training`) application; it calls `service.verify` with the application's hub, display name and, for captains, the requested society. The training answer then shows the application `verified`.
+- **M1.** `identity/partner_roles.py` consumes `partners.verified`, `partners.suspended` and `partners.reinstated`: it reads the partner through `partners.api.get_partner` and sets `kitchen_partner:<hub>`, `rider:<hub>` or `packer:<hub>` to `verified` (active or paused) or `suspended` (suspended or left), audit-logged without an actor, so a late or repeated event never undoes a newer change. Captains get nothing here (M9's appointment).
+- **Facade.** `partners.api.application_reason(application_id)` for M11's notification of `partners.application_decided`.
+
 ### 3.2 Training (frozen for S6)
 ```
 TrainingModule : {

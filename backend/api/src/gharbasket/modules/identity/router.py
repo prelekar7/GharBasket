@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 
 from gharbasket.modules.identity import jobs as _jobs  # noqa: F401 (registers the jobs)
+from gharbasket.modules.identity import partner_roles as _partner_roles  # noqa: F401 (consumers)
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.identity import service
 from gharbasket.modules.identity.exports import router as exports_router
