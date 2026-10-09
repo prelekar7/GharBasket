@@ -38,6 +38,11 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
+      # KYC numbers (M8): the pgcrypto key and the duplicate-check pepper, from Infisical.
+      - key: KYC_ENCRYPTION_KEY
+        sync: false
+      - key: KYC_HASH_PEPPER
+        sync: false
       # Razorpay test mode (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
       - key: RAZORPAY_KEY_ID
         sync: false

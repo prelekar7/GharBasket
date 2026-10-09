@@ -15,6 +15,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import applications, service
 from gharbasket.modules.partners import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.partners.application_router import router as application_router
+from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
 from gharbasket.modules.partners.schemas import (
     PartnerKind,
@@ -36,6 +37,7 @@ from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["partners"])
 router.include_router(application_router)
+router.include_router(kyc_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]

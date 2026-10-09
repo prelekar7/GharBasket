@@ -1,9 +1,9 @@
 """Tables of M8 Partner Network. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 The partner core (spec §3.3, build order (a)): one `partners` row per verified person and kind.
-Applications and training (§3.1, §3.2): `applications`, `training_modules` and
-`training_attempts`. KYC documents, kitchens, assignments, ratings and the rate card follow in S6
-(spec §4).
+Applications, KYC documents and training (§3.1, §3.2): `applications`, `kyc_documents`,
+`training_modules` and `training_attempts`. Kitchens, assignments, ratings and the rate card
+follow in S6 (spec §4).
 """
 
 import uuid
@@ -18,6 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     SmallInteger,
     String,
@@ -49,6 +50,10 @@ REQUIRED_DOCUMENTS: dict[str, tuple[str, ...]] = {
     "rider": ("id_proof", "driving_licence", "bank"),
     "packer": ("id_proof", "bank"),
 }
+DOC_TYPES = ("id_proof", "pan", "bank", "fssai", "driving_licence", "kitchen_photos")
+# Never Aadhaar (handbook 13).
+ID_KINDS = ("voter_id", "passport", "driving_licence")
+CHECK_CODES = ("format_ok", "penny_drop_ok", "penny_drop_failed", "duplicate")
 REQUIRED_TRAININGS: dict[str, tuple[str, ...]] = {
     "kitchen": ("app_basics", "hygiene", "kitchen_ops"),
     "captain": ("app_basics", "captain_handover"),
@@ -213,3 +218,52 @@ class TrainingAttempt(Base):
     # [{"question_id", "option"}] as sent.
     answers: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class KycDocument(Base):
+    """One KYC document of an application (§3.1). A number is kept only encrypted (pgcrypto, with
+    its key version), masked (the last 4 characters) and hashed (HMAC, for duplicate checks); the
+    FSSAI number in clear. Never an Aadhaar number or image (handbook 13)."""
+
+    __tablename__ = "kyc_documents"
+    __table_args__ = (
+        CheckConstraint(_one_of("doc_type", DOC_TYPES), name="doc_type"),
+        CheckConstraint(f"id_kind IS NULL OR {_one_of('id_kind', ID_KINDS)}", name="id_kind"),
+        CheckConstraint(_one_of("check_status", ("passed", "failed")), name="check_status"),
+        CheckConstraint(_one_of("check_code", CHECK_CODES), name="check_code"),
+        CheckConstraint(
+            _one_of("review_status", ("pending", "accepted", "rejected")), name="review_status"
+        ),
+        CheckConstraint("(number_enc IS NULL) = (key_version IS NULL)", name="key_version"),
+        CheckConstraint("cardinality(file_keys) <= 4", name="file_keys"),
+        Index("ix_kyc_documents_application_id_doc_type", "application_id", "doc_type"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    application_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.applications.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    doc_type: Mapped[str] = mapped_column(String(24))
+    id_kind: Mapped[str | None] = mapped_column(String(24))
+    # pgp_sym_encrypt(number, KYC_ENCRYPTION_KEY); nothing in the API decrypts it.
+    number_enc: Mapped[bytes | None] = mapped_column(LargeBinary)
+    key_version: Mapped[int | None] = mapped_column(SmallInteger)
+    number_masked: Mapped[str | None] = mapped_column(String(24))
+    # HMAC-SHA256(KYC_HASH_PEPPER, "<type>:<number>").
+    number_hash: Mapped[bytes | None] = mapped_column(LargeBinary, index=True)
+    fssai_reg_no: Mapped[str | None] = mapped_column(String(14))
+    # ifsc, account_holder, valid_until, vehicle_no: never a number.
+    details: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    file_keys: Mapped[list[str]] = mapped_column(ARRAY(String(255)), server_default=text("'{}'"))
+    check_status: Mapped[str] = mapped_column(String(16))
+    check_code: Mapped[str] = mapped_column(String(24))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(String(16), server_default="pending")
+    review_reason: Mapped[str | None] = mapped_column(String(300))
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The document that replaced this one; only documents without it are current.
+    superseded_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.kyc_documents.id")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

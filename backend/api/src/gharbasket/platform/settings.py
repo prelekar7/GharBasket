@@ -30,6 +30,8 @@ CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
 # secrets. Deployed environments refuse to start without their own keys.
 _DEV_SIGNING_KEY = "gharbasket-dev-only-jwt-signing-key-never-deployed"
 _DEV_REFRESH_PEPPER = "gharbasket-dev-only-refresh-token-pepper-never-deployed"
+_DEV_KYC_KEY = "gharbasket-dev-only-kyc-encryption-key-never-deployed"
+_DEV_KYC_PEPPER = "gharbasket-dev-only-kyc-hash-pepper-never-deployed"
 MIN_SECRET_BYTES = 32
 LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidator(_upper)]
 
@@ -110,6 +112,12 @@ class Settings(DatabaseSettings):
     s3_secret_key: SecretStr | None = None
     s3_region: str = "auto"
     s3_bucket_private: str = "gb-private"
+    # KYC numbers (M8 §3.1, handbook 13 §13.5) are stored as pgp_sym_encrypt(number, key), the key
+    # named by KYC_KEY_VERSION for rotation, and as HMAC-SHA256(pepper, number) for duplicate
+    # checks. Required on staging and prod; local runs use dev-only values.
+    kyc_encryption_key: SecretStr | None = None
+    kyc_key_version: int = Field(default=1, ge=1, le=32767)
+    kyc_hash_pepper: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -119,6 +127,8 @@ class Settings(DatabaseSettings):
                 "JWT_SIGNING_KEY": self.jwt_signing_key,
                 "REFRESH_TOKEN_PEPPER": self.refresh_token_pepper,
                 "FIREBASE_PROJECT_ID": self.firebase_project_id,
+                "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
+                "KYC_HASH_PEPPER": self.kyc_hash_pepper,
             }
             missing = [name for name, value in required.items() if value is None]
             if missing:
@@ -126,6 +136,8 @@ class Settings(DatabaseSettings):
         for name, secret in (
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
+            ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
+            ("KYC_HASH_PEPPER", self.kyc_hash_pepper),
             *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
         ):
             if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
@@ -159,6 +171,17 @@ class Settings(DatabaseSettings):
     def refresh_pepper(self) -> bytes:
         pepper = self.refresh_token_pepper
         return (pepper.get_secret_value() if pepper else _DEV_REFRESH_PEPPER).encode()
+
+    @property
+    def kyc_key(self) -> str:
+        """The pgcrypto key for KYC numbers; send it only as a bind parameter."""
+        key = self.kyc_encryption_key
+        return key.get_secret_value() if key else _DEV_KYC_KEY
+
+    @property
+    def kyc_pepper(self) -> bytes:
+        pepper = self.kyc_hash_pepper
+        return (pepper.get_secret_value() if pepper else _DEV_KYC_PEPPER).encode()
 
     @property
     def is_local(self) -> bool:

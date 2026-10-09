@@ -1,12 +1,12 @@
-"""Request and response models of M8 Partner Network (spec §3.3, frozen for S6).
+"""Request and response models of M8 Partner Network (spec §3.1 to §3.3, frozen for S6).
 
-No shape here ever carries a KYC number, an address or a phone, except `PartnerStaff`, which only
-hub staff of the partner's hub and admins read.
+No shape here ever carries a KYC number in clear (only masked), an address or a phone, except
+`PartnerStaff` and `ApplicationReview`, which only hub staff of the hub and admins read.
 """
 
 import uuid
-from datetime import datetime
-from typing import Literal
+from datetime import date, datetime
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -169,6 +169,88 @@ class ApplicationOut(BaseModel):
     version: int
 
 
+class KycDocumentIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    application_id: uuid.UUID
+    doc_type: str = Field(
+        max_length=24,
+        description="id_proof, pan, bank, fssai, driving_licence or kitchen_photos; only the "
+        "kind's required types",
+        examples=["pan"],
+    )
+    id_kind: str | None = Field(
+        default=None,
+        max_length=24,
+        description="id_proof only: voter_id, passport or driving_licence; never Aadhaar",
+    )
+    number: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Every type but kitchen_photos; bank: the account number. Upper-cased, "
+        "spaces and hyphens removed",
+        examples=["ABCDE1234F"],
+    )
+    ifsc: str | None = Field(default=None, max_length=20, examples=["SBIN0001234"])
+    account_holder: str | None = Field(default=None, max_length=100, description="bank only")
+    valid_until: date | None = Field(
+        default=None, description="fssai and driving_licence; must be in the future"
+    )
+    vehicle_no: str | None = Field(
+        default=None, max_length=20, description="driving_licence only", examples=["MH46AB1234"]
+    )
+    file_keys: list[Annotated[str, Field(max_length=255)]] = Field(
+        default_factory=list,
+        max_length=4,
+        description="Keys from POST /v1/files/presign (kyc_document): kitchen_photos 2 to 4, "
+        "others 0 to 2",
+    )
+
+
+class KycCheckOut(BaseModel):
+    status: Literal["passed", "failed"]
+    code: Literal["format_ok", "penny_drop_ok", "penny_drop_failed", "duplicate"]
+    at: datetime
+
+
+class KycReviewOut(BaseModel):
+    status: Literal["pending", "accepted", "rejected"]
+    reason: str | None
+    at: datetime | None
+
+
+class KycDocumentOut(BaseModel):
+    id: uuid.UUID
+    application_id: uuid.UUID
+    doc_type: str
+    id_kind: str | None
+    number_masked: str | None = Field(
+        description="Only the last 4 characters", examples=["XXXXXX234F"]
+    )
+    fssai_reg_no: str | None = Field(description="fssai only, in full (public by law)")
+    details: dict[str, str] = Field(description="ifsc, account_holder, valid_until, vehicle_no")
+    file_count: int
+    check: KycCheckOut
+    review: KycReviewOut
+    created_at: datetime
+
+
+class ApplicationDetailOut(ApplicationOut):
+    """The applicant's own application with its current documents."""
+
+    documents: list[KycDocumentOut]
+
+
+class FileLinkOut(BaseModel):
+    url: str
+    content_type: str
+    expires_at: datetime
+
+
+class FileLinksOut(BaseModel):
+    files: list[FileLinkOut]
+
+
 class ApplicantOut(BaseModel):
     user_id: uuid.UUID
     name: str | None
@@ -189,6 +271,7 @@ class ApplicationReviewOut(ApplicationOut):
 
     applicant: ApplicantOut
     society: ApplicationSocietyOut | None = Field(description="Captain applications")
+    documents: list[KycDocumentOut] = Field(description="The current documents")
 
 
 class TrainingQuestion(BaseModel):
