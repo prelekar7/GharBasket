@@ -5,9 +5,13 @@ greedy: day by day, it takes the best allowed dish (household cuisine first, the
 keeps the no-repeat windows, placing a fasting dish first on fasting days. Valid, not optimal.
 """
 
+import math
 from typing import Literal
 
 from gharbasket.modules.intel_gateway.schemas import (
+    PantryQuantities,
+    PantryQuantity,
+    PantryRequest,
     PlannedMeal,
     PlanRecipe,
     PlanRequest,
@@ -143,3 +147,39 @@ def plan_week(req: PlanRequest) -> WeekPlan:
                     model=MODEL,
                 )
     return WeekPlan(source="fallback", status="infeasible", relaxed=[], plan=None, model=MODEL)
+
+
+# --- the pantry twin's closed form, without SciPy (M10 §3.3) -----------------------------------
+
+TAP_FACTOR = {"ran_out": 1.3, "wasted": 0.7, "just_right": 1.0, None: 1.0}
+Z80 = 1.2816  # the 80 % interval of a normal approximation to the predictive
+
+
+def pantry_quantities(req: PantryRequest) -> PantryQuantities:
+    """Gamma-Poisson update per item: the prior carries the cohort's weekly use with the weight
+    of `prior_weeks`, each observed week adds the box's daily-use share (corrected by the tap)
+    in steps. The interval is for next week's use: the posterior predictive is Negative Binomial
+    (mean alpha/beta, variance alpha(beta+1)/beta^2 in steps); the ML service gives its exact
+    percentiles, this gives the same mean with a normal interval, so a customer never waits on
+    the ML service."""
+    items = []
+    for item in req.items:
+        step = max(item.step, 1e-9)
+        alpha = max(item.prior_weeks, 0.5) * max(item.prior_mean, 1e-9) / step
+        beta = max(item.prior_weeks, 0.5)
+        alpha += sum(o.qty * TAP_FACTOR[o.signal] / step for o in item.observations)
+        beta += len(item.observations)
+        mean = alpha / beta * step
+        sd = math.sqrt(alpha * (beta + 1)) / beta * step
+        items.append(
+            PantryQuantity(
+                product=item.product,
+                mean=round(mean, 2),
+                p10=round(max(0.0, mean - Z80 * sd), 2),
+                p90=round(mean + Z80 * sd, 2),
+                weeks_observed=len(item.observations),
+                alpha=round(alpha, 4),
+                beta=round(beta, 4),
+            )
+        )
+    return PantryQuantities(source="fallback", model="pantry-rules-v0", items=items)

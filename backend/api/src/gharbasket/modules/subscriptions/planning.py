@@ -16,7 +16,12 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
-from gharbasket.modules.catalog.api import PlanCatalog, PlanIngredient, PlanProduct
+from gharbasket.modules.catalog.api import (
+    PERISHABLE_H,
+    PlanCatalog,
+    PlanIngredient,
+    PlanProduct,
+)
 from gharbasket.modules.identity.api import HouseholdPlanProfile
 from gharbasket.modules.subscriptions import rules
 from gharbasket.modules.subscriptions.rules import Member
@@ -172,21 +177,28 @@ def left_over(bought: list[tuple[float, float]], weekly_need: float) -> float:
     return 0.0 if last is None else max(0.0, stock - weekly_need * last)
 
 
-def lines_from_plan(
-    profile: HouseholdPlanProfile,
-    catalog: PlanCatalog,
-    plan: list[dict[str, Any]] | None,
-    *,
-    fallback: bool,
-    bought: dict[uuid.UUID, list[tuple[float, float]]] | None = None,
-) -> list[DraftLine]:
-    """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
-    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
-    `bought`: per dry staple, (weeks ago, base units) of the household's recent boxes (M3 §3.1
-    step 2). This week's need stands for each week since: what is left is subtracted, so the
-    line asks for the need minus the leftover, and none when enough is left."""
+def perishable(product: PlanProduct) -> bool:
+    """Spoils within the week (catalog.api.PERISHABLE_H, 96 h): the pantry twin's scope."""
+    return product.shelf_life_h is not None and product.shelf_life_h <= PERISHABLE_H
+
+
+def plan_of(meal_plan: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """A stored week (`meal_plan_days`) back as the planner's meals, for `recipe_need`."""
+    return [
+        {"day": d, "slot": meal["slot"], "recipe": meal["recipe_slug"]}
+        for d, day in enumerate(meal_plan or [])
+        for meal in day.get("meals", [])
+        if meal.get("recipe_slug")
+    ]
+
+
+def recipe_need(
+    profile: HouseholdPlanProfile, catalog: PlanCatalog, plan: list[dict[str, Any]] | None
+) -> tuple[dict[uuid.UUID, float], dict[uuid.UUID, set[str]]]:
+    """Base units of each product the planned recipes (and their sides) need for the household:
+    ingredients x size ÷ servings, optional ones left out; and which dishes need it."""
     by_slug = {r.slug: r for r in catalog.recipes}
-    needed: dict[uuid.UUID, float] = defaultdict(float)  # base units
+    needed: dict[uuid.UUID, float] = defaultdict(float)
     recipes_for: dict[uuid.UUID, set[str]] = defaultdict(set)
     for meal in plan or []:
         slug = meal.get("recipe")
@@ -202,13 +214,47 @@ def lines_from_plan(
                     continue
                 needed[ingredient.product_id] += ingredient.qty_per_serving * factor
                 recipes_for[ingredient.product_id].add(slug)
+    return needed, recipes_for
+
+
+def twin_product(product: PlanProduct) -> bool:
+    """The pantry twin v0 drafts only perishable daily-use items (milk, curd): what a box
+    delivers of them is used or wasted within the week, so the delivered daily-use share and
+    the tap say how much the household goes through. Staples carry over in the cupboard and
+    stay on the rule table until v1 models stock (M10 §3.3)."""
+    return product.slug in rules.DAILY_USE_PER_ADULT_WEEK and perishable(product)
+
+
+def lines_from_plan(
+    profile: HouseholdPlanProfile,
+    catalog: PlanCatalog,
+    plan: list[dict[str, Any]] | None,
+    *,
+    fallback: bool,
+    bought: dict[uuid.UUID, list[tuple[float, float]]] | None = None,
+    quantities: dict[uuid.UUID, tuple[float, dict[str, Any]]] | None = None,
+) -> list[DraftLine]:
+    """Ingredients of the planned recipes (and their sides) x size ÷ servings, in steps, plus the
+    rule table for daily use and two fruits. `fallback`: no plan, so only the rule table.
+    `bought`: per dry staple, (weeks ago, base units) of the household's recent boxes (M3 §3.1
+    step 2). This week's need stands for each week since: what is left is subtracted, so the
+    line asks for the need minus the leftover, and none when enough is left.
+    `quantities`: the pantry twin's weekly daily use per product (base units, with its params):
+    it replaces the rule table's daily-use quantity, and the recipes' need still comes on top
+    (`reason_code: pantry_low`)."""
+    needed, recipes_for = recipe_need(profile, catalog, plan)
 
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
     daily = rules.daily_use_plan(equivalents)
+    twin: dict[uuid.UUID, dict[str, Any]] = {}
     for slug, base_units in daily.items():
         product = catalog.product_by_slug(slug)
-        if product is not None:
-            needed[product.id] += base_units
+        if product is None:
+            continue
+        if quantities and product.id in quantities:
+            base_units, params = quantities[product.id]
+            twin[product.id] = params
+        needed[product.id] += base_units
     fruits = [p for p in catalog.products.values() if p.kind == "fruit" and p.price_paise]
     fruits.sort(key=lambda p: (p.price_paise or 0, p.slug))
     per_fruit = (
@@ -227,7 +273,9 @@ def lines_from_plan(
             if base_units <= 0:
                 continue  # enough still in the cupboard
         qty = rules.steps_needed(base_units, product.step_qty, BASE_FACTOR[product.step_unit])
-        if product.slug in daily or product.kind == "fruit":
+        if product_id in twin:
+            reason, params, source = "pantry_low", twin[product_id], "ai"
+        elif product.slug in daily or product.kind == "fruit":
             reason, params, source = "daily_use", None, "rule"
         else:
             reason = "fallback_rules" if fallback else "meal_plan"
@@ -274,5 +322,8 @@ __all__ = [
     "highlights_for",
     "lines_from_plan",
     "meal_plan_days",
+    "plan_of",
     "plan_request",
+    "recipe_need",
+    "twin_product",
 ]

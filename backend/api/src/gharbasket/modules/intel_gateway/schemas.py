@@ -5,7 +5,7 @@ The ML service (backend/ml) has its own copy of these shapes; tests run one agai
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Slot = Literal["breakfast", "lunch", "dinner"]
 Rule = Literal["repeat", "cook_time", "budget"]
@@ -64,3 +64,49 @@ class WeekPlan(BaseModel):
     relaxed: list[Rule]
     plan: list[PlannedMeal] | None
     model: str
+
+
+# --- POST /pantry/quantities (M10 §3.3): the pantry twin ---------------------------------------
+
+Tap = Literal["ran_out", "wasted", "just_right"]
+
+
+class PantryObservation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    qty: float = Field(
+        ge=0, description="The week's daily-use share: delivered minus the planned recipes' need"
+    )
+    signal: Tap | None = None
+
+
+class PantryItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product: str = Field(min_length=1, max_length=80)
+    step: float = Field(gt=0)
+    prior_mean: float = Field(ge=0)
+    prior_weeks: float = Field(default=2.0, ge=0, le=52)
+    observations: list[PantryObservation] = Field(default_factory=list, max_length=52)
+
+
+class PantryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[PantryItem] = Field(min_length=1, max_length=300)
+
+
+class PantryQuantity(BaseModel):
+    product: str
+    mean: float
+    p10: float
+    p90: float
+    weeks_observed: int
+    alpha: float
+    beta: float
+
+
+class PantryQuantities(BaseModel):
+    source: Literal["ml", "fallback"]
+    model: str
+    items: list[PantryQuantity]

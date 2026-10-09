@@ -84,6 +84,10 @@ def build(
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
     rule = estimate([r.rule_table_mae for r in pantry_runs])
+    twin_rule = estimate([r.twin_rule_mae for r in pantry_runs])
+    twin_mean = [estimate([r.twin_running_mean[k] for r in pantry_runs]) for k in range(weeks)]
+    twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
+    coverage = [estimate([r.twin_coverage[k] for r in pantry_runs]) for k in range(weeks)]
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": commit(),
@@ -106,13 +110,23 @@ def build(
             "household item, zero weeks kept; mean over items)",
             "rule_table_mae": rule.as_dict(),
             "cold_start_mae": [e.as_dict() for e in curve],
-            # M-A's targets, shown on the running-mean baseline for reference only: no verdict
-            # until a model arm (the twin) is scored.
-            "target_mae_le_15pct_after_4_weeks": {
-                "estimator": "running_mean (reference only)",
-                "value": curve[3].mean if len(curve) >= 4 else None,
-                "holds": None,
+            # The twin's scope: perishable daily-use items, their daily-use share (M10 §3.3).
+            "twin_scope": {
+                "rule_table_mae": twin_rule.as_dict(),
+                "running_mean_mae": [e.as_dict() for e in twin_mean],
+                "twin_mae": [e.as_dict() for e in twin],
+                "twin_coverage_80": [e.as_dict() for e in coverage],
             },
+            # M-A's MAE target, on the twin: after four observed weeks (predicting the fifth); no
+            # verdict when the run is shorter. Until it holds, PANTRY_TWIN_ENABLED stays off and
+            # M3 drafts from the rule table. The running mean's value is shown for reference.
+            "target_mae_le_15pct_after_4_weeks": {
+                "estimator": "pantry_twin_v0 (twin scope)",
+                "value": twin[3].mean if len(twin) >= 4 else None,
+                "holds": twin[3].mean <= 0.15 if len(twin) >= 4 else None,
+                "reference_running_mean": curve[3].mean if len(curve) >= 4 else None,
+            },
+            # M-A's cold-start target, shown on the running-mean baseline for reference only.
             "cold_start_lt_4_weeks": {
                 "estimator": "running_mean (reference only)",
                 "value": _weeks_to_beat(rule.mean, [e.mean for e in curve]),
@@ -177,6 +191,27 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             },
         }
     )
+    scope = report["pantry"]["twin_scope"]
+    for metric, series, field in (
+        ("mae_pct", scope["twin_mae"], "twin"),
+        ("coverage_80", scope["twin_coverage_80"], "twin_coverage"),
+    ):
+        for k, e in enumerate(series, start=1):
+            rows.append(
+                {
+                    "model_name": "pantry_twin_v0",
+                    "version": report["commit"],
+                    "metric": f"{metric}_week_{k}",
+                    "value": e["mean"],
+                    "split": "holdout",
+                    "data_source": "synthetic",
+                    "details": {
+                        **details,
+                        "ci95": e["ci95"],
+                        "per_seed": {str(r["seed"]): r[field][k - 1] for r in runs["pantry"]},
+                    },
+                }
+            )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -269,8 +304,34 @@ def to_html(report: dict[str, Any]) -> str:
             ),
         ],
     )
+    scope = report["pantry"]["twin_scope"]
+    twin = _table(
+        "RQ1 — the pantry twin's scope: next week's daily use of milk and curd (MAE as a share; "
+        "coverage of the 80 % interval)",
+        ["observed weeks", "rule table", "running mean", "pantry twin v0", "80 % coverage"],
+        [
+            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—"],
+            *(
+                [str(k), _cell(scope["rule_table_mae"]), _cell(e), _cell(t), _cell(c)]
+                for k, (e, t, c) in enumerate(
+                    zip(
+                        scope["running_mean_mae"],
+                        scope["twin_mae"],
+                        scope["twin_coverage_80"],
+                        strict=True,
+                    ),
+                    start=1,
+                )
+            ),
+        ],
+    )
     target = report["pantry"]["target_mae_le_15pct_after_4_weeks"]
     value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
+    verdict = {None: "no verdict (fewer than 5 weeks)", True: "holds"}.get(
+        target["holds"], "does not hold yet"
+    )
+    ref = target["reference_running_mean"]
+    reference = "n/a" if ref is None else f"{ref:.3f}"
     cold = report["pantry"]["cold_start_lt_4_weeks"]
     weeks = "not within the run" if cold["value"] is None else f"{cold['value']} week(s)"
     prov = report["provenance"]
@@ -298,12 +359,13 @@ def to_html(report: dict[str, Any]) -> str:
         f"<title>GharBasket evaluation {html.escape(report['commit'])}</title>"
         f"<style>{style}</style></head><body><h1>Evaluation report</h1>"
         f'<p class="note">{intro}</p><p class="note">{source}</p>'
-        f"{ab}{paired_table}{targets}{pantry}"
-        f'<p class="note">M-A targets, on the running-mean baseline for reference only (no verdict '
-        f"until a model arm, the twin, is scored): MAE after 4 weeks {value} (target ≤ 0.15); "
-        f"weeks for the running mean to beat the rule table: {weeks} (target &lt; 4). With the "
-        "simulator's daily-use noise as small as it is (lognormal sigma 0.1), the 15 % target is "
-        "easy for a naive baseline and is to be revisited (protocol change log).</p>"
+        f"{ab}{paired_table}{targets}{pantry}{twin}"
+        f'<p class="note">M-A target (the twin\'s MAE ≤ 15 % after 4 weeks): {value} → {verdict}. '
+        "The twin drafts boxes (PANTRY_TWIN_ENABLED) only once it holds. For reference, the "
+        f"running mean's MAE after 4 weeks is {reference}, and it takes {weeks} to beat the rule "
+        "table (cold-start target &lt; 4 weeks). With the simulator's daily-use noise as small as "
+        "it is (lognormal sigma 0.1), the 15 % target is easy for a naive baseline and is to be "
+        "revisited (protocol change log).</p>"
         "</body></html>\n"
     )
 

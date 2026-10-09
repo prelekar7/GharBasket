@@ -100,7 +100,10 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     random_ = next(r for r in runs if r.planner == "random")
     assert greedy.metrics["cost_paise"] <= random_.metrics["cost_paise"]  # it buys cheap
     assert 0 < pantry.rule_table_mae < 1 and len(pantry.cold_start) == 2  # weeks 2 and 3 predicted
-    assert all(0 < e < 1 for e in pantry.cold_start)
+    assert all(0 < e < 1 for e in pantry.cold_start) and len(pantry.twin) == 2
+    assert 0 < pantry.twin_rule_mae < 1 and len(pantry.twin_running_mean) == 2
+    assert all(0 < e < 1 for e in pantry.twin)  # milk and curd, their daily use
+    assert len(pantry.twin_coverage) == 2 and all(0 <= c <= 1 for c in pantry.twin_coverage)
 
     built = report.build(runs, [pantry], args={"weeks": 1, "smoke": True})
     html_path, json_path = report.write(built, tmp_path)
@@ -109,7 +112,8 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     assert set(saved["planner"]) == {"rules", "greedy", "random"} and saved["seeds"] == [7]
     assert set(saved["planner_paired"]["rules"]) == {"greedy", "random"}
     assert saved["planner_targets"] == {}  # no CP-SAT arm in the smoke run
-    # M-A's targets on the baseline are reference values: no verdict without a model arm.
+    # The twin's MAE target needs 5 weeks (the smoke run has 3) and the cold start is on the
+    # running-mean baseline, for reference: neither has a verdict here.
     assert saved["pantry"]["target_mae_le_15pct_after_4_weeks"]["holds"] is None
     assert saved["pantry"]["cold_start_lt_4_weeks"]["holds"] is None
     assert set(saved["pantry"]["cold_start_lt_4_weeks"]["per_seed"]) == {"7"}
@@ -117,7 +121,15 @@ def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Pa
     assert len(prov["cohorts_sha256"]) == 64 and "recipes.json" in prov["catalog_sha256"]
     assert prov["simulator_version"] and len(prov["simulator_source_sha256"]) == 64
     rows = report.metrics_rows(built)
-    assert {r["model_name"] for r in rows} >= {"planner_greedy", "pantry_rule_table"}
+    assert {r["model_name"] for r in rows} >= {
+        "planner_greedy",
+        "pantry_rule_table",
+        "pantry_twin_v0",
+    }
+    assert {r["metric"] for r in rows if r["model_name"] == "pantry_twin_v0"} >= {
+        "mae_pct_week_2",
+        "coverage_80_week_2",
+    }
     assert all(r["split"] == "holdout" and r["data_source"] == "synthetic" for r in rows)
     assert all(r["details"]["provenance"] == prov for r in rows)
     acceptance = next(
@@ -132,6 +144,7 @@ def test_the_cli_smoke_writes_the_report(
     assert cli.main(["--smoke", "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert "greedy" in out and "pantry" in out and "report:" in out
+    assert "pantry twin scope" in out and "pantry twin target" in out
     assert list(tmp_path.glob("*.html")) and list(tmp_path.glob("*.json"))
 
 
