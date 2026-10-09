@@ -1,5 +1,5 @@
 """HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), the
-customer statement (§3.2) and refunds to source (§3.3)."""
+customer statement (§3.2), refunds to source (§3.3) and reconciliation (§3.4)."""
 
 import json
 import uuid
@@ -11,8 +11,15 @@ from sqlalchemy.dialects.postgresql import insert
 
 from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs)
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.billing import refunds, settlement, statements, topups, wallet
-from gharbasket.modules.billing.models import Payment, PaymentWebhook
+from gharbasket.modules.billing import (
+    reconciliation,
+    refunds,
+    settlement,
+    statements,
+    topups,
+    wallet,
+)
+from gharbasket.modules.billing.models import Payment, PaymentWebhook, ReconciliationItem
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
     payments_unavailable,
@@ -23,9 +30,16 @@ from gharbasket.modules.billing.schemas import (
     DevPayOut,
     Entry,
     OrderRef,
+    ReconItem,
+    ReconKind,
+    ReconPage,
+    ReconResolution,
+    ReconRun,
+    ReconStatus,
     RefundIn,
     RefundOut,
     RefundRef,
+    ResolveIn,
     StatementEntry,
     StatementOut,
     TopUpIn,
@@ -358,3 +372,61 @@ async def dev_pay(
     return DevPayOut(
         razorpay_payment_id=event["payload"]["payment"]["entity"]["id"], status="captured"
     )
+
+
+# --- reconciliation (spec §3.4), admin -------------------------------------------------------
+
+CanReconcile = Annotated[Permit, require("reconciliation:read")]
+CanResolve = Annotated[Permit, require("reconciliation:resolve")]
+
+
+def _recon(item: ReconciliationItem) -> ReconItem:
+    resolution = None
+    if item.resolved_by is not None and item.resolved_at is not None:
+        resolution = ReconResolution(
+            by=item.resolved_by, note=item.resolution_note or "", at=item.resolved_at
+        )
+    fields = ReconItem.model_fields.keys() - {"resolution"}
+    return ReconItem(**{f: getattr(item, f) for f in fields}, resolution=resolution)
+
+
+@router.get(
+    "/admin/reconciliation",
+    summary="Admin: mismatches between Razorpay and our records, newest first, and the last run",
+    responses={403: _problem("auth.forbidden")},
+)
+async def list_reconciliation(
+    permit: CanReconcile,
+    session: DbSession,
+    response: Response,
+    status: ReconStatus | None = None,
+    kind: ReconKind | None = None,
+    cursor: Cursor = None,
+    limit: Limit = 50,
+) -> ReconPage:
+    items, next_cursor = await reconciliation.list_items(session, status, kind, cursor, limit)
+    run = await reconciliation.last_run(session)
+    response.headers["Cache-Control"] = "no-store"
+    return ReconPage(
+        items=[_recon(item) for item in items],
+        next_cursor=next_cursor,
+        last_run=ReconRun.model_validate(run, from_attributes=True) if run else None,
+    )
+
+
+@router.post(
+    "/admin/reconciliation/{item_id}/resolve",
+    summary="Admin: close an open item with a note (audit-logged); it moves no money",
+    responses={
+        403: _problem("auth.forbidden"),
+        404: _problem("billing.recon_not_found"),
+        409: _problem("billing.recon_not_open (with status)"),
+    },
+)
+async def resolve_reconciliation(
+    item_id: uuid.UUID, body: ResolveIn, permit: CanResolve, session: DbSession
+) -> ReconItem:
+    item = await reconciliation.resolve(session, item_id, permit.principal.user_id, body.note)
+    out = _recon(item)
+    await session.commit()
+    return out

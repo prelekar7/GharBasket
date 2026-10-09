@@ -141,6 +141,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin: mismatches between Razorpay and our records, newest first, and the last run */
+        get: operations["list_reconciliation_v1_admin_reconciliation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/{item_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin: close an open item with a note (audit-logged); it moves no money */
+        post: operations["resolve_reconciliation_v1_admin_reconciliation__item_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -3676,6 +3710,101 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /** ReconItem */
+        ReconItem: {
+            /**
+             * Actual Paise
+             * @description What Razorpay says
+             */
+            actual_paise: number | null;
+            /**
+             * Expected Paise
+             * @description What our records say
+             */
+            expected_paise: number | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "captured_not_credited" | "credited_not_captured" | "amount_mismatch" | "unknown_payment" | "refund_status_mismatch" | "refund_unknown" | "refund_stuck";
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Razorpay Ref
+             * @example pay_EKwxwAgItmmXdp
+             */
+            razorpay_ref: string;
+            /** Refund Part Id */
+            refund_part_id: string | null;
+            resolution: components["schemas"]["ReconResolution"] | null;
+            /**
+             * Status
+             * @description healed: the job repaired a lost webhook itself
+             * @enum {string}
+             */
+            status: "open" | "healed" | "resolved";
+            /** Topup Id */
+            topup_id: string | null;
+            /** User Id */
+            user_id: string | null;
+        };
+        /** ReconPage */
+        ReconPage: {
+            /** Items */
+            items: components["schemas"]["ReconItem"][];
+            last_run: components["schemas"]["ReconRun"] | null;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** ReconResolution */
+        ReconResolution: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * Format: uuid
+             * @description The admin who resolved it
+             */
+            by: string;
+            /** Note */
+            note: string;
+        };
+        /** ReconRun */
+        ReconRun: {
+            /** Checked */
+            checked: number;
+            /** Healed */
+            healed: number;
+            /** Opened */
+            opened: number;
+            /**
+             * Scheduled For
+             * Format: date-time
+             */
+            scheduled_for: string;
+            /**
+             * Status
+             * @description skipped: no Razorpay keys; failed: Razorpay was unavailable, nothing changed
+             * @enum {string}
+             */
+            status: "ok" | "skipped" | "failed";
+        };
         /**
          * RefreshIn
          * @description Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.
@@ -3782,25 +3911,6 @@ export interface components {
             slug: string;
             /** Unit Price Paise */
             unit_price_paise: number;
-        };
-        /** ResolveIn */
-        ResolveIn: {
-            /**
-             * Credit Paise
-             * @description Credit only; at most max_credit_paise
-             * @example 4000
-             */
-            credit_paise?: number | null;
-            /**
-             * Note
-             * @description Required to reject
-             */
-            note?: string | null;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "credit" | "reject";
         };
         /**
          * RoleGrantIn
@@ -4625,6 +4735,33 @@ export interface components {
              */
             outcome: string;
         };
+        /** ResolveIn */
+        gharbasket__modules__billing__schemas__ResolveIn: {
+            /**
+             * Note
+             * @description The decision; a money correction is a separate, manual adjustment entry
+             */
+            note: string;
+        };
+        /** ResolveIn */
+        gharbasket__modules__orders__schemas__ResolveIn: {
+            /**
+             * Credit Paise
+             * @description Credit only; at most max_credit_paise
+             * @example 4000
+             */
+            credit_paise?: number | null;
+            /**
+             * Note
+             * @description Required to reject
+             */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "credit" | "reject";
+        };
     };
     responses: never;
     parameters: never;
@@ -5127,7 +5264,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ResolveIn"];
+                "application/json": components["schemas"]["gharbasket__modules__orders__schemas__ResolveIn"];
             };
         };
         responses: {
@@ -5186,6 +5323,144 @@ export interface operations {
                 };
             };
             /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_reconciliation_v1_admin_reconciliation_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "healed" | "resolved") | null;
+                kind?: ("captured_not_credited" | "credited_not_captured" | "amount_mismatch" | "unknown_payment" | "refund_status_mismatch" | "refund_unknown" | "refund_stuck") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconPage"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_reconciliation_v1_admin_reconciliation__item_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__billing__schemas__ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconItem"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.recon_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.recon_not_open (with status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

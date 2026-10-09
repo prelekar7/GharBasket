@@ -6,7 +6,7 @@ an entry sum to zero per currency; a deferred constraint trigger (see the migrat
 transaction where they don't, and entries and postings can never be updated or deleted.
 
 Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1), and refunds of
-wallet money to those payments (§3.3).
+wallet money to those payments (§3.3), and the hourly reconciliation with Razorpay (§3.4).
 """
 
 import uuid
@@ -56,6 +56,17 @@ REFUND_STATUSES = ("pending", "processing", "processed", "partly_failed", "faile
 OPEN_REFUND = "status IN ('pending', 'processing') AND reason = 'customer'"
 PART_STATUSES = ("pending", "sent", "processed", "failed")
 IN_FLIGHT = ("pending", "sent")
+RECON_KINDS = (
+    "captured_not_credited",
+    "credited_not_captured",
+    "amount_mismatch",
+    "unknown_payment",
+    "refund_status_mismatch",
+    "refund_unknown",
+    "refund_stuck",
+)
+RECON_STATUSES = ("open", "healed", "resolved")
+RUN_STATUSES = ("ok", "skipped", "failed")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -236,3 +247,66 @@ class RefundPart(Base):
     )
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReconciliationRun(Base):
+    """One run of `reconcile_payments` (spec §3.4): its window and what it found."""
+
+    __tablename__ = "reconciliation_runs"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", RUN_STATUSES), name="status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_to: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(16))
+    checked: Mapped[int] = mapped_column(server_default=text("0"))
+    healed: Mapped[int] = mapped_column(server_default=text("0"))
+    opened: Mapped[int] = mapped_column(server_default=text("0"))
+    error: Mapped[str | None] = mapped_column(String(200))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReconciliationItem(Base):
+    """A mismatch between Razorpay and our records: healed by the job, or open until an admin
+    resolves it with a note (which moves no money). One open item per (kind, razorpay_ref)."""
+
+    __tablename__ = "reconciliation_items"
+    __table_args__ = (
+        CheckConstraint(_one_of("kind", RECON_KINDS), name="kind"),
+        CheckConstraint(_one_of("status", RECON_STATUSES), name="status"),
+        Index(
+            "ix_billing_reconciliation_items_one_open",
+            "kind",
+            "razorpay_ref",
+            unique=True,
+            postgresql_where=text("status = 'open'"),
+        ),
+        Index(None, "status", "id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.reconciliation_runs.id", ondelete="RESTRICT")
+    )
+    kind: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))
+    razorpay_ref: Mapped[str] = mapped_column(String(64))
+    topup_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.payments.id", ondelete="RESTRICT")
+    )
+    refund_part_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.refund_parts.id", ondelete="RESTRICT")
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M1's user; no foreign key
+    expected_paise: Mapped[int | None] = mapped_column(BigInteger)
+    actual_paise: Mapped[int | None] = mapped_column(BigInteger)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    resolution_note: Mapped[str | None] = mapped_column(String(500))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,11 +1,13 @@
 """Our own thin async Razorpay client on httpx2 (handbook 10: not the official SDK).
 
-Only what M5 needs: create an order for a top-up, refund a payment and list its refunds, and
-check a webhook's signature. Card and UPI details never reach us; Razorpay Checkout runs in the app.
+Only what M5 needs: create an order for a top-up, refund a payment and list its refunds, read
+payments and refunds for reconciliation, and check a webhook's signature. Card and UPI details
+never reach us; Razorpay Checkout runs in the app.
 """
 
 import hashlib
 import hmac
+from datetime import datetime
 from typing import Any
 
 import httpx2
@@ -14,6 +16,7 @@ import structlog
 from gharbasket.platform.errors import ProblemError
 
 API = "https://api.razorpay.com/v1"
+PAGE = 100  # the most Razorpay lists in one page
 log = structlog.get_logger("gharbasket.billing.razorpay")
 
 
@@ -72,3 +75,30 @@ class RazorpayClient:
         """The payment's refunds (at most 100: a top-up has a handful)."""
         found = await self._call("GET", f"/payments/{payment_id}/refunds", params={"count": 100})
         return list(found.get("items") or [])
+
+    async def created_between(
+        self, what: str, start: datetime, end: datetime
+    ) -> list[dict[str, Any]]:
+        """Every payment (`what="payments"`) or refund (`"refunds"`) created in [start, end],
+        read 100 at a time (`from`/`to` are Unix seconds, `skip` pages)."""
+        window = {"from": int(start.timestamp()), "to": int(end.timestamp()), "count": PAGE}
+        items: list[dict[str, Any]] = []
+        while True:
+            found = await self._call("GET", f"/{what}", params={**window, "skip": len(items)})
+            page = list(found.get("items") or [])
+            items += page
+            if len(page) < PAGE:
+                return items
+
+    async def payment(self, payment_id: str) -> dict[str, Any] | None:
+        """One payment, or None if Razorpay has no such payment."""
+        try:
+            return await self._call("GET", f"/payments/{payment_id}")
+        except ProblemError as problem:
+            cause = problem.__cause__
+            if isinstance(cause, httpx2.HTTPStatusError) and cause.response.status_code in (
+                400,
+                404,
+            ):
+                return None
+            raise

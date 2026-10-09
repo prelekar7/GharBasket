@@ -1,7 +1,7 @@
 """Request and response models of M5 Billing & Ledger.
 
 The wallet shapes are the S2 contract (docs/modules/M5-billing.md §3.1), the statement is §3.2 and
-refunds to source are §3.3:
+refunds to source are §3.3, reconciliation is §3.4:
 changing them needs a PR reviewed by both app owners.
 """
 
@@ -139,3 +139,60 @@ class RefundOut(BaseModel):
     parts: list[RefundPartOut] = Field(description="One per top-up taking money back, newest first")
     created_at: datetime
     settled_at: datetime | None
+
+
+ReconKind = Literal[
+    "captured_not_credited",
+    "credited_not_captured",
+    "amount_mismatch",
+    "unknown_payment",
+    "refund_status_mismatch",
+    "refund_unknown",
+    "refund_stuck",
+]
+ReconStatus = Literal["open", "healed", "resolved"]
+
+
+class ReconResolution(BaseModel):
+    by: uuid.UUID = Field(description="The admin who resolved it")
+    note: str
+    at: datetime
+
+
+class ReconItem(BaseModel):
+    id: uuid.UUID
+    kind: ReconKind
+    status: ReconStatus = Field(description="healed: the job repaired a lost webhook itself")
+    razorpay_ref: str = Field(examples=["pay_EKwxwAgItmmXdp"])
+    topup_id: uuid.UUID | None
+    refund_part_id: uuid.UUID | None
+    user_id: uuid.UUID | None
+    expected_paise: int | None = Field(description="What our records say")
+    actual_paise: int | None = Field(description="What Razorpay says")
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolution: ReconResolution | None
+
+
+class ReconRun(BaseModel):
+    scheduled_for: datetime
+    status: Literal["ok", "skipped", "failed"] = Field(
+        description="skipped: no Razorpay keys; failed: Razorpay was unavailable, nothing changed"
+    )
+    checked: int
+    healed: int
+    opened: int
+
+
+class ReconPage(BaseModel):
+    items: list[ReconItem]
+    next_cursor: str | None
+    last_run: ReconRun | None
+
+
+class ResolveIn(BaseModel):
+    note: str = Field(
+        min_length=1,
+        max_length=500,
+        description="The decision; a money correction is a separate, manual adjustment entry",
+    )

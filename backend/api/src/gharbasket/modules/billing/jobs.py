@@ -7,6 +7,8 @@
 - it retries after 5 and 30 minutes, then leaves the part `pending` and reports it as `stuck`
   for reconciliation. It never marks a part failed: only Razorpay's webhook does;
 - dev top-ups' parts are settled at once (`rfnd_dev_…`).
+
+`reconcile_payments` (hourly at :17) compares Razorpay with our records (spec §3.4).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -14,7 +16,7 @@ from typing import Any
 
 from sqlalchemy import func, or_, select
 
-from gharbasket.modules.billing import settlement
+from gharbasket.modules.billing import reconciliation, settlement
 from gharbasket.modules.billing.models import Payment, RefundPart
 from gharbasket.modules.billing.razorpay import RazorpayClient
 from gharbasket.platform.errors import ProblemError
@@ -101,3 +103,10 @@ async def send_refunds(ctx: JobContext) -> dict[str, Any]:
         select(func.count()).where(RefundPart.status == "pending", RefundPart.attempts >= MAX_TRIES)
     )
     return {**counts, "stuck": stuck.scalar_one()}
+
+
+@job("reconcile_payments", "Compare Razorpay's payments and refunds with ours; heal lost webhooks")
+async def reconcile_payments(ctx: JobContext) -> dict[str, Any]:
+    return await reconciliation.reconcile(
+        ctx.session, _razorpay(ctx), ctx.settings, ctx.scheduled_for
+    )
