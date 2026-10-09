@@ -69,7 +69,7 @@ rows that are missing and never overwrites a product or recipe edited in the con
 | +919800001009 | Sanjay Mehta | franchise_owner (Kharghar hub) |
 | +919800001010 | Asha Fernandes | ngo_coordinator |
 | +919800001011 | Neha Iyer | admin |
-| +919800001012 | Rekha Joshi | catalog_editor (recipes: names, fasting and diabetic flags) |
+| +919800001013 | Rekha Joshi | catalog_editor (recipes: names, fasting and diabetic flags) |
 
 Everyone is also a customer. The hub, society and NGO ids are fixed in `tools/seed.py`. Until M6
 creates hubs (and P5 creates NGOs), those scoped roles point at ids that don't exist yet.
