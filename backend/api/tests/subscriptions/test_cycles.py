@@ -161,9 +161,9 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     assert none_yet.json()["code"] == "subscriptions.no_cycle"
     assert first.json()["summary"] == {
         "hubs": 1,
-        "created": 1,  # Priya; Meena is paused; the two unsubscribed households are skipped
+        "created": 1,  # Priya; Meena is paused; the three unsubscribed households are skipped
         "existing": 0,
-        "skipped": 3,
+        "skipped": 4,
         "delivery_date": "2026-10-13",
     }
     assert second.json()["summary"]["created"] == 0 and second.json()["summary"]["existing"] == 1

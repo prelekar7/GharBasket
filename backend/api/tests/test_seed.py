@@ -11,10 +11,12 @@ from gharbasket.modules.community.models import Society
 from gharbasket.modules.hub_ops.models import Hub, Vendor
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
+from gharbasket.modules.partners.models import Partner
 from gharbasket.platform.db import create_engine
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.permissions import ROLE_SCOPE
 from gharbasket.tools.seed import (
+    CAPTAINS,
     HOUSEHOLDS,
     PEOPLE,
     SEED_HUB_ID,
@@ -22,6 +24,7 @@ from gharbasket.tools.seed import (
     SOCIETIES,
     seed,
     seed_households,
+    seed_partners,
     seed_societies,
 )
 from gharbasket.tools.seed import main as seed_command
@@ -110,7 +113,7 @@ async def test_seed_societies_are_synthetic_and_seeding_again_adds_none(
     assert SEED_SOCIETY_ID in {society.id for society in societies}
 
 
-async def test_seed_households_onboard_four_customers_once(db_session: AsyncSession) -> None:
+async def test_seed_households_onboard_five_customers_once(db_session: AsyncSession) -> None:
     await seed(db_session)
     await seed_societies(db_session)
 
@@ -139,7 +142,8 @@ async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine) as cleanup:
-            users = [str(user.id) for user in await _seed_users(cleanup)]
+            user_ids = [user.id for user in await _seed_users(cleanup)]
+            users = [str(user_id) for user_id in user_ids]
             await cleanup.execute(delete(AuditEntry).where(AuditEntry.entity_id.in_(users)))
             await cleanup.execute(
                 delete(OutboxEvent).where(
@@ -147,6 +151,13 @@ async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
                     OutboxEvent.payload["data_source"].astext == "synthetic",
                 )
             )
+            await cleanup.execute(
+                delete(OutboxEvent).where(
+                    OutboxEvent.event_type == "partners.verified",
+                    OutboxEvent.payload["user_id"].astext.in_(users),
+                )
+            )
+            await cleanup.execute(delete(Partner).where(Partner.user_id.in_(user_ids)))
             # Households, members, addresses and consents go with their owners.
             await cleanup.execute(delete(User).where(User.phone_e164.in_(PHONES)))
             societies = await cleanup.execute(delete(Society).where(Society.slug.in_(SLUGS)))
@@ -174,6 +185,7 @@ def test_the_seed_command_fills_the_local_database(
         assert f"{len(PEOPLE)} synthetic people" in out
         assert f"{len(SOCIETIES)} synthetic societies" in out
         assert f"{len(HOUSEHOLDS)} synthetic households" in out
+        assert f"{len(CAPTAINS)} synthetic captain partners" in out
     finally:
         # The command commits for real, so its rows are removed here (and counted).
         removed = asyncio.run(_remove_seed_rows(local_database))
@@ -189,3 +201,43 @@ def test_the_seed_command_refuses_a_shared_database(monkeypatch: pytest.MonkeyPa
         seed_command([])
 
     assert exited.value.code == 2
+
+
+async def test_seed_captains_are_verified_partners_where_they_live(
+    db_session: AsyncSession,
+) -> None:
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+
+    first = await seed_partners(db_session)
+    again = await seed_partners(db_session)
+
+    assert [created for _, created in first] == [True] * len(CAPTAINS)
+    assert not any(created for _, created in again)
+    partners = list((await db_session.execute(select(Partner))).scalars())
+    assert {(p.kind, p.status, p.data_source, p.hub_id) for p in partners} == {
+        ("captain", "active", "synthetic", SEED_HUB_ID)
+    }
+    users = {user.phone_e164: user.id for user in await _seed_users(db_session)}
+    homes = {
+        h.owner_user_id: h.society_id
+        for h in (await db_session.execute(select(Household))).scalars()
+    }
+    live = {s.id for s in SOCIETIES if s.status == "live"}
+    assert {society for _, society, _ in CAPTAINS} == live
+    for phone, society_id, _ in CAPTAINS:
+        assert homes[users[phone]] == society_id  # a captain lives in her society (M9 §3.2)
+    # Each is verified once, with the society she asked for (ADR-0026 §4).
+    verified = (
+        (
+            await db_session.execute(
+                select(OutboxEvent).where(OutboxEvent.event_type == "partners.verified")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert sorted(
+        (e.payload["user_id"], e.payload["requested_society_id"]) for e in verified
+    ) == sorted((str(users[phone]), str(society)) for phone, society, _ in CAPTAINS)
