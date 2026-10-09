@@ -214,12 +214,28 @@ SEED_HUB = HubIn(
         ],
     ),
 )
-SEED_VENDOR = VendorIn(
-    name="Shinde Traders",
-    kind="apmc_trader",
-    phone="+919800002001",
-    is_default=True,
-    notes="APMC Vashi, vegetables",
+# The demo's three vendors (M6 §11): the APMC trader is the default for anything without a
+# purchase history; leafy greens and staples are moved to the others on the plan's lines.
+SEED_VENDORS = (
+    VendorIn(
+        name="Shinde Traders",
+        kind="apmc_trader",
+        phone="+919800002001",
+        is_default=True,
+        notes="APMC Vashi, vegetables and fruit",
+    ),
+    VendorIn(
+        name="Kharghar Kisan FPO",
+        kind="fpo",
+        phone="+919800002002",
+        notes="Leafy greens, cut the evening before",
+    ),
+    VendorIn(
+        name="Patil Wholesale",
+        kind="wholesaler",
+        phone="+919800002003",
+        notes="Dals, rice, flours, oils and dairy",
+    ),
 )
 
 
@@ -357,7 +373,7 @@ async def seed(session: AsyncSession) -> list[Seeded]:
 
 
 async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh the seed hub, and give it its default vendor once: (slug, created).
+    """Create or refresh the seed hub, and give it its vendors once: (slug, created).
 
     Commits nothing. A refresh puts the hub back as SEED_HUB describes it (version + 1 only if
     something had changed); an existing vendor of that name is kept as it is.
@@ -372,8 +388,10 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
         fields = SEED_HUB.model_dump(exclude={"slug", "timings", "procurement_buffer_pct"})
         await hub_service.update_hub(session, hub, HubPatch.model_validate(fields))
     vendors = await hub_service.list_vendors(session, hub.id, None)
-    if not any(vendor.name.lower() == SEED_VENDOR.name.lower() for vendor in vendors):
-        await hub_service.create_vendor(session, hub, SEED_VENDOR)
+    names = {vendor.name.lower() for vendor in vendors}
+    for vendor in SEED_VENDORS:
+        if vendor.name.lower() not in names:
+            await hub_service.create_vendor(session, hub, vendor)
     return [(hub.slug, created)]
 
 

@@ -729,6 +729,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/procurement-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's procurement plan for a delivery date (ETag = version) */
+        get: operations["get_hub_plan_v1_hubs__hub_id__procurement_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/procurement-plans/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build or rebuild the hub's plan for a date now (the 21:10 job's work) */
+        post: operations["build_plan_v1_hubs__hub_id__procurement_plans_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vendors": {
         parameters: {
             query?: never;
@@ -1245,6 +1279,40 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/procurement-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A procurement plan with its lines (ETag = version) */
+        get: operations["get_plan_v1_procurement_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/procurement-plans/{plan_id}/lines/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a plan line (If-Match: the plan's version; a reason for a quantity; audited) */
+        patch: operations["patch_plan_line_v1_procurement_plans__plan_id__lines__product_id__patch"];
         trace?: never;
     };
     "/v1/products": {
@@ -3047,6 +3115,21 @@ export interface components {
              */
             qty: number;
         };
+        /** LinePurchaseOrder */
+        LinePurchaseOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Number
+             * @example KHARGHAR-261215-02
+             */
+            number: string | null;
+            /** Status */
+            status: string;
+        };
         /** LineQtyOp */
         LineQtyOp: {
             /**
@@ -3791,6 +3874,15 @@ export interface components {
              */
             wallet_paise: number;
         };
+        /** PlanBuildIn */
+        PlanBuildIn: {
+            /**
+             * Date
+             * Format: date
+             * @description IST delivery date, today ... today + 2
+             */
+            date: string;
+        };
         /** PlanOut */
         PlanOut: {
             /**
@@ -3804,6 +3896,18 @@ export interface components {
             fee_paise: number;
             /** Name */
             name: string;
+        };
+        /** PlanTotals */
+        PlanTotals: {
+            /** Lines */
+            lines: number;
+            /**
+             * Order Paise
+             * @description Priced lines only
+             */
+            order_paise: number;
+            /** Unpriced Lines */
+            unpriced_lines: number;
         };
         /** PlansOut */
         PlansOut: {
@@ -4057,6 +4161,153 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** ProcurementLineOut */
+        ProcurementLineOut: {
+            /**
+             * Amount Paise
+             * @description order_qty x unit_cost_paise, rounded half up
+             */
+            amount_paise: number | null;
+            /**
+             * At Risk Qty
+             * @description payment_failed orders in the grace; shown, not bought
+             */
+            at_risk_qty: number;
+            /**
+             * Basis
+             * @description Which rule made buffer_qty
+             * @enum {string}
+             */
+            basis: "forecast" | "buffer";
+            /** Buffer Qty */
+            buffer_qty: number;
+            /**
+             * Committed Qty
+             * @description Paid demand for the date
+             * @example 42.5
+             */
+            committed_qty: number;
+            /** Edit Reason */
+            edit_reason: string | null;
+            /** Edited */
+            edited: boolean;
+            /** Forecast Q50 */
+            forecast_q50: number | null;
+            /** Forecast Qtau */
+            forecast_qtau: number | null;
+            /**
+             * Name
+             * @description In Accept-Language
+             */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * On Hand Qty
+             * @description Usable stock for the date (§3.4)
+             */
+            on_hand_qty: number;
+            /**
+             * Order Qty
+             * @description Suggested, or the hub manager's edit
+             */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** @description The line's PO (not cancelled) */
+            purchase_order: components["schemas"]["LinePurchaseOrder"] | null;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Suggested Qty
+             * @description committed + buffer - on hand, rounded up
+             */
+            suggested_qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /**
+             * Unit Cost Paise
+             * @description Expected cost per operations unit
+             */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
+        };
+        /**
+         * ProcurementLinePatch
+         * @description Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`
+         *     is required when `order_qty` changes.
+         */
+        ProcurementLinePatch: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Order Qty
+             * @example 50
+             */
+            order_qty?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Unit Cost Paise */
+            unit_cost_paise?: number | null;
+            /** Vendor Id */
+            vendor_id?: string | null;
+        };
+        /** ProcurementPlanOut */
+        ProcurementPlanOut: {
+            /** Buffer Pct */
+            buffer_pct: number;
+            /**
+             * Built At
+             * Format: date-time
+             */
+            built_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By shelf, then name
+             */
+            lines: components["schemas"]["ProcurementLineOut"][];
+            /** Model */
+            model: string | null;
+            /** Refreshed At */
+            refreshed_at: string | null;
+            /**
+             * Source
+             * @description ml when M10 had a forecast
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "ordered" | "closed";
+            totals: components["schemas"]["PlanTotals"];
+            /** Version */
+            version: number;
+        };
         /**
          * ProductNutrition
          * @description Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.
@@ -4282,6 +4533,16 @@ export interface components {
             slug: string;
             /** Tags */
             tags: string[];
+        };
+        /** Ref */
+        Ref: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * RefreshIn
@@ -8568,6 +8829,154 @@ export interface operations {
             };
         };
     };
+    get_hub_plan_v1_hubs__hub_id__procurement_plans_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found (not built yet) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_plan_v1_hubs__hub_id__procurement_plans_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanBuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vendors_v1_hubs__hub_id__vendors_get: {
         parameters: {
             query?: {
@@ -10531,6 +10940,170 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_v1_procurement_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_plan_line_v1_procurement_plans__plan_id__lines__product_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                plan_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcurementLinePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found, hub_ops.line_not_found, hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_editable, hub_ops.line_ordered */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.reason_required, hub_ops.vendor_inactive, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

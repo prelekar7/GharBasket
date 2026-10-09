@@ -6,3 +6,6 @@ follow hubs later without reading `hub_ops` tables.
 
 HUB_CREATED = "hub_ops.hub_created"  # hub_id, slug, name
 HUB_UPDATED = "hub_ops.hub_updated"  # hub_id, changed: ["service_area", "status", ...]
+# plan_id, hub_id, delivery_date, source, model, lines_count, order_paise, unpriced_lines, version:
+# when a plan is built, and again when a rebuild changes it (§3.3)
+PROCUREMENT_PLAN_READY = "hub_ops.procurement_plan_ready"
