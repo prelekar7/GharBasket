@@ -5,12 +5,13 @@
   would replay the other modules' consumers too: a payload we cannot read is logged and dropped,
   and there are no network calls.
 - **`send_deliveries`** (every minute) sends what is due: pushes through FCM, retried after 1, 5
-  and 30 minutes and then `failed`; a token FCM no longer knows is cleared in M1. WhatsApp
-  deliveries are `skipped` until its client arrives (B5).
-- **`purge_notifications`** (daily) deletes messages after 180 days, with their deliveries.
+  and 30 minutes and then `failed`; a token FCM no longer knows is cleared in M1. WhatsApp goes
+  the same way through the Cloud API once it is set up (§3.2), and is `skipped` until then.
+- **`purge_notifications`** (daily) deletes messages after 180 days, with their deliveries, and
+  WhatsApp's webhook events as old.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any
@@ -22,8 +23,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.notifications import routes, service
-from gharbasket.modules.notifications.fcm import Failed, FcmClient, Retry, Sent, Unregistered
-from gharbasket.modules.notifications.models import Delivery, Message, Template
+from gharbasket.modules.notifications.fcm import (
+    Failed,
+    FcmClient,
+    Outcome,
+    Retry,
+    Sent,
+    Unregistered,
+)
+from gharbasket.modules.notifications.kinds import KINDS
+from gharbasket.modules.notifications.models import Delivery, Message, Template, WebhookEvent
+from gharbasket.modules.notifications.render import ordered_values
+from gharbasket.modules.notifications.whatsapp import WhatsAppClient
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.locale import Language
 from gharbasket.platform.models import OutboxEvent
@@ -108,14 +119,21 @@ async def _push(
     for device, outcome in zip(devices, outcomes, strict=True):
         if isinstance(outcome, Unregistered):
             await identity_api.clear_push_token(session, device.token)
+    if all(isinstance(o, Unregistered) for o in outcomes):
+        delivery.attempts += 1
+        return _finish(delivery, "skipped", "every device's token was unregistered")
+    return _settle(delivery, outcomes)
+
+
+def _settle(delivery: Delivery, outcomes: Sequence[Outcome]) -> str:
+    """Sent if any send went out; else retried after 1, 5 and 30 minutes while one may, then
+    failed."""
     delivery.attempts += 1
     sent = [o for o in outcomes if isinstance(o, Sent)]
     if sent:
         delivery.provider_ref = sent[0].name[:200]
         delivery.sent_at = service.now()
         return _finish(delivery, "sent")
-    if all(isinstance(o, Unregistered) for o in outcomes):
-        return _finish(delivery, "skipped", "every device's token was unregistered")
     reasons = "; ".join(sorted({o.reason for o in outcomes if isinstance(o, Retry | Failed)}))
     if any(isinstance(o, Retry) for o in outcomes) and delivery.attempts <= len(RETRY_AFTER):
         delivery.next_attempt_at = service.now() + RETRY_AFTER[delivery.attempts - 1]
@@ -124,12 +142,39 @@ async def _push(
     return _finish(delivery, "failed", reasons)
 
 
-@job("send_deliveries", "Send due pushes (FCM); retry after 1, 5 and 30 minutes, then fail")
+async def _whatsapp(
+    session: AsyncSession, client: WhatsAppClient | None, delivery: Delivery, message: Message
+) -> str:
+    """One approved template message to the person's phone, if they still agree to WhatsApp."""
+    if client is None:
+        return _finish(delivery, "skipped", "WhatsApp is not set up (WHATSAPP_*)")
+    if not await service.whatsapp_allowed(session, message.user_id):
+        return _finish(delivery, "skipped", "no WhatsApp consent")
+    phone = await identity_api.user_phone(session, message.user_id)
+    locale = await identity_api.user_locale(session, message.user_id)
+    template = await service.whatsapp_template(session, message.kind, locale)
+    kind = KINDS.get(message.kind)
+    if template is None or template.wa_template_name is None or kind is None:
+        return _finish(delivery, "skipped", f"no approved WhatsApp template for {message.kind}")
+    if phone is None:
+        return _finish(delivery, "skipped", "no phone number")
+    lang = LANGUAGE.get(template.locale, "en")
+    params = ordered_values(template.body, kind, message.params, lang)
+    outcome = await client.send(phone, template.wa_template_name, template.locale, params)
+    return _settle(delivery, [outcome])
+
+
+@job("send_deliveries", "Send due pushes (FCM) and WhatsApp messages; retry, then fail")
 async def send_deliveries(ctx: JobContext) -> dict[str, Any]:
     counts = {"sent": 0, "retrying": 0, "failed": 0, "skipped": 0}
     settings = ctx.settings
     async with _http(ctx.http) as http:
         fcm = FcmClient(http, settings.fcm_credentials) if settings.fcm_enabled else None
+        whatsapp = None
+        if settings.whatsapp_enabled:
+            assert settings.whatsapp_token and settings.whatsapp_phone_number_id
+            token = settings.whatsapp_token.get_secret_value()
+            whatsapp = WhatsAppClient(http, token, settings.whatsapp_phone_number_id)
         templates: dict[tuple[str, Language], dict[tuple[str, str], Template]] = {}
         while True:
             # Every row taken leaves the due set (sent, failed, skipped or due later), so this ends.
@@ -150,7 +195,7 @@ async def send_deliveries(ctx: JobContext) -> dict[str, Any]:
                 break
             for delivery, message in rows:
                 if delivery.channel == "whatsapp":
-                    counts[_finish(delivery, "skipped", "WhatsApp is not set up yet")] += 1
+                    counts[await _whatsapp(ctx.session, whatsapp, delivery, message)] += 1
                 else:
                     counts[await _push(ctx.session, fcm, delivery, message, templates)] += 1
             await ctx.session.commit()
@@ -159,9 +204,9 @@ async def send_deliveries(ctx: JobContext) -> dict[str, Any]:
 
 @job("purge_notifications", "Delete messages older than 180 days, with their deliveries")
 async def purge_notifications(ctx: JobContext) -> dict[str, Any]:
+    before = ctx.scheduled_for - RETENTION
     deleted = await ctx.session.execute(
-        delete(Message)
-        .where(Message.created_at < ctx.scheduled_for - RETENTION)
-        .returning(Message.id)
+        delete(Message).where(Message.created_at < before).returning(Message.id)
     )
+    await ctx.session.execute(delete(WebhookEvent).where(WebhookEvent.received_at < before))
     return {"deleted": len(deleted.all())}

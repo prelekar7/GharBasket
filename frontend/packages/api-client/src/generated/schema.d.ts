@@ -1275,6 +1275,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Meta's webhook handshake (verify token); not for the apps */
+        get: operations["whatsapp_handshake_v1_webhooks_whatsapp_get"];
+        put?: never;
+        /** WhatsApp's webhook (signed by Meta): delivery receipts; not for the apps */
+        post: operations["whatsapp_webhook_v1_webhooks_whatsapp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4161,6 +4179,14 @@ export interface components {
              * @description What the event did (for Razorpay's dashboard and logs)
              */
             outcome: string;
+        };
+        /** WhatsAppAck */
+        WhatsAppAck: {
+            /**
+             * Outcomes
+             * @description Per status update: applied, duplicate, unchanged or unknown_delivery
+             */
+            outcomes: string[];
         };
     };
     responses: never;
@@ -9105,6 +9131,115 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_handshake_v1_webhooks_whatsapp_get: {
+        parameters: {
+            query: {
+                "hub.mode": string;
+                "hub.verify_token": string;
+                "hub.challenge": string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description notifications.bad_verify_token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no verify token configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_webhook_v1_webhooks_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-hub-signature-256": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatsAppAck"];
+                };
+            };
+            /** @description request.invalid: not a JSON object */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.bad_signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no app secret configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -143,6 +143,11 @@ async def user_locale(session: AsyncSession, user_id: uuid.UUID) -> str:
     return locale or "en-IN"
 
 
+async def user_phone(session: AsyncSession, user_id: uuid.UUID) -> str | None:
+    """The E.164 phone WhatsApp messages go to (M11); None for an unknown user."""
+    return await session.scalar(select(User.phone_e164).where(User.id == user_id))
+
+
 @dataclass(frozen=True)
 class PushTarget:
     session_id: uuid.UUID
