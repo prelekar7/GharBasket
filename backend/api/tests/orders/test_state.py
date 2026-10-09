@@ -85,6 +85,8 @@ def test_the_happy_paths_and_the_shared_sets() -> None:
     assert set(state.TRANSITIONS) == set(ORDER_KINDS)
     # Tiffins never wait at the society or come back for a second try.
     assert {"at_society", "redelivery"}.isdisjoint(state.TRANSITIONS["tiffin"])
+    for kind in ORDER_KINDS:  # paid during the grace (M4 §3.4)
+        state.check(kind, "payment_failed", "locked", "customer")
 
 
 @pytest.mark.parametrize(

@@ -38,6 +38,109 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/notification-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notification templates: the active versions, or every version */
+        get: operations["list_templates_v1_admin_notification_templates_get"];
+        /** Save a template in all three locales as a new active version */
+        put: operations["put_templates_v1_admin_notification_templates_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notification-templates/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render a template in all three locales with sample values (nothing is saved) */
+        post: operations["preview_templates_v1_admin_notification_templates_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery log: a person's messages with their delivery attempts */
+        get: operations["delivery_log_v1_admin_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The triage queue of a hub (all hubs for admins), oldest first */
+        get: operations["triage_queue_v1_admin_order_issues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One issue with 5-minute photo links and the customer's contact (audit-logged) */
+        get: operations["triage_detail_v1_admin_order_issues__issue_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged) */
+        post: operations["resolve_issue_v1_admin_order_issues__issue_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -338,8 +441,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Skip the week before the cut-off; its order is cancelled (Idempotency-Key) */
+        /** Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key) */
         post: operations["skip_cycle_v1_cycles__cycle_id__skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/unskip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)
+         * @description The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.
+         */
+        post: operations["unskip_cycle_v1_cycles__cycle_id__unskip_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -642,6 +765,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear this device's FCM token for push notifications (M11 §3.1) */
+        put: operations["put_push_token_v1_me_push_token_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/roles": {
         parameters: {
             query?: never;
@@ -653,6 +793,75 @@ export interface paths {
         get: operations["my_roles_v1_me_roles_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's inbox, newest first, in the request language */
+        get: operations["list_notifications_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Push and WhatsApp per category, and quiet hours */
+        get: operations["get_preferences_v1_notifications_preferences_get"];
+        /** Save push and WhatsApp per category, and optionally quiet hours */
+        put: operations["put_preferences_v1_notifications_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark the whole inbox read */
+        post: operations["read_all_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one message read (the first read time is kept) */
+        post: operations["read_one_v1_notifications__notification_id__read_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -739,6 +948,26 @@ export interface paths {
         put?: never;
         /** Report a problem with a delivery (Idempotency-Key); auto-credit or triage */
         post: operations["report_issue_v1_orders__order_id__issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)
+         * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
+         */
+        post: operations["pay_order_v1_orders__order_id__pay_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1137,6 +1366,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/webhooks/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Meta's webhook handshake (verify token); not for the apps */
+        get: operations["whatsapp_handshake_v1_webhooks_whatsapp_get"];
+        put?: never;
+        /** WhatsApp's webhook (signed by Meta): delivery receipts; not for the apps */
+        post: operations["whatsapp_webhook_v1_webhooks_whatsapp_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1261,6 +1508,18 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** CategoryPreference */
+        CategoryPreference: {
+            /**
+             * Category
+             * @example weekly_box
+             */
+            category: string;
+            /** Push */
+            push: boolean;
+            /** Whatsapp */
+            whatsapp: boolean;
+        };
         /** CategoryRef */
         CategoryRef: {
             /**
@@ -1287,7 +1546,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /**
              * Version
              * @example v1
@@ -1304,7 +1563,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /** Revoked At */
             revoked_at: string | null;
             /** Version */
@@ -1376,12 +1635,14 @@ export interface components {
             meal_plan: components["schemas"]["MealPlanOut"];
             /** Order Id */
             order_id: string | null;
+            /** @description Only while the week is payment_failed */
+            payment_due: components["schemas"]["PaymentDueOut"] | null;
             slot: components["schemas"]["SlotRefOut"];
             /**
              * Status
              * @enum {string}
              */
-            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview";
+            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed" | "preview";
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -1495,6 +1756,36 @@ export interface components {
         DeliveryDaysOut: {
             /** Items */
             items: components["schemas"]["DeliveryDayOut"][];
+        };
+        /** DeliveryLogOut */
+        DeliveryLogOut: {
+            /** Items */
+            items: components["schemas"]["LogEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Channel
+             * @example push
+             */
+            channel: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Next Attempt At */
+            next_attempt_at: string | null;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @description queued, held, sent, delivered, read, failed or skipped
+             */
+            status: string;
         };
         /** DeviceIn */
         DeviceIn: {
@@ -1725,6 +2016,13 @@ export interface components {
              */
             no_cook_days?: number[];
             /**
+             * Shortage Preference
+             * @description A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)
+             * @default substitute
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
+            /**
              * Society Id
              * Format: uuid
              */
@@ -1772,6 +2070,11 @@ export interface components {
             members: components["schemas"]["MemberOut"][];
             /** No Cook Days */
             no_cook_days: number[];
+            /**
+             * Shortage Preference
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
             /** Size */
             size: number;
             /**
@@ -1803,10 +2106,24 @@ export interface components {
             diet?: ("veg" | "egg" | "nonveg") | null;
             /** No Cook Days */
             no_cook_days?: number[] | null;
+            /** Shortage Preference */
+            shortage_preference?: ("substitute" | "refund") | null;
             /** Weekday Cook Minutes */
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
+        };
+        /** InboxOut */
+        InboxOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Unread
+             * @description Unread messages in the whole inbox, not only this page
+             */
+            unread: number;
         };
         /** IngredientOut */
         IngredientOut: {
@@ -1837,6 +2154,13 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** IssueContact */
+        IssueContact: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string;
         };
         /** IssueIn */
         IssueIn: {
@@ -1949,6 +2273,19 @@ export interface components {
              */
             status: "open" | "credited" | "rejected";
         };
+        /** IssuePhoto */
+        IssuePhoto: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET
+             */
+            url: string;
+        };
         /** IssueResolution */
         IssueResolution: {
             /**
@@ -1963,6 +2300,209 @@ export interface components {
             by: "auto" | "hub";
             /** Note */
             note: string | null;
+        };
+        /** IssueTriage */
+        IssueTriage: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssueTriageDetail */
+        IssueTriageDetail: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /** @description The household owner, to call back */
+            contact: components["schemas"]["IssueContact"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            /**
+             * Photos
+             * @description Empty while storage is unavailable; photo_count says how many there are
+             */
+            photos: components["schemas"]["IssuePhoto"][];
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
         };
         /** IssuesOut */
         IssuesOut: {
@@ -2017,6 +2557,26 @@ export interface components {
              * @example 2026-11-02T15:30:00Z
              */
             scheduled_for?: string | null;
+        };
+        /** KindOut */
+        KindOut: {
+            /** Category */
+            category: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Placeholders
+             * @description What its templates may use
+             * @example [
+             *       "total"
+             *     ]
+             */
+            placeholders: string[];
         };
         /**
          * LatLng
@@ -2109,6 +2669,54 @@ export interface components {
              * @description Applied in order
              */
             ops: (components["schemas"]["LineRemoveOp"] | components["schemas"]["LineAddOp"] | components["schemas"]["LineQtyOp"] | components["schemas"]["LineSubstituteOp"])[];
+        };
+        /** LogEntry */
+        LogEntry: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deliveries */
+            deliveries: components["schemas"]["DeliveryOut"][];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
         };
         /** MeOut */
         MeOut: {
@@ -2294,6 +2902,45 @@ export interface components {
             hi: string;
             /** Mr */
             mr: string;
+        };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
         };
         /** OrderLineOut */
         OrderLineOut: {
@@ -2517,6 +3164,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[IssueTriage] */
+        Page_IssueTriage_: {
+            /** Items */
+            items: components["schemas"]["IssueTriage"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[OrderSummaryOut] */
         Page_OrderSummaryOut_: {
             /** Items */
@@ -2545,6 +3199,35 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /**
+         * PaymentDueOut
+         * @description What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.
+         */
+        PaymentDueOut: {
+            /**
+             * Due At
+             * Format: date-time
+             * @description The end of the grace period (T-1 23:00 IST), in UTC
+             */
+            due_at: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Shortfall Paise
+             * @description What a top-up must add: total minus wallet, >= 0
+             */
+            shortfall_paise: number;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Wallet Paise
+             * @description The wallet's balance now
+             */
+            wallet_paise: number;
+        };
         /** PlanOut */
         PlanOut: {
             /**
@@ -2563,6 +3246,41 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /** PreferencesIn */
+        PreferencesIn: {
+            /**
+             * Categories
+             * @description Categories left out keep their value
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /** Quiet End */
+            quiet_end?: string | null;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM in 15-minute steps
+             */
+            quiet_start?: string | null;
+        };
+        /** PreferencesOut */
+        PreferencesOut: {
+            /**
+             * Categories
+             * @description All five, in the order weekly_box, delivery, money, kindness, offers
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /**
+             * Quiet End
+             * @description IST, HH:MM
+             * @example 07:00
+             */
+            quiet_end: string;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM
+             * @example 22:00
+             */
+            quiet_start: string;
         };
         /** PresignIn */
         PresignIn: {
@@ -2612,6 +3330,25 @@ export interface components {
              * @description PUT the bytes here before expires_at
              */
             url: string;
+        };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Items */
+            items: components["schemas"]["PreviewText"][];
+        };
+        /** PreviewText */
+        PreviewText: {
+            /** Body */
+            body: string;
+            /** Locale */
+            locale: string;
+            /**
+             * Params
+             * @description The body's values in order (WhatsApp's {{1}}, {{2}} …)
+             */
+            params: string[];
+            /** Title */
+            title: string;
         };
         /** Price */
         Price: {
@@ -2830,6 +3567,14 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** PushTokenIn */
+        PushTokenIn: {
+            /**
+             * Push Token
+             * @description The FCM registration token of this device; null when notifications are off
+             */
+            push_token: string | null;
+        };
         /** Ready */
         Ready: {
             /** Checks */
@@ -2984,6 +3729,25 @@ export interface components {
             /** Unit Price Paise */
             unit_price_paise: number;
         };
+        /** ResolveIn */
+        ResolveIn: {
+            /**
+             * Credit Paise
+             * @description Credit only; at most max_credit_paise
+             * @example 4000
+             */
+            credit_paise?: number | null;
+            /**
+             * Note
+             * @description Required to reject
+             */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "credit" | "reject";
+        };
         /**
          * RoleGrantIn
          * @description Grant a role to an existing user (they must have signed in once).
@@ -3034,6 +3798,14 @@ export interface components {
              * @enum {string}
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
+        };
+        /** SavedTemplatesOut */
+        SavedTemplatesOut: {
+            /**
+             * Items
+             * @description The new active version in each locale
+             */
+            items: components["schemas"]["TemplateOut"][];
         };
         /** SearchItem */
         SearchItem: {
@@ -3521,6 +4293,96 @@ export interface components {
             /** Items */
             items: components["schemas"]["SubstituteOut"][];
         };
+        /** TemplateIn */
+        TemplateIn: {
+            /**
+             * Channel
+             * @example app
+             */
+            channel: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Texts
+             * @description en-IN, hi-IN and mr-IN, once each
+             */
+            texts: components["schemas"]["TemplateText"][];
+            /** Wa Template Name */
+            wa_template_name?: string | null;
+        };
+        /** TemplateOut */
+        TemplateOut: {
+            /** Active */
+            active: boolean;
+            /** Body */
+            body: string;
+            /**
+             * Channel
+             * @description app (inbox and push) or whatsapp
+             */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+            /**
+             * Wa Template Name
+             * @description Meta's approved template (whatsapp)
+             */
+            wa_template_name: string | null;
+        };
+        /** TemplateText */
+        TemplateText: {
+            /**
+             * Body
+             * @example {total} was paid from your wallet.
+             */
+            body: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /**
+             * Title
+             * @description Empty for whatsapp
+             */
+            title: string;
+        };
+        /** TemplatesOut */
+        TemplatesOut: {
+            /** Items */
+            items: components["schemas"]["TemplateOut"][];
+            /** Kinds */
+            kinds: components["schemas"]["KindOut"][];
+        };
         /** TimelineEntry */
         TimelineEntry: {
             /**
@@ -3704,6 +4566,14 @@ export interface components {
              */
             outcome: string;
         };
+        /** WhatsAppAck */
+        WhatsAppAck: {
+            /**
+             * Outcomes
+             * @description Per status update: applied, duplicate, unchanged or unknown_delivery
+             */
+            outcomes: string[];
+        };
     };
     responses: never;
     parameters: never;
@@ -3827,6 +4697,444 @@ export interface operations {
                 };
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_templates_v1_admin_notification_templates_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                channel?: string | null;
+                locale?: string | null;
+                history?: boolean;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_templates_v1_admin_notification_templates_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedTemplatesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_templates_v1_admin_notification_templates_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delivery_log_v1_admin_notifications_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_queue_v1_admin_order_issues_get: {
+        parameters: {
+            query?: {
+                /** @description Required for hub staff */
+                hub_id?: string | null;
+                status?: "open" | "credited" | "rejected";
+                kind?: ("missing" | "damaged" | "quality" | "wrong_item" | "late" | "other") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IssueTriage_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required (hub staff), request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_detail_v1_admin_order_issues__issue_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriageDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_issue_v1_admin_order_issues__issue_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriage"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5184,6 +6492,105 @@ export interface operations {
             };
         };
     };
+    unskip_cycle_v1_cycles__cycle_id__unskip_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused (resume the subscription first) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -6338,6 +7745,55 @@ export interface operations {
             };
         };
     };
+    put_push_token_v1_me_push_token_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     my_roles_v1_me_roles_get: {
         parameters: {
             query?: never;
@@ -6358,6 +7814,214 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_notifications_v1_notifications_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_preferences_v1_notifications_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_preferences_v1_notifications_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_consent_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.category_unknown, notifications.quiet_hours_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_all_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_one_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6822,6 +8486,86 @@ export interface operations {
             };
             /** @description platform.storage_unavailable (only when photo_keys are sent) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_order_v1_orders__order_id__pay_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8156,6 +9900,115 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_handshake_v1_webhooks_whatsapp_get: {
+        parameters: {
+            query: {
+                "hub.mode": string;
+                "hub.verify_token": string;
+                "hub.challenge": string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description notifications.bad_verify_token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no verify token configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_webhook_v1_webhooks_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-hub-signature-256": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatsAppAck"];
+                };
+            };
+            /** @description request.invalid: not a JSON object */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.bad_signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no app secret configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
