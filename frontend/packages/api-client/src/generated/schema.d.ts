@@ -1981,9 +1981,9 @@ export interface components {
         ApplicationSocietyOut: {
             /**
              * Has Active Captain
-             * @description Whether the society already has an active captain (M9); null until M9's captains are available
+             * @description Whether the society already has an active captain (M9)
              */
-            has_active_captain: boolean | null;
+            has_active_captain: boolean;
             /**
              * Id
              * Format: uuid

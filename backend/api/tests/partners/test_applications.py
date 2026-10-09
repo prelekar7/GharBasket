@@ -16,6 +16,7 @@ from gharbasket.modules.partners import service
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from ..community.conftest import deliver
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from .conftest import (
@@ -299,6 +300,7 @@ async def test_the_review_queue_and_the_review_view_are_for_that_hubs_staff(
     }
     assert staff_view["society"]["id"] == str(KRISHNA_KUNJ)
     assert staff_view["society"]["name"] == "Krishna Kunj"
+    assert staff_view["society"]["has_active_captain"] is False  # Savita not appointed yet
     assert applied.json()["items"][0]["society"] is None  # not a captain
     assert own.status_code == 200 and "applicant" not in own.json()
     assert code(by_stranger) == code(by_customer) == (404, "partners.application_not_found")
@@ -344,3 +346,26 @@ async def test_the_data_export_has_her_applications_without_staff_fields(
     assert (application["kind"], application["status"]) == ("packer", "applied")
     assert not {"created_by", "decided_by", "data_source"} & set(application)
     assert section["partners"] == []
+
+
+async def test_the_review_view_shows_whether_the_society_has_an_active_captain(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    vikram, _ = await as_user(api, google, VIKRAM)
+    ramesh, _ = await as_user(api, google, RAMESH)
+    captain = (await apply(api, ramesh, kind="captain")).json()
+    await db_session.commit()
+    before = await api.get(f"/v1/partner-applications/{captain['id']}", headers=vikram)
+    await deliver(db_session)  # M9 appoints Savita, Krishna Kunj's seeded captain
+    await db_session.commit()
+
+    after = await api.get(f"/v1/partner-applications/{captain['id']}", headers=vikram)
+
+    assert before.json()["society"]["has_active_captain"] is False
+    assert after.status_code == 200, after.text
+    assert after.json()["society"] == {
+        "id": str(KRISHNA_KUNJ),
+        "name": "Krishna Kunj",
+        "has_active_captain": True,
+    }

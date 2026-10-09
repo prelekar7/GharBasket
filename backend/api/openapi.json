@@ -601,16 +601,9 @@
       "ApplicationSocietyOut": {
         "properties": {
           "has_active_captain": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Whether the society already has an active captain (M9); null until M9's captains are available",
-            "title": "Has Active Captain"
+            "description": "Whether the society already has an active captain (M9)",
+            "title": "Has Active Captain",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",

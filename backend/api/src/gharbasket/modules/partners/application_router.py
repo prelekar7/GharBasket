@@ -94,8 +94,10 @@ async def _reviews(session: DbSession, items: list[Application]) -> list[Applica
             society = ApplicationSocietyOut(
                 id=application.scope_id,
                 name=found.name if found else None,
-                # M9's captain_for_society joins with the captains PR.
-                has_active_captain=None,
+                has_active_captain=(
+                    await community_api.captain_for_society(session, application.scope_id)
+                )
+                is not None,
             )
         reviews.append(
             ApplicationReviewOut(
