@@ -1,6 +1,6 @@
 # Chapter 15 — Risks and Decisions
 
-> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 26 decisions taken so far — 17 during planning and nine more since (each backed by an Architecture Decision Record in `docs/adr/`); and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
+> **In short:** This chapter is the project's memory. It lists the risks we track, how likely and how damaging each one is, and what we do about it; the 27 decisions taken so far — 17 during planning and ten more since (each backed by an Architecture Decision Record in `docs/adr/`); and the questions still open. Any change to a decision must go through a new ADR and be discussed with the team and Prof. Kranti Bade.
 
 ---
 
@@ -49,7 +49,7 @@ quadrantChart
 
 ## 15.2 Decision log
 
-D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 on 9 October 2026. Each has an ADR with context, alternatives and consequences.
+D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 and D27 on 9 October 2026. Each has an ADR with context, alternatives and consequences.
 
 | ID | Decision | ADR |
 |---|---|---|
@@ -78,7 +78,8 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided b
 | D23 | Ownership: Prathamesh = all backend, infra, simulator and ML; Yash = all frontend and design; Rhythm and Manish unchanged; supersedes the code ownership in D9 | [ADR-0023](../adr/0023-ownership-backend-and-frontend.md) |
 | D24 | Sign-in: Firebase phone OTP, then our own tokens (15-minute access JWT, rotating refresh token); httpOnly cookies and CSRF checks for browsers | [ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md) |
 | D25 | ML runtime: the ML service and OSRM serve from one Hugging Face Space; training, forecasting and snapshots run in GitHub Actions (`backend/training`); R2 is the lake and the model registry (`latest.json`, `just promote`); MLflow local only; cron-job.org triggers minute-level jobs; settles the open item in D20 and refines D21 | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
-| D26 | Operations contract: one unit set (`g, kg, ml, l, piece, bunch, pack`); order actors `packer`, `rider`, `captain`, `kitchen` alongside `customer`, `system`, `hub`; tiffins reuse the order statuses and events; M9 is the source of truth for Society Captains; M6 owns `hub_ops.hubs` (hub ids elsewhere without foreign keys); crates counted, not tracked | [ADR-0026](../adr/0026-operations-contract.md) |
+| D26 | Operations contract: one unit set (`g, kg, ml, l, piece, bunch, pack`); order actors `packer`, `rider`, `captain`, `kitchen` alongside `customer`, `system`, `hub`; tiffins reuse the order statuses and events; M9 is the source of truth for Society Captains; M6 owns `hub_ops.hubs` (hub ids elsewhere without foreign keys); crates counted, not tracked — amended by D27 | [ADR-0026](../adr/0026-operations-contract.md) |
+| D27 | Operations contract amendments: a tiffin no kitchen accepts goes `locked → refunded` (system, `no_kitchen`); a box missed twice has its perishables refunded minus ₹20 and its non-perishables carried to the next delivery (`orders.api.carry_over`, up to 14 days, then refunded); the held bag stays overnight with the captain; captains earn ₹6 a bag at `orders.delivered` (none for tiffins); the extra M4 moves M7 needs; the booked menu's cook is honoured first, the rest fair-assigned | [ADR-0027](../adr/0027-operations-contract-amendments.md) |
 
 ### How decisions change
 
