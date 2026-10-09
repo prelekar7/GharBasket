@@ -3,16 +3,20 @@ from collections import Counter
 from datetime import date
 from typing import Any
 
+import pytest
 from gharbasket_ml import planner as cpsat
 from gharbasket_ml.schemas import PlanRequest
 from gharbasket_sim import config
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.weeks import (
+    PLANNERS,
     Planned,
     cached,
     cpsat_planner,
     fasting_days,
+    greedy_planner,
+    random_planner,
     rules_planner,
     simulate,
 )
@@ -74,6 +78,51 @@ def test_a_jain_household_in_navratri_eats_by_its_rules(catalog: Catalog) -> Non
     banned = {"root", "onion_garlic"}
     eaten = {c["product"] for c in rows.consumption}
     assert not any(catalog.products[p].tags & banned for p in eaten)
+
+
+def planned_week(h: SimHousehold, catalog: Catalog, monday: date, planner: Any) -> Any:
+    request = {
+        "household": h.rules,
+        "fasting_days": fasting_days(h, monday, catalog.festivals),
+        "recipes": catalog.recipes,
+        "time_limit_s": 2.0,
+    }
+    return cpsat.Week.of(PlanRequest.model_validate(request)), planner(request)
+
+
+@pytest.mark.parametrize("name", sorted(PLANNERS))
+def test_every_planner_keeps_every_hard_rule_in_a_navratri_week(
+    catalog: Catalog, name: str
+) -> None:
+    """`cpsat.check` (allowed dishes, windows, a fasting dish each fasting day, the budget) finds
+    nothing in any planner's week, for households that fast all through Navratri."""
+    every = households(catalog)
+    sampled = every[:: max(1, len(every) // 10)]
+    plan = cached(PLANNERS[name])
+    for h in sampled:
+        fasting = dataclasses.replace(h, fasts=("navratri", "tuesdays"))
+        week, planned = planned_week(fasting, catalog, NAVRATRI_WEEK, plan)
+        assert planned.meals, (name, h.key)
+        assert len(week.fasting) == 7
+        assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == [], (name, h.key)
+
+
+def test_the_baselines_keep_a_tight_budget_without_relaxing_it(catalog: Catalog) -> None:
+    h = pick(catalog, diet="veg", jain=False)
+    week, free = planned_week(h, catalog, NAVRATRI_WEEK, greedy_planner)
+    cheapest = cpsat.cost(week, free.meals)  # pyright: ignore[reportArgumentType]
+    tight = dataclasses.replace(h, rules={**h.rules, "weekly_budget_paise": int(cheapest * 1.1)})
+
+    for planner in (greedy_planner, random_planner):
+        week, planned = planned_week(tight, catalog, NAVRATRI_WEEK, planner)
+        assert "budget" not in planned.relaxed
+        assert cpsat.cost(week, planned.meals) <= cheapest * 1.1  # pyright: ignore[reportArgumentType]
+        assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == []
+
+    broke = dataclasses.replace(h, rules={**h.rules, "weekly_budget_paise": 100})
+    week, planned = planned_week(broke, catalog, NAVRATRI_WEEK, random_planner)
+    assert "budget" in planned.relaxed  # recorded, as the CP-SAT model records it
+    assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == []
 
 
 def test_the_same_seed_gives_the_same_weeks(catalog: Catalog) -> None:

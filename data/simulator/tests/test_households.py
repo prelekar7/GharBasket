@@ -67,8 +67,13 @@ def test_latent_truth_covers_daily_use_fruit_and_every_recipe(catalog: Catalog) 
 
     assert set(h.taste) == {r["slug"] for r in catalog.recipes}
     assert {"milk", "wheat-atta"} <= set(h.daily_use)
-    fruit = sum(h.daily_use[f] for f in catalog.fruits())
-    assert fruit == pytest.approx(700 * h.adult_equivalents)
+    # Fruit truth is in each product's base unit; back in grams it is the weekly basket.
+    grams = sum(
+        h.daily_use[f]
+        * (1 if catalog.products[f].unit in ("g", "ml") else catalog.products[f].unit_g or 100)
+        for f in catalog.fruits()
+    )
+    assert grams == pytest.approx(700 * h.adult_equivalents)
 
 
 def test_a_cohort_without_adults_or_seniors_is_rejected() -> None:
