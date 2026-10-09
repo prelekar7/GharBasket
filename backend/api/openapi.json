@@ -630,6 +630,17 @@
             ],
             "title": "Order Id"
           },
+          "payment_due": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentDueOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while the week is payment_failed"
+          },
           "slot": {
             "$ref": "#/components/schemas/SlotRefOut"
           },
@@ -641,6 +652,7 @@
               "skipped",
               "cancelled",
               "locked",
+              "payment_failed",
               "preview"
             ],
             "title": "Status",
@@ -677,7 +689,8 @@
           "captain",
           "order_id",
           "generated_at",
-          "approved_at"
+          "approved_at",
+          "payment_due"
         ],
         "title": "CycleOut",
         "type": "object"
@@ -4440,6 +4453,45 @@
           "next_cursor"
         ],
         "title": "Page[SocietySummary]",
+        "type": "object"
+      },
+      "PaymentDueOut": {
+        "description": "What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.",
+        "properties": {
+          "due_at": {
+            "description": "The end of the grace period (T-1 23:00 IST), in UTC",
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "shortfall_paise": {
+            "description": "What a top-up must add: total minus wallet, >= 0",
+            "title": "Shortfall Paise",
+            "type": "integer"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "wallet_paise": {
+            "description": "The wallet's balance now",
+            "title": "Wallet Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "total_paise",
+          "wallet_paise",
+          "shortfall_paise",
+          "due_at"
+        ],
+        "title": "PaymentDueOut",
         "type": "object"
       },
       "PlanOut": {
@@ -10666,7 +10718,193 @@
             "AccessToken": []
           }
         ],
-        "summary": "Skip the week before the cut-off; its order is cancelled (Idempotency-Key)",
+        "summary": "Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/cycles/{cycle_id}/unskip": {
+      "post": {
+        "description": "The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.",
+        "operationId": "unskip_cycle_v1_cycles__cycle_id__unskip_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.no_cycle"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused (resume the subscription first)"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)",
         "tags": [
           "subscriptions"
         ]
@@ -13757,6 +13995,155 @@
           }
         ],
         "summary": "Report a problem with a delivery (Idempotency-Key); auto-credit or triage",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}/pay": {
+      "post": {
+        "description": "The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.",
+        "operationId": "pay_order_v1_orders__order_id__pay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)",
         "tags": [
           "orders"
         ]

@@ -1,5 +1,6 @@
 """HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1),
-problems reported on an order (§3.2) and the console's triage of them (§3.6)."""
+problems reported on an order (§3.2), the console's triage of them (§3.6), and paying a failed
+box (§3.4)."""
 
 import uuid
 from dataclasses import asdict
@@ -376,6 +377,37 @@ async def cancel_order(
     out = await _full(session, order, lang)
     await idem.save(200, out)
     await session.commit()
+    return out
+
+
+@router.post(
+    "/orders/{order_id}/pay",
+    summary="Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)",
+    description="The same debit as the cut-off (one per order, never twice), then `locked`. "
+    "An order that is already locked (a top-up paid it) answers as it is.",
+    responses={
+        404: _problem("orders.not_found"),
+        409: _problem(
+            "billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, "
+            "orders.payment_grace_over"
+        ),
+    },
+)
+async def pay_order(
+    order_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    response: Response,
+) -> OrderOut:
+    order = await _owned(session, permit, order_id, for_update=True)
+    await service.pay(session, order)
+    out = await _full(session, order, lang)
+    await idem.save(200, out)
+    await session.commit()
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, order.version)
     return out
 
 

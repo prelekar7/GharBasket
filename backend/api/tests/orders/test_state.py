@@ -21,6 +21,7 @@ def test_the_happy_path_is_allowed_and_final_states_have_no_exit() -> None:
     assert {"cancelled", "delivered", "refunded"} == state.FINAL
     assert "approved" not in state.PAID and "locked" in state.PAID
     assert set(state.EVENTS) == set(ALL) - {"approved"}
+    state.check("payment_failed", "locked", "customer")  # paid during the grace (M4 §3.4)
 
 
 @pytest.mark.parametrize(

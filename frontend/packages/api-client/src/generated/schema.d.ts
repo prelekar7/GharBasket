@@ -441,8 +441,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Skip the week before the cut-off; its order is cancelled (Idempotency-Key) */
+        /** Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key) */
         post: operations["skip_cycle_v1_cycles__cycle_id__skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/unskip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)
+         * @description The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.
+         */
+        post: operations["unskip_cycle_v1_cycles__cycle_id__unskip_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -928,6 +948,26 @@ export interface paths {
         put?: never;
         /** Report a problem with a delivery (Idempotency-Key); auto-credit or triage */
         post: operations["report_issue_v1_orders__order_id__issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)
+         * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
+         */
+        post: operations["pay_order_v1_orders__order_id__pay_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1595,12 +1635,14 @@ export interface components {
             meal_plan: components["schemas"]["MealPlanOut"];
             /** Order Id */
             order_id: string | null;
+            /** @description Only while the week is payment_failed */
+            payment_due: components["schemas"]["PaymentDueOut"] | null;
             slot: components["schemas"]["SlotRefOut"];
             /**
              * Status
              * @enum {string}
              */
-            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview";
+            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed" | "preview";
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -3156,6 +3198,35 @@ export interface components {
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /**
+         * PaymentDueOut
+         * @description What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.
+         */
+        PaymentDueOut: {
+            /**
+             * Due At
+             * Format: date-time
+             * @description The end of the grace period (T-1 23:00 IST), in UTC
+             */
+            due_at: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Shortfall Paise
+             * @description What a top-up must add: total minus wallet, >= 0
+             */
+            shortfall_paise: number;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Wallet Paise
+             * @description The wallet's balance now
+             */
+            wallet_paise: number;
         };
         /** PlanOut */
         PlanOut: {
@@ -6420,6 +6491,105 @@ export interface operations {
             };
         };
     };
+    unskip_cycle_v1_cycles__cycle_id__unskip_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused (resume the subscription first) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -8315,6 +8485,86 @@ export interface operations {
             };
             /** @description platform.storage_unavailable (only when photo_keys are sent) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_order_v1_orders__order_id__pay_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

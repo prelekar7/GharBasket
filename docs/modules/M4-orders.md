@@ -379,7 +379,7 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `orders.orders` | id, household_id, hub_id, society_id, kind (box, tiffin, addon), cycle_id (unique), delivery_date, slot_id, cutoff_at, status, subtotal_paise, fees_paise, discount_paise, total_paise, version, locked_at, data_source, created_at |
+| `orders.orders` | id, household_id, hub_id, society_id, kind (box, tiffin, addon), cycle_id (unique among orders that are not cancelled), delivery_date, slot_id, cutoff_at, status, subtotal_paise, fees_paise, discount_paise, total_paise, version, locked_at, data_source, created_at |
 | `orders.order_lines` | order_id, product_id, kind (box, addon), qty, step_qty, step_unit, unit_price_paise, reason_code, reason_params jsonb, substituted_from, shortage_qty |
 | `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |

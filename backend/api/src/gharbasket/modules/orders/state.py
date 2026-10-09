@@ -13,7 +13,8 @@ TRANSITIONS: dict[str, dict[str, frozenset[str]]] = {
         "cancelled": frozenset({"customer", "system"}),
     },
     "payment_failed": {
-        "locked": frozenset({"system"}),  # a top-up inside the grace period
+        # A top-up inside the grace period (system), or `POST /v1/orders/{id}/pay` (customer).
+        "locked": frozenset({"system", "customer"}),
         "cancelled": frozenset({"system", "customer"}),
     },
     "locked": {"picking": frozenset({"hub"}), "packed": frozenset({"hub"})},
