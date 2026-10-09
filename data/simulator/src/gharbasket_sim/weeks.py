@@ -61,7 +61,113 @@ def rules_planner(request: dict[str, Any]) -> Planned:
     return _planned(fallback.plan_week(GatewayRequest.model_validate(request)))
 
 
-PLANNERS: dict[str, Planner] = {"cpsat": cpsat_planner, "rules": rules_planner}
+def _slot_by_slot(request: dict[str, Any], choose: Callable[..., str | None], name: str) -> Planned:
+    """A baseline that fills the week one slot at a time under every hard rule the CP-SAT model
+    keeps (and `cpsat.check` verifies): an allowed dish, no dish twice in its window, a fasting
+    dish on each fasting day and the weekly budget. On a fasting day without a fasting dish yet,
+    the last slot that can hold one must; a dish is affordable only if the cheapest allowed dishes
+    for the slots still open fit in what is left of the budget. When no dish keeps the rules, the
+    comfort rules are relaxed in the model's order (repeat, cook time, budget; then pairs) and the
+    plan records the relaxation; diet, Jain, diabetic and fasting are never relaxed."""
+    week = cpsat.Week.of(PlanRequest.model_validate(request))
+    size = week.household.size
+    cells = [(day, slot) for day in range(7) for slot in SLOTS]
+    for relax in cpsat.relaxations():
+        allowed = {
+            (day, slot): [
+                r
+                for r in week.recipes.values()
+                if cpsat.allowed(week, r, day, slot, relax)  # pyright: ignore[reportArgumentType]
+            ]
+            for day, slot in cells
+            if not cpsat.is_tiffin(week, day, slot)  # pyright: ignore[reportArgumentType]
+        }
+        budget = None if "budget" in relax else week.household.weekly_budget_paise
+        floor = {
+            cell: min((r.cost_per_serving_paise * size for r in options), default=0)
+            for cell, options in allowed.items()
+        }
+        fasting_slot = {
+            day: max(
+                (
+                    i
+                    for i, slot in enumerate(SLOTS)
+                    if any(r.fasting_ok for r in allowed.get((day, slot), []))
+                ),
+                default=None,
+            )
+            for day in week.fasting
+        }
+        if any(i is None for i in fasting_slot.values()):
+            continue
+        meals: dict[tuple[int, str], str | None] = {}
+        recent: dict[str, list[int]] = {}
+        spent = 0
+        feasible = True
+        for n, (day, slot) in enumerate(cells):
+            if (day, slot) not in allowed:
+                meals[(day, slot)] = None  # a tiffin on a no-cook day
+                continue
+            window = (
+                1
+                if "repeat" in relax
+                else cpsat.WINDOWS["breakfast" if slot == "breakfast" else "main"]
+            )
+            fasted = any(
+                (dish := meals.get((day, s))) and week.recipes[dish].fasting_ok for s in SLOTS
+            )
+            must_fast = fasting_slot.get(day) == SLOTS.index(slot) and not fasted
+            ahead = sum(floor[c] for c in cells[n + 1 :] if c in floor)
+            options = [
+                r
+                for r in allowed[(day, slot)]
+                if all(day - d >= window for d in recent.get(r.slug, []))
+                and (r.fasting_ok or not must_fast)
+                and (budget is None or spent + r.cost_per_serving_paise * size + ahead <= budget)
+            ]
+            chosen = choose(week, options, day, slot)
+            if chosen is None:
+                feasible = False
+                break
+            meals[(day, slot)] = chosen
+            spent += week.recipes[chosen].cost_per_serving_paise * size
+            recent.setdefault(chosen, []).append(day)
+        if feasible:
+            relaxed = tuple(rule for rule in cpsat.FALLBACK if rule in relax)
+            return Planned("feasible", relaxed, meals, name)
+    return Planned("infeasible", (), {}, name)
+
+
+def greedy_planner(request: dict[str, Any]) -> Planned:
+    """Baseline: the cheapest allowed dish for every slot (a household's own cuisine first)."""
+
+    def choose(week: Any, options: list[Any], day: int, slot: str) -> str | None:
+        if not options:
+            return None
+        own = set(week.household.cuisines)
+        return min(
+            options, key=lambda r: (r.cuisine not in own, r.cost_per_serving_paise, r.slug)
+        ).slug
+
+    return _slot_by_slot(request, choose, "greedy")
+
+
+def random_planner(request: dict[str, Any]) -> Planned:
+    """Baseline: a random valid plan (seeded by the request, so it is reproducible)."""
+    rng = random.Random(json.dumps(request, sort_keys=True))
+
+    def choose(week: Any, options: list[Any], day: int, slot: str) -> str | None:
+        return None if not options else rng.choice(sorted(r.slug for r in options))
+
+    return _slot_by_slot(request, choose, "random")
+
+
+PLANNERS: dict[str, Planner] = {
+    "cpsat": cpsat_planner,
+    "rules": rules_planner,
+    "greedy": greedy_planner,
+    "random": random_planner,
+}
 
 
 def cached(planner: Planner) -> Planner:

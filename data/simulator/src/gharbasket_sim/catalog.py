@@ -4,8 +4,10 @@ The recipes come out in the shape of the planner's request (M10 §3.1), sorted b
 same database always gives the same world.
 """
 
+import json
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -156,3 +158,78 @@ async def load_catalog(session: AsyncSession, hub_id: Any, start: date, end: dat
         ingredients,
         [Festival(f.day, f.code, dict(f.rules)) for f in days],
     )
+
+
+SEED_FILES = Path(__file__).resolve().parents[4] / "data" / "seeds" / "catalog"
+
+
+def from_seed_files(seed: Path = SEED_FILES) -> Catalog:
+    """The seed catalog read straight from data/seeds/catalog (no database): what the evaluation
+    harness and the tests use; `load_catalog` gives the same after `just seed`."""
+    raw = json.loads((seed / "products.json").read_text())["products"]
+    steps = {p["slug"]: p["step"]["qty"] * BASE_UNIT[p["step"]["unit"]][1] for p in raw}
+    shelf = {p["slug"]: p["shelf_life_h"] for p in raw}
+    prices = {
+        i["slug"]: i["price_paise"] for i in json.loads((seed / "prices.json").read_text())["items"]
+    }
+    unit_g = {
+        n["slug"]: n.get("unit_g")
+        for n in json.loads((seed / "nutrition.json").read_text())["items"]
+    }
+    products = {
+        p["slug"]: Product(
+            p["slug"],
+            BASE_UNIT[p["step"]["unit"]][0],
+            p["kind"],
+            frozenset(p["tags"]),
+            steps[p["slug"]],
+            prices.get(p["slug"]),
+            shelf[p["slug"]],
+            p["category"],
+            unit_g.get(p["slug"]),
+        )
+        for p in raw
+    }
+    recipes: list[dict[str, Any]] = []
+    ingredients: dict[str, tuple[Ingredient, ...]] = {}
+    for r in sorted(
+        json.loads((seed / "recipes.json").read_text())["recipes"], key=lambda r: r["slug"]
+    ):
+        if r.get("is_side"):
+            continue
+        tags = set().union(*(products[i["product"]].tags for i in r["ingredients"]))
+        no_onion_garlic = "onion_garlic" not in tags
+        diet = "egg" if "egg" in tags else "veg"
+        recipes.append(
+            {
+                "slug": r["slug"],
+                "cuisine": r["cuisine"],
+                "slots": r["slots"],
+                "cook_minutes": r["cook_minutes"],
+                "diet": diet,
+                "jain_ok": no_onion_garlic and "root" not in tags and diet == "veg",
+                "no_onion_garlic": no_onion_garlic,
+                "fasting_ok": r["fasting_ok"],
+                "diabetic_ok": r["diabetic_ok"],
+                "no_cook": "no_cook" in r["tags"],
+                "cost_per_serving_paise": round(
+                    sum(
+                        i["qty"] / steps[i["product"]] * prices[i["product"]]
+                        for i in r["ingredients"]
+                    )
+                ),
+                "perishables": sorted(
+                    i["product"] for i in r["ingredients"] if shelf[i["product"]] <= PERISHABLE_H
+                ),
+            }
+        )
+        ingredients[r["slug"]] = tuple(
+            sorted(
+                Ingredient(i["product"], float(i["qty"]), i["optional"]) for i in r["ingredients"]
+            )
+        )
+    festivals = [
+        Festival(date.fromisoformat(f["date"]), f["code"], f["rules"])
+        for f in json.loads((seed / "festivals.json").read_text())["festivals"]
+    ]
+    return Catalog(products, recipes, ingredients, festivals)

@@ -16,6 +16,7 @@ from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
 from gharbasket.modules.intel_gateway.schemas import PlanRequest, WeekPlan  # re-exported
 from gharbasket.modules.intel_gateway.service import (
+    latest_metrics,
     latest_prediction,
     price_spikes,
     record_metrics,
@@ -28,6 +29,7 @@ __all__ = [
     "HardRule",
     "PlanRequest",
     "WeekPlan",
+    "latest_metrics",
     "latest_prediction",
     "next_recipe",
     "plan_week",
