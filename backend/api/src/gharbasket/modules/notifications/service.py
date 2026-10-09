@@ -91,9 +91,9 @@ def rendered(
     )
 
 
-async def inbox(
-    session: AsyncSession, user_id: uuid.UUID, lang: Language, cursor: str | None, limit: int
-) -> tuple[list[NotificationOut], int, str | None]:
+async def messages_page(
+    session: AsyncSession, user_id: uuid.UUID, cursor: str | None, limit: int
+) -> tuple[list[Message], str | None]:
     """Newest first. Message ids are uuidv7 (time-ordered), so the cursor is the last id seen."""
     stmt = select(Message).where(Message.user_id == user_id)
     if cursor is not None:
@@ -106,13 +106,19 @@ async def inbox(
         (await session.execute(stmt.order_by(Message.id.desc()).limit(limit + 1))).scalars()
     )
     page = rows[:limit]
+    return page, encode_cursor({"before": str(page[-1].id)}) if len(rows) > limit else None
+
+
+async def inbox(
+    session: AsyncSession, user_id: uuid.UUID, lang: Language, cursor: str | None, limit: int
+) -> tuple[list[NotificationOut], int, str | None]:
+    page, next_cursor = await messages_page(session, user_id, cursor, limit)
     templates = await active_templates(session, {m.kind for m in page}, lang)
     unread = await session.scalar(
         select(func.count())
         .select_from(Message)
         .where(Message.user_id == user_id, Message.read_at.is_(None))
     )
-    next_cursor = encode_cursor({"before": str(page[-1].id)}) if len(rows) > limit else None
     return [rendered(m, templates, lang) for m in page], unread or 0, next_cursor
 
 

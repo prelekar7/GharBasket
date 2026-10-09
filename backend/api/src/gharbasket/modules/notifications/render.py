@@ -82,3 +82,13 @@ def render(text: str, kind: Kind, params: dict[str, Any], lang: Language) -> str
         for name in placeholders_of(text)
     }
     return text.format_map(values)
+
+
+def ordered_values(text: str, kind: Kind, params: dict[str, Any], lang: Language) -> list[str]:
+    """The template's placeholders formatted, in the order they appear: a WhatsApp template's
+    {{1}}, {{2}} … parameters (spec §3.2)."""
+    return [
+        render(f"{{{name}}}", kind, params, lang)
+        for _, name, _, _ in string.Formatter().parse(text)
+        if name
+    ]
