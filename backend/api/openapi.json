@@ -365,7 +365,8 @@
               "personalisation",
               "health_personalisation",
               "marketing",
-              "research_anonymised"
+              "research_anonymised",
+              "whatsapp"
             ],
             "title": "Purpose",
             "type": "string"
@@ -411,7 +412,8 @@
               "personalisation",
               "health_personalisation",
               "marketing",
-              "research_anonymised"
+              "research_anonymised",
+              "whatsapp"
             ],
             "title": "Purpose",
             "type": "string"
@@ -628,6 +630,17 @@
             ],
             "title": "Order Id"
           },
+          "payment_due": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentDueOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while the week is payment_failed"
+          },
           "slot": {
             "$ref": "#/components/schemas/SlotRefOut"
           },
@@ -639,6 +652,7 @@
               "skipped",
               "cancelled",
               "locked",
+              "payment_failed",
               "preview"
             ],
             "title": "Status",
@@ -675,7 +689,8 @@
           "captain",
           "order_id",
           "generated_at",
-          "approved_at"
+          "approved_at",
+          "payment_due"
         ],
         "title": "CycleOut",
         "type": "object"
@@ -917,6 +932,111 @@
           "items"
         ],
         "title": "DeliveryDaysOut",
+        "type": "object"
+      },
+      "DeliveryLogOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "DeliveryLogOut",
+        "type": "object"
+      },
+      "DeliveryOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "channel": {
+            "examples": [
+              "push"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "next_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Attempt At"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "description": "queued, held, sent, delivered, read, failed or skipped",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "status",
+          "attempts",
+          "last_error",
+          "provider_ref",
+          "next_attempt_at",
+          "sent_at"
+        ],
+        "title": "DeliveryOut",
         "type": "object"
       },
       "DeviceIn": {
@@ -1517,6 +1637,16 @@
             "title": "No Cook Days",
             "type": "array"
           },
+          "shortage_preference": {
+            "default": "substitute",
+            "description": "A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)",
+            "enum": [
+              "substitute",
+              "refund"
+            ],
+            "title": "Shortage Preference",
+            "type": "string"
+          },
           "society_id": {
             "format": "uuid",
             "title": "Society Id",
@@ -1636,6 +1766,14 @@
             "title": "No Cook Days",
             "type": "array"
           },
+          "shortage_preference": {
+            "enum": [
+              "substitute",
+              "refund"
+            ],
+            "title": "Shortage Preference",
+            "type": "string"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -1672,6 +1810,7 @@
           "budget_paise",
           "autopilot_enabled",
           "auto_approve",
+          "shortage_preference",
           "members",
           "address",
           "created_at"
@@ -1771,6 +1910,21 @@
               }
             ],
             "title": "No Cook Days"
+          },
+          "shortage_preference": {
+            "anyOf": [
+              {
+                "enum": [
+                  "substitute",
+                  "refund"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortage Preference"
           },
           "weekday_cook_minutes": {
             "anyOf": [
@@ -2197,6 +2351,31 @@
         "title": "IngredientOut",
         "type": "object"
       },
+      "IssueContact": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "title": "Phone E164",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "phone_e164"
+        ],
+        "title": "IssueContact",
+        "type": "object"
+      },
       "IssueIn": {
         "additionalProperties": false,
         "properties": {
@@ -2456,6 +2635,26 @@
         "title": "IssueOut",
         "type": "object"
       },
+      "IssuePhoto": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "url": {
+            "description": "A 5-minute signed GET",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "title": "IssuePhoto",
+        "type": "object"
+      },
       "IssueResolution": {
         "properties": {
           "at": {
@@ -2489,6 +2688,419 @@
           "at"
         ],
         "title": "IssueResolution",
+        "type": "object"
+      },
+      "IssueTriage": {
+        "properties": {
+          "amount_paise": {
+            "description": "The sum of qty times the line's paid unit price",
+            "examples": [
+              4000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "auto_credited_7d_paise": {
+            "description": "The household's automatic credits in the last 7 days",
+            "title": "Auto Credited 7D Paise",
+            "type": "integer"
+          },
+          "callback_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "created_at + callback_within_minutes, while open",
+            "title": "Callback Due At"
+          },
+          "callback_within_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the hub calls back",
+            "title": "Callback Within Minutes"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credit_paise": {
+            "description": "0 until credited",
+            "title": "Credit Paise",
+            "type": "integer"
+          },
+          "creditable_paise": {
+            "description": "What is left of the order's paid total after shortage refunds and credits",
+            "title": "Creditable Paise",
+            "type": "integer"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "missing",
+              "damaged",
+              "quality",
+              "wrong_item",
+              "late",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_credit_paise": {
+            "description": "What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved",
+            "title": "Max Credit Paise",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "open_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "photo_needed",
+                  "over_auto_credit_limit",
+                  "over_order_total",
+                  "wallet_limit",
+                  "triage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Reason"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_total_paise": {
+            "examples": [
+              69000
+            ],
+            "title": "Order Total Paise",
+            "type": "integer"
+          },
+          "photo_count": {
+            "title": "Photo Count",
+            "type": "integer"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "credited",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "kind",
+          "status",
+          "items",
+          "amount_paise",
+          "credit_paise",
+          "note",
+          "photo_count",
+          "resolution",
+          "callback_within_minutes",
+          "open_reason",
+          "created_at",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "order_total_paise",
+          "creditable_paise",
+          "max_credit_paise",
+          "auto_credited_7d_paise",
+          "callback_due_at"
+        ],
+        "title": "IssueTriage",
+        "type": "object"
+      },
+      "IssueTriageDetail": {
+        "properties": {
+          "amount_paise": {
+            "description": "The sum of qty times the line's paid unit price",
+            "examples": [
+              4000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "auto_credited_7d_paise": {
+            "description": "The household's automatic credits in the last 7 days",
+            "title": "Auto Credited 7D Paise",
+            "type": "integer"
+          },
+          "callback_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "created_at + callback_within_minutes, while open",
+            "title": "Callback Due At"
+          },
+          "callback_within_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "While open: the hub calls back",
+            "title": "Callback Within Minutes"
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueContact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The household owner, to call back"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "credit_paise": {
+            "description": "0 until credited",
+            "title": "Credit Paise",
+            "type": "integer"
+          },
+          "creditable_paise": {
+            "description": "What is left of the order's paid total after shortage refunds and credits",
+            "title": "Creditable Paise",
+            "type": "integer"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "missing",
+              "damaged",
+              "quality",
+              "wrong_item",
+              "late",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_credit_paise": {
+            "description": "What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved",
+            "title": "Max Credit Paise",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "open_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "photo_needed",
+                  "over_auto_credit_limit",
+                  "over_order_total",
+                  "wallet_limit",
+                  "triage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Reason"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "order_total_paise": {
+            "examples": [
+              69000
+            ],
+            "title": "Order Total Paise",
+            "type": "integer"
+          },
+          "photo_count": {
+            "title": "Photo Count",
+            "type": "integer"
+          },
+          "photos": {
+            "description": "Empty while storage is unavailable; photo_count says how many there are",
+            "items": {
+              "$ref": "#/components/schemas/IssuePhoto"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "credited",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "kind",
+          "status",
+          "items",
+          "amount_paise",
+          "credit_paise",
+          "note",
+          "photo_count",
+          "resolution",
+          "callback_within_minutes",
+          "open_reason",
+          "created_at",
+          "household_id",
+          "hub_id",
+          "society_id",
+          "delivery_date",
+          "order_total_paise",
+          "creditable_paise",
+          "max_credit_paise",
+          "auto_credited_7d_paise",
+          "callback_due_at",
+          "photos",
+          "contact"
+        ],
+        "title": "IssueTriageDetail",
         "type": "object"
       },
       "IssuesOut": {
@@ -2620,6 +3232,46 @@
           }
         },
         "title": "JobTrigger",
+        "type": "object"
+      },
+      "KindOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "orders.locked"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "placeholders": {
+            "description": "What its templates may use",
+            "examples": [
+              [
+                "total"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Placeholders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "event_type",
+          "category",
+          "placeholders"
+        ],
+        "title": "KindOut",
         "type": "object"
       },
       "LatLng": {
@@ -2798,6 +3450,104 @@
           "ops"
         ],
         "title": "LinesPatch",
+        "type": "object"
+      },
+      "LogEntry": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "category": {
+            "description": "weekly_box, delivery, money, kindness, offers or account",
+            "examples": [
+              "delivery"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryOut"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type": {
+            "examples": [
+              "orders.at_society"
+            ],
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An app route",
+            "examples": [
+              "/orders"
+            ],
+            "title": "Link"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "title": {
+            "examples": [
+              "Your box has reached your society"
+            ],
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "event_type",
+          "category",
+          "title",
+          "body",
+          "link",
+          "created_at",
+          "read_at",
+          "event_id",
+          "kind",
+          "deliveries"
+        ],
+        "title": "LogEntry",
         "type": "object"
       },
       "MeOut": {
@@ -3924,6 +4674,34 @@
         "title": "Page[Entry]",
         "type": "object"
       },
+      "Page_IssueTriage_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueTriage"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[IssueTriage]",
+        "type": "object"
+      },
       "Page_OrderSummaryOut_": {
         "properties": {
           "items": {
@@ -4034,6 +4812,45 @@
           "next_cursor"
         ],
         "title": "Page[SocietySummary]",
+        "type": "object"
+      },
+      "PaymentDueOut": {
+        "description": "What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.",
+        "properties": {
+          "due_at": {
+            "description": "The end of the grace period (T-1 23:00 IST), in UTC",
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "shortfall_paise": {
+            "description": "What a top-up must add: total minus wallet, >= 0",
+            "title": "Shortfall Paise",
+            "type": "integer"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "wallet_paise": {
+            "description": "The wallet's balance now",
+            "title": "Wallet Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "total_paise",
+          "wallet_paise",
+          "shortfall_paise",
+          "due_at"
+        ],
+        "title": "PaymentDueOut",
         "type": "object"
       },
       "PlanOut": {
@@ -4238,6 +5055,54 @@
           "expires_at"
         ],
         "title": "PresignOut",
+        "type": "object"
+      },
+      "PreviewOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewText"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PreviewOut",
+        "type": "object"
+      },
+      "PreviewText": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "params": {
+            "description": "The body's values in order (WhatsApp's {{1}}, {{2}} …)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "title",
+          "body",
+          "params"
+        ],
+        "title": "PreviewText",
         "type": "object"
       },
       "Price": {
@@ -4742,6 +5607,29 @@
         "title": "ProductRef",
         "type": "object"
       },
+      "PushTokenIn": {
+        "properties": {
+          "push_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The FCM registration token of this device; null when notifications are off",
+            "title": "Push Token"
+          }
+        },
+        "required": [
+          "push_token"
+        ],
+        "title": "PushTokenIn",
+        "type": "object"
+      },
       "Ready": {
         "properties": {
           "checks": {
@@ -5078,6 +5966,53 @@
         "title": "ReplacedOut",
         "type": "object"
       },
+      "ResolveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credit_paise": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Credit only; at most max_credit_paise",
+            "examples": [
+              4000
+            ],
+            "title": "Credit Paise"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required to reject",
+            "title": "Note"
+          },
+          "outcome": {
+            "enum": [
+              "credit",
+              "reject"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "ResolveIn",
+        "type": "object"
+      },
       "RoleGrantIn": {
         "additionalProperties": false,
         "description": "Grant a role to an existing user (they must have signed in once).",
@@ -5235,6 +6170,23 @@
           "status"
         ],
         "title": "RoleOut",
+        "type": "object"
+      },
+      "SavedTemplatesOut": {
+        "properties": {
+          "items": {
+            "description": "The new active version in each locale",
+            "items": {
+              "$ref": "#/components/schemas/TemplateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SavedTemplatesOut",
         "type": "object"
       },
       "SearchItem": {
@@ -6244,13 +7196,217 @@
         "title": "Substitutes",
         "type": "object"
       },
+      "TemplateIn": {
+        "properties": {
+          "channel": {
+            "examples": [
+              "app"
+            ],
+            "maxLength": 8,
+            "title": "Channel",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "orders.locked"
+            ],
+            "maxLength": 64,
+            "title": "Kind",
+            "type": "string"
+          },
+          "texts": {
+            "description": "en-IN, hi-IN and mr-IN, once each",
+            "items": {
+              "$ref": "#/components/schemas/TemplateText"
+            },
+            "maxItems": 6,
+            "title": "Texts",
+            "type": "array"
+          },
+          "wa_template_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wa Template Name"
+          }
+        },
+        "required": [
+          "kind",
+          "channel",
+          "texts"
+        ],
+        "title": "TemplateIn",
+        "type": "object"
+      },
+      "TemplateOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "channel": {
+            "description": "app (inbox and push) or whatsapp",
+            "title": "Channel",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "examples": [
+              "orders.locked"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "locale": {
+            "examples": [
+              "en-IN"
+            ],
+            "title": "Locale",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "wa_template_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meta's approved template (whatsapp)",
+            "title": "Wa Template Name"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "event_type",
+          "channel",
+          "locale",
+          "version",
+          "title",
+          "body",
+          "wa_template_name",
+          "active",
+          "created_by",
+          "created_at"
+        ],
+        "title": "TemplateOut",
+        "type": "object"
+      },
+      "TemplateText": {
+        "properties": {
+          "body": {
+            "examples": [
+              "{total} was paid from your wallet."
+            ],
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "locale": {
+            "examples": [
+              "en-IN"
+            ],
+            "maxLength": 5,
+            "title": "Locale",
+            "type": "string"
+          },
+          "title": {
+            "description": "Empty for whatsapp",
+            "maxLength": 120,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "locale",
+          "title",
+          "body"
+        ],
+        "title": "TemplateText",
+        "type": "object"
+      },
+      "TemplatesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KindOut"
+            },
+            "title": "Kinds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kinds",
+          "items"
+        ],
+        "title": "TemplatesOut",
+        "type": "object"
+      },
       "TimelineEntry": {
         "properties": {
           "actor": {
+            "description": "Who moved it, as a kind of actor only: never a name or id",
             "enum": [
               "customer",
               "system",
-              "hub"
+              "hub",
+              "packer",
+              "rider",
+              "captain",
+              "kitchen"
             ],
             "title": "Actor",
             "type": "string"
@@ -6975,6 +8131,23 @@
         ],
         "title": "WebhookAck",
         "type": "object"
+      },
+      "WhatsAppAck": {
+        "properties": {
+          "outcomes": {
+            "description": "Per status update: applied, duplicate, unchanged or unknown_delivery",
+            "items": {
+              "type": "string"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "outcomes"
+        ],
+        "title": "WhatsAppAck",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7468,6 +8641,918 @@
         "summary": "Change a hub (admin; If-Match: the hub's version; audit-logged)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/admin/notification-templates": {
+      "get": {
+        "operationId": "list_templates_v1_admin_notification_templates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 8,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 5,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Locale"
+            }
+          },
+          {
+            "in": "query",
+            "name": "history",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "History",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Notification templates: the active versions, or every version",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "put_templates_v1_admin_notification_templates_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedTemplatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.template_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Save a template in all three locales as a new active version",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/admin/notification-templates/preview": {
+      "post": {
+        "operationId": "preview_templates_v1_admin_notification_templates_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.template_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Render a template in all three locales with sample values (nothing is saved)",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/admin/notifications": {
+      "get": {
+        "operationId": "delivery_log_v1_admin_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryLogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Delivery log: a person's messages with their delivery attempts",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/v1/admin/order-issues": {
+      "get": {
+        "operationId": "triage_queue_v1_admin_order_issues_get",
+        "parameters": [
+          {
+            "description": "Required for hub staff",
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required for hub staff",
+              "title": "Hub Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "credited",
+                "rejected"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "missing",
+                    "damaged",
+                    "quality",
+                    "wrong_item",
+                    "late",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IssueTriage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required (hub staff), request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The triage queue of a hub (all hubs for admins), oldest first",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/admin/order-issues/{issue_id}": {
+      "get": {
+        "operationId": "triage_detail_v1_admin_order_issues__issue_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTriageDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "One issue with 5-minute photo links and the customer's contact (audit-logged)",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/admin/order-issues/{issue_id}/resolve": {
+      "post": {
+        "operationId": "resolve_issue_v1_admin_order_issues__issue_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Issue Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTriage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_not_open"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged)",
+        "tags": [
+          "orders"
         ]
       }
     },
@@ -9651,7 +11736,193 @@
             "AccessToken": []
           }
         ],
-        "summary": "Skip the week before the cut-off; its order is cancelled (Idempotency-Key)",
+        "summary": "Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/v1/cycles/{cycle_id}/unskip": {
+      "post": {
+        "description": "The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.",
+        "operationId": "unskip_cycle_v1_cycles__cycle_id__unskip_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.no_cycle"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused (resume the subscription first)"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)",
         "tags": [
           "subscriptions"
         ]
@@ -11842,6 +14113,65 @@
         ]
       }
     },
+    "/v1/me/push-token": {
+      "put": {
+        "operationId": "put_push_token_v1_me_push_token_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Set or clear this device's FCM token for push notifications (M11 §3.1)",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
     "/v1/me/roles": {
       "get": {
         "operationId": "my_roles_v1_me_roles_get",
@@ -13105,6 +15435,155 @@
           }
         ],
         "summary": "Report a problem with a delivery (Idempotency-Key); auto-credit or triage",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}/pay": {
+      "post": {
+        "description": "The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.",
+        "operationId": "pay_order_v1_orders__order_id__pay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)",
         "tags": [
           "orders"
         ]
@@ -15788,6 +18267,160 @@
         "summary": "A top-up's status: poll it after Checkout until it is paid",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/v1/webhooks/whatsapp": {
+      "get": {
+        "operationId": "whatsapp_handshake_v1_webhooks_whatsapp_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hub.mode",
+            "required": true,
+            "schema": {
+              "maxLength": 20,
+              "title": "Hub.Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub.verify_token",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "title": "Hub.Verify Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub.challenge",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "title": "Hub.Challenge",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.bad_verify_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.whatsapp_unavailable: no verify token configured"
+          }
+        },
+        "summary": "Meta's webhook handshake (verify token); not for the apps",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "post": {
+        "operationId": "whatsapp_webhook_v1_webhooks_whatsapp_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-hub-signature-256",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "title": "X-Hub-Signature-256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid: not a JSON object"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.bad_signature"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "notifications.whatsapp_unavailable: no app secret configured"
+          }
+        },
+        "summary": "WhatsApp's webhook (signed by Meta): delivery receipts; not for the apps",
+        "tags": [
+          "notifications"
         ]
       }
     }

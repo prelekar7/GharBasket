@@ -1,6 +1,6 @@
 # M4 — Orders & Checkout
 
-**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08
+**Status:** Draft v1; §3.1 (slots, box orders, add-ons, cancel, cut-off) frozen for S2; §3.2 (order issues) frozen on 2026-10-08; §3.3–§3.7 (live timeline, paying a failed order, tiffin orders, issue triage, facade additions) drafted 2026-10-09, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S2 (cut-off in S3)
 **Postgres schema:** `orders` · **Python package:** `gharbasket.modules.orders`
@@ -24,8 +24,12 @@ The order of record for boxes, tiffins and add-ons: creation from approved cycle
 |---|---|---|---|---|
 | GET | `/v1/orders` | customer (own), hub staff (hub) | — | Filters: status, from, to; cursor |
 | GET | `/v1/orders/{id}` | owner, hub staff | — | Includes lines and timeline; ETag |
-| GET | `/v1/orders/{id}/events` | owner, hub staff | — | SSE (P3; S2 clients poll the detail) |
-| POST | `/v1/orders` | customer | Required | Direct order (tiffin, add-on only); P3 |
+| GET | `/v1/orders/{id}/events` | owner, hub staff | — | SSE, or JSON for polling clients (§3.3) |
+| POST | `/v1/orders` | customer | Required | Direct tiffin order (§3.5, S6); add-ons stay on the box |
+| POST | `/v1/orders/{id}/pay` | owner | Required | Pay a `payment_failed` order from the wallet during the grace period (§3.4) |
+| GET | `/v1/tiffin-menus?date=&meal=` | Authenticated | — | Menus to book (§3.5; data owned by M2) |
+| GET | `/v1/admin/order-issues[/{id}]` | hub_manager (hub), admin | — | Triage queue and detail with photo links (§3.6) |
+| POST | `/v1/admin/order-issues/{id}/resolve` | hub_manager (hub), admin | Required | Credit or reject (§3.6) |
 | POST | `/v1/orders/{id}/addons` | owner | Required + `If-Match` | Add, change or remove add-on lines before cut-off |
 | POST | `/v1/orders/{id}/cancel` | owner | Required | Before `locked` |
 | POST | `/v1/orders/{id}/issues` | owner | Required | Report a problem with a delivery; auto-credit or triage (§3.2) |
@@ -82,7 +86,9 @@ OrderOut : {
                                                        Σ line totals; after packing, what was paid
                                                        net of shortage refunds
   "version": 3, "created_at", "locked_at": "…" | null,
-  "timeline": [ { "status": "approved", "at": "…", "actor": "customer" | "system" | "hub" } ] }
+  "timeline": [ { "status": "approved", "at": "…",
+                 "actor": "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen" } ] }
+                                     the kind of actor only, never a name or user id (ADR-0026 §2)
 
 GET /v1/orders?status=&from=&to=&hub_id=&cursor=&limit=
   200 : Page[OrderOut without lines and timeline]   newest delivery first; limit <= 100, default 20;
@@ -117,15 +123,37 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 - `orders.locked { order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, lines: [ { product_id, qty, step_qty, step_unit } ] }`
 - `orders.payment_failed { order_id, household_id, shortfall_paise, grace_until }` (M5's `billing.payment_failed` is for Autopay captures, pilot phase)
 - `orders.cancelled { order_id, household_id, reason: "customer" | "payment" | "skipped" }`
-- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`) are published when M6/M7 call `orders.api.transition`.
-- `orders.shortage_substituted { order_id, product_id, shortage_qty, substitute_product_id | null, refund_paise, total_paise }` is published by `mark_shortage` (`product_id` is the original; `refund_paise` may be 0 for a same-price substitute).
+- Fulfilment events (`orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`) are published when M6/M7/M8 call `orders.api.transition`: `{ order_id, household_id, hub_id, society_id, delivery_date, slot_id, total_paise, kind: "box" | "addon" | "tiffin", actor, …the caller's payload }`.
+- `orders.shortage_substituted { order_id, household_id, product_id, shortage_qty, substitute_product_id | null, refund_paise, total_paise }` is published by `mark_shortage` (`product_id` is the original; `refund_paise` may be 0 for a same-price substitute).
+- **Every event published by a status change** (the three above and the fulfilment events) carries `kind` and `actor` (the kind of actor, never the person's id), so a consumer that cares about tiffins or boxes filters on `kind` (ADR-0026 §3).
+
+**State machine per order kind** (ADR-0026 §2, §3; `orders/state.py`). M4 checks only that the move exists for the order's kind and that this kind of actor may make it; whether *this* packer, rider, captain or kitchen may act on *this* order is checked by the calling module (M6: `packer:<hub>`; M7: the active captain of the order's society through `community.api`, or the rider who owns the route; M8: the kitchen holding the assignment). `hub` is a hub manager acting from the console, an override for every fulfilment move. A move that is not in the table for the order's kind, or by an actor not listed, is 409 `orders.illegal_transition` with `kind`, `from`, `to` (and `actor` when only the actor is wrong).
+
+| From → to | Box / add-on orders | Tiffin orders |
+|---|---|---|
+| approved → locked / payment_failed | system | system |
+| payment_failed → locked | system, customer (`POST /v1/orders/{id}/pay`, §3.4) | system, customer |
+| approved → cancelled; payment_failed → cancelled | customer, system | customer, system |
+| locked → picking | packer, hub | kitchen (preparing), hub |
+| picking → packed | packer, hub | kitchen (ready), hub |
+| locked → packed | hub (fast path) | — |
+| packed → dispatched | rider (route start), hub | rider (pickup scan at the kitchen), hub |
+| redelivery → dispatched | rider, hub | — |
+| dispatched → at_society | captain (handover scan), rider (only where the society has no active captain; M7 checks), hub | — |
+| at_society → delivered | captain, rider (no captain), hub | — |
+| at_society → undelivered | captain, rider (no captain), system (`hold_expiry`), hub | — |
+| dispatched → delivered / undelivered | — | rider, captain, hub |
+| undelivered → redelivery | customer, hub | — |
+| undelivered → refunded | customer, system | system (at once; a lunch is never redelivered) |
+
+Tiffins therefore never reach `at_society` or `redelivery`, and boxes and add-ons never take `dispatched → delivered`. The tiffin statuses read as handbook 06 §6.3: `approved` = scheduled, `locked` = locked (the kitchen assignment is M8 data), `picking` = preparing, `packed` = ready, `dispatched` = picked up; the apps label them by kind.
 
 **For other modules** (`orders/api.py`, no HTTP):
 - `create_from_cycle(session, cycle: ApprovedCycle) -> Order` — M3 calls it in the approve transaction (so the customer's answer carries `order_id` and a full slot is refused on the spot; `subscriptions.box_approved` is published alongside for M11 and analytics); idempotent per `cycle_id`. **When the order already exists and is still `approved`, a higher `version` replaces its box lines and totals (add-ons are kept)**: an edit after approval re-publishes the event. `ApprovedCycle` carries `cycle_id, household_id, hub_id, society_id, delivery_date, slot_id, lines [ { product_id, qty, unit_price_paise, reason_code, reason_params } ], version`. Box line prices are frozen here; `total_paise` = Σ qty × unit price.
 - `cancel_from_cycle(session, cycle_id, reason="skipped")` — a skip before the cut-off cancels the order.
-- `transition(session, order_id, to, *, actor, payload=None)` — M6/M7 move fulfilment statuses; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event.
-- `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",)) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later).
-- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None) -> OrderLine` — M6 packing (ADR-0026 §6), while the order is `locked`, `picking` or `packed` (else `orders.not_editable`); `shortage_qty` is 1 to the line's `qty`. A partial shortage is refunded (`shortage_qty` × the line's unit price), never partly substituted. A whole-line shortage may instead name one substitute from `catalog.api.substitute_ids` that is not already on the order and costs no more per step at the hub today: the line takes the substitute's product, step and price (same `qty`, planner reason cleared), `substituted_from` keeps the original, and the difference is refunded; otherwise `orders.substitute_invalid` with `reason` (`partial`, `on_order`, `not_a_substitute`, `no_price`, `pricier`), or `orders.product_unknown`. The refund goes through `billing.api.refund_to_wallet(owner, order_id, amount, reason=f"short_{product_id.hex}")` in the caller's transaction (key `refund:<order>:short_<hex>`), and the order's totals are recomputed from its lines. One shortage per line: the same call again returns the line and moves no money; a different one is `orders.shortage_recorded`. If the wallet cap refuses the refund, `billing.wallet_limit` is raised as is and nothing is recorded (a shortage is never kept without its refund). The household "never substitute, refund" preference arrives with M1.
+- `transition(session, order_id, to, *, actor, actor_user_id=None, payload=None)` — M6/M7/M8 (and the cut-off jobs) move statuses along the order kind's state machine above; `actor` is the kind of actor (`customer | system | hub | packer | rider | captain | kitchen`) and `actor_user_id` the person who made the move (none for `system`), recorded on the `order_events` row and never shown to customers or exported; every illegal transition raises `orders.illegal_transition`; each call writes `order_events` and publishes the matching event with `kind` and `actor`.
+- `orders_for_delivery(session, hub_id, delivery_date, statuses=("locked",), kinds=None) -> list[OrderSummary]` — M6 procurement and packing, M7 routing (society, slot, lines, crates later); `kinds` narrows the list (say `("tiffin",)` for M8, `("box", "addon")` for hub packing), every kind by default.
+- `mark_shortage(session, order_id, product_id, shortage_qty, substitute_product_id | None) -> OrderLine` — M6 packing (ADR-0026 §6), while the order is `locked`, `picking` or `packed` (else `orders.not_editable`); `shortage_qty` is 1 to the line's `qty`. A partial shortage is refunded (`shortage_qty` × the line's unit price), never partly substituted. A whole-line shortage may instead name one substitute from `catalog.api.substitute_ids` that is not already on the order and costs no more per step at the hub today: the line takes the substitute's product, step and price (same `qty`, planner reason cleared), `substituted_from` keeps the original, and the difference is refunded; otherwise `orders.substitute_invalid` with `reason` (`partial`, `on_order`, `not_a_substitute`, `no_price`, `pricier`), or `orders.product_unknown`. The refund goes through `billing.api.refund_to_wallet(owner, order_id, amount, reason=f"short_{product_id.hex}")` in the caller's transaction (key `refund:<order>:short_<hex>`), and the order's totals are recomputed from its lines. One shortage per line: the same call again returns the line and moves no money; a different one is `orders.shortage_recorded`. If the wallet cap refuses the refund, `billing.wallet_limit` is raised as is and nothing is recorded (a shortage is never kept without its refund). A household that chose "never substitute, refund" (M1 §3.4, read through `identity.api.shortage_preferences` when the shortage is recorded) is refused any substitute with `reason: "refund_preferred"`. `orders.shortage_substituted` carries `household_id` (added 2026-10-09 so M11 knows whom to tell).
 
 **Error codes**
 
@@ -226,19 +254,167 @@ A `damaged` issue without a photo is still accepted (201) and is never rejected 
 | no photo step | Ask for a photo on `damaged` claims: without one the claim waits for the hub (`open_reason: "photo_needed"`) instead of being credited at once |
 | no list | `GET /v1/orders/{id}/issues` |
 
+### 3.3 Live order timeline contract (drafted 2026-10-09, frozen on approval)
+This is the SSE stream named in §3 and handbook 10. The mobile order detail (the live tracking card) and the console's orders board build against it. It is not built yet, and no mock calls it: the mobile `mocks/orders.js` puts a timeline inline as `events[{ to_status, at }]`. Same sign-in and review rules as §3.1.
+
+```
+TimelineEntry : { "id": "<uuidv7>",                 the order_events row; also the SSE event id
+                  "status": "dispatched", "at": "…",
+                  "actor": "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen" }
+                                                    (ADR-0026 §2; never a name or user id)
+
+GET /v1/orders/{id}/events      owner or hub staff of the order's hub
+  Accept: application/json  → 200 { "items": [TimelineEntry], "status", "version", "eta": null }
+                              oldest first; for clients that poll (the S2 behaviour, every 30 s)
+  Accept: text/event-stream → 200, Cache-Control: no-store, X-Accel-Buffering: no
+      event: snapshot   data { "order_id", "status", "version", "timeline": [TimelineEntry], "eta": null }
+      event: status     data TimelineEntry & { "version" }        one per new order_events row
+      event: eta        data { "eta_at": "…", "stops_before": 3 }  (arrives with M7 live tracking)
+      event: end        data { "status" }                         the order reached a final status
+      : ping                                                       a comment every 20 s
+  Reconnect with Last-Event-ID: <TimelineEntry.id> → rows after it are sent before live ones, and
+  no snapshot is sent again
+  404 "orders.not_found" · 429 "orders.too_many_streams" (more than 3 open streams per user)
+```
+
+**Rules**
+- **How it is served.** The stream reads `orders.order_events` for that order every 3 seconds; there is no pub/sub in v1. On the free tier this is cheaper than a Valkey subscriber per connection, and it is enough at demo scale. The stream closes itself after 15 minutes, or at once with `end` when the order is `delivered`, `cancelled` or `refunded`; the client reconnects while the screen is open.
+- **Who may stream.** The same rules as `GET /v1/orders/{id}`: a customer streams only their household's orders, hub staff only their hub's orders, with `X-Active-Role`. A captain or rider follows their own route through M7's `/v1/routes/{id}/live`, not this stream.
+- **Clients.**
+  - The browser `EventSource` cannot send a Bearer header. The console uses cookies, so `EventSource` works there.
+  - The mobile app (Bearer on native) reads the stream with `fetch` and a stream reader (the `X-GB-Client` CSRF rule does not apply to a GET).
+  - Any client that cannot stream polls the JSON form.
+- **`eta`.** It stays `null` until M7 publishes route progress; M7's contract defines how it is computed.
+
+| Mock today (`mocks/orders.js`) | Contract |
+|---|---|
+| `events: [{ to_status: "AT_SOCIETY", at }]` on list items | `GET /v1/orders` stays without the timeline (§3.1); the current order's card calls `GET /v1/orders/{id}` (`timeline`) or this stream. `status` values are lower case (`at_society`) |
+| `eta_by: "10:00"` | `eta.eta_at` from the stream, `null` until M7 |
+| Statuses `ASSIGNED`, `PREPARING`, `READY`, `PICKED_UP` for tiffins | A tiffin uses the box statuses (`locked`, `picking`, `packed`, `dispatched`, ADR-0026 §3); the app labels them by `kind` |
+
+### 3.4 Paying a failed order contract (drafted 2026-10-09, frozen on approval)
+The Week screen's `payment_failed` state ("Top up ₹280", then the box is paid) builds against this. Today it calls `POST /v1/cycles/{id}/pay` in `mocks/subscriptions.js` (`feat/mobile-week-states`). The money and the order are M4's, so the action is on the order. M3 shows the amount due on the cycle (M3 §3.3).
+
+```
+POST /v1/orders/{id}/pay        owner; Idempotency-Key required (it moves money)
+  no body. While the order is payment_failed and before grace_until (T-1 23:00 IST):
+  billing.api.debit_for_order(owner, order_id, total_paise, delivery_date), the same call and key
+  as the cut-off (box:<order id>), so it can never debit twice
+  200 OrderOut (status locked, timeline row actor "customer"); publishes orders.locked as the
+      cut-off does. An order that is already locked (the top-up consumer got there first) also
+      answers 200 with the order unchanged
+  409 "billing.insufficient_balance"  { balance_paise, needed_paise }; the order stays payment_failed
+  409 "orders.not_payable"            the order is approved (not yet due), cancelled, or any other
+                                      status apart from payment_failed and locked
+  409 "orders.payment_grace_over"     after grace_until (payment_grace_expiry cancels it at 23:00)
+
+POST /v1/orders/{id}/cancel     (§3.1) also accepted for a payment_failed order until grace_until:
+                                → cancelled, reason "customer" (the state machine already allows it);
+                                M3's skip of a payment_failed cycle calls this through orders.api
+```
+
+| Mock today | Contract |
+|---|---|
+| `POST /v1/cycles/{id}/pay` with `If-Match` → full Cycle | `POST /v1/orders/{order_id}/pay` (the cycle carries `payment_due.order_id`, M3 §3.3) → `OrderOut`; then refetch the cycle |
+| 402 `billing.insufficient_balance` | 409 `billing.insufficient_balance` with `balance_paise` and `needed_paise` |
+| 409 `orders.invalid_transition` | 409 `orders.not_payable` |
+| The top-up's `onPaid` calls pay | Keep it: after the top-up is `paid`, `pay` answers 200 whether it or the `billing.wallet_topped_up` consumer locked the order |
+
+### 3.5 Direct tiffin orders contract (drafted 2026-10-09, frozen on approval)
+`POST /v1/orders` (§3, "P3") books a home kitchen's tiffin for one meal. The Week day sheet's "Book" button (`useAddTiffin`, `mocks/orders.js` on `feat/mobile-week-day`) builds against this. It ships with M8's kitchen menus in S6. **Add-ons never use this endpoint**: they are lines on the box, through M3's line edits before approval and `POST /v1/orders/{id}/addons` after it (M3 §11).
+
+```
+GET /v1/tiffin-menus?date=&meal=      Authenticated (M2 owns catalog.tiffin_menus; contract here
+                                      because only this flow reads it)
+  200 { "items": [ { "id", "date", "meal": "lunch" | "dinner", "hub_id",
+                     "dishes": [ { "recipe_id", "name" } ], "price_paise": 11000,   per portion
+                     "kitchen": { "partner_id", "display_name", "photo_url": null },  the menu's
+                                                          cook; photo_url null for now (M8 §3.5)
+                     "order_by": "…" } ] }               the cut-off of that date (T-1 21:00 IST)
+                                      approved menus of the caller's hub, date tomorrow … +7
+
+POST /v1/orders                       customer; Idempotency-Key required (one per date and meal)
+  request : { "kind": "tiffin", "menu_id": "<uuid>", "portions": 2 }      portions 1 to 12,
+                                      default the household size
+  201 : OrderOut & { "tiffin": { "menu_id", "meal", "dishes": [ { "recipe_id", "name" } ] } }
+        kind "tiffin", status "approved", one line (the menu's tiffin product × portions at the
+        menu price), slot = the hub's active tiffin slot for that meal, cutoff_at as for boxes,
+        "kitchen": null until M8 assigns one (ADR-0026 §3)
+  publishes orders.tiffin_booked { order_id, household_id, delivery_date, meal, portions }
+```
+
+**Rules**
+- **Paid like a box.** The tiffin is paid at the 21:00 cut-off with the same `cutoff_lock` handshake (§3.1); it is `approved` until then and can be cancelled for free (`POST /v1/orders/{id}/cancel`). One tiffin per household per date and meal: a second one gets 409 `orders.tiffin_already_booked` with `order_id`.
+- **The kitchen.** A tiffin menu is one kitchen partner's offer for a date and meal (`catalog.tiffin_menus`, M2 §4, shown to her hub's customers once approved), so the menu names the cook the customer saw. M4 copies it to the order as `preferred_partner_id` at booking. That cook is a preference, not a hard choice (owner, 2026-10-09): the fair assignment (M8 `assign_kitchens`, T-1 21:30, M8 §3.4) gives the order to her while she is eligible and has capacity left, and otherwise moves it to another eligible kitchen (one with the skills of the menu's tiffin product); the customer is not asked again. If no kitchen takes it by the meal's `ready_by` minus 2 hours, M8's `refund_unassigned_tiffins` calls `transition(…, "refunded", actor="system", payload={"reason": "no_kitchen"})`: the tiffin-only move `locked → refunded` of ADR-0027, which refunds the whole paid total at once through `billing.api.refund_to_wallet`, and M11 tells the customer (`billing.refund_issued`). The order shows the kitchen that cooks it after `set_kitchen` (ADR-0026 §3).
+- **Slots.** Tiffin slots are `orders.slots` with `kind: tiffin`. They gain a `meal` column (`lunch`, `dinner`; null for box slots), so the server picks the slot; the client never sends one. A full slot is 409 `orders.slot_full`.
+- **The Week screen.** M3 consumes `orders.tiffin_booked` and, while the cycle can still be edited, sets that meal to `tiffin` exactly as `PUT /v1/cycles/{id}/meals` with `set: "tiffin"` does (M3 §3.2: the meal's ingredients leave the box). A cancelled tiffin (`orders.cancelled` with `kind: tiffin`) sets the meal back to `planned`. After the cycle's cut-off the box does not change.
+- **`kind: "addon"` (or `box`)** is 422 `orders.kind_unavailable`. Add-on-only orders are refused (owner, 2026-10-09): add-ons ride only on a box, so a household that skipped the week un-skips it first (M3 §3.3).
+
+| Mock today | Contract |
+|---|---|
+| `{ kind: "tiffin", delivery_date, slot: "dinner", kitchen_id }` | `{ kind: "tiffin", menu_id, portions }`: the menu fixes date, meal, price and the cook |
+| `cycle.meal_plan.days[].tiffin_offer { kitchen_id, slot, cook, dish, price_paise, order_by }` | `GET /v1/tiffin-menus?date=` (the cycle does not carry offers) |
+| 409 `orders.already_booked` | 409 `orders.tiffin_already_booked` with `order_id` |
+| 422 `orders.invalid_order` | 422 `orders.menu_unknown` (not approved, other hub, past `order_by`), `orders.kind_unavailable`, `orders.qty_invalid` (portions) |
+| 201 `{ id, delivery_date, slot, kitchen_id }` | 201 `OrderOut` with `tiffin` |
+
+### 3.6 Issue triage contract (drafted 2026-10-09, frozen on approval)
+This is the console's queue for issues that stay `open` (§3.2), resolved through the existing `orders.api.resolve_issue`. M4 serves the endpoints because it owns the issues; the page sits in the console's Hub section. No console page or mock exists yet. Permission `order_issues:resolve` (§7).
+
+```
+IssueTriage : IssueOut (§3.2) & {
+  "household_id", "hub_id", "society_id", "delivery_date",
+  "order_total_paise": 69000,
+  "creditable_paise": 52000,        what is left of the order's paid total after shortage
+                                    refunds and earlier credits
+  "max_credit_paise": 4000,         what resolve_issue would accept now (amount_paise, or the
+                                    order total for late/other, capped by creditable_paise)
+  "auto_credited_7d_paise": 1500,   the household's automatic credits in the last 7 days
+  "callback_due_at": "…" | null }   created_at + callback_within_minutes, while open
+
+GET  /v1/admin/order-issues?hub_id=&status=open&kind=&cursor=&limit=
+     Page[IssueTriage], oldest open first (the callback promise); hub_id must be in the caller's
+     scope (admins may leave it out)
+GET  /v1/admin/order-issues/{id}
+     200 IssueTriage & { "photos": [ { "url": "<5-minute signed GET>", "expires_at" } ],
+                         "contact": { "name", "phone_e164" } }
+     each photo link minted and each contact read is audit-logged; contact comes from
+     identity.api.contact_for_household (the hub calls the customer back)
+POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may move money)
+  request : { "outcome": "credit" | "reject", "credit_paise": 4000,      credit only
+              "note": "…" }                                              required for reject; ≤ 500
+  200 IssueTriage                    resolution { by: "hub", note, at }; publishes orders.issue_resolved
+  409 "orders.issue_not_open" · 422 "orders.issue_credit_invalid" { max_paise }
+  422 "billing.wallet_limit" { room_paise }   the issue stays open; try a smaller credit
+  404 "orders.issue_not_found" · 403 "auth.forbidden" (another hub)
+```
+
+### 3.7 Facade additions for the leftovers (drafted 2026-10-09)
+- `has_open_orders(session, household_id) -> bool` and `has_open_issues(session, household_id) -> bool`: preconditions of M1's purge (M1 §3.5).
+- `anonymise_for_user(session, user_id, household_id) -> dict[str, int]` (M1 §3.5):
+  - deletes the household's issue photos (`platform.files`) and clears `photo_keys` and `note`;
+  - sets `order_events.actor_user_id` to null where it is this user;
+  - keeps orders, lines, events and issue amounts.
+- `mark_shortage` refuses a substitute for a household whose M1 `shortage_preference` is `refund`: 422 `orders.substitute_invalid` with `reason: "refund_preferred"` (M1 §3.4).
+- **Fulfilment events gain `actor` and `actor_user_id`** (internal only, never shown to customers), so that M8 can attribute earnings without reading M4's tables (M8 §3.6, M5 §3.5). This is in addition to `kind` (ADR-0026 §3).
+- `orders_for_delivery` returns, for tiffins, the tiffin lines, `slot_id` and `preferred_partner_id` (M8 §3.4).
+- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10).
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `orders.orders` | id, household_id, hub_id, society_id, kind (box, tiffin, addon), cycle_id (unique), delivery_date, slot_id, cutoff_at, status, subtotal_paise, fees_paise, discount_paise, total_paise, version, locked_at, data_source, created_at |
+| `orders.orders` | id, household_id, hub_id, society_id, kind (box, tiffin, addon), cycle_id (unique among orders that are not cancelled), delivery_date, slot_id, cutoff_at, status, subtotal_paise, fees_paise, discount_paise, total_paise, version, locked_at, data_source, created_at |
 | `orders.order_lines` | order_id, product_id, kind (box, addon), qty, step_qty, step_unit, unit_price_paise, reason_code, reason_params jsonb, substituted_from, shortage_qty |
-| `orders.order_events` | id, order_id, from_status, to_status, actor, payload jsonb, at |
+| `orders.order_events` | id, order_id, from_status, to_status, actor (customer, system, hub, packer, rider, captain, kitchen), actor_user_id (nullable; the person, never shown to customers), payload jsonb, at |
 | `orders.slots` | id, hub_id, label, kind (box, tiffin), start_time, end_time, capacity, active |
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
 | `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
 | `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
 
+Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots only); `orders.orders.tiffin_menu_id`, `preferred_partner_id` (the menu's kitchen) and `portions` (tiffin only); `orders.orders.cycle_id` stays unique only among orders that are not `cancelled` (a partial unique index), so a cycle that is skipped and then un-skipped (M3 §3.3) can get a new order.
+
 ## 5. Events
-**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
+**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
 **Consumed:** `subscriptions.box_approved` (→ `create_from_cycle`), `subscriptions.box_skipped` (→ `cancel_from_cycle`), `billing.wallet_topped_up` (retry a failed debit in the grace period); `billing.payment_failed` (Autopay captures, pilot phase).
 
 ## 6. Jobs
@@ -263,16 +439,20 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 **Mobile:** Orders list, order detail with timeline and live tracking, add-ons. **Console:** orders board (by status/slot), cut-off monitor, slot configuration.
 
 ## 9. Tests required
-- Unit: state machine transitions (all illegal transitions rejected).
+- Unit: state machine transitions per order kind and actor (every move in the table allowed for exactly its actors, all others rejected).
 - Property (hypothesis): random sequences of edits/cancels/locks never yield an order in two states or a negative total.
 - Integration: cut-off idempotency (run twice → no double lock or debit).
 - Load (k6): cut-off with 2,000 orders under 60 s.
 - E2E: approve → lock → status stream to delivered.
 
+- Leftovers (§3.3–§3.7): the stream sends a snapshot, then one `status` per new event, and `end` at a final status; Last-Event-ID replays only later rows; a fourth stream gets 429; JSON and SSE forms agree. `pay` debits once under replays and races with the top-up consumer (one `box:` entry), answers 200 for an already locked order, 409 after the grace period. Tiffin: one per date and meal, refused after `order_by`, paid at the cut-off, M3 marks the meal; `kind: addon` 422. Triage: hub scope enforced, credit above `max_credit_paise` 422, a replayed resolve moves money once, photo links and contact reads are audit-logged.
 ## 10. Dependencies
-M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture, shortage and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7 call `orders.api` for fulfilment transitions.
+M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture, shortage and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7/M8 call `orders.api` for fulfilment transitions (ADR-0026).
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
 - **Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.
 - Direct orders (`POST /v1/orders`) and the SSE stream arrive in P3 with tiffins and live tracking.
+- **Decided by the owner (2026-10-09):**
+  - ~~Leftovers (§3.5): add-on-only orders outside a box (e.g. a week the household skipped): refuse them, or let an add-on-only order un-skip the week?~~ Decided: add-on-only orders are refused (`orders.kind_unavailable`); M4 does not depend on M3's delivery days.
+  - ~~Leftovers (§3.5): may the customer choose the kitchen, or does the fair assignment (M10/M8) always decide?~~ Decided: the cook on a tiffin menu is a preference, not a hard choice; the assignment may move the order to another eligible kitchen when hers cannot take it (M8 §3.4).

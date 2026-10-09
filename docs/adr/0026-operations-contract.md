@@ -1,6 +1,6 @@
 # ADR-0026 — Operations contract: units, order actors, tiffin states, captains and hubs
 
-- **Status:** Accepted (2026-10-09, by the owner; open questions answered the same day)
+- **Status:** Accepted (2026-10-09, by the owner; open questions answered the same day); amended by [ADR-0027](0027-operations-contract-amendments.md) (unassigned tiffins, boxes missed twice, captain pay, M7's order moves)
 - **Date:** 2026-10-09 (the captain decision was taken by the owner on 2026-10-08)
 - **Decision ID:** D26
 
