@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Response, status
 
+from gharbasket.modules.notifications import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.notifications import service
 from gharbasket.modules.notifications.schemas import InboxOut, PreferencesIn, PreferencesOut
 from gharbasket.platform.auth import CurrentPrincipal

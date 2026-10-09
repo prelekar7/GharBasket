@@ -1,7 +1,8 @@
 # Scheduled jobs on staging (ADR-0021): GitHub Actions calls the API's internal job endpoints with
 # JOBS_TOKEN. Daily and weekly jobs live here; minute-level timing (the 21:00 cut-off, the outbox
-# sweep every few minutes) comes from an external HTTPS cron (cron-job.org) hitting the same
-# endpoints, because a private repository has 2,000 free Actions minutes a month.
+# sweep every few minutes, send_deliveries every minute) comes from an external HTTPS cron
+# (cron-job.org) hitting the same endpoints, because a private repository has 2,000 free Actions
+# minutes a month.
 #
 # Cron minutes are off the hour: GitHub starts :00 schedules late under load. Business rules use
 # `scheduled_for`, which this workflow sends, so a late start changes nothing.
@@ -25,6 +26,7 @@ on:
     - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
+    - cron: "03 23 * * *" # 04:33 IST daily: purge_notifications
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
   workflow_dispatch:
     inputs:
@@ -68,6 +70,7 @@ jobs:
             "33 22 * * *") job=cleanup_idempotency_keys ;;
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
+            "03 23 * * *") job=purge_notifications ;;
             "17 * * * *") job=outbox_sweep ;;
             "") job="$INPUT_JOB" ;;
             *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;
