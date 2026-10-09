@@ -36,7 +36,7 @@ All money and points: the closed-loop prepaid wallet, Razorpay top-ups, UPI Auto
 | GET | `/v1/kindness/balance`, `/v1/kindness/entries` | customer | — | Points, expiry schedule and history (§3.6) |
 | GET | `/v1/payouts` | partner (own) | — | Weekly payouts (§3.5) |
 | GET / POST | `/v1/admin/payouts`, `/v1/admin/payouts/{id}/retry` | admin, hub_manager (hub, read) | Required (POST) | §3.5 |
-| GET | `/v1/statements?period=YYYY-MM` | customer | — | The wallet's month from the ledger, JSON (§3.2); PDF later; partners' earnings statements come with M8 |
+| GET | `/v1/statements?period=YYYY-MM` | customer | — | The wallet's month from the ledger, JSON (§3.2); PDF later; a partner's earnings with `account=earnings` (§3.5) |
 | GET | `/v1/admin/reconciliation` | admin | — | Mismatch report (§3.4) |
 | POST | `/v1/admin/reconciliation/{id}/resolve` | admin | — | Close an item with a note; moves no money (§3.4) |
 
@@ -165,7 +165,7 @@ GET /v1/statements?period=2026-10        Cache-Control: no-store
 
 - **From the ledger only.** Balances are sums of postings to `wallet:<user>`; `balance_after_paise` is the running balance after that entry, in posting order. A month falls by the entry's `at` in IST. A month before the wallet existed answers zeros and `[]`.
 - **Not in it:** Kindness points (a separate currency, M9) and anything that did not post to the wallet (an unpaid or expired top-up).
-- **Later:** a PDF of the same data (`format=pdf`) after MS-B. **Partners' earnings and payout statements** are M8's (Phase 5) and will add their own account to this endpoint; until then a partner gets their customer wallet only.
+- **Later:** a PDF of the same data (`format=pdf`) after MS-B. **Partners' earnings and payout statements** use this endpoint with `account=earnings` (§3.5, with M8 in S6); without it a partner gets their customer wallet.
 
 | Mock today (`mocks/billing.js`) | Contract |
 |---|---|
@@ -284,15 +284,27 @@ POST /v1/admin/reconciliation/{id}/resolve     admin; { "note": "…" } (1 to 50
 US-6 and handbook 05 §5.7: earnings accrue in the ledger when the work is done, and a weekly job pays out what is owed. **M8 decides what a piece of work earns**: it owns the rate card and knows the partner and the assignment. **M5 records the money and pays it out.** The partner Earnings screens and M8's `GET /v1/earnings?week=` read M5. Ships with M8 in S6.
 
 ```
-billing.api.accrue_earning(session, partner_id, kind, ref_type, ref_id, amount_paise, earned_at)
-    kind: "captain_commission" | "kitchen_share" | "rider_fee" | "packer_fee" | "bonus"
-    one "earning" entry (fulfilment_expense → partner_payable:<partner>), key earning:<kind>:<ref_id>,
-    so a replayed event never pays twice. M8 calls it in its consumers, e.g. on orders.delivered with
-    actor "captain" (a captain earns per bag when it is delivered, M8 §3.6; M4 §3.7 events carry
-    actor_user_id) or orders.delivered of a tiffin
-billing.api.reverse_earning(session, partner_id, kind, ref_id, reason)  "earning_reversal", the opposite
-    legs, key earning_reversal:<kind>:<ref_id>; at most what was accrued
-billing.api.partner_week(session, partner_id, week) -> { earned_paise, by_kind, payout | None }   for M8
+billing.api.accrue_earning(session, *, partner_id, basis, ref_type, ref_id, units, amount_paise,
+                           earned_at) -> entry_id
+    basis: a basis of M8's rate card: "tiffin_portion" | "bag_delivered" | "dispatched_order" |
+    "packed_order" (M8 §3.6); ref_type "order"; units (portions, bags or orders) and basis are kept
+    on the entry for the earnings view. One "earning" entry (fulfilment_expense →
+    partner_payable:<partner>), key earning:<partner_id>:<basis>:<ref_id>, so a replayed event never
+    pays twice. M8 calls it in its consumers of M4's fulfilment events, in the consumer's
+    transaction: e.g. orders.delivered with actor "captain" (₹6 a bag; M4 §3.7 events carry
+    actor_user_id) or orders.delivered of a tiffin (the kitchen's portions)
+billing.api.reverse_earning(session, *, partner_id, basis, ref_id, reason)   "earning_reversal", the
+    opposite legs, key earning_reversal:<partner_id>:<basis>:<ref_id>; at most what was accrued.
+    M8 does not call it in v1 (a refund does not claw back an earning, M8 §3.6); for corrections
+billing.api.partner_week(session, partner_ids, week) -> PartnerWeek          for M8's GET /v1/earnings
+    PartnerWeek : { "from", "to", "total_paise",       ISO week, Monday–Sunday IST, by earned_at
+                    "by_basis": [ { "partner_id", "basis", "units", "amount_paise" } ],
+                    "days": [ { "date", "amount_paise" } ],   7 entries
+                    "entries": [ { "id", "partner_id", "basis", "units", "amount_paise",
+                                   "ref": { "type", "id" }, "at" } ],
+                    "payouts": [ PayoutOut ] }          that week's payouts of those partners
+billing.api.partner_rolling_earnings(session, partner_ids, basis, since) -> { partner_id: paise }
+    earnings less reversals since a date, for M8's fair assignment (M10's earnings_paise)
 
 PayoutOut : { "id", "partner_id", "week": "2027-W03", "period": { "from", "to" },   IST Monday–Sunday
               "amount_paise": 84000,
@@ -305,16 +317,16 @@ GET  /v1/payouts?cursor=&limit=                partner (own, X-Active-Role a par
 GET  /v1/statements?period=2027-01&account=earnings
                                                partner (own): the §3.2 Statement over partner_payable;
                                                entry kinds earning, earning_reversal, payout,
-                                               payout_reversed; ref { "type": "order" | "route" | "payout", "id" }
+                                               payout_reversed; ref { "type": "order" | "payout", "id" }
 GET  /v1/admin/payouts?week=&status=&hub_id=&cursor=    admin, hub_manager (hub)   Page[PayoutOut & { "partner": { "display_name", "kind" } }]
 POST /v1/admin/payouts/{id}/retry              admin; Idempotency-Key; a held or failed payout once
                                                the reason is fixed → 200 PayoutOut (pending)
 ```
 
-**`weekly_payouts`** (Monday 10:00 IST, after M8's `weekly_earnings_statement` at 09:00; advisory lock):
+**`weekly_payouts`** (Monday 10:00 IST; advisory lock; the weekly statement is the partner's `GET /v1/statements?account=earnings` above, so no separate statement job runs):
 1. **What is owed.** For each partner, the balance of `partner_payable:<partner>` counts entries up to Sunday 23:59:59 IST. Anything earned later is paid the next week.
-2. **The minimum.** A balance under ₹100 is carried forward with no row.
-3. **Eligibility.** `partners.api.payout_eligibility(partner_id) -> { eligible, reason, payout_account_ref }` checks that the partner is verified, KYC is verified, there is a bank account (penny-drop) or a Route linked account, and the partner is not suspended. If not eligible, a `held` row records the reason and nothing is posted; the next run, or a retry, tries again.
+2. **The minimum.** A balance under ₹100 is carried forward with no row, except for a partner who `left` (account deletion, M1 §3.5): her whole balance is paid, so the purge's "partner payable is 0" precondition can be met.
+3. **Eligibility.** `partners.api.payout_eligibility(session, partner_id) -> { eligible, reason }` (M8 §3.7), `reason` one of `kyc_incomplete`, `suspended`, `no_payout_account` or null: the partner is `active`, `paused` or `left` (a partner who left is still paid what she earned; a `suspended` one is held), its KYC documents are accepted, and its `bank` document is accepted with a passed penny drop. If not eligible, a `held` row records the reason and nothing is posted; the next run, or a retry, tries again. The account details come only from `partners.api.payout_account(session, partner_id)` (it decrypts and is audit-logged); only a real provider calls it, never the simulated one.
 4. **Eligible.** A `pending` row is created, and the `payout` entry (partner_payable:P → payout_clearing, key `payout:<partner>:<week>`) is posted in the same transaction. A rerun of the job finds the key and never pays twice.
 5. **The provider is called** after commit, within the same job:
    - `simulated` answers `processed` at once with `pout_sim_<id>`. It is the only provider the prototype builds (owner, 2026-10-09);
@@ -323,7 +335,7 @@ POST /v1/admin/payouts/{id}/retry              admin; Idempotency-Key; a held or
 7. **`billing.payout_sent { payout_id, partner_id, amount_paise, status }`** is published on `processed` and `failed`, for M11's partner messages.
 
 - **Tax.** No TDS is deducted in the prototype (§11).
-- **Earnings mirror.** `partners.earnings` in M8's spec becomes unnecessary: M8 reads `partner_week`. M8 drops the mirror table at its PR.
+- **Earnings mirror.** M8 keeps no `partners.earnings` table: it reads `partner_week` (M8 §3.6).
 
 ### 3.6 Kindness points contract (drafted 2026-10-09, frozen on approval)
 Kindness points are a separate currency (`KINDNESS_PTS`), never money and never cash (ADR-0004, handbook 06 §6.7). The mobile Wallet and Kindness screens (`useKindness`, `mocks/billing.js`) and M9's donation verification build against this. Ships with M9 donations in S9. **Points are redeemed only as donated meals** (owner, 2026-10-09, below): they have no cash value and never come off a box or into the wallet.
@@ -389,7 +401,7 @@ If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate 
 
 ### 4.1 Ledger rules (handbook 05 §5.7)
 - **Accounts:** one account per (owner, currency, purpose), created on first use: `wallet:<user>` (liability, INR) for customers; platform accounts `razorpay_clearing`, `unearned_revenue`, `sales_revenue` and `promo_expense` are seeded by the migration. Added by §3.3–§3.6: `kindness:<user>` (liability, KINDNESS_PTS), `partner_payable:<partner>` (liability, INR, owner type `partner`), and the platform accounts `unclaimed_balances` (liability), `payout_clearing` (asset), `fulfilment_expense` (expense) and `kindness_expense` (expense, KINDNESS_PTS).
-- **Entry kinds** added by §3.3–§3.6: `refund_to_source`, `refund_to_source_failed`, `unclaimed`, `earning`, `earning_reversal`, `payout`, `payout_reversed`, `points_earned`, `points_expired`, `points_donated`; `ref_type` adds `refund`, `payout`, `donation`, `route`.
+- **Entry kinds** added by §3.3–§3.6: `refund_to_source`, `refund_to_source_failed`, `unclaimed`, `earning`, `earning_reversal`, `payout`, `payout_reversed`, `points_earned`, `points_expired`, `points_donated`; `ref_type` adds `refund`, `payout`, `donation`.
 - **Entries:** a journal entry has two or more postings; a deferred constraint trigger rejects the transaction unless they sum to zero per currency. Entries are never updated or deleted; a mistake is corrected by a new `adjustment` entry.
 - **Exactly once:** every entry has a unique `idempotency_key` built from what caused it (`topup:<payment id>`, `box:<order id>`, `refund:<order id>:<reason>`). Posting the same key again returns the existing entry.
 - **Balances** are sums of postings, never a stored column. A posting to a wallet first locks that wallet's account row, so two debits at the same moment cannot both pass the balance check. The wallet never goes below zero or above the cap.

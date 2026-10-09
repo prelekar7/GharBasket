@@ -304,7 +304,8 @@ GET /v1/tiffin-menus?date=&meal=      Authenticated (M2 owns catalog.tiffin_menu
                                       because only this flow reads it)
   200 { "items": [ { "id", "date", "meal": "lunch" | "dinner", "hub_id",
                      "dishes": [ { "recipe_id", "name" } ], "price_paise": 11000,   per portion
-                     "kitchen": { "partner_id", "display_name", "photo_url" },     the menu's cook
+                     "kitchen": { "partner_id", "display_name", "photo_url": null },  the menu's
+                                                          cook; photo_url null for now (M8 §3.5)
                      "order_by": "…" } ] }               the cut-off of that date (T-1 21:00 IST)
                                       approved menus of the caller's hub, date tomorrow … +7
 
@@ -320,7 +321,7 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 
 **Rules**
 - **Paid like a box.** The tiffin is paid at the 21:00 cut-off with the same `cutoff_lock` handshake (§3.1); it is `approved` until then and can be cancelled for free (`POST /v1/orders/{id}/cancel`). One tiffin per household per date and meal: a second one gets 409 `orders.tiffin_already_booked` with `order_id`.
-- **The kitchen.** The menu names the cook the customer saw. That cook is a preference, not a hard choice (owner, 2026-10-09): the fair assignment (M8 `assign_kitchens`, T-1 21:30) prefers that kitchen and may move the order to another kitchen with the same menu when capacity runs out, and the customer is not asked again. If no kitchen can take it, M8 calls `transition(…, "refunded", actor="system")`. That is a new tiffin-only move `locked → refunded`, added to the per-kind table of ADR-0026 §2. It refunds the debit at once through `billing.api.refund_to_wallet(reason="no_kitchen")`, and M11 tells the customer. The order shows the kitchen after `set_kitchen` (ADR-0026 §3).
+- **The kitchen.** A tiffin menu is one kitchen partner's offer for a date and meal (`catalog.tiffin_menus`, M2 §4, shown to her hub's customers once approved), so the menu names the cook the customer saw. M4 copies it to the order as `preferred_partner_id` at booking. That cook is a preference, not a hard choice (owner, 2026-10-09): the fair assignment (M8 `assign_kitchens`, T-1 21:30, M8 §3.4) gives the order to her while she is eligible and has capacity left, and otherwise moves it to another eligible kitchen (one with the skills of the menu's tiffin product); the customer is not asked again. If no kitchen takes it by the meal's `ready_by` minus 2 hours, M8's `refund_unassigned_tiffins` calls `transition(…, "refunded", actor="system", payload={"reason": "no_kitchen"})`: the tiffin-only move `locked → refunded` of ADR-0027, which refunds the whole paid total at once through `billing.api.refund_to_wallet`, and M11 tells the customer (`billing.refund_issued`). The order shows the kitchen that cooks it after `set_kitchen` (ADR-0026 §3).
 - **Slots.** Tiffin slots are `orders.slots` with `kind: tiffin`. They gain a `meal` column (`lunch`, `dinner`; null for box slots), so the server picks the slot; the client never sends one. A full slot is 409 `orders.slot_full`.
 - **The Week screen.** M3 consumes `orders.tiffin_booked` and, while the cycle can still be edited, sets that meal to `tiffin` exactly as `PUT /v1/cycles/{id}/meals` with `set: "tiffin"` does (M3 §3.2: the meal's ingredients leave the box). A cancelled tiffin (`orders.cancelled` with `kind: tiffin`) sets the meal back to `planned`. After the cycle's cut-off the box does not change.
 - **`kind: "addon"` (or `box`)** is 422 `orders.kind_unavailable`. Add-on-only orders are refused (owner, 2026-10-09): add-ons ride only on a box, so a household that skipped the week un-skips it first (M3 §3.3).
@@ -371,7 +372,9 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
   - sets `order_events.actor_user_id` to null where it is this user;
   - keeps orders, lines, events and issue amounts.
 - `mark_shortage` refuses a substitute for a household whose M1 `shortage_preference` is `refund`: 422 `orders.substitute_invalid` with `reason: "refund_preferred"` (M1 §3.4).
-- **Fulfilment events gain `actor` and `actor_user_id`** (internal only, never shown to customers), so that M8 can attribute commissions without reading M4's tables (M5 §3.5). This is in addition to `kind` (ADR-0026 §3).
+- **Fulfilment events gain `actor` and `actor_user_id`** (internal only, never shown to customers), so that M8 can attribute earnings without reading M4's tables (M8 §3.6, M5 §3.5). This is in addition to `kind` (ADR-0026 §3).
+- `orders_for_delivery` returns, for tiffins, the tiffin lines, `slot_id` and `preferred_partner_id` (M8 §3.4).
+- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10).
 
 ## 4. Tables owned
 | Table | Key columns |
@@ -384,7 +387,7 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 | `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
 | `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
 
-Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots only); `orders.orders.tiffin_menu_id` and `portions` (tiffin only); `orders.orders.cycle_id` stays unique only among orders that are not `cancelled` (a partial unique index), so a cycle that is skipped and then un-skipped (M3 §3.3) can get a new order.
+Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots only); `orders.orders.tiffin_menu_id`, `preferred_partner_id` (the menu's kitchen) and `portions` (tiffin only); `orders.orders.cycle_id` stays unique only among orders that are not `cancelled` (a partial unique index), so a cycle that is skipped and then un-skipped (M3 §3.3) can get a new order.
 
 ## 5. Events
 **Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
@@ -428,4 +431,4 @@ M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/captur
 - Direct orders (`POST /v1/orders`) and the SSE stream arrive in P3 with tiffins and live tracking.
 - **Decided by the owner (2026-10-09):**
   - ~~Leftovers (§3.5): add-on-only orders outside a box (e.g. a week the household skipped): refuse them, or let an add-on-only order un-skip the week?~~ Decided: add-on-only orders are refused (`orders.kind_unavailable`); M4 does not depend on M3's delivery days.
-  - ~~Leftovers (§3.5): may the customer choose the kitchen, or does the fair assignment (M10/M8) always decide?~~ Decided: the cook on a tiffin menu is a preference, not a hard choice; the assignment may move the order to another kitchen with the same menu.
+  - ~~Leftovers (§3.5): may the customer choose the kitchen, or does the fair assignment (M10/M8) always decide?~~ Decided: the cook on a tiffin menu is a preference, not a hard choice; the assignment may move the order to another eligible kitchen when hers cannot take it (M8 §3.4).

@@ -266,8 +266,9 @@ DELETE /v1/me              no body; no Idempotency-Key (DELETE is naturally idem
   202 : { "status": "scheduled", "requested_at": "…", "purge_on": "2026-11-08",   IST date
           "wallet_refund": { "refund_id": "<uuid>", "amount_paise": 41000 } | null }
                            repeating it (e.g. a retried request) answers the same body
-  409 "identity.staff_account"    the caller holds admin, hub_manager, franchise_owner or
-                                  ngo_coordinator: another admin removes those roles first
+  409 "identity.staff_account"    the caller holds admin, hub_manager, franchise_owner,
+                                  ngo_coordinator or catalog_editor: another admin removes
+                                  those roles first
   403 "identity.fresh_otp_required"   the caller's session was not signed in with an OTP in the
                                   last 5 minutes (below); carries "max_age_s": 300
 
@@ -292,7 +293,7 @@ POST /v1/auth/exchange     (§3.1, additive) gains "keep_account": false (option
 4. **Other modules react.** `identity.deletion_requested { user_id, household_id, purge_on }` is published, and each consumer does its part with no network calls:
    - **M3** ends the subscription (`status: ended`). It skips every cycle that is still before its cut-off, which cancels its `approved` order through M4 as a skip does. A `payment_failed` order is cancelled. Orders that are already paid (`locked` and later) are delivered as normal, because the address stays until the purge.
    - **M5** (called directly, not as a consumer) turns the whole refundable wallet balance into one refund to the original payment source (`reason: "account_deleted"`, M5 §3.3). The balance that cannot be refunded to a source is moved to `unclaimed_balances` (M5 §3.3). The `send_refunds` job makes the Razorpay calls. `wallet_refund` in the answer is that refund. The API creates it in the same transaction through `billing.api.close_wallet`, so the answer can show it.
-   - **M8** pauses the user's partner record (once M8 ships). **M9** ends a captain assignment (`community.captain_ended`).
+   - **M8** marks every partner record of the user `left` and publishes `partners.suspended` with `reason_code: "left"` (M8 §3.3, once M8 ships): future tiffin offers are released, M1 suspends the hub roles, and **M9** ends a captain assignment (`community.captain_ended`), after which M1 removes `captain:<society>`. A partner who left is still paid what she earned (M5 §3.5).
    - **M11** sends nothing more to the user. It checks `identity.api.is_active(user_id)` at send time.
 5. **It is audit-logged.** The action is `identity.deletion_requested`, with no before/after personal data.
 
@@ -377,7 +378,7 @@ Signing up again with the same phone after the purge creates a new user with a n
 - `identity.household_updated` `{household_id, version, changed: [field names]}`.
 - `identity.user_deleted` `{user_id, household_id}`: published by `purge_deleted_users` once every module has erased its data (§3.5).
 - No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
-**Consumed:** `partners.verified` (activate partner role), `partners.suspended`.
+**Consumed:** `partners.verified` (the hub role for kitchens, riders and packers; nothing for captains), `partners.suspended`, `partners.reinstated`, `community.captain_assigned` and `community.captain_ended` (the `captain:<society>` role; ADR-0026 §4, M8 §10).
 
 ## 6. Jobs
 | Job | Trigger | Notes |
