@@ -18,7 +18,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("
 PRIYA = "+919800001001"  # customer
 VIKRAM = "+919800001008"  # hub manager
 NEHA = "+919800001011"  # admin
-REKHA = "+919800001012"  # catalog editor
+REKHA = "+919800001013"  # catalog editor
 PRODUCTS = "/v1/admin/products"
 
 
