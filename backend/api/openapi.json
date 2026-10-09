@@ -3151,11 +3151,12 @@
             ]
           },
           "total_paise": {
+            "description": "(qty - shortage_qty) x unit_price_paise",
             "title": "Total Paise",
             "type": "integer"
           },
           "unit_price_paise": {
-            "description": "Per step, frozen when the line was made",
+            "description": "Per step, frozen when the line was made; a packing substitute's price",
             "title": "Unit Price Paise",
             "type": "integer"
           }
