@@ -38,6 +38,40 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a hub (admin; Idempotency-Key required; audit-logged) */
+        post: operations["create_hub_v1_admin_hubs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/hubs/{hub_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a hub (admin; If-Match: the hub's version; audit-logged) */
+        patch: operations["patch_hub_v1_admin_hubs__hub_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -487,6 +521,40 @@ export interface paths {
         patch: operations["update_member_v1_households__household_id__members__member_id__patch"];
         trace?: never;
     };
+    "/v1/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hubs the caller works in (admin: every hub), by name */
+        get: operations["list_hubs_v1_hubs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub with its location, service area and day timings (ETag = version) */
+        get: operations["get_hub_v1_hubs__hub_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/price-lists": {
         parameters: {
             query?: never;
@@ -498,6 +566,24 @@ export interface paths {
         put?: never;
         /** Publish a hub's prices from a date (hub manager of that hub; audit-logged) */
         post: operations["publish_price_list_v1_hubs__hub_id__price_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/vendors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vendors, by name */
+        get: operations["list_vendors_v1_hubs__hub_id__vendors_get"];
+        put?: never;
+        /** Add a vendor to a hub (Idempotency-Key required) */
+        post: operations["create_vendor_v1_hubs__hub_id__vendors_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1067,6 +1153,23 @@ export interface paths {
         head?: never;
         /** Pause or resume, or set auto-approve */
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
+        trace?: never;
+    };
+    "/v1/vendors/{vendor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change or deactivate a vendor (If-Match: the vendor's version) */
+        patch: operations["patch_vendor_v1_vendors__vendor_id__patch"];
         trace?: never;
     };
     "/v1/wallet": {
@@ -1671,6 +1774,46 @@ export interface components {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
         };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
+         *     holes, not self-intersecting.
+         */
+        GeoPolygon: {
+            /**
+             * Coordinates
+             * @example [
+             *       [
+             *         [
+             *           73.02,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19
+             *         ]
+             *       ]
+             *     ]
+             */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
         /** Health */
         Health: {
             /** Commit */
@@ -1807,6 +1950,122 @@ export interface components {
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
+        };
+        /** HubIn */
+        HubIn: {
+            /** Address */
+            address: string;
+            location: components["schemas"]["LatLng"];
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Procurement Buffer Pct
+             * @default 10
+             */
+            procurement_buffer_pct: number;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
+            /**
+             * Slug
+             * @description Never changes
+             * @example kharghar
+             */
+            slug: string;
+            /** @description Missing times: the defaults */
+            timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubOut */
+        HubOut: {
+            /** Address */
+            address: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location: components["schemas"]["LatLng"];
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Procurement Buffer Pct
+             * @example 10
+             */
+            procurement_buffer_pct: number;
+            /** @description null until an admin draws it */
+            service_area: components["schemas"]["GeoPolygon"] | null;
+            /**
+             * Slug
+             * @example kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+            timings: components["schemas"]["Timings"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * HubPatch
+         * @description Only the fields sent change; `service_area: null` clears the area.
+         */
+        HubPatch: {
+            /** Address */
+            address?: string | null;
+            location?: components["schemas"]["LatLng"] | null;
+            /** Name */
+            name?: string | null;
+            /** Procurement Buffer Pct */
+            procurement_buffer_pct?: number | null;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
+            /** Status */
+            status?: ("active" | "paused") | null;
+            timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubSummary */
+        HubSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Slug
+             * @example kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+        };
+        /** HubsOut */
+        HubsOut: {
+            /** Items */
+            items: components["schemas"]["HubSummary"][];
         };
         /** IngredientOut */
         IngredientOut: {
@@ -3537,6 +3796,46 @@ export interface components {
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
+         * Timings
+         * @description The hub's day as IST `HH:MM`, in this order; display and job planning only.
+         */
+        Timings: {
+            /**
+             * Dispatch
+             * @example 06:30
+             */
+            dispatch: string;
+            /**
+             * Packing
+             * @example 05:00
+             */
+            packing: string;
+            /**
+             * Receiving
+             * @example 04:00
+             */
+            receiving: string;
+            /**
+             * Surplus
+             * @example 12:30
+             */
+            surplus: string;
+        };
+        /**
+         * TimingsPatch
+         * @description Any of the four; the others keep their current (or default) value.
+         */
+        TimingsPatch: {
+            /** Dispatch */
+            dispatch?: string | null;
+            /** Packing */
+            packing?: string | null;
+            /** Receiving */
+            receiving?: string | null;
+            /** Surplus */
+            surplus?: string | null;
+        };
+        /**
          * TokensOut
          * @description Apps get both tokens. Browsers (`X-GB-Client: web`) get null here: the tokens are set as
          *     httpOnly cookies that JavaScript cannot read.
@@ -3667,6 +3966,118 @@ export interface components {
             phone_e164: string;
             /** Senior Mode */
             senior_mode: boolean;
+        };
+        /** VendorIn */
+        VendorIn: {
+            /**
+             * Is Default
+             * @description true clears it on the hub's other vendor
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "apmc_trader" | "fpo" | "farmer" | "wholesaler";
+            /**
+             * Name
+             * @example Shinde Traders
+             */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Phone
+             * @example +919800002001
+             */
+            phone?: string | null;
+            /**
+             * Whatsapp
+             * @default true
+             */
+            whatsapp: boolean;
+        };
+        /** VendorOut */
+        VendorOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Default
+             * @description Suggested for products with no purchase history
+             */
+            is_default: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "apmc_trader" | "fpo" | "farmer" | "wholesaler";
+            /**
+             * Name
+             * @example Shinde Traders
+             */
+            name: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Phone
+             * @description E.164
+             * @example +919800002001
+             */
+            phone: string | null;
+            /**
+             * Score
+             * @description Last weekly score; null until scored
+             */
+            score: number | null;
+            /** Version */
+            version: number;
+            /**
+             * Whatsapp
+             * @description Purchase orders can be shared on WhatsApp
+             */
+            whatsapp: boolean;
+        };
+        /**
+         * VendorPatch
+         * @description Only the fields sent change; `phone` and `notes` may be null. Deactivating clears
+         *     `is_default`.
+         */
+        VendorPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Kind */
+            kind?: ("apmc_trader" | "fpo" | "farmer" | "wholesaler") | null;
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Whatsapp */
+            whatsapp?: boolean | null;
+        };
+        /** VendorsOut */
+        VendorsOut: {
+            /** Items */
+            items: components["schemas"]["VendorOut"][];
         };
         /** WalletOut */
         WalletOut: {
@@ -3824,6 +4235,170 @@ export interface operations {
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_hub_v1_admin_hubs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.area_invalid, hub_ops.timings_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_hub_v1_admin_hubs__hub_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.area_invalid, hub_ops.timings_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5817,6 +6392,115 @@ export interface operations {
             };
         };
     };
+    list_hubs_v1_hubs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_hub_v1_hubs__hub_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     publish_price_list_v1_hubs__hub_id__price_lists_post: {
         parameters: {
             query?: never;
@@ -5881,6 +6565,152 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vendors_v1_hubs__hub_id__vendors_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vendors */
+                active?: boolean | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vendor_v1_hubs__hub_id__vendors_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7908,6 +8738,107 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vendor_v1_vendors__vendor_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vendor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -109,6 +109,15 @@ PATCH /v1/vendors/{id}                      If-Match; any field above, plus "act
 
 **Hub ids elsewhere** (ADR-0026 §5) are plain UUIDs with no foreign key; M6 publishes `hub_ops.hub_created` and serves `hub_ops.api.get_hub`. A society's polygon outside its hub's service area is allowed (the console warns); no address is refused because of a hub's area in v1.
 
+**As built (PR a, hubs and vendors).** Details the shapes above leave open, settled in the code:
+- `timings` may be sent in part (create and `PATCH`); the missing times keep their current or default values, and the merged day must still be in order.
+- A `PATCH` that changes nothing (every value equal to the stored one) keeps the version and publishes nothing; `hub_updated.changed` lists only fields whose value changed. A field that may not be null (everything except a hub's `service_area` and a vendor's `phone` and `notes`) sent as `null` is 422 `request.invalid`.
+- A body that is not even the GeoJSON shape (`type` other than `"Polygon"`, coordinates not nested number arrays) is 422 `request.invalid`; everything else in the `GeoPolygon` rules (ring count, 4 to 500 points, `[lng, lat]` in India, closed, `ST_IsValid`) is `hub_ops.area_invalid`.
+- An inactive vendor is never the default: deactivating the default vendor clears `is_default` (the hub then has none until one is chosen), and `is_default: true` on an inactive vendor is ignored. Making a vendor the default bumps the previous default's version too.
+- Hub staff of another hub get 404 `hub_ops.hub_not_found` on `GET /v1/hubs/{id}`, 403 `auth.forbidden` on that hub's vendor list and `POST`, and 404 `hub_ops.vendor_not_found` on `PATCH` of its vendors. `POST` and `PATCH` answers carry the `ETag` as well. Hub creates and changes go to `platform.audit_log`.
+- `score` is `null` until vendor scores exist (§3.4).
+- The seed hub is `kharghar`, service area a box around the seed societies (lng 73.02–73.13, lat 18.99–19.05), default vendor "Shinde Traders" (`apmc_trader`).
+
 **Error codes**
 
 | Status | Code | When |

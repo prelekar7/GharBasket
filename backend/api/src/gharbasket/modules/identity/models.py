@@ -198,7 +198,7 @@ class Household(Base):
     society_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("community.societies.id", ondelete="RESTRICT"), index=True
     )
-    # Copied from the society; no foreign key until M6 owns hubs.
+    # Copied from the society; no foreign key: hub ids are checked through hub_ops.api (ADR-0026).
     hub_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     size: Mapped[int] = mapped_column(SmallInteger)
     diet: Mapped[str] = mapped_column(String(8))

@@ -38,8 +38,8 @@ async def test_a_valid_phone_sign_in_token_is_accepted() -> None:
         {"aud": "someone-elses-project"},
         {"iss": "https://securetoken.google.com/someone-elses-project"},
         {"exp": int(time.time()) - 120},
-        {"iat": int(time.time()) + 600},
-        {"auth_time": int(time.time()) + 600},
+        {"iat": int(time.time()) + 86_400},  # a day: parameters are made at collection
+        {"auth_time": int(time.time()) + 86_400},
         {"auth_time": None},
         {"sub": ""},
         {"phone_number": None},
