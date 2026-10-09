@@ -13,7 +13,7 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import service
-from gharbasket.modules.orders.models import SlotBooking
+from gharbasket.modules.orders.models import OrderEvent, SlotBooking
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID
@@ -339,6 +339,18 @@ async def test_cancel_frees_the_slot_and_locked_orders_cannot_be_cancelled(
 
     assert cancelled.json()["status"] == "cancelled" and replay.json() == cancelled.json()
     assert [e["status"] for e in cancelled.json()["timeline"]] == ["approved", "cancelled"]
+    # The timeline names the kind of actor only; the row remembers who it was.
+    assert cancelled.json()["timeline"][-1] == {
+        "status": "cancelled",
+        "at": cancelled.json()["timeline"][-1]["at"],
+        "actor": "customer",
+    }
+    who = await db_session.execute(
+        select(OrderEvent.actor, OrderEvent.actor_user_id).where(
+            OrderEvent.order_id == order_id, OrderEvent.to_status == "cancelled"
+        )
+    )
+    assert who.one() == ("customer", priya_id)
     assert (await db_session.execute(select(SlotBooking))).scalars().all() == []
     events = (await db_session.execute(select(OutboxEvent.event_type, OutboxEvent.payload))).all()
     assert ("orders.cancelled", {"reason": "customer"}) in [
@@ -390,26 +402,79 @@ async def test_the_facade_serves_fulfilment_and_shortages(
     tomato_id = (await catalog_api.product_ids_by_slug(db_session, ["tomato"]))["tomato"]
     line = await orders_api.mark_shortage(db_session, order_id, tomato_id, 1, None)
     assert line.shortage_qty == 1
+    (short,) = (
+        await db_session.execute(
+            select(OutboxEvent.payload).where(
+                OutboxEvent.event_type == "orders.shortage_substituted"
+            )
+        )
+    ).scalars()
+    assert short == {
+        "order_id": str(order_id),
+        "household_id": str(household.id),  # M11 tells the household (M11 §3.1)
+        "product_id": str(tomato_id),
+        "shortage_qty": 1,
+        "substitute_product_id": None,
+        "refund_paise": line.unit_price_paise,
+        "total_paise": order.total_paise,  # after the refund (#142)
+    }
     with pytest.raises(ProblemError) as too_many:
         await orders_api.mark_shortage(db_session, order_id, tomato_id, 5, None)
     assert too_many.value.code == "orders.qty_invalid"
     with pytest.raises(ProblemError) as illegal:
         await orders_api.transition(db_session, order_id, "delivered", actor="hub")
     assert illegal.value.code == "orders.illegal_transition"
-    for to in ("picking", "packed", "dispatched", "at_society", "delivered"):
-        await orders_api.transition(db_session, order_id, to, actor="hub")
-    published = [
-        t
-        for (t,) in (
-            await db_session.execute(select(OutboxEvent.event_type).order_by(OutboxEvent.id))
-        ).all()
+    packer, rider, captain = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    with pytest.raises(ProblemError) as not_a_kitchen_job:
+        await orders_api.transition(
+            db_session, order_id, "picking", actor="kitchen", actor_user_id=uuid.uuid4()
+        )
+    assert not_a_kitchen_job.value.extra == {
+        "kind": "box",
+        "from": "locked",
+        "to": "picking",
+        "actor": "kitchen",
+    }
+    moves = [
+        ("picking", "packer", packer),
+        ("packed", "packer", packer),
+        ("dispatched", "rider", rider),
+        ("at_society", "captain", captain),
+        ("delivered", "captain", captain),
     ]
-    assert published[-4:] == [
-        "orders.packed",
-        "orders.dispatched",
-        "orders.at_society",
-        "orders.delivered",
+    for to, actor, user_id in moves:
+        await orders_api.transition(
+            db_session,
+            order_id,
+            to,
+            actor=actor,
+            actor_user_id=user_id,
+            payload={"scan": "GB1"} if to == "at_society" else None,
+        )
+    published = (
+        await db_session.execute(
+            select(OutboxEvent.event_type, OutboxEvent.payload).order_by(OutboxEvent.id)
+        )
+    ).all()
+    assert [(t, p["kind"], p["actor"]) for t, p in published[-4:]] == [
+        ("orders.packed", "box", "packer"),
+        ("orders.dispatched", "box", "rider"),
+        ("orders.at_society", "box", "captain"),
+        ("orders.delivered", "box", "captain"),
     ]
+    handover = published[-2].payload
+    assert handover["scan"] == "GB1" and handover["order_id"] == str(order_id)
+    assert handover["society_id"] == str(household.society_id) and "actor_user_id" not in handover
+    timeline = (
+        await db_session.execute(
+            select(OrderEvent.to_status, OrderEvent.actor, OrderEvent.actor_user_id)
+            .where(OrderEvent.order_id == order_id)
+            .order_by(OrderEvent.id)
+        )
+    ).all()
+    assert timeline[0] == ("approved", "customer", None)
+    assert timeline[1] == ("locked", "system", None)
+    assert [tuple(row) for row in timeline[2:]] == moves
     assert await orders_api.cancel_from_cycle(db_session, uuid.uuid4()) is None
     skipped_order = await orders_api.create_from_cycle(
         db_session, await approved_cycle(db_session, household, uuid.UUID(slot["id"]), "bhindi")
@@ -420,3 +485,81 @@ async def test_the_facade_serves_fulfilment_and_shortages(
     assert service.cutoff_for(date(2026, 10, 13)) == datetime(2026, 10, 12, 15, 30, tzinfo=UTC)
     assert service.cutoff_for(date(2026, 10, 13)).astimezone(service.IST).time() == time(21, 0)
     assert DELIVERY - timedelta(days=1) == date(2026, 10, 12)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_tiffin_is_cooked_picked_up_and_handed_over_without_the_society_hold(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    vikram, _ = await as_user(api, google, VIKRAM)
+    slot_id = uuid.UUID((await make_slot(api, vikram))["id"])
+    household = await identity_api.household_for_user(db_session, priya_id)
+    assert household is not None
+    box = await orders_api.create_from_cycle(
+        db_session, await approved_cycle(db_session, household, slot_id, "tomato")
+    )
+    tiffin = await orders_api.create_from_cycle(
+        db_session, await approved_cycle(db_session, household, slot_id, "onion")
+    )
+    tiffin.kind = "tiffin"  # no tiffin ordering path yet (P3); the state machine is what counts
+    await db_session.flush()
+    box_id, tiffin_id = box.id, tiffin.id
+    for order_id in (box_id, tiffin_id):
+        await orders_api.transition(db_session, order_id, "locked", actor="system")
+
+    async def for_delivery(kinds: tuple[str, ...] | None) -> set[uuid.UUID]:
+        found = await orders_api.orders_for_delivery(db_session, SEED_HUB_ID, DELIVERY, kinds=kinds)
+        return {summary.order.id for summary in found}
+
+    assert await for_delivery(None) == {box_id, tiffin_id}  # all kinds, as before
+    assert await for_delivery(("tiffin",)) == {tiffin_id}
+    assert await for_delivery(("box", "addon")) == {box_id}
+
+    kitchen, rider = uuid.uuid4(), uuid.uuid4()
+    with pytest.raises(ProblemError) as packer:
+        await orders_api.transition(db_session, tiffin_id, "picking", actor="packer")
+    assert packer.value.code == "orders.illegal_transition"
+    await orders_api.transition(
+        db_session, tiffin_id, "picking", actor="kitchen", actor_user_id=kitchen
+    )
+    await orders_api.transition(
+        db_session, tiffin_id, "packed", actor="kitchen", actor_user_id=kitchen
+    )
+    await orders_api.transition(
+        db_session, tiffin_id, "dispatched", actor="rider", actor_user_id=rider
+    )
+    with pytest.raises(ProblemError) as no_hold:
+        await orders_api.transition(db_session, tiffin_id, "at_society", actor="captain")
+    assert no_hold.value.extra == {"kind": "tiffin", "from": "dispatched", "to": "at_society"}
+    await orders_api.transition(
+        db_session, tiffin_id, "delivered", actor="rider", actor_user_id=rider
+    )
+    published = (
+        await db_session.execute(
+            select(OutboxEvent.event_type, OutboxEvent.payload).order_by(OutboxEvent.id)
+        )
+    ).all()
+    assert [(t, p["actor"]) for t, p in published if p.get("order_id") == str(tiffin_id)] == [
+        ("orders.locked", "system"),
+        ("orders.packed", "kitchen"),
+        ("orders.dispatched", "rider"),
+        ("orders.delivered", "rider"),
+    ]
+    assert all(p["kind"] == "tiffin" for _, p in published if p.get("order_id") == str(tiffin_id))
+    await db_session.commit()
+
+    # The customer sees which kind of actor moved her tiffin, never who.
+    detail = (await api.get(f"/v1/orders/{tiffin_id}", headers=priya)).json()
+    assert detail["kind"] == "tiffin" and detail["status"] == "delivered"
+    assert [(e["status"], e["actor"]) for e in detail["timeline"]] == [
+        ("approved", "customer"),
+        ("locked", "system"),
+        ("picking", "kitchen"),
+        ("packed", "kitchen"),
+        ("dispatched", "rider"),
+        ("delivered", "rider"),
+    ]
+    assert all(set(entry) == {"status", "at", "actor"} for entry in detail["timeline"])
+    assert str(rider) not in str(detail) and str(kitchen) not in str(detail)

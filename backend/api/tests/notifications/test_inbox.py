@@ -182,6 +182,14 @@ async def test_preferences_default_save_partially_and_refuse_what_the_contract_r
         assert (refused.status_code, refused.json().get("code")) == (status, code), refused.text
     assert (await api.get(PREFS, headers=auth)).json() == body  # nothing changed
 
+    # With the M1 `whatsapp` consent, WhatsApp may be switched on.
+    consent = {"purpose": "whatsapp", "version": "v1", "granted": True}
+    assert (await api.post("/v1/consents", json=consent, headers=auth)).status_code == 200
+    whatsapp = {"categories": [{"category": "delivery", "push": True, "whatsapp": True}]}
+    allowed = await api.put(PREFS, json=whatsapp, headers=auth)
+    assert allowed.status_code == 200, allowed.text
+    assert {c["category"]: c["whatsapp"] for c in allowed.json()["categories"]}["delivery"]
+
 
 async def test_the_data_export_section_lists_the_inbox_in_english(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
@@ -195,4 +203,5 @@ async def test_the_data_export_section_lists_the_inbox_in_english(
     assert exported["title"] == "₹500 added to your wallet"
     assert exported["event_type"] == "billing.wallet_topped_up" and exported["read_at"] is None
     assert exported["category"] == "money" and exported["link"] == "/wallet"
+    assert exported["deliveries"] == {}  # written by hand here, so never sent
     assert "id" not in exported and message.id is not None

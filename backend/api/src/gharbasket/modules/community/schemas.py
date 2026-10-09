@@ -96,3 +96,45 @@ class SocietyRequestOut(BaseModel):
     id: uuid.UUID
     status: Literal["received", "accepted", "rejected", "duplicate"]
     created_at: datetime
+
+
+class CaptainOut(BaseModel):
+    """An appointment as hub staff see it (§3.2): never the captain's flat or phone."""
+
+    id: uuid.UUID
+    society_id: uuid.UUID
+    hub_id: uuid.UUID
+    user_id: uuid.UUID
+    partner_id: uuid.UUID
+    display_name: str | None = Field(examples=["Meena tai"], description="From M8")
+    photo_url: str | None = Field(description="null for now (M8 §11)")
+    status: Literal["active", "ended"]
+    since: datetime
+    until: datetime | None
+    appointed_by: Literal["auto", "hub"] = Field(description="auto: on partners.verified")
+    end_reason: Literal["stepped_down", "replaced", "hub_decision", "suspended"] | None
+
+
+class CaptainsOut(BaseModel):
+    items: list[CaptainOut]
+
+
+class CaptainIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    partner_id: uuid.UUID
+    replace: bool = Field(
+        default=False, description="End the current captain (replaced) and appoint this one"
+    )
+
+
+class CaptainEndIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Literal["stepped_down", "hub_decision"]
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def _tidy_note(cls, value: str | None) -> str | None:
+        return _tidy(value)

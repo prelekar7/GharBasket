@@ -379,6 +379,7 @@ Signing up again with the same phone after the purge creates a new user with a n
 - `identity.user_deleted` `{user_id, household_id}`: published by `purge_deleted_users` once every module has erased its data (§3.5).
 - No event carries health tags, fasting rules or flat numbers (DPDP: consumers read what they are allowed to through `identity.api`).
 **Consumed:** `partners.verified` (the hub role for kitchens, riders and packers; nothing for captains), `partners.suspended`, `partners.reinstated`, `community.captain_assigned` and `community.captain_ended` (the `captain:<society>` role; ADR-0026 §4, M8 §10).
+- **As built (S5, the captain role).** `community.captain_assigned` grants `captain:<society>` (status `verified`) and `community.captain_ended` deletes that row: `user_roles` has no `revoked` status, and the audit log keeps the history (`roles.granted` and `roles.revoked`, no actor). Each consumer first asks `community.api.is_active_captain`, so a late or redelivered event never grants an ended appointment's role or removes an active one. The hub-role consumers of `partners.verified`, `partners.suspended` and `partners.reinstated` come with M8's applications (S6). The data export has the `community` section (`captain_appointments`).
 
 ## 6. Jobs
 | Job | Trigger | Notes |

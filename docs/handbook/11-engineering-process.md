@@ -181,7 +181,7 @@ flowchart LR
 | Layer | Tooling | Owner |
 |---|---|---|
 | Unit (Python / JS) | pytest + anyio, Vitest, Testing Library | Feature author |
-| Integration (real PostGIS) | pytest against the local `gharbasket_test` database (the same Postgres image in CI) | Feature author |
+| Integration (real PostGIS) | pytest against the local `gharbasket_test` database (the same Postgres image in CI). API tests share one rolled-back session across requests, so the commit guard (`tests/commit_guard.py`) fails any request that returns successfully with a write it never committed (production rolls such writes back) | Feature author |
 | Property tests (ledger, state machines) | hypothesis (planned) | Prathamesh Relekar |
 | Contract / API fuzz | schemathesis on OpenAPI (`tests/test_api_fuzz.py`, own throwaway database): no 500s, every answer documented and schema-shaped | CI |
 | Solver golden tests (routing, CP-SAT, fixed seeds) | pytest | Prathamesh Relekar |

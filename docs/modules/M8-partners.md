@@ -260,7 +260,7 @@ ApplicationReview : Application & {
 - **Permissions.** A customer's own application needs only sign-in. The hub-created application and the review queue take `partner_applications:review` (hub_manager, admin), so a customer's unscoped role can never reach another hub's queue.
 - **Checks, in order.** Kind, then `partners.already_applied`, then household, hub and scope, then the display name. Two applications at the same moment meet the one-open-application index, and the second gets 409.
 - **`GET /v1/partner-applications/{id}`.** The applicant sees her `Application`; hub staff of its hub and admins see `ApplicationReview` (the applicant's name and phone from `identity.api.user_contacts`, the society's name from `community.api.get_society`). Anyone else gets 404.
-- **`society.has_active_captain`** is null until M9's `community.api.captain_for_society` (the M9 captains PR) is on main.
+- **`society.has_active_captain`** comes from M9's `community.api.captain_for_society`.
 - **M1.** `identity.api.user_by_phone(phone_e164)` (active users only), as listed in §10.
 - **`PartnerStaff.requested_society`** comes from the partner's captain application; seeded partners have none.
 - **The data export** gains `applications` (without `created_by`, `decided_by` and `data_source`).
