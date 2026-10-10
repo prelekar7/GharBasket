@@ -13,7 +13,7 @@ The captain role follows M9's appointments: `community.captain_assigned` grants
 import json
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from sqlalchemy import select, update
@@ -21,10 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.community import api as community_api
+from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.identity import events, service
+from gharbasket.modules.identity import deletion, events, service
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
-from gharbasket.modules.identity.models import DataExport
+from gharbasket.modules.identity.models import DataExport, Deletion
+from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.notifications import api as notifications_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.partners import api as partners_api
@@ -156,3 +158,78 @@ async def on_captain_ended(session: AsyncSession, event: OutboxEvent) -> None:
 
 subscribe(community_api.CAPTAIN_ASSIGNED, on_captain_assigned)
 subscribe(community_api.CAPTAIN_ENDED, on_captain_ended)
+
+
+# --- the purge of deleted accounts (spec §3.5) --------------------------------------------------
+
+PURGE_BATCH = 50
+OVERDUE = timedelta(days=15)
+Eraser = Callable[[AsyncSession, uuid.UUID, uuid.UUID | None], Awaitable[dict[str, int]]]
+# Each module erases its own data through its api.py, in the fixed order of spec §3.5, and
+# returns {table: rows} for the tombstone. New modules add theirs when they ship; the platform's
+# and M1's own rows always go last.
+ERASERS: list[tuple[str, Eraser]] = [
+    ("notifications", notifications_api.delete_for_user),
+    ("intel_gateway", intel_api.delete_for_user),
+    ("hub_ops", hub_ops_api.anonymise_for_user),
+    ("subscriptions", subscriptions_api.delete_for_user),
+    ("orders", orders_api.anonymise_for_user),
+    ("billing", billing_api.anonymise_for_user),
+    ("platform", deletion.erase_platform),
+    ("identity", deletion.erase_identity),
+]
+
+
+async def _blockers(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> list[str]:
+    """Why the purge must wait (spec §3.5 step 1), read through each module's facade."""
+    reasons = []
+    if household_id is not None and await orders_api.has_open_orders(session, household_id):
+        reasons.append("open_orders")
+    if household_id is not None and await orders_api.has_open_issues(session, household_id):
+        reasons.append("open_issues")
+    if await billing_api.balance(session, user_id) != 0:
+        reasons.append("wallet_not_closed")
+    return reasons
+
+
+async def purge(session: AsyncSession, gone: Deletion, now: datetime) -> list[str]:
+    """Erase one account, or record why it must wait; the caller owns the savepoint."""
+    household_id = await deletion.household_id_of(session, gone.user_id)
+    gone.blocked_reasons = await _blockers(session, gone.user_id, household_id)
+    if gone.blocked_reasons:
+        return gone.blocked_reasons
+    gone.counts = {
+        module: await erase(session, gone.user_id, household_id) for module, erase in ERASERS
+    }
+    gone.purged_at = now
+    household = None if household_id is None else str(household_id)
+    payload = {"user_id": str(gone.user_id), "household_id": household}
+    await publish(session, events.USER_DELETED, payload)
+    return []
+
+
+@job("purge_deleted_users", "Erase accounts whose 30-day deletion grace is over, module by module")
+async def purge_deleted_users(ctx: JobContext) -> dict[str, Any]:
+    today = ctx.scheduled_for.astimezone(deletion.IST).date()
+    due = await ctx.session.scalars(
+        deletion.purge_due(today).limit(PURGE_BATCH).with_for_update(skip_locked=True)
+    )
+    summary: dict[str, Any] = {"purged": 0, "blocked": {}, "overdue": [], "failed": {}}
+    for gone in due.all():
+        user = str(gone.user_id)  # the tombstone's id: it leads to nobody once purged
+        try:
+            async with ctx.session.begin_nested():  # one account's failure stops only that one
+                reasons = await purge(ctx.session, gone, datetime.now(UTC))
+        except Exception as exc:
+            await ctx.session.refresh(gone)  # the savepoint's rollback expired it
+            summary["failed"][user] = type(exc).__name__
+            continue
+        if not reasons:
+            summary["purged"] += 1
+            continue
+        summary["blocked"][user] = reasons
+        if gone.purge_on + OVERDUE < today:
+            summary["overdue"].append(user)
+    return summary

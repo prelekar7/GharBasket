@@ -318,6 +318,14 @@ There is no separate "cancel deletion" endpoint: signing in, confirmed on the "K
 
 Signing up again with the same phone after the purge creates a new user with a new id.
 
+**As built (first PR, 2026-10-10).** Read with the steps above:
+- **The wallet.** `billing.api.close_wallet` and `wallet_closed` come with M5 §3.3 (PR #160). Until then `wallet_refund` is always `null`, and the purge's wallet precondition is a zero wallet balance (`billing.api.balance`), reported as `wallet_not_closed`. The partner payable check comes with M5 §3.5. Both are a few lines in `identity/jobs.py` once they merge.
+- **One account at a time.** The job runs in one transaction that holds its advisory lock, so each account is purged inside its own savepoint. One account's failure rolls back only that account. The job's summary lists it under `failed` (with the error's type), and the next night tries again. `blocked` maps each user id to its reasons, and `overdue` lists the user ids blocked for more than 15 days.
+- **Files.** The purge makes every upload under `*/<user_id>/` due at once (`platform.files.expire_for_user`). The same night's `sweep_uploads` (04:13 IST) deletes the objects and their rows, so the purge itself makes no storage call.
+- **Erasers.** `ERASERS` in `identity/jobs.py` is an ordered list of `(module, eraser)`, in the matrix order below: M11, M10, M6, M3, M4, M5, the platform (idempotency keys and uploads) and M1. M13, M12 and M7 hold no personal data yet. M9 (#276) and M8 (the applications chain) add theirs when they merge.
+- **M6, not in the matrix.** Packing tasks copy the tower and flat from the address. `hub_ops.api.anonymise_for_user` clears them on the household's tasks and drops the user id where the user packed. It runs between M7 and M3. This is a gap in the matrix, flagged for review.
+- **M3 on the request.** `subscriptions.api` consumes `identity.deletion_requested`. It ends the subscription and skips every `draft`, `awaiting_approval` or `approved` week before its cut-off, and every `payment_failed` week, through `orders.api.cancel_from_cycle`. It publishes no `box_skipped`, so nobody is told.
+
 **Facade additions** (`identity/api.py`):
 - `is_active(session, user_id) -> bool`: false while the account is `deleting` and after the purge. M11 checks it before sending.
 - `contact_for_household(session, household_id) -> { name, phone_e164 } | None`: for M4's issue triage, where the hub calls the customer back (M4 §3.6). The caller audit-logs each read.
