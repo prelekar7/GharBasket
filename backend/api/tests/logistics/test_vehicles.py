@@ -5,8 +5,10 @@ import uuid
 from typing import Any
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.identity.models import User
 from gharbasket.tools.seed import SEED_HUB_ID
 
 from ..identity.conftest import ClientFactory
@@ -116,6 +118,15 @@ async def test_labels_capacities_and_riders_are_checked(
         headers={**admin, **key()},
     )
     assert not_theirs.json()["code"] == "logistics.rider_invalid"
+    # A blocked rider rides for nobody.
+    await db_session.execute(update(User).where(User.id == arjun).values(status="blocked"))
+    await db_session.commit()
+    blocked = await api.post(
+        VEHICLES,
+        json=vehicle("V2", default_rider_user_id=str(arjun)),
+        headers={**admin, **key()},
+    )
+    assert blocked.json()["code"] == "logistics.rider_invalid"
     unknown = await api.post(
         f"/v1/hubs/{uuid.uuid4()}/vehicles", json=vehicle(), headers={**admin, **key()}
     )
