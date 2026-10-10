@@ -7,6 +7,7 @@ Safe by default: without APP_ENV the app runs as "prod" (docs hidden, dev conven
 and connection strings and tokens are SecretStr so they never show up in a repr or a log line.
 """
 
+import json
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
@@ -103,6 +104,25 @@ class Settings(DatabaseSettings):
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
+    # Private uploads (M0 §3.1): SeaweedFS locally, Cloudflare R2 on staging, over the S3 API.
+    # Unset: POST /v1/files/presign answers 503 platform.storage_unavailable.
+    s3_endpoint_url: str | None = None
+    # The host the apps PUT to and read from; default S3_ENDPOINT_URL. The Android emulator
+    # reaches the laptop as http://10.0.2.2:8333.
+    s3_public_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: SecretStr | None = None
+    s3_region: str = "auto"
+    s3_bucket_private: str = "gb-private"
+    # Firebase Cloud Messaging (M11 pushes): the service account key file's JSON, as one value.
+    # Unset: pushes are skipped (the inbox still gets every message).
+    fcm_service_account: SecretStr | None = None
+    # WhatsApp Cloud API (M11): off unless all four are set; until then WhatsApp is skipped. The
+    # webhook needs the app secret (signatures) and the verify token (Meta's handshake).
+    whatsapp_token: SecretStr | None = None
+    whatsapp_phone_number_id: str | None = Field(default=None, pattern=r"^[0-9]{5,30}$")
+    whatsapp_app_secret: SecretStr | None = None
+    whatsapp_verify_token: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -116,6 +136,8 @@ class Settings(DatabaseSettings):
             missing = [name for name, value in required.items() if value is None]
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
+        if self.fcm_service_account is not None:
+            _ = self.fcm_credentials  # a broken key fails at start, not at the first push
         for name, secret in (
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
@@ -172,6 +194,37 @@ class Settings(DatabaseSettings):
     @property
     def razorpay_enabled(self) -> bool:
         return self.razorpay_key_id is not None and self.razorpay_key_secret is not None
+
+    @property
+    def fcm_enabled(self) -> bool:
+        return self.fcm_service_account is not None
+
+    @property
+    def whatsapp_enabled(self) -> bool:
+        return None not in (
+            self.whatsapp_token,
+            self.whatsapp_phone_number_id,
+            self.whatsapp_app_secret,
+            self.whatsapp_verify_token,
+        )
+
+    @property
+    def fcm_credentials(self) -> dict[str, Any]:
+        """The service account: client_email, private_key, token_uri and project_id."""
+        if self.fcm_service_account is None:
+            raise ValueError("FCM_SERVICE_ACCOUNT is not set")
+        try:
+            account = json.loads(self.fcm_service_account.get_secret_value())
+        except ValueError:
+            raise ValueError("FCM_SERVICE_ACCOUNT must be the key file's JSON") from None
+        needed = ("client_email", "private_key", "token_uri", "project_id")
+        if not isinstance(account, dict) or any(k not in account for k in needed):
+            raise ValueError(f"FCM_SERVICE_ACCOUNT needs {', '.join(needed)}")
+        return account
+
+    @property
+    def storage_enabled(self) -> bool:
+        return bool(self.s3_endpoint_url and self.s3_access_key and self.s3_secret_key)
 
     @property
     def docs_enabled(self) -> bool:

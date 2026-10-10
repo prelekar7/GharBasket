@@ -1,11 +1,15 @@
 """Scheduled jobs of M3 (spec §6), registered with the platform's jobs runner (ADR-0021).
 
 `generate_weekly_plans` runs at T-3 18:00 IST for delivery day T: `scheduled_for` decides the
-delivery date (three days later, IST), never the clock. `apply_auto_approve` runs at T-1 20:55
-IST, five minutes before M4's cut-off, for the next day's deliveries.
+delivery date (three days later, IST), never the clock, and the boxes are drafts.
+`send_box_ready_notices` (T-3 18:30) opens them to the customer and publishes
+`subscriptions.box_ready`; `remind_unapproved` (T-1 19:00) publishes `subscriptions.cutoff_reminder`
+for boxes nothing will approve otherwise. M11 turns both into messages. `apply_auto_approve` runs
+at T-1 20:55 IST, five minutes before M4's cut-off, for the next day's deliveries.
 
 The cycle mirrors its order after the cut-off: `orders.locked` → `locked` (with `order_id`),
-`orders.cancelled` with reason `payment` → `cancelled`.
+`orders.payment_failed` → `payment_failed` (§3.3), `orders.cancelled` with reason `payment` →
+`cancelled`.
 """
 
 import uuid
@@ -46,6 +50,32 @@ async def generate_weekly_plans(ctx: JobContext) -> dict[str, Any]:
 
 
 @job(
+    "send_box_ready_notices",
+    "Show the drafted boxes for the delivery day three days on and tell their households",
+)
+async def send_box_ready_notices(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=DAYS_AHEAD)
+    counts: dict[str, Any] = await service.send_box_ready_notices(
+        ctx.session, delivery_date, ctx.scheduled_for
+    )
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts
+
+
+@job(
+    "remind_unapproved",
+    "Remind households whose box for tomorrow is still unapproved and will not auto-approve",
+)
+async def remind_unapproved(ctx: JobContext) -> dict[str, Any]:
+    delivery_date = ctx.scheduled_for.astimezone(IST).date() + timedelta(days=1)
+    counts: dict[str, Any] = await service.remind_unapproved(
+        ctx.session, delivery_date, ctx.scheduled_for
+    )
+    counts["delivery_date"] = delivery_date.isoformat()
+    return counts
+
+
+@job(
     "apply_auto_approve",
     "Approve tomorrow's boxes for households that asked for it (notice sent 24 h before)",
 )
@@ -71,6 +101,18 @@ async def on_order_locked(session: AsyncSession, event: OutboxEvent) -> None:
         await service.mark_locked(session, cycle, uuid.UUID(event.payload["order_id"]))
 
 
+async def on_order_payment_failed(session: AsyncSession, event: OutboxEvent) -> None:
+    if not event.payload.keys() >= MIRRORED:
+        return
+    cycle = await service.cycle_for(
+        session,
+        uuid.UUID(event.payload["household_id"]),
+        date.fromisoformat(event.payload["delivery_date"]),
+    )
+    if cycle is not None and cycle.order_id == uuid.UUID(event.payload["order_id"]):
+        await service.mark_payment_failed(session, cycle)
+
+
 async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
     if event.payload.get("reason") != "payment" or not event.payload.keys() >= MIRRORED:
         return  # a skip or a customer cancellation already changed the cycle
@@ -79,11 +121,12 @@ async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
         uuid.UUID(event.payload["household_id"]),
         date.fromisoformat(event.payload["delivery_date"]),
     )
-    if cycle is not None and cycle.status in service.EDITABLE:
+    if cycle is not None and cycle.status in (*service.EDITABLE, "payment_failed"):
         cycle.status = "cancelled"
         cycle.version += 1
         await session.flush()
 
 
 subscribe(orders_api.LOCKED, on_order_locked)
+subscribe(orders_api.PAYMENT_FAILED, on_order_payment_failed)
 subscribe(orders_api.CANCELLED, on_order_cancelled)
