@@ -9,6 +9,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import httpx2
+
 from gharbasket_ml import __version__
 
 BUILTIN = (
@@ -33,10 +35,30 @@ def served_models(manifest: Path | None) -> list[Served]:
     return models
 
 
-def health(manifest: Path | None) -> dict[str, object]:
+async def osrm_status(
+    osrm_url: str | None,
+    timeout_s: float = 2.0,
+    transport: httpx2.AsyncBaseTransport | None = None,
+) -> str:
+    """`ok` when the road network answers a one-leg route, `down` when it does not,
+    `not_configured` without a URL."""
+    if not osrm_url:
+        return "not_configured"
+    probe = (
+        f"{osrm_url.rstrip('/')}/route/v1/driving/73.0690,19.0300;73.1185,19.0005?overview=false"
+    )
+    try:
+        async with httpx2.AsyncClient(timeout=timeout_s, transport=transport) as http:
+            answer = await http.get(probe)
+        return "ok" if answer.status_code == 200 and answer.json().get("code") == "Ok" else "down"
+    except (httpx2.HTTPError, ValueError):
+        return "down"
+
+
+async def health(manifest: Path | None, osrm_url: str | None = None) -> dict[str, object]:
     return {
         "status": "ok",
         "version": __version__,
         "models": [m.__dict__ for m in served_models(manifest)],
-        "osrm": "not_configured",  # the routing PR reports the road network here
+        "osrm": await osrm_status(osrm_url),
     }
