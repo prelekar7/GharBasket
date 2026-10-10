@@ -6,12 +6,12 @@ from typing import Any
 import httpx2
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
 from gharbasket.platform.db import get_session
 from gharbasket.platform.valkey import create_valkey
 
+from ..commit_guard import CommitGuard
 from ..conftest import make_settings
 from .fake_firebase import FakeGoogle
 
@@ -34,19 +34,13 @@ async def valkey(valkey_url: str) -> AsyncIterator[Redis]:
 
 
 @pytest.fixture
-async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator[ClientFactory]:
+async def clients(commit_guard: CommitGuard, google: FakeGoogle) -> AsyncIterator[ClientFactory]:
     """Build API clients for a given APP_ENV, all sharing the test's rolled-back session.
 
     HTTPS base URL, because browsers (and httpx2's cookie jar) only send Secure cookies over HTTPS.
     """
     opened: list[httpx2.AsyncClient] = []
-
-    async def session_override() -> AsyncIterator[AsyncSession]:
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
+    session_override = commit_guard.override()
 
     def make(
         app_env: str = "test",
@@ -55,6 +49,7 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
         headers: dict[str, str] | None = None,
         razorpay: Any = None,
         http: httpx2.AsyncClient | None = None,
+        storage: Any = None,
         **settings: Any,
     ) -> httpx2.AsyncClient:
         app = create_app(make_settings(app_env=app_env, **settings))
@@ -64,6 +59,7 @@ async def clients(db_session: AsyncSession, google: FakeGoogle) -> AsyncIterator
         app.state.razorpay = razorpay  # a RazorpayClient on a fake transport (billing tests)
         if http is not None:
             app.state.http = http  # outbound calls on a fake transport (the ML service)
+        app.state.storage = storage  # an ObjectStore on a fake S3 client (data export tests)
         client = httpx2.AsyncClient(
             transport=httpx2.ASGITransport(app=app), base_url="https://t", headers=headers
         )

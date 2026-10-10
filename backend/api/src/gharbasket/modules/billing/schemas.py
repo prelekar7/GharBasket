@@ -1,7 +1,7 @@
 """Request and response models of M5 Billing & Ledger.
 
-The wallet shapes are the S2 contract (docs/modules/M5-billing.md §3.1): changing them needs a PR
-reviewed by both app owners.
+The wallet shapes are the S2 contract (docs/modules/M5-billing.md §3.1) and the statement is §3.2:
+changing them needs a PR reviewed by both app owners.
 """
 
 import uuid
@@ -41,6 +41,27 @@ class WalletOut(BaseModel):
         examples=[869000],
     )
     entries: list[Entry] = Field(description="The latest 20, newest first")
+
+
+class StatementEntry(Entry):
+    balance_after_paise: int = Field(
+        description="The wallet's balance after this entry, in posting order", examples=[181000]
+    )
+
+
+class StatementOut(BaseModel):
+    period: str = Field(examples=["2026-10"])
+    currency: Literal["INR"]
+    opening_paise: int = Field(description="The balance at 00:00 IST on the 1st", examples=[50000])
+    credits_paise: int = Field(description="Σ positive entries in the month", examples=[200000])
+    debits_paise: int = Field(
+        description="Σ negative entries (signed, as on entries)", examples=[-69000]
+    )
+    closing_paise: int = Field(
+        description="opening + credits + debits; for the current month, now", examples=[181000]
+    )
+    entries: list[StatementEntry] = Field(description="Every entry of the month, newest first")
+    generated_at: datetime
 
 
 TopUpStatus = Literal["created", "paid", "failed", "expired", "refunded"]
