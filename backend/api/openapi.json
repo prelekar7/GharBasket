@@ -985,6 +985,46 @@
         "title": "DayOut",
         "type": "object"
       },
+      "DeletionOut": {
+        "description": "DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs\nin again before then.",
+        "properties": {
+          "purge_on": {
+            "description": "IST date, 30 days after the request",
+            "format": "date",
+            "title": "Purge On",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "status": {
+            "const": "scheduled",
+            "title": "Status",
+            "type": "string"
+          },
+          "wallet_refund": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalletRefundOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The wallet balance on its way back to the original payment source"
+          }
+        },
+        "required": [
+          "status",
+          "requested_at",
+          "purge_on",
+          "wallet_refund"
+        ],
+        "title": "DeletionOut",
+        "type": "object"
+      },
       "DeliveryDayIn": {
         "additionalProperties": false,
         "properties": {
@@ -1351,6 +1391,12 @@
               }
             ],
             "title": "Firebase Id Token"
+          },
+          "keep_account": {
+            "default": false,
+            "description": "For an account whose deletion is scheduled: true (after the app asked \"Keep my account?\") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)",
+            "title": "Keep Account",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1378,6 +1424,12 @@
               }
             ],
             "title": "Access Token"
+          },
+          "deletion_cancelled": {
+            "default": false,
+            "description": "True when this sign-in cancelled a scheduled deletion",
+            "title": "Deletion Cancelled",
+            "type": "boolean"
           },
           "is_new_user": {
             "title": "Is New User",
@@ -9568,6 +9620,28 @@
         "title": "WalletOut",
         "type": "object"
       },
+      "WalletRefundOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              41000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "refund_id": {
+            "format": "uuid",
+            "title": "Refund Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refund_id",
+          "amount_paise"
+        ],
+        "title": "WalletRefundOut",
+        "type": "object"
+      },
       "WebhookAck": {
         "properties": {
           "outcome": {
@@ -11690,6 +11764,16 @@
               }
             },
             "description": "auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.deletion_pending (with purge_on): send keep_account to keep it"
           },
           "422": {
             "content": {
@@ -16342,6 +16426,60 @@
       }
     },
     "/v1/me": {
+      "delete": {
+        "operationId": "delete_me_v1_me_delete",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.staff_account (with roles): an admin removes staff roles first"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Delete my account after a 30-day grace (signs out every device; spec §3.5)",
+        "tags": [
+          "identity"
+        ]
+      },
       "get": {
         "operationId": "me_v1_me_get",
         "responses": {
