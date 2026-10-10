@@ -38,6 +38,40 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a drive (hub manager: their hub or a society in it; admin: any; Idempotency-Key required) */
+        post: operations["create_drive_v1_admin_drives_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/drives/{drive_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change or cancel a drive (If-Match: its version; a running drive only extends) */
+        patch: operations["patch_drive_v1_admin_drives__drive_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/hubs": {
         parameters: {
             query?: never;
@@ -169,6 +203,23 @@ export interface paths {
         put?: never;
         /** Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged) */
         post: operations["resolve_issue_v1_admin_order_issues__issue_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/point-rates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a point rate (admin; applies to donations verified from now on; audit-logged) */
+        put: operations["put_point_rate_v1_admin_point_rates__code__put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -514,6 +565,23 @@ export interface paths {
          * @description The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.
          */
         post: operations["unskip_cycle_v1_cycles__cycle_id__unskip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Donation drives: running and upcoming ones (customers), every state (hub staff) */
+        get: operations["list_drives_v1_drives_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1222,6 +1290,23 @@ export interface paths {
         };
         /** The plan catalogue */
         get: operations["list_plans_v1_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/point-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kindness points per kg or per piece, by item category */
+        get: operations["point_rates_v1_point_rates_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2103,6 +2188,194 @@ export interface components {
              * Format: date-time
              */
             signed_in_at: string;
+        };
+        /** DriveIn */
+        DriveIn: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            description?: components["schemas"]["Texts"] | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items?: number | null;
+            /**
+             * Hub Id
+             * @description Only for a hub drive
+             */
+            hub_id?: string | null;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number | string;
+            name: components["schemas"]["Label"];
+            /**
+             * Ngo Id
+             * @description Accepted once NGOs exist (§3.5)
+             */
+            ngo_id?: null;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /**
+             * Society Id
+             * @description Only for a society drive
+             */
+            society_id?: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** DriveNgo */
+        DriveNgo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** DriveOut */
+        DriveOut: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @description What it multiplies
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            /** Description */
+            description: string | null;
+            /**
+             * Ends On
+             * Format: date
+             * @description IST, inclusive
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items: number | null;
+            /**
+             * Hub Id
+             * @description Also set for a society drive (its hub)
+             */
+            hub_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number;
+            /**
+             * Name
+             * @description In the request language
+             * @example Diwali drive
+             */
+            name: string;
+            /** @description Who receives the items; null until NGOs (§3.5) */
+            ngo: components["schemas"]["DriveNgo"] | null;
+            progress: components["schemas"]["DriveProgress"];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /** Society Id */
+            society_id: string | null;
+            /**
+             * Starts On
+             * Format: date
+             * @description IST, inclusive
+             */
+            starts_on: string;
+            /**
+             * State
+             * @description From the dates in IST, except cancelled
+             * @enum {string}
+             */
+            state: "upcoming" | "running" | "ended" | "cancelled";
+            /**
+             * Version
+             * @description Send it back in If-Match to change the drive
+             */
+            version: number;
+        };
+        /**
+         * DrivePatch
+         * @description Any field below, or `state: cancelled`. Scope, hub and society stay as created.
+         */
+        DrivePatch: {
+            /** Codes */
+            codes?: string[] | null;
+            description?: components["schemas"]["Texts"] | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Goal Items */
+            goal_items?: number | null;
+            /** Multiplier */
+            multiplier?: number | string | null;
+            name?: components["schemas"]["Label"] | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /**
+             * State
+             * @description Donations already scheduled keep the multiplier
+             */
+            state?: "cancelled" | null;
+        };
+        /**
+         * DriveProgress
+         * @description Items (pieces, and kilograms counted as one item per kg); no households, no names.
+         */
+        DriveProgress: {
+            /**
+             * Pledged
+             * @description In scheduled and picked-up donations
+             * @example 40
+             */
+            pledged: number;
+            /**
+             * Verified
+             * @description Counted by the hub
+             * @example 31
+             */
+            verified: number;
+        };
+        /** DrivesOut */
+        DrivesOut: {
+            /** Items */
+            items: components["schemas"]["DriveOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** Entry */
         Entry: {
@@ -3014,6 +3287,21 @@ export interface components {
             placeholders: string[];
         };
         /**
+         * Label
+         * @description A short name in each app language.
+         */
+        Label: {
+            /**
+             * En
+             * @example Diwali drive
+             */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
+        /**
          * LatLng
          * @description A pin on the map, as every API shape carries it.
          */
@@ -3809,6 +4097,59 @@ export interface components {
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /**
+         * PointRateIn
+         * @description Applies to donations verified from now on.
+         */
+        PointRateIn: {
+            label: components["schemas"]["Label"];
+            /**
+             * Max Qty
+             * @description Whole pieces, or kg in 0.5 steps
+             */
+            max_qty: number | string;
+            /**
+             * Points
+             * @example 40
+             */
+            points: number;
+        };
+        /** PointRateOut */
+        PointRateOut: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Label
+             * @description In the request language
+             * @example Clothes
+             */
+            label: string;
+            /**
+             * Max Qty
+             * @description The most one donation may declare
+             * @example 15
+             */
+            max_qty: number;
+            /**
+             * Points
+             * @description Points per kg or per piece
+             * @example 40
+             */
+            points: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** PointRatesOut */
+        PointRatesOut: {
+            /** Items */
+            items: components["schemas"]["PointRateOut"][];
         };
         /** PreferencesIn */
         PreferencesIn: {
@@ -5008,6 +5349,15 @@ export interface components {
             /** Kinds */
             kinds: components["schemas"]["KindOut"][];
         };
+        /** Texts */
+        Texts: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
         /** TimelineEntry */
         TimelineEntry: {
             /**
@@ -5550,6 +5900,181 @@ export interface operations {
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_drive_v1_admin_drives_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_code_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_drive_v1_admin_drives__drive_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                drive_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrivePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6151,6 +6676,80 @@ export interface operations {
                 };
             };
             /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_point_rate_v1_admin_point_rates__code__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PointRateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRateOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7681,6 +8280,63 @@ export interface operations {
             };
             /** @description request.precondition_required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_drives_v1_drives_get: {
+        parameters: {
+            query?: {
+                /** @description Default: running and upcoming */
+                state?: ("upcoming" | "running" | "ended" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrivesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10471,6 +11127,46 @@ export interface operations {
             };
             /** @description auth.forbidden or auth.role_not_granted */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    point_rates_v1_point_rates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

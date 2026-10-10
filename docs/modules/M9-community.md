@@ -395,8 +395,12 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 | 422 | `community.nothing_counted` | Verification with every count 0 |
 | 422 | `community.photo_key_invalid` | Not the caller's `donation_photo` upload |
 | 422 | `community.drive_dates_invalid` | `ends_on` before `starts_on`, a past start, or shortening a running drive |
+| 409 | `community.drive_code_taken` | Another drive already has this `code` (added when built) |
+| 404 | `community.item_code_unknown` | `PUT /v1/admin/point-rates/{code}` for a code that has no rate (added when built) |
 | 403 | `auth.forbidden` | A hub manager writing a drive or verifying outside their hub |
 | 400 / 422 / 412 / 428 | `request.*` | As in M0 (idempotency, If-Match) |
+
+**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
 
 | Mock today | Contract |
 |---|---|

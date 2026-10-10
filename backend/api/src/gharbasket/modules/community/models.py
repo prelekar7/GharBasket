@@ -1,28 +1,32 @@
 """Tables of M9 Community & Kindness. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
-Societies and residents' requests for new ones (spec §3.1), and captain appointments (§3.2).
-Referrals, donations and NGOs follow in P5.
+Societies and residents' requests for new ones (spec §3.1), captain appointments (§3.2), and the
+Kindness point rates and donation drives (§3.4). Referrals, donations and NGOs follow in P5.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from geoalchemy2 import Geography, WKBElement, WKTElement
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Computed,
+    Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     Uuid,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gharbasket.platform.db import Base
@@ -154,4 +158,76 @@ class Captain(Base):
     ended_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     # Staff-only, from the end request.
     note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- Kindness: point rates and donation drives (§3.4) -------------------------------------------
+
+RATE_UNITS = ("kg", "each")
+DRIVE_SCOPES = ("platform", "hub", "society")
+
+
+class PointRate(Base):
+    """Kindness points per kg or per piece of one item category; `max_qty` caps one donation."""
+
+    __tablename__ = "point_rates"
+    __table_args__ = (
+        CheckConstraint(_one_of("unit", RATE_UNITS), name="unit"),
+        CheckConstraint("points > 0", name="points"),
+        CheckConstraint("max_qty > 0", name="max_qty"),
+        {"schema": SCHEMA},
+    )
+
+    code: Mapped[str] = mapped_column(String(20), primary_key=True)
+    label: Mapped[dict[str, str]] = mapped_column(JSONB)  # {en, hi, mr}
+    unit: Mapped[str] = mapped_column(String(4))
+    points: Mapped[int] = mapped_column(Integer)
+    max_qty: Mapped[Decimal] = mapped_column(Numeric(10, 3))
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DonationDrive(Base):
+    """A time-boxed drive that multiplies the points of some categories. A society drive keeps its
+    society's hub in `hub_id`, so hub staff find every drive of their hub by `hub_id`."""
+
+    __tablename__ = "donation_drives"
+    __table_args__ = (
+        CheckConstraint(_one_of("scope", DRIVE_SCOPES), name="scope"),
+        CheckConstraint(
+            "(scope = 'platform' AND hub_id IS NULL AND society_id IS NULL)"
+            " OR (scope = 'hub' AND hub_id IS NOT NULL AND society_id IS NULL)"
+            " OR (scope = 'society' AND hub_id IS NOT NULL AND society_id IS NOT NULL)",
+            name="scope_ids",
+        ),
+        CheckConstraint("multiplier BETWEEN 1.0 AND 3.0", name="multiplier"),
+        CheckConstraint("ends_on >= starts_on", name="dates"),
+        CheckConstraint("goal_items IS NULL OR goal_items > 0", name="goal_items"),
+        CheckConstraint("cardinality(codes) > 0", name="codes"),
+        CheckConstraint("version >= 1", name="version"),
+        Index("ix_donation_drives_hub_id", "hub_id"),
+        Index("ix_donation_drives_starts_on_id", "starts_on", "id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    code: Mapped[str] = mapped_column(String(60), unique=True)
+    name: Mapped[dict[str, str]] = mapped_column(JSONB)  # {en, hi, mr}
+    description: Mapped[dict[str, str] | None] = mapped_column(JSONB)
+    scope: Mapped[str] = mapped_column(String(8))
+    hub_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    society_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.societies.id"))
+    codes: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    multiplier: Mapped[Decimal] = mapped_column(Numeric(2, 1))
+    starts_on: Mapped[date] = mapped_column(Date)  # IST dates, inclusive
+    ends_on: Mapped[date] = mapped_column(Date)
+    # The receiving NGO; the foreign key to community.ngos comes with §3.5.
+    ngo_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    goal_items: Mapped[int | None] = mapped_column(Integer)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
