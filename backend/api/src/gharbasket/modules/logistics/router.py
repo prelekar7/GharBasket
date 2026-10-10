@@ -123,7 +123,8 @@ async def create_vehicle(
     "/vehicles/{vehicle_id}",
     summary="Change or deactivate a vehicle (If-Match: the vehicle's version)",
     description="Vehicles are deactivated, never deleted. A change applies to the next solve, "
-    "never to a route already published.",
+    "never to a route already published. A vehicle of a hub outside the caller's roles answers "
+    "404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).",
     responses={
         **EDITS,
         404: _problem("logistics.vehicle_not_found"),

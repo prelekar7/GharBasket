@@ -1758,7 +1758,7 @@ export interface paths {
         head?: never;
         /**
          * Change or deactivate a vehicle (If-Match: the vehicle's version)
-         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published.
+         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published. A vehicle of a hub outside the caller's roles answers 404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).
          */
         patch: operations["patch_vehicle_v1_vehicles__vehicle_id__patch"];
         trace?: never;
