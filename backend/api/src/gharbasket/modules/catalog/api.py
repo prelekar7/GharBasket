@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.catalog.models import Product, Recipe, RecipeIngredient
+from gharbasket.modules.catalog.models import Category, Product, Recipe, RecipeIngredient
 from gharbasket.modules.catalog.pricing import prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
 from gharbasket.modules.catalog.service import step_label
@@ -52,6 +52,8 @@ class LineProduct:
     step_qty: int
     step_unit: str
     price_paise: int | None
+    # (category sort order, category slug): how packers walk the shelves (M6 §3.2)
+    shelf: tuple[int, str] = (0, "")
 
 
 async def line_products(
@@ -60,9 +62,13 @@ async def line_products(
     """Active products by id, with today's price at `hub_id` when given; unknown ids left out."""
     if not product_ids:
         return {}
-    rows = await session.execute(select(Product).where(Product.id.in_(product_ids), Product.active))
-    products = list(rows.scalars())
-    prices = await prices_for(session, hub_id, [p.id for p in products]) if hub_id else {}
+    rows = await session.execute(
+        select(Product, Category.sort_order, Category.slug)
+        .join(Category, Category.id == Product.category_id)
+        .where(Product.id.in_(product_ids), Product.active)
+    )
+    found = rows.all()
+    prices = await prices_for(session, hub_id, [p.id for p, _, _ in found]) if hub_id else {}
     return {
         p.id: LineProduct(
             p.id,
@@ -71,8 +77,9 @@ async def line_products(
             p.step_qty,
             p.step_unit,
             prices[p.id].price_paise if p.id in prices else None,
+            (order, category),
         )
-        for p in products
+        for p, order, category in found
     }
 
 

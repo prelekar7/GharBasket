@@ -120,6 +120,7 @@ erDiagram
         bigint budget_paise
         boolean autopilot_enabled
         boolean auto_approve
+        text shortage_preference
         text data_source
         int version
     }

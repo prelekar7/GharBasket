@@ -77,9 +77,11 @@ async def relay(session: AsyncSession, *, limit: int = 100) -> Relayed:
     savepoint: a failing handler's writes roll back, the event stays unsent with a backoff, and
     the others still go out.
     """
+    # clock_timestamp(), not now(): now() is when the transaction began, so a long transaction
+    # (a job, or a test) would treat events that fell due since then as not yet due.
     rows = await session.execute(
         select(OutboxEvent)
-        .where(OutboxEvent.sent_at.is_(None), OutboxEvent.available_at <= func.now())
+        .where(OutboxEvent.sent_at.is_(None), OutboxEvent.available_at <= func.clock_timestamp())
         .order_by(OutboxEvent.id)
         .limit(limit)
         .with_for_update(skip_locked=True)
