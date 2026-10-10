@@ -13,3 +13,9 @@ for role in ("hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "procurement:read")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "procurement:write")
+for role in ("packer", "hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "inventory:read")
+for role in ("packer", "hub_manager"):
+    PERMISSIONS.allow(role, "receiving:write")
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "inventory:manage")

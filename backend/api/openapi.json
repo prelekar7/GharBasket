@@ -1583,6 +1583,92 @@
         "title": "GeoPolygon",
         "type": "object"
       },
+      "GoodsReceiptOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "purchase_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinePurchaseOrder"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its status after this receipt"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "received_by": {
+            "$ref": "#/components/schemas/UserRef"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "unpriced_lines": {
+            "title": "Unpriced Lines",
+            "type": "integer"
+          },
+          "vendor": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "vendor",
+          "purchase_order",
+          "received_at",
+          "received_by",
+          "lines",
+          "total_paise",
+          "unpriced_lines",
+          "created_at"
+        ],
+        "title": "GoodsReceiptOut",
+        "type": "object"
+      },
+      "GoodsReceiptsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GoodsReceiptOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "GoodsReceiptsOut",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "commit": {
@@ -6794,6 +6880,310 @@
         "title": "Ready",
         "type": "object"
       },
+      "ReceiptIn": {
+        "additionalProperties": false,
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptLineIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Lines",
+            "type": "array"
+          },
+          "purchase_order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: an ad hoc purchase",
+            "title": "Purchase Order Id"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default now; at most 24 h back",
+            "title": "Received At"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required without a purchase order; with one, the PO's",
+            "title": "Vendor Id"
+          }
+        },
+        "required": [
+          "purchase_order_id",
+          "lines"
+        ],
+        "title": "ReceiptIn",
+        "type": "object"
+      },
+      "ReceiptLineIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted_qty": {
+            "description": "0 … received; the rest goes back",
+            "examples": [
+              50.0
+            ],
+            "title": "Accepted Qty",
+            "type": "number"
+          },
+          "best_before": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default received_at + the product's shelf life",
+            "title": "Best Before"
+          },
+          "grade": {
+            "description": "A fresh, B cosmetic faults, C kitchens or donation only",
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "received_qty": {
+            "description": "> 0",
+            "examples": [
+              52.0
+            ],
+            "title": "Received Qty",
+            "type": "number"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rotten",
+                  "damaged",
+                  "undersized",
+                  "wrong_item",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when accepted < received",
+            "title": "Reject Reason"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per operations unit; default the PO line's",
+            "title": "Unit Cost Paise"
+          }
+        },
+        "required": [
+          "product_id",
+          "received_qty",
+          "accepted_qty",
+          "grade"
+        ],
+        "title": "ReceiptLineIn",
+        "type": "object"
+      },
+      "ReceiptLineOut": {
+        "properties": {
+          "accepted_qty": {
+            "title": "Accepted Qty",
+            "type": "number"
+          },
+          "amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "accepted_qty x unit_cost_paise, half up",
+            "title": "Amount Paise"
+          },
+          "best_before": {
+            "format": "date-time",
+            "title": "Best Before",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when nothing was accepted",
+            "title": "Lot Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ordered": {
+            "description": "false: not on the purchase order (or no PO)",
+            "title": "Ordered",
+            "type": "boolean"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "received_qty": {
+            "title": "Received Qty",
+            "type": "number"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rotten",
+                  "damaged",
+                  "undersized",
+                  "wrong_item",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "rejected_qty": {
+            "title": "Rejected Qty",
+            "type": "number"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Paise"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "received_qty",
+          "accepted_qty",
+          "rejected_qty",
+          "grade",
+          "reject_reason",
+          "unit_cost_paise",
+          "amount_paise",
+          "ordered",
+          "lot_id",
+          "best_before",
+          "note"
+        ],
+        "title": "ReceiptLineOut",
+        "type": "object"
+      },
       "RecipeOut": {
         "properties": {
           "cook_minutes": {
@@ -9050,6 +9440,32 @@
           "senior_mode"
         ],
         "title": "UserOut",
+        "type": "object"
+      },
+      "UserRef": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "UserRef",
         "type": "object"
       },
       "VendorIn": {
@@ -13694,6 +14110,118 @@
         ]
       }
     },
+    "/v1/goods-receipts/{receipt_id}": {
+      "get": {
+        "operationId": "get_goods_receipt_v1_goods_receipts__receipt_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receipt_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Receipt Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoodsReceiptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.receipt_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A goods receipt with its lines and lots",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/health": {
       "get": {
         "operationId": "health_v1_health_get",
@@ -14710,6 +15238,283 @@
           }
         ],
         "summary": "A hub with its location, service area and day timings (ETag = version)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/goods-receipts": {
+      "get": {
+        "operationId": "list_goods_receipts_v1_hubs__hub_id__goods_receipts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST delivery date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST delivery date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoodsReceiptsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's goods receipts of an IST day, newest first",
+        "tags": [
+          "hub_ops"
+        ]
+      },
+      "post": {
+        "operationId": "create_goods_receipt_v1_hubs__hub_id__goods_receipts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoodsReceiptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found, hub_ops.po_not_found, hub_ops.vendor_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.po_not_receivable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.receipt_invalid (reason), hub_ops.product_not_stocked (product_ids), hub_ops.qty_invalid, hub_ops.vendor_inactive, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Record goods received at the dock, against a sent purchase order or ad hoc",
         "tags": [
           "hub_ops"
         ]

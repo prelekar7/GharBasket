@@ -446,6 +446,15 @@ POST /v1/lots/{id}/count                   hub_manager; Idempotency-Key
 - **defects** (stored as the rejected share: the mean over its receipt lines of rejected ÷ received; it counts 20 % as `1 − defects`);
 - `score` = the weighted sum over the components that have data, divided by their weights; rounded to 2 decimals.
 
+**As built (PR d1, receipts, lots and the stock ledger).** Details the rules above leave open, settled in the code:
+- One migration creates all five §3.4 tables (`vendor_scores` too, filled by PR d2). `stock_moves.kept_item_id` arrives with kept items (§3.5).
+- `received_at` and `best_before` must carry a time zone (else 422 `request.invalid`) and are stored in UTC; a `received_at` up to one minute ahead is taken as now (a tablet's clock). A receipt without a PO and without `vendor_id` is 422 `request.invalid`; a PO of another hub is 404 `hub_ops.po_not_found`; a received quantity of 0 is `hub_ops.qty_invalid`.
+- A line that leaves `unit_cost_paise` out takes the PO line's cost; one that sends `null` has no cost. A `reject_reason` sent with nothing rejected is dropped (the table checks that a reason is stored exactly when something went back).
+- A receipt locks the hub, then (with a PO) the plan, the PO and its lines, the procurement lock order. A PO that becomes `received` gets `closed_at`. The receipt is audited (`goods_receipts.created`, with the request).
+- The 201 answer shows the PO's status after the receipt; `GET` shows its current status. `GET …/goods-receipts?date=` takes any IST day (default today), newest `received_at` first; lines are listed by name.
+- Every stock change goes through one function that inserts the move with `ON CONFLICT DO NOTHING` and applies it to the (row-locked) lot only when it was written, so the lot's `qty_on_hand` stays the sum of its moves.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/goods-receipts` and 404 `hub_ops.receipt_not_found` for its receipt ids.
+
 **Error codes** (in addition to §3.1–§3.3)
 
 | Status | Code | When |

@@ -554,6 +554,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/goods-receipts/{receipt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A goods receipt with its lines and lots */
+        get: operations["get_goods_receipt_v1_goods_receipts__receipt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -689,6 +706,24 @@ export interface paths {
         get: operations["get_hub_v1_hubs__hub_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/goods-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's goods receipts of an IST day, newest first */
+        get: operations["list_goods_receipts_v1_hubs__hub_id__goods_receipts_get"];
+        put?: never;
+        /** Record goods received at the dock, against a sent purchase order or ad hoc */
+        post: operations["create_goods_receipt_v1_hubs__hub_id__goods_receipts_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2443,6 +2478,44 @@ export interface components {
              * @constant
              */
             type: "Polygon";
+        };
+        /** GoodsReceiptOut */
+        GoodsReceiptOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineOut"][];
+            /** @description Its status after this receipt */
+            purchase_order: components["schemas"]["LinePurchaseOrder"] | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            received_by: components["schemas"]["UserRef"];
+            /** Total Paise */
+            total_paise: number;
+            /** Unpriced Lines */
+            unpriced_lines: number;
+            vendor: components["schemas"]["Ref"];
+        };
+        /** GoodsReceiptsOut */
+        GoodsReceiptsOut: {
+            /** Items */
+            items: components["schemas"]["GoodsReceiptOut"][];
         };
         /** Health */
         Health: {
@@ -4626,6 +4699,123 @@ export interface components {
              */
             status: "ok";
         };
+        /** ReceiptIn */
+        ReceiptIn: {
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineIn"][];
+            /**
+             * Purchase Order Id
+             * @description null: an ad hoc purchase
+             */
+            purchase_order_id: string | null;
+            /**
+             * Received At
+             * @description Default now; at most 24 h back
+             */
+            received_at?: string | null;
+            /**
+             * Vendor Id
+             * @description Required without a purchase order; with one, the PO's
+             */
+            vendor_id?: string | null;
+        };
+        /** ReceiptLineIn */
+        ReceiptLineIn: {
+            /**
+             * Accepted Qty
+             * @description 0 … received; the rest goes back
+             * @example 50
+             */
+            accepted_qty: number;
+            /**
+             * Best Before
+             * @description Default received_at + the product's shelf life
+             */
+            best_before?: string | null;
+            /**
+             * Grade
+             * @description A fresh, B cosmetic faults, C kitchens or donation only
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /** Note */
+            note?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Received Qty
+             * @description > 0
+             * @example 52
+             */
+            received_qty: number;
+            /**
+             * Reject Reason
+             * @description Required when accepted < received
+             */
+            reject_reason?: ("rotten" | "damaged" | "undersized" | "wrong_item" | "other") | null;
+            /**
+             * Unit Cost Paise
+             * @description Per operations unit; default the PO line's
+             */
+            unit_cost_paise?: number | null;
+        };
+        /** ReceiptLineOut */
+        ReceiptLineOut: {
+            /** Accepted Qty */
+            accepted_qty: number;
+            /**
+             * Amount Paise
+             * @description accepted_qty x unit_cost_paise, half up
+             */
+            amount_paise: number | null;
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Lot Id
+             * @description null when nothing was accepted
+             */
+            lot_id: string | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Ordered
+             * @description false: not on the purchase order (or no PO)
+             */
+            ordered: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Received Qty */
+            received_qty: number;
+            /** Reject Reason */
+            reject_reason: ("rotten" | "damaged" | "undersized" | "wrong_item" | "other") | null;
+            /** Rejected Qty */
+            rejected_qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+        };
         /** RecipeOut */
         RecipeOut: {
             /** Cook Minutes */
@@ -5671,6 +5861,16 @@ export interface components {
             phone_e164: string;
             /** Senior Mode */
             senior_mode: boolean;
+        };
+        /** UserRef */
+        UserRef: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** VendorIn */
         VendorIn: {
@@ -8278,6 +8478,67 @@ export interface operations {
             };
         };
     };
+    get_goods_receipt_v1_goods_receipts__receipt_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.receipt_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     health_v1_health_get: {
         parameters: {
             query?: never;
@@ -8899,6 +9160,145 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_goods_receipts_v1_hubs__hub_id__goods_receipts_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_goods_receipt_v1_hubs__hub_id__goods_receipts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found, hub_ops.po_not_found, hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_receivable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.receipt_invalid (reason), hub_ops.product_not_stocked (product_ids), hub_ops.qty_invalid, hub_ops.vendor_inactive, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
