@@ -12,7 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -173,15 +173,18 @@ async def cancel(session: AsyncSession, user: User, deletion: Deletion) -> None:
 
 
 def purge_due(today: date) -> Any:
-    """The open deletions whose grace period is over, oldest first."""
+    """The open deletions whose grace period is over and that were not tried yet today: never
+    tried first, then the least recently tried, oldest first. A blocked or failing account is
+    tried once a night, so it cannot starve newer ones."""
     return (
         select(Deletion)
         .where(
             Deletion.purge_on <= today,
             Deletion.cancelled_at.is_(None),
             Deletion.purged_at.is_(None),
+            or_(Deletion.last_attempt_on.is_(None), Deletion.last_attempt_on < today),
         )
-        .order_by(Deletion.requested_at)
+        .order_by(Deletion.last_attempt_on.asc().nulls_first(), Deletion.requested_at)
     )
 
 

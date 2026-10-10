@@ -245,7 +245,8 @@ async def order_ids_of_household(session: AsyncSession, household_id: uuid.UUID)
 async def anonymise_for_user(
     session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
 ) -> dict[str, int]:
-    """M1's purge (M1 §3.5, order 8, and §3.7 here): issue photos and notes go; orders, lines,
+    """M1's purge (M1 §3.5, order 8, and §3.7 here): issue photos, notes and the hub's
+    resolution notes (they may quote the customer) go; orders, lines,
     events and issue amounts stay (they back ledger entries), and events the user made as a
     partner lose the user id."""
     now = datetime.now(UTC)
@@ -255,14 +256,18 @@ async def anonymise_for_user(
             await session.scalars(
                 select(OrderIssue).where(
                     OrderIssue.household_id == household_id,
-                    or_(OrderIssue.note.is_not(None), func.cardinality(OrderIssue.photo_keys) > 0),
+                    or_(
+                        OrderIssue.note.is_not(None),
+                        OrderIssue.resolution_note.is_not(None),
+                        func.cardinality(OrderIssue.photo_keys) > 0,
+                    ),
                 )
             )
         )
     for issue in found:
         for key in issue.photo_keys:
             await files.set_delete_after(session, key, now)  # sweep_uploads deletes the file
-        issue.note, issue.photo_keys = None, []
+        issue.note, issue.resolution_note, issue.photo_keys = None, None, []
     events = await session.execute(
         update(OrderEvent).where(OrderEvent.actor_user_id == user_id).values(actor_user_id=None)
     )

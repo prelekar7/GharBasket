@@ -8,11 +8,11 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED
-from gharbasket.modules.community.models import Captain, Society
+from gharbasket.modules.community.models import Captain, Society, SocietyRequest
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.geo import geography
 
@@ -23,6 +23,7 @@ __all__ = [
     "CaptainRef",
     "SocietyLabels",
     "SocietyRef",
+    "anonymise_for_user",
     "captain_card",
     "captain_for_society",
     "contains",
@@ -183,3 +184,15 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
             for captain, name in rows.all()
         ]
     }
+
+
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None = None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 4; §3.8 here): the user's society requests (name, area, pin,
+    note) are deleted. The fuller eraser of §3.8 (referral codes, referrals, donations) replaces
+    this when it ships."""
+    requests = await session.execute(
+        delete(SocietyRequest).where(SocietyRequest.user_id == user_id)
+    )
+    return {"society_requests": requests.rowcount}  # pyright: ignore[reportAttributeAccessIssue]

@@ -171,6 +171,7 @@ Eraser = Callable[[AsyncSession, uuid.UUID, uuid.UUID | None], Awaitable[dict[st
 ERASERS: list[tuple[str, Eraser]] = [
     ("notifications", notifications_api.delete_for_user),
     ("intel_gateway", intel_api.delete_for_user),
+    ("community", community_api.anonymise_for_user),
     ("hub_ops", hub_ops_api.anonymise_for_user),
     ("subscriptions", subscriptions_api.delete_for_user),
     ("orders", orders_api.anonymise_for_user),
@@ -212,7 +213,8 @@ async def purge(session: AsyncSession, gone: Deletion, now: datetime) -> list[st
 
 @job("purge_deleted_users", "Erase accounts whose 30-day deletion grace is over, module by module")
 async def purge_deleted_users(ctx: JobContext) -> dict[str, Any]:
-    today = ctx.scheduled_for.astimezone(deletion.IST).date()
+    # Never later than now: a run dated in the future must not purge before the grace ends.
+    today = min(ctx.scheduled_for, datetime.now(UTC)).astimezone(deletion.IST).date()
     due = await ctx.session.scalars(
         deletion.purge_due(today).limit(PURGE_BATCH).with_for_update(skip_locked=True)
     )
@@ -224,8 +226,10 @@ async def purge_deleted_users(ctx: JobContext) -> dict[str, Any]:
                 reasons = await purge(ctx.session, gone, datetime.now(UTC))
         except Exception as exc:
             await ctx.session.refresh(gone)  # the savepoint's rollback expired it
+            gone.last_attempt_on = today
             summary["failed"][user] = type(exc).__name__
             continue
+        gone.last_attempt_on = today
         if not reasons:
             summary["purged"] += 1
             continue

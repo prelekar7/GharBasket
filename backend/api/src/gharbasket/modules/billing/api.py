@@ -8,7 +8,7 @@ import copy
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import service
@@ -32,8 +32,32 @@ __all__ = [
 ]
 
 
-# Personal fields Razorpay puts on a payment entity (M1 §3.5).
-REDACTED = ("contact", "email", "vpa")
+# What a purged user's stored webhook entities keep (M1 §3.5): what topups.handle_event and the
+# refund and reconciliation code read, and nothing that names or reaches a person.
+KEPT = frozenset(
+    {
+        "id",
+        "entity",
+        "order_id",
+        "payment_id",
+        "amount",
+        "amount_paid",
+        "amount_due",
+        "amount_refunded",
+        "currency",
+        "status",
+        "method",
+        "captured",
+        "refund_status",
+        "receipt",
+        "speed_processed",
+        "error_code",
+        "error_reason",
+        "fee",
+        "tax",
+        "created_at",
+    }
+)
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
@@ -66,20 +90,28 @@ async def anonymise_for_user(
     session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
 ) -> dict[str, int]:
     """M1's purge (M1 §3.5, order 9). The ledger is append-only and top-ups stay for
-    reconciliation; in the stored Razorpay webhooks of the user's payments, `contact`, `email`
-    and `vpa` become "redacted"."""
-    orders = select(Payment.provider_order_id).where(Payment.user_id == user_id)
+    reconciliation. The stored Razorpay webhooks about the user's payments keep only the
+    allowlisted fields of each entity (`KEPT`): contact, email, vpa, card and bank details,
+    customer and token ids, notes and acquirer data all go, however deeply they are nested."""
+    paid = select(Payment.provider_order_id).where(Payment.user_id == user_id)
+    refs = select(Payment.provider_payment_id).where(Payment.user_id == user_id)
+    body = PaymentWebhook.payload["payload"]
     hooks = await session.scalars(
         select(PaymentWebhook).where(
-            PaymentWebhook.payload["payment"]["entity"]["order_id"].astext.in_(orders)
+            or_(
+                body["payment"]["entity"]["order_id"].astext.in_(paid),
+                body["payment"]["entity"]["id"].astext.in_(refs),
+                body["order"]["entity"]["id"].astext.in_(paid),
+                body["refund"]["entity"]["payment_id"].astext.in_(refs),
+            )
         )
     )
     redacted = 0
     for hook in hooks.all():
         payload = copy.deepcopy(hook.payload)
-        entity = payload["payment"]["entity"]
-        found = [field for field in REDACTED if entity.get(field) not in (None, "redacted")]
-        if found:
-            entity.update(dict.fromkeys(found, "redacted"))
+        for part in (payload.get("payload") or {}).values():
+            if isinstance(part, dict) and isinstance(part.get("entity"), dict):
+                part["entity"] = {k: v for k, v in part["entity"].items() if k in KEPT}
+        if payload != hook.payload:
             hook.payload, redacted = payload, redacted + 1  # a new dict: JSONB sees the change
     return {"payment_webhooks": redacted}

@@ -8,11 +8,12 @@ from typing import Any
 
 import pytest
 from redis.asyncio import Redis
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing.models import Payment, PaymentWebhook, Posting
 from gharbasket.modules.billing.wallet import credit_topup, debit_for_order
+from gharbasket.modules.community.models import SocietyRequest
 from gharbasket.modules.hub_ops.models import Hub, PackingTask
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity import deletion
@@ -26,7 +27,13 @@ from gharbasket.modules.identity.models import (
     UserRole,
 )
 from gharbasket.modules.intel_gateway.models import FeatureSnapshot, Prediction
-from gharbasket.modules.notifications.models import Delivery, Message, Preference, QuietHours
+from gharbasket.modules.notifications.models import (
+    Delivery,
+    Message,
+    Preference,
+    QuietHours,
+    WebhookEvent,
+)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
 from gharbasket.modules.subscriptions import jobs as subscriptions_jobs
 from gharbasket.modules.subscriptions.models import Subscription, WeeklyCycle
@@ -118,10 +125,44 @@ def ist_day(day: date) -> datetime:
 
 
 async def purge(db: AsyncSession, day: date) -> dict[str, Any]:
-    run = await run_job(db, "purge_deleted_users", settings=SETTINGS, scheduled_for=ist_day(day))
+    """Run the purge as if the IST date were `day`. The job never runs ahead of the clock, so the
+    deletions' dates move back by the difference for the run, and forward again after it."""
+    shift = (day - datetime.now(deletion.IST).date()).days
+    moved = {
+        "purge_on": Deletion.purge_on - shift,
+        "last_attempt_on": Deletion.last_attempt_on - shift,
+    }
+    await db.execute(update(Deletion).values(moved))
+    run = await run_job(db, "purge_deleted_users", settings=SETTINGS)
+    back = {
+        "purge_on": Deletion.purge_on + shift,
+        "last_attempt_on": Deletion.last_attempt_on + shift,
+    }
+    await db.execute(update(Deletion).values(back))
+    await db.commit()
     assert run.status == "ok", run.error
     assert run.summary is not None
     return run.summary
+
+
+async def phone_anywhere(db: AsyncSession, number: str) -> dict[str, int]:
+    """Every text, varchar or jsonb column of every schema that still holds the phone digits."""
+    columns = await db.execute(
+        text(
+            "SELECT table_schema, table_name, column_name FROM information_schema.columns "
+            "WHERE data_type IN ('text', 'character varying', 'jsonb') AND table_schema NOT IN "
+            "('pg_catalog', 'information_schema', 'tiger', 'topology')"
+        )
+    )
+    found: dict[str, int] = {}
+    for schema, table, column in columns.all():
+        count = await db.scalar(
+            text(f'SELECT count(*) FROM "{schema}"."{table}" WHERE "{column}"::text LIKE :p'),
+            {"p": f"%{number[3:]}%"},
+        )
+        if count:
+            found[f"{schema}.{table}.{column}"] = count
+    return found
 
 
 async def ledger_sum(db: AsyncSession) -> int:
@@ -345,6 +386,11 @@ async def test_the_purge_erases_the_account_and_keeps_the_ledger(
     assert await ledger_sum(db_session) == 0
 
     purge_on = date.fromisoformat((await api.delete("/v1/me", headers=headers)).json()["purge_on"])
+    # A run dated in the future (a manual trigger) still uses today: nothing is due yet.
+    ahead = await run_job(
+        db_session, "purge_deleted_users", settings=SETTINGS, scheduled_for=ist_day(purge_on)
+    )
+    assert ahead.summary == {"purged": 0, "blocked": {}, "overdue": [], "failed": {}}
     early = await purge(db_session, purge_on - timedelta(days=1))
     assert early == {"purged": 0, "blocked": {}, "overdue": [], "failed": {}}
     assert await db_session.get(User, user_id) is not None
@@ -376,15 +422,7 @@ async def test_the_purge_erases_the_account_and_keeps_the_ledger(
     assert swept.status == "ok" and photo not in s3.objects
     assert await rows_naming(db_session, [user_id, home]) == {"billing.ledger_accounts.owner_id": 1}
     assert await ledger_sum(db_session) == 0
-    phone_text = await db_session.scalar(
-        text(
-            "SELECT (SELECT count(*) FROM platform.outbox WHERE payload::text LIKE :p) "
-            "+ (SELECT count(*) FROM platform.audit_log WHERE "
-            "coalesce(before::text, '') || coalesce(after::text, '') LIKE :p)"
-        ),
-        {"p": f"%{phone(1)[3:]}%"},
-    )
-    assert phone_text == 0
+    assert await phone_anywhere(db_session, phone(1)) == {}
 
     # The old tokens lead nowhere; the same phone signs up as somebody new.
     assert (await api.get("/v1/me", headers=headers)).status_code == 401
@@ -487,7 +525,7 @@ async def test_one_failing_eraser_does_not_stop_the_others(
     assert row is not None and row.purged_at is None and row.counts is None
 
     monkeypatch.setattr(identity_jobs, "ERASERS", erasers[1:])
-    assert (await purge(db_session, purge_on))["purged"] == 1
+    assert (await purge(db_session, purge_on + timedelta(days=1)))["purged"] == 1
     assert await db_session.get(User, unlucky) is None
 
 
@@ -507,7 +545,27 @@ async def test_every_module_erases_its_part(
     await seed_hubs(db_session)
     hub_id = (await db_session.scalars(select(Hub.id).limit(1))).one()
     payment = (await db_session.scalars(select(Payment).where(Payment.user_id == user_id))).one()
-    entity = {"id": payment.provider_payment_id, "order_id": payment.provider_order_id}
+    entity = {
+        "id": payment.provider_payment_id,
+        "entity": "payment",
+        "order_id": payment.provider_order_id,
+        "amount": 50_000,
+        "currency": "INR",
+        "status": "captured",
+        "method": "upi",
+        "created_at": 1_791_000_000,
+    }
+    personal = {
+        "contact": phone(1),
+        "email": "priya@example.com",
+        "vpa": "priya@upi",
+        "upi": {"vpa": "priya@upi", "payer_account_type": "bank_account"},
+        "card": {"name": "Priya Sharma", "last4": "4242"},
+        "acquirer_data": {"rrn": "123456789012", "upi_transaction_id": "abc"},
+        "customer_id": "cust_priya",
+        "token_id": "token_priya",
+        "notes": {"phone": phone(1)},
+    }
     message = Message(
         user_id=user_id,
         event_id=uuid.uuid4(),
@@ -549,15 +607,37 @@ async def test_every_module_erases_its_part(
                 event_id=f"evt_{user_id.hex[:10]}",
                 event="payment.captured",
                 payload={
-                    "payment": {
-                        "entity": {**entity, "contact": "+919800010001", "vpa": "priya@upi"}
-                    }
+                    "entity": "event",
+                    "event": "payment.captured",
+                    "payload": {"payment": {"entity": {**entity, **personal}}},
                 },
+            ),
+            SocietyRequest(
+                user_id=user_id, name="Palm Beach Residency", area="Nerul", note=f"Call {phone(1)}"
+            ),
+            WebhookEvent(
+                provider="whatsapp",
+                provider_event_id="wamid.priya:delivered",
+                payload={"id": "wamid.priya", "status": "delivered", "recipient_id": phone(1)[1:]},
             ),
         ]
     )
     await db_session.flush()
-    db_session.add(Delivery(message_id=message.id, channel="push", status="sent"))
+    db_session.add_all(
+        [
+            Delivery(message_id=message.id, channel="push", status="sent"),
+            Delivery(
+                message_id=message.id,
+                channel="whatsapp",
+                status="delivered",
+                provider_ref="wamid.priya",
+            ),
+        ]
+    )
+    issue = (
+        await db_session.scalars(select(OrderIssue).where(OrderIssue.household_id == home))
+    ).one()
+    issue.resolution_note = f"Called {phone(1)}, she confirmed"
     await db_session.commit()
     assert await ledger_sum(db_session) == 0
 
@@ -568,12 +648,14 @@ async def test_every_module_erases_its_part(
     assert counts is not None
     assert set(counts) == {module for module, _ in identity_jobs.ERASERS}
     assert counts["notifications"] == {
-        "deliveries": 1,
+        "webhook_events": 1,
+        "deliveries": 2,
         "messages": 1,
         "preferences": 1,
         "quiet_hours": 1,
     }
     assert counts["intel_gateway"] == {"predictions": 1, "feature_snapshots": 1}
+    assert counts["community"] == {"society_requests": 1}
     assert counts["hub_ops"] == {"packing_tasks": 1, "packing_events": 0}
     assert counts["subscriptions"] == {
         "edit_feedback": 0,
@@ -598,7 +680,8 @@ async def test_every_module_erases_its_part(
         await db_session.scalars(select(OrderIssue).where(OrderIssue.household_id == home))
     ).one()
     await db_session.refresh(issue)
-    assert issue.photo_keys == [] and issue.note is None and issue.credit_paise == 3_000
+    assert issue.photo_keys == [] and issue.note is None and issue.resolution_note is None
+    assert issue.credit_paise == 3_000
     task = (
         await db_session.scalars(select(PackingTask).where(PackingTask.order_id == order_id))
     ).one()
@@ -606,7 +689,9 @@ async def test_every_module_erases_its_part(
     assert task.flat is None and task.tower_id is None
     hook = (await db_session.scalars(select(PaymentWebhook))).one()
     await db_session.refresh(hook)
-    assert hook.payload["payment"]["entity"] == {**entity, "contact": "redacted", "vpa": "redacted"}
+    assert hook.payload["payload"]["payment"]["entity"] == entity  # only the allowlisted fields
+    assert hook.payload["event"] == "payment.captured"
+    assert await phone_anywhere(db_session, phone(1)) == {}
     assert await ledger_sum(db_session) == 0
 
 
@@ -680,3 +765,37 @@ async def test_keeping_an_account_the_purge_just_erased_is_refused(
         assert answer.json()["code"] == "identity.account_deleted"
     user = await db_session.get(User, user_id, populate_existing=True)
     assert user is not None and user.status == "deleting"
+
+
+async def test_accounts_that_wait_do_not_starve_newer_ones(db_session: AsyncSession) -> None:
+    """51 accounts blocked since yesterday (more than a run takes) and one newer account that is
+    ready: the newer one is tried first, and each blocked one at most once a night."""
+    today = datetime.now(deletion.IST).date()
+    blocked = [User(phone_e164=phone(100 + n), status="deleting") for n in range(51)]
+    ready = User(phone_e164=phone(99), status="deleting")
+    db_session.add_all([*blocked, ready])
+    await db_session.flush()
+    asked = datetime.now(UTC) - timedelta(days=40)
+    for n, user in enumerate(blocked):
+        await credit_topup(db_session, user.id, 100, payment_ref=f"b{n}", topup_id=uuid.uuid4())
+        db_session.add(
+            Deletion(
+                user_id=user.id,
+                requested_at=asked + timedelta(minutes=n),
+                purge_on=today - timedelta(days=5),
+                last_attempt_on=today - timedelta(days=1),
+            )
+        )
+    db_session.add(
+        Deletion(user_id=ready.id, requested_at=asked + timedelta(days=1), purge_on=today)
+    )
+    await db_session.commit()
+
+    first = await purge(db_session, today)
+    assert first["purged"] == 1 and len(first["blocked"]) == 49
+    assert await db_session.get(User, ready.id) is None
+    second = await purge(db_session, today)  # a second trigger the same night
+    assert second["purged"] == 0 and len(second["blocked"]) == 2
+    assert set(first["blocked"]).isdisjoint(second["blocked"])
+    assert (await purge(db_session, today))["blocked"] == {}  # each tried once tonight
+    assert len((await purge(db_session, today + timedelta(days=1)))["blocked"]) == 50
