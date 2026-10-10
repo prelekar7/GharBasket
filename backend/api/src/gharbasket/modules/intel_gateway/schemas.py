@@ -3,9 +3,9 @@
 The ML service (backend/ml) has its own copy of these shapes; tests run one against the other.
 """
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Slot = Literal["breakfast", "lunch", "dinner"]
 Rule = Literal["repeat", "cook_time", "budget"]
@@ -152,3 +152,120 @@ class PantryQuantities(BaseModel):
     source: Literal["ml", "fallback"]
     model: str
     items: list[PantryQuantity]
+
+
+# --- POST /route/solve (M10 §3.4): one delivery slot's van routes ------------------------------
+
+
+class RoutePoint(BaseModel):
+    lat: float
+    lng: float
+
+
+class RouteFoodBank(RoutePoint):
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError("food_bank: window_start_s is after window_end_s")
+        return self
+
+
+class RouteStop(BaseModel):
+    id: str
+    lat: float
+    lng: float
+    orders: int = 0
+    kg_tenths: int = 0
+    crates: int = 0
+    empties: int = 0
+    donation_kg_tenths: int = 0
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError(f"stop {self.id}: window_start_s is after window_end_s")
+        return self
+
+
+class RouteVans(BaseModel):
+    count: int = Field(ge=1, le=60)
+    capacity_kg: int = 400
+    capacity_crates: int = 24
+    traffic_factor: float = 1.5
+    reload_s: int = 1200
+
+
+class RouteService(BaseModel):
+    drop_s: int = 240  # the handover at a society
+    per_crate_s: int = 30
+
+
+class RouteCost(BaseModel):
+    fixed_paise_per_van: int = 25_000
+    paise_per_km: int = 60
+    wage_paise_per_s: int = 3
+    late_paise_per_s: int = 50
+
+
+class RouteRequest(BaseModel):
+    """What M7 sends for one slot. The checks that would make the ML service answer 422 are
+    repeated here, so a bad request fails in the API, not as a missing route."""
+
+    hub: RoutePoint
+    depart_s: int = Field(ge=0)
+    return_by_s: int = Field(ge=0)
+    stops: list[RouteStop] = Field(min_length=1, max_length=400)
+    food_bank: RouteFoodBank | None = None
+    vans: RouteVans
+    service: RouteService = Field(default_factory=RouteService)
+    cost: RouteCost = Field(default_factory=RouteCost)
+    time_limit_s: float = Field(default=10.0, ge=0.5, le=20.0)
+    max_late_s: int = Field(default=1800, ge=0)  # later than this past a window: a problem
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.depart_s >= self.return_by_s:
+            raise ValueError("depart_s must be before return_by_s")
+        if self.food_bank is None and any(s.donation_kg_tenths for s in self.stops):
+            raise ValueError("donations need a food_bank to take them to")
+        return self
+
+
+class RouteStopOut(BaseModel):
+    id: str
+    kind: Literal["drop", "bank"]
+    eta_s: int
+    late_s: int = 0
+
+
+class RouteVanOut(BaseModel):
+    van: int
+    start_s: int
+    end_s: int
+    stops: list[RouteStopOut]
+
+
+class RouteSummary(BaseModel):
+    vans: int
+    km: float
+    cost_paise: int
+    on_time: float
+    late_min: float
+    problems: list[str] = Field(default_factory=list)
+
+
+class RoutePlan(BaseModel):
+    """The ML service's routes; `source` says whether the road network or straight lines priced
+    them. None from the gateway means the service did not answer: M7 keeps yesterday's order."""
+
+    status: Literal["solved", "fallback"]
+    source: Literal["osrm", "haversine"]
+    routes: list[RouteVanOut]
+    summary: RouteSummary
+    seconds: float
+    model: str
