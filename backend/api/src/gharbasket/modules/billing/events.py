@@ -2,3 +2,6 @@
 
 # { user_id, topup_id, amount_paise, journal_entry_id }: a top-up was credited to the wallet.
 WALLET_TOPPED_UP = "billing.wallet_topped_up"
+# { user_id, points, source_type, source_id, expires_on }: Kindness points were credited (§3.6);
+# M11 tells the user (category kindness).
+POINTS_CREDITED = "billing.points_credited"
