@@ -285,3 +285,16 @@ async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[u
         return {}
     rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
     return {user_id: name for user_id, name in rows.all() if name is not None}
+
+
+async def holds_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None = None
+) -> bool:
+    """True if the user holds a verified `role` (in `scope_id` when given): M7 checks that a
+    vehicle's default rider rides for its hub."""
+    query = select(UserRole.id).where(
+        UserRole.user_id == user_id, UserRole.role == role, UserRole.status == "verified"
+    )
+    if scope_id is not None:
+        query = query.where(UserRole.scope_id == scope_id)
+    return (await session.execute(query.limit(1))).first() is not None

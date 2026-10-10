@@ -797,6 +797,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vehicles, by label */
+        get: operations["list_vehicles_v1_hubs__hub_id__vehicles_get"];
+        put?: never;
+        /** Add a vehicle to a hub (Idempotency-Key required) */
+        post: operations["create_vehicle_v1_hubs__hub_id__vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vendors": {
         parameters: {
             query?: never;
@@ -1723,6 +1741,26 @@ export interface paths {
         head?: never;
         /** Pause or resume, or set auto-approve */
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
+        trace?: never;
+    };
+    "/v1/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or deactivate a vehicle (If-Match: the vehicle's version)
+         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published.
+         */
+        patch: operations["patch_vehicle_v1_vehicles__vehicle_id__patch"];
         trace?: never;
     };
     "/v1/vendors/{vendor_id}": {
@@ -4895,6 +4933,20 @@ export interface components {
              */
             outcome: "credit" | "reject";
         };
+        /** RiderRef */
+        RiderRef: {
+            /**
+             * Name
+             * @description Shown to hub staff only
+             * @example Arjun Pawar
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /**
          * RoleGrantIn
          * @description Grant a role to an existing user (they must have signed in once).
@@ -5810,6 +5862,132 @@ export interface components {
             phone_e164: string;
             /** Senior Mode */
             senior_mode: boolean;
+        };
+        /**
+         * VehicleIn
+         * @description Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;
+         *     two_wheeler 40 kg, 0 crates, 30 tiffins.
+         */
+        VehicleIn: {
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates?: number | null;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg?: number | null;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins?: number | null;
+            /**
+             * Default Rider User Id
+             * @description A rider of this hub (an active rider:<hub> role)
+             */
+            default_rider_user_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration?: string | null;
+        };
+        /** VehicleOut */
+        VehicleOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates: number;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg: number;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** @description Set as the rider of new routes */
+            default_rider: components["schemas"]["RiderRef"] | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description cargo_3w carries boxes and add-ons; two_wheeler tiffins
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @description Unique per hub, ignoring case
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * VehiclePatch
+         * @description Only the fields sent change; `registration` and `default_rider_user_id` may be null.
+         *     A change applies to the next solve, never to a route already published.
+         */
+        VehiclePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Capacity Crates */
+            capacity_crates?: number | null;
+            /** Capacity Kg */
+            capacity_kg?: number | null;
+            /** Capacity Tiffins */
+            capacity_tiffins?: number | null;
+            /** Default Rider User Id */
+            default_rider_user_id?: string | null;
+            /** Kind */
+            kind?: ("cargo_3w" | "two_wheeler") | null;
+            /** Label */
+            label?: string | null;
+            /** Registration */
+            registration?: string | null;
+        };
+        /** VehiclesOut */
+        VehiclesOut: {
+            /** Items */
+            items: components["schemas"]["VehicleOut"][];
         };
         /** VendorIn */
         VendorIn: {
@@ -9454,6 +9632,154 @@ export interface operations {
             };
         };
     };
+    list_vehicles_v1_hubs__hub_id__vehicles_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vehicles */
+                active?: boolean | null;
+                /** @description Only this kind */
+                kind?: ("cargo_3w" | "two_wheeler") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehiclesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vehicle_v1_hubs__hub_id__vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vendors_v1_hubs__hub_id__vendors_get: {
         parameters: {
             query?: {
@@ -13021,6 +13347,107 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vehicle_v1_vehicles__vehicle_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehiclePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
