@@ -83,6 +83,9 @@ class HubOut(HubSummary):
     service_area: GeoPolygon | None = Field(description="null until an admin draws it")
     timings: Timings
     procurement_buffer_pct: int = Field(examples=[10])
+    pre_live_box_fee_paise: int = Field(
+        examples=[3000], description="Delivery fee per box while a society is not live (M9 §3.6)"
+    )
     version: int
     created_at: datetime
     updated_at: datetime
@@ -106,6 +109,7 @@ class HubIn(_HubFields):
     service_area: GeoPolygon | None = None
     timings: TimingsPatch | None = Field(default=None, description="Missing times: the defaults")
     procurement_buffer_pct: int = Field(default=10, ge=0, le=50)
+    pre_live_box_fee_paise: int = Field(default=3000, ge=0, le=10_000)
 
 
 class HubPatch(_HubFields, _Patch):
@@ -120,6 +124,7 @@ class HubPatch(_HubFields, _Patch):
     status: HubStatus | None = None
     timings: TimingsPatch | None = None
     procurement_buffer_pct: int | None = Field(default=None, ge=0, le=50)
+    pre_live_box_fee_paise: int | None = Field(default=None, ge=0, le=10_000)
 
 
 class VendorOut(BaseModel):

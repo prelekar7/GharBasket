@@ -6,6 +6,7 @@ it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains thr
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -40,6 +41,7 @@ class SocietyRef:
     hub_id: uuid.UUID | None
     status: str
     tower_ids: frozenset[str]
+    live_at: datetime | None  # set once, when it first went live (§3.6, §3.8)
 
 
 async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRef | None:
@@ -51,6 +53,7 @@ async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRe
         hub_id=society.hub_id,
         status=society.status,
         tower_ids=frozenset(str(tower["id"]) for tower in society.towers),
+        live_at=society.live_at,
     )
 
 
