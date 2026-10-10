@@ -1,14 +1,20 @@
-"""HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1)."""
+"""HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1),
+and captain appointments (§3.2, captain_router.py)."""
 
 import uuid
+from dataclasses import asdict
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, status
 
+from gharbasket.modules.community import api as community_api
+from gharbasket.modules.community import jobs as _jobs  # noqa: F401 (registers the consumers)
 from gharbasket.modules.community import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.community import service
+from gharbasket.modules.community.captain_router import router as captain_router
 from gharbasket.modules.community.models import Society
 from gharbasket.modules.community.schemas import (
+    CaptainCard,
     SocietyOut,
     SocietyRequestIn,
     SocietyRequestOut,
@@ -16,6 +22,7 @@ from gharbasket.modules.community.schemas import (
     Tower,
     UnlockOut,
 )
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
@@ -25,6 +32,7 @@ from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["community"])
+router.include_router(captain_router)
 
 SEARCH_LIMIT = 50
 # Society requests per user per day (spec §3.1).
@@ -88,15 +96,19 @@ async def search_societies(
     },
 )
 async def get_society(
-    society_id: uuid.UUID, _principal: CurrentPrincipal, session: DbSession
+    society_id: uuid.UUID, principal: CurrentPrincipal, session: DbSession
 ) -> SocietyOut:
     society = await service.get(session, society_id)
+    # The captain's card goes only to residents of this society (§3.1, §3.2).
+    household = await identity_api.household_for_user(session, principal.user_id)
+    card = None
+    if household is not None and household.society_id == society.id:
+        card = await community_api.captain_card(session, society.id)
     return SocietyOut(
         **_summary(society, None).model_dump(),
         towers=[Tower.model_validate(tower) for tower in society.towers],
         flats=society.flats,
-        # Captains arrive with M8 (partners); the card then goes only to this society's residents.
-        captain=None,
+        captain=None if card is None else CaptainCard(**asdict(card)),
     )
 
 

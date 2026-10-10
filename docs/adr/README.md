@@ -35,3 +35,5 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0023](0023-ownership-backend-and-frontend.md) | Ownership: Prathamesh all backend, infra and ML; Yash all frontend | Accepted |
 | [0024](0024-sign-in-firebase-otp-own-tokens.md) | Sign-in: Firebase phone OTP, then our own rotating tokens; cookies + CSRF for browsers | Accepted |
 | [0025](0025-ml-runtime-spaces-actions-r2.md) | ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, R2 lake and registry, cron-job.org for minute-level jobs | Accepted |
+| [0026](0026-operations-contract.md) | Operations contract: units, order actors, tiffin states, Society Captains in M9, hubs in M6 | Accepted (amended by 0027) |
+| [0027](0027-operations-contract-amendments.md) | Operations contract amendments: unassigned tiffins refunded, boxes missed twice (perishables refunded, the rest carried over), captain pay at `delivered`, M7's order moves, the preferred cook | Accepted |

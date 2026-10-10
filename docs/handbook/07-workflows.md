@@ -631,11 +631,11 @@ flowchart TD
 
 ## W11 — ML lifecycle
 
-1. **02:00 daily:** `export_snapshots` reads PostgreSQL with DuckDB and writes Parquet to object storage (S3 API: Cloudflare R2 when deployed, SeaweedFS locally); pandera validates the schema. Training runs in the ML service or offline, not inside an API request (D21).
+1. **02:00 daily:** `export_snapshots` reads PostgreSQL with DuckDB and writes Parquet to object storage (S3 API: Cloudflare R2 when deployed, SeaweedFS locally); pandera validates the schema. Snapshots and training run in `backend/training` on GitHub Actions, never inside the ML service or an API request (D21, D25).
 2. Point-in-time features are built as of each cut-off (no leakage).
 3. **Sunday 03:00:** a challenger model is trained and evaluated on a time-based holdout (last 2–4 weeks).
-4. If it beats `@champion` on the primary metric and passes guardrails, MLflow moves the `@champion` alias to the new version.
-5. The ML service checks the alias every 10 minutes and hot-reloads.
+4. If it beats the current model on the primary metric and passes guardrails, the new version is promoted: its `latest.json` pointer on R2 moves to it (manual `just promote` in v1, D25).
+5. The ML service polls `latest.json` every 10 minutes and hot-reloads.
 6. A daily monitor compares forecast vs actual (WAPE), plan acceptance and waste %, and alerts on drift.
 
 *Figure 7.17 — Sequence: training, evaluation, champion promotion and hot reload*
@@ -643,11 +643,11 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Scheduler
-    participant MW as ml service - batch job
+    participant SCH as GitHub Actions schedule
+    participant MW as backend/training job
     participant DB as PostgreSQL
     participant S3 as R2 data lake (S3 API)
-    participant MLF as MLflow
+    participant MLF as R2 model registry (latest.json)
     participant ML as ml service
     SCH->>MW: export_snapshots at 02:00
     MW->>DB: DuckDB postgres scan
@@ -657,15 +657,15 @@ sequenceDiagram
     MW->>MW: Build point-in-time features
     MW->>MW: Train challenger
     MW->>MW: Evaluate on last 2 to 4 weeks, per data_source
-    MW->>MLF: Log run, metrics, artifacts
-    MW->>MLF: Load champion metrics
+    MW->>MLF: Upload version, metrics, eval report
+    MW->>MLF: Load current version's metrics
     alt Challenger better and guardrails pass
-        MW->>MLF: Register version, set alias champion
+        MW->>MLF: Promote (just promote): latest.json points to the new version
     else Not better
-        MW->>MLF: Keep champion, tag run rejected
+        MW->>MLF: Keep the current version
     end
     loop Every 10 minutes
-        ML->>MLF: Resolve models name at champion
+        ML->>MLF: Read latest.json
         alt New version
             ML->>S3: Download artifact
             ML->>ML: Hot reload

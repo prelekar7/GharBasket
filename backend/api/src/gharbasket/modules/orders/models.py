@@ -51,7 +51,7 @@ STATUSES = (
     "redelivery",
     "refunded",
 )
-ACTORS = ("customer", "system", "hub")
+ACTORS = ("customer", "system", "hub", "packer", "rider", "captain", "kitchen")
 UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
 ISSUE_KINDS = ("missing", "damaged", "quality", "wrong_item", "late", "other")
 ISSUE_STATUSES = ("open", "credited", "rejected")
@@ -115,7 +115,14 @@ class Order(Base):
             name="money",
         ),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
-        UniqueConstraint("cycle_id"),
+        # One live order per weekly cycle: a skip cancels it, and an un-skipped week approved
+        # again gets a new one (M4 §4, M3 §3.3).
+        Index(
+            "uq_orders_cycle_id_active",
+            "cycle_id",
+            unique=True,
+            postgresql_where=text("status <> 'cancelled'"),
+        ),
         Index("ix_orders_household_delivery", "household_id", "delivery_date"),
         Index("ix_orders_hub_delivery_status", "hub_id", "delivery_date", "status"),
         {"schema": SCHEMA},
@@ -173,7 +180,8 @@ class OrderLine(Base):
 
     @property
     def total_paise(self) -> int:
-        return self.qty * self.unit_price_paise
+        """What the delivered steps cost: steps short at packing are refunded (§3.1)."""
+        return (self.qty - (self.shortage_qty or 0)) * self.unit_price_paise
 
 
 class OrderEvent(Base):
@@ -192,7 +200,10 @@ class OrderEvent(Base):
     )
     from_status: Mapped[str | None] = mapped_column(String(16))
     to_status: Mapped[str] = mapped_column(String(16))
-    actor: Mapped[str] = mapped_column(String(10))
+    actor: Mapped[str] = mapped_column(String(10))  # the kind of actor; the timeline shows this
+    # The person who made the move (packer, rider, captain, kitchen partner, hub manager or the
+    # customer), when there is one; never shown to customers (ADR-0026 §2).
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

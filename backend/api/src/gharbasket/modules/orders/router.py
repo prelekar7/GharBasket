@@ -1,7 +1,9 @@
-"""HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1), and
-problems reported on an order (§3.2)."""
+"""HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1),
+problems reported on an order (§3.2), the console's triage of them (§3.6), and paying a failed
+box (§3.4)."""
 
 import uuid
+from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Annotated, Any
 
@@ -10,21 +12,28 @@ from fastapi import APIRouter, Query, Request, Response, status
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import issues, service
+from gharbasket.modules.orders import issues, service, triage
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
 from gharbasket.modules.orders.schemas import (
     AddonsIn,
+    IssueContact,
     IssueIn,
     IssueItemOut,
+    IssueKind,
     IssueOut,
+    IssuePhoto,
     IssuesOut,
+    IssueStatus,
+    IssueTriage,
+    IssueTriageDetail,
     OrderLineOut,
     OrderOut,
     OrderStep,
     OrderSummaryOut,
     ProductRef,
+    ResolveIn,
     SlotIn,
     SlotOut,
     SlotPatch,
@@ -34,13 +43,13 @@ from gharbasket.modules.orders.schemas import (
     TimelineEntry,
 )
 from gharbasket.modules.orders.service import IST, SlotLoad
-from gharbasket.platform import audit
+from gharbasket.platform import audit, files
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
-from gharbasket.platform.pagination import Cursor, Page
+from gharbasket.platform.pagination import Cursor, Limit, Page
 from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["orders"])
@@ -364,10 +373,47 @@ async def cancel_order(
     order_id: uuid.UUID, permit: CanWrite, session: DbSession, idem: Idempotent, lang: Lang
 ) -> OrderOut:
     order = await _owned(session, permit, order_id, for_update=True)
-    await service.cancel(session, order, actor="customer", reason="customer")
+    await service.cancel(
+        session,
+        order,
+        actor="customer",
+        reason="customer",
+        actor_user_id=permit.principal.user_id,
+    )
     out = await _full(session, order, lang)
     await idem.save(200, out)
     await session.commit()
+    return out
+
+
+@router.post(
+    "/orders/{order_id}/pay",
+    summary="Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)",
+    description="The same debit as the cut-off (one per order, never twice), then `locked`. "
+    "An order that is already locked (a top-up paid it) answers as it is.",
+    responses={
+        404: _problem("orders.not_found"),
+        409: _problem(
+            "billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, "
+            "orders.payment_grace_over"
+        ),
+    },
+)
+async def pay_order(
+    order_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    response: Response,
+) -> OrderOut:
+    order = await _owned(session, permit, order_id, for_update=True)
+    await service.pay(session, order)
+    out = await _full(session, order, lang)
+    await idem.save(200, out)
+    await session.commit()
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, order.version)
     return out
 
 
@@ -455,3 +501,151 @@ async def list_issues(
     return IssuesOut(
         items=await _issues_out(session, await issues.of_order(session, order.id), lang)
     )
+
+
+# --- triage (§3.6) ------------------------------------------------------------------------------
+
+CanTriage = Annotated[Permit, require("order_issues:resolve")]
+
+
+async def _triage_out(
+    session: DbSession, found: list[OrderIssue], lang: Language
+) -> list[IssueTriage]:
+    known = await triage.facts(session, found)
+    return [
+        IssueTriage(
+            **out.model_dump(),
+            household_id=issue.household_id,
+            hub_id=issue.hub_id,
+            **asdict(known[issue.id]),
+        )
+        for out, issue in zip(await _issues_out(session, found, lang), found, strict=True)
+    ]
+
+
+async def _audit_read(
+    session: DbSession, permit: Permit, issue: OrderIssue, action: str, after: dict[str, Any]
+) -> None:
+    await audit.record(
+        session,
+        actor_user_id=permit.principal.user_id,
+        action=action,
+        entity_type="order_issue",
+        entity_id=str(issue.id),
+        after=after,
+    )
+
+
+@router.get(
+    "/admin/order-issues",
+    summary="The triage queue of a hub (all hubs for admins), oldest first",
+    responses={
+        403: _problem("auth.forbidden: another hub"),
+        422: _problem("orders.hub_required (hub staff), request.invalid_cursor"),
+    },
+)
+async def triage_queue(
+    permit: CanTriage,
+    session: DbSession,
+    lang: Lang,
+    response: Response,
+    hub_id: Annotated[uuid.UUID | None, Query(description="Required for hub staff")] = None,
+    issue_status: Annotated[IssueStatus, Query(alias="status")] = "open",
+    kind: IssueKind | None = None,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[IssueTriage]:
+    if hub_id is not None:
+        permit.ensure(hub_id)
+    elif not any(g.role == "admin" for g in permit.grants):
+        raise ProblemError(422, "orders.hub_required", "Hub staff pass hub_id.")
+    found, next_cursor = await triage.queue(
+        session, hub_id=hub_id, status=issue_status, kind=kind, cursor=cursor, limit=limit
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=await _triage_out(session, found, lang), next_cursor=next_cursor)
+
+
+@router.get(
+    "/admin/order-issues/{issue_id}",
+    summary="One issue with 5-minute photo links and the customer's contact (audit-logged)",
+    responses={
+        403: _problem("auth.forbidden: another hub"),
+        404: _problem("orders.issue_not_found"),
+    },
+)
+async def triage_detail(
+    issue_id: uuid.UUID,
+    permit: CanTriage,
+    session: DbSession,
+    lang: Lang,
+    request: Request,
+    response: Response,
+) -> IssueTriageDetail:
+    issue = await triage.get(session, issue_id)
+    permit.ensure(issue.hub_id)
+    store: files.ObjectStore | None = getattr(request.app.state, "storage", None)
+    photos: list[IssuePhoto] = []
+    if store is not None:  # none while storage is down; photo_count still says how many
+        for key in issue.photo_keys:
+            url = store.signed_get(key)
+            photos.append(IssuePhoto(url=url, expires_at=service.now() + files.GET_TTL))
+            await _audit_read(session, permit, issue, "order_issues.photo_link", {"key": key})
+    found = await identity_api.contact_for_household(session, issue.household_id)
+    contact = None if found is None else IssueContact(name=found.name, phone_e164=found.phone_e164)
+    await _audit_read(
+        session,
+        permit,
+        issue,
+        "order_issues.contact_read",
+        {"household_id": str(issue.household_id)},
+    )
+    out = (await _triage_out(session, [issue], lang))[0]
+    await session.commit()
+    response.headers["Cache-Control"] = "no-store"
+    return IssueTriageDetail(**out.model_dump(), photos=photos, contact=contact)
+
+
+@router.post(
+    "/admin/order-issues/{issue_id}/resolve",
+    summary="Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged)",
+    responses={
+        403: _problem("auth.forbidden: another hub"),
+        404: _problem("orders.issue_not_found"),
+        409: _problem("orders.issue_not_open"),
+        422: _problem(
+            "orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; "
+            "the issue stays open)"
+        ),
+    },
+)
+async def resolve_issue(
+    issue_id: uuid.UUID,
+    body: ResolveIn,
+    permit: CanTriage,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> IssueTriage:
+    permit.ensure(await triage.hub_of(session, issue_id))
+    issue = await issues.resolve(
+        session,
+        issue_id,
+        body.outcome,
+        body.credit_paise or 0,
+        permit.principal.user_id,
+        body.note,
+    )
+    await audit.record(
+        session,
+        actor_user_id=permit.principal.user_id,
+        action="order_issues.resolved",
+        entity_type="order_issue",
+        entity_id=str(issue.id),
+        before={"status": "open"},
+        after={"status": issue.status, "credit_paise": issue.credit_paise},
+    )
+    out = (await _triage_out(session, [issue], lang))[0]
+    await idem.save(200, out)
+    await session.commit()
+    return out
