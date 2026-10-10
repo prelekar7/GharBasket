@@ -6,6 +6,7 @@ keeps the no-repeat windows, placing a fasting dish first on fasting days. Valid
 """
 
 import math
+from typing import Literal
 
 from gharbasket.modules.intel_gateway.schemas import (
     PantryQuantities,
@@ -32,22 +33,69 @@ MODEL = "rules-v0"
 Plan = dict[tuple[int, Slot], str | None]
 
 
-def _allowed(req: PlanRequest, r: PlanRecipe, day: int, slot: Slot, relax: frozenset[Rule]) -> bool:
+HardRule = Literal["diet", "jain", "fasting", "diabetic"]
+
+
+def rule_breaks(
+    req: PlanRequest, r: PlanRecipe, day: int, slot: str, *, every_meal_fasts: bool = False
+) -> list[HardRule]:
+    """The household's hard rules (M1) that `r` breaks at that meal. The planner needs one
+    fasting dish per fasting day; `every_meal_fasts` holds every meal of it to `fasting_ok`
+    (a meal the customer picks, M3 §3.2)."""
     h = req.household
-    if slot not in r.slots:
-        return False
+    broken: list[HardRule] = []
     if (h.diet == "veg" and r.diet != "veg") or (h.diet == "egg" and r.diet == "nonveg"):
+        broken.append("diet")
+    if h.jain and not r.jain_ok:
+        broken.append("jain")
+    fast = next((f for f in req.fasting_days if f.day == day), None)
+    if fast is not None and (
+        (fast.no_onion_garlic and not r.no_onion_garlic) or (every_meal_fasts and not r.fasting_ok)
+    ):
+        broken.append("fasting")
+    if h.diabetic and slot != "breakfast" and not r.diabetic_ok:
+        broken.append("diabetic")
+    return broken
+
+
+def cook_limit(req: PlanRequest, day: int) -> int:
+    h = req.household
+    return h.weekend_cook_minutes if day in WEEKEND else h.weekday_cook_minutes
+
+
+def _allowed(req: PlanRequest, r: PlanRecipe, day: int, slot: Slot, relax: frozenset[Rule]) -> bool:
+    if slot not in r.slots or rule_breaks(req, r, day, slot):
         return False
-    if (h.jain and not r.jain_ok) or (h.diabetic and slot != "breakfast" and not r.diabetic_ok):
+    if "cook_time" not in relax and r.cook_minutes > cook_limit(req, day):
         return False
-    if any(f.day == day and f.no_onion_garlic for f in req.fasting_days) and not r.no_onion_garlic:
-        return False
-    limit = h.weekend_cook_minutes if day in WEEKEND else h.weekday_cook_minutes
-    if "cook_time" not in relax and r.cook_minutes > limit:
-        return False
-    if day in h.no_cook_days:
+    if day in req.household.no_cook_days:
         return slot == "breakfast" and r.no_cook
     return True
+
+
+def _rank(r: PlanRecipe, cuisines: set[str], by_cost: bool) -> tuple[bool, float, int, str]:
+    """Household cuisine first, then the dishes the household liked most (v2), then
+    cheapest, then by name; when only cost counts (a budget pass), cheapest first."""
+    return (
+        not by_cost and r.cuisine not in cuisines,
+        0.0 if by_cost else -(r.preference or 0.0),
+        r.cost_per_serving_paise,
+        r.slug,
+    )
+
+
+def next_recipe(req: PlanRequest, day: int, slot: str, exclude: set[str]) -> PlanRecipe | None:
+    """The one-tap "Swap meal" (M3 §3.2): the cheapest recipe of `req.recipes` for that meal
+    that keeps every hard rule, fits the day's cook minutes and is not in `exclude`."""
+    options = [
+        r
+        for r in req.recipes
+        if r.slug not in exclude
+        and slot in r.slots
+        and not rule_breaks(req, r, day, slot, every_meal_fasts=True)
+        and r.cook_minutes <= cook_limit(req, day)
+    ]
+    return min(options, key=lambda r: _rank(r, set(), by_cost=True), default=None)
 
 
 def _repeats(plan: Plan, day: int, slot: Slot, slug: str, relax: frozenset[Rule]) -> bool:
@@ -63,16 +111,6 @@ def _greedy(req: PlanRequest, relax: frozenset[Rule], by_cost: bool) -> Plan | N
     cuisines = set(h.cuisines)
     fasting_days = {f.day for f in req.fasting_days}
 
-    def rank(r: PlanRecipe) -> tuple[bool, float, int, str]:
-        """Household cuisine first, then the dishes the household liked most (v2), then
-        cheapest, then by name; when only cost counts (a budget pass), cheapest first."""
-        return (
-            not by_cost and r.cuisine not in cuisines,
-            0.0 if by_cost else -(r.preference or 0.0),
-            r.cost_per_serving_paise,
-            r.slug,
-        )
-
     plan: Plan = {}
     for day in range(7):
         needs_fast = day in fasting_days
@@ -82,7 +120,7 @@ def _greedy(req: PlanRequest, relax: frozenset[Rule], by_cost: bool) -> Plan | N
                 continue
             options = sorted(
                 (r for r in req.recipes if not r.is_side and _allowed(req, r, day, slot, relax)),
-                key=lambda r: (needs_fast and not r.fasting_ok, *rank(r)),
+                key=lambda r: (needs_fast and not r.fasting_ok, *_rank(r, cuisines, by_cost)),
             )
             choice = next(
                 (r for r in options if not _repeats(plan, day, slot, r.slug, relax)), None

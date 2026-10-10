@@ -31,11 +31,13 @@ gharbasket/
 │  │  │                   schemas.py, events.py)
 │  │  ├─ migrations/     Alembic (one head; YYYYMMDD_HHMM_<module>_<desc>.py)
 │  │  └─ tests/          per module (tests/<module>/) and for the platform
-│  └─ ml/                FastAPI ML service, training pipelines, eval/, marimo notebooks (arrives in S0)
+│  ├─ ml/                FastAPI ML/optimisation service: stateless solvers and inference (D25)
+│  └─ training/          data, training and forecasting jobs run in GitHub Actions (D25)
 ├─ data/                 simulator/, seeds/
 ├─ e2e/                  Playwright tests (Rhythm, Manish)
 ├─ infra/                postgres/, compose/, mlflow/, osrm/ (spike S-3)
-├─ docs/                 handbook/, TDD.md, FRONTEND_DESIGN.md, adr/, modules/, runbooks/, project/
+├─ docs/                 handbook/, TDD.md, FRONTEND_DESIGN.md, SETUP.md, adr/, modules/, research/, spikes/
+                         (runbooks/ planned, written before the pilot in S10)
 ├─ .github/              workflows/, CODEOWNERS, pull_request_template.md, ISSUE_TEMPLATE/
 ├─ AGENTS.md             canonical AI-tool instructions (synced copies)
 ├─ justfile  turbo.json  pnpm-workspace.yaml  pyproject.toml (uv workspace)
@@ -126,6 +128,7 @@ flowchart TD
     MG --> STG["deploy-staging<br/>alembic upgrade head on Neon,<br/>Render deploy hook, smoke test"]
     MG --> VD["Vercel deploys PWA + console"]
     SCH["jobs-staging.yml schedule<br/>+ cron-job.org"] --> JOB["POST /v1/internal/jobs/{name}<br/>with JOBS_TOKEN"]
+    TRN["training-jobs.yml schedule"] --> TRJ["backend/training on the runner<br/>R2 lake, then internal endpoints"]
 ```
 *Figure 11.2 — CI/CD pipeline*
 
@@ -135,8 +138,9 @@ flowchart TD
 | `claude.yml` | `@claude` in an issue, PR comment or review | On-demand Claude Code; no automatic review on every PR |
 | `deploy-staging.yml` | CI passed on a push to main (or "Run workflow") | `alembic upgrade head` on Neon (`GB_ALLOW_REMOTE_MIGRATIONS=1`), then the Render deploy hook for that commit (Render's pre-deploy step is paid-only), then waits until `/v1/health` reports the commit and runs `scripts/smoke-staging.sh`. Skips with a notice until its secrets exist |
 | `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
+| `training-jobs.yml` | GitHub Actions schedule (daily, 18:33 IST) or "Run workflow" with a job module | Runs `python -m gharbasket_training.jobs.<name>` from `backend/training` on the runner (D25): reads and writes the lake on R2 and hands results to the API's internal endpoints with `JOBS_TOKEN`. Today it runs `collect_mandi`. Skips with a notice until its secrets exist |
 
-Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag) and, before P6, a pilot production deploy.
+Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag), `deploy-ml.yml` for the ML service on its Hugging Face Space and, before P6, a pilot production deploy.
 
 ## 11.5 Environments
 
@@ -169,7 +173,7 @@ flowchart LR
 |---|---|---|---|---|
 | local | Docker Postgres (tests and `just seed` refuse any other database) | `just dev` | `next dev`, `vite` | `vite` / Android emulator |
 | preview (PR) | No database of its own; uses staging | Shared staging API | Vercel preview | Debug APK (later) |
-| staging | Neon, one database shared by Infisical `dev` and `staging` | Render free web service; ML hosting decided before P3/P4 | Vercel | Internal testing track |
+| staging | Neon, one database shared by Infisical `dev` and `staging` | Render free web service; the ML service and OSRM on a Hugging Face Space (D25) | Vercel | Internal testing track |
 | prod (pilot) | Decided before P6 (Q3) | Paid plans decided before P6 | Vercel | Internal / closed testing |
 
 ## 11.6 Testing strategy
@@ -177,7 +181,7 @@ flowchart LR
 | Layer | Tooling | Owner |
 |---|---|---|
 | Unit (Python / JS) | pytest + anyio, Vitest, Testing Library | Feature author |
-| Integration (real PostGIS) | pytest against the local `gharbasket_test` database (the same Postgres image in CI) | Feature author |
+| Integration (real PostGIS) | pytest against the local `gharbasket_test` database (the same Postgres image in CI). API tests share one rolled-back session across requests, so the commit guard (`tests/commit_guard.py`) fails any request that returns successfully with a write it never committed (production rolls such writes back) | Feature author |
 | Property tests (ledger, state machines) | hypothesis (planned) | Prathamesh Relekar |
 | Contract / API fuzz | schemathesis on OpenAPI (`tests/test_api_fuzz.py`, own throwaway database): no 500s, every answer documented and schema-shaped | CI |
 | Solver golden tests (routing, CP-SAT, fixed seeds) | pytest | Prathamesh Relekar |
@@ -231,6 +235,7 @@ Core rules in `AGENTS.md`:
 - **D14** — Final tech stack; changes need an ADR ([ADR-0014](../adr/0014-final-stack-and-service-based-architecture.md)); amended by D18 (JavaScript frontend, [ADR-0018](../adr/0018-javascript-not-typescript-frontend.md)) and D22 (generated API client, [ADR-0022](../adr/0022-api-client-openapi-fetch.md)).
 - **D20** — Free-tier environments: Render, Vercel, Neon, R2 ([ADR-0020](../adr/0020-free-tier-hosting-render-vercel-neon-r2.md); supersedes ADR-0015).
 - **D23** — Ownership: one backend owner, one frontend owner ([ADR-0023](../adr/0023-ownership-backend-and-frontend.md); supersedes the code ownership in ADR-0009).
-- **Open:** hosting for the ML service, OSRM and MLflow (before P3/P4); the pilot production setup (before P6).
+- **D25** — ML runtime: the ML service and OSRM on one Hugging Face Space, training in GitHub Actions (`backend/training`), models and the lake on R2, MLflow local only, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md); settles the ML hosting left open in ADR-0020).
+- **Open:** the pilot production setup (before P6).
 
 Related: [Chapter 04 — System architecture](04-system-architecture.md) · [Chapter 12 — Deployment and operations](12-deployment-and-operations.md) · [Chapter 14 — Project plan](14-project-plan.md)
