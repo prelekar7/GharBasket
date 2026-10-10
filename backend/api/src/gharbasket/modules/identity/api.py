@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity import households, service
+from gharbasket.modules.identity import events, households, service
 from gharbasket.modules.identity.models import (
     Consent,
     Household,
@@ -17,6 +17,10 @@ from gharbasket.modules.identity.models import (
     User,
     UserRole,
 )
+
+# Events other modules consume (M9: the unlock count).
+HOUSEHOLD_CREATED = events.HOUSEHOLD_CREATED
+HOUSEHOLD_UPDATED = events.HOUSEHOLD_UPDATED
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:

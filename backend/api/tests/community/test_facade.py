@@ -16,8 +16,13 @@ SAI_DARSHAN = uuid.UUID("0199a000-0000-7000-8000-00000000b006")  # seed: no boun
 async def test_get_society_gives_what_an_address_needs(db_session: AsyncSession) -> None:
     society = await api.get_society(db_session, SEED_SOCIETY_ID)
 
+    assert society is not None and society.live_at is not None  # seeded live (§3.6)
     assert society == api.SocietyRef(
-        id=SEED_SOCIETY_ID, hub_id=SEED_HUB_ID, status="live", tower_ids=frozenset({"a", "b", "c"})
+        id=SEED_SOCIETY_ID,
+        hub_id=SEED_HUB_ID,
+        status="live",
+        tower_ids=frozenset({"a", "b", "c"}),
+        live_at=society.live_at,
     )
     assert await api.get_society(db_session, uuid.uuid4()) is None
 
