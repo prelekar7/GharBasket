@@ -1439,6 +1439,76 @@
         "title": "FastingRules",
         "type": "object"
       },
+      "FeatureSnapshotIn": {
+        "properties": {
+          "features": {
+            "additionalProperties": true,
+            "title": "Features",
+            "type": "object"
+          },
+          "subject_id": {
+            "format": "uuid",
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "household",
+              "hub",
+              "society",
+              "order",
+              "partner",
+              "product"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject_id",
+          "features"
+        ],
+        "title": "FeatureSnapshotIn",
+        "type": "object"
+      },
+      "FeatureSnapshotsIn": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureSnapshotIn"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "items"
+        ],
+        "title": "FeatureSnapshotsIn",
+        "type": "object"
+      },
+      "FeatureSnapshotsOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "FeatureSnapshotsOut",
+        "type": "object"
+      },
       "FeedbackIn": {
         "additionalProperties": false,
         "properties": {
@@ -15933,6 +16003,72 @@
         "summary": "Add a vendor to a hub (Idempotency-Key required)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/internal/intel/feature-snapshots": {
+      "post": {
+        "operationId": "put_feature_snapshots_v1_internal_intel_feature_snapshots_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureSnapshotsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureSnapshotsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Store point-in-time features as of a cut-off (the snapshot job; operator token)",
+        "tags": [
+          "intel_gateway"
         ]
       }
     },
