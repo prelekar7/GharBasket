@@ -50,7 +50,7 @@ from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
 from gharbasket.platform.pagination import Cursor, Limit, Page
-from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.permissions import Permit, forbidden, require
 
 router = APIRouter(tags=["orders"])
 
@@ -99,12 +99,13 @@ async def _scope(
 async def _owned(
     session: DbSession, permit: Permit, order_id: uuid.UUID, *, for_update: bool = False
 ) -> Order:
+    """The order if an admin or staff of its hub asks, or its household's owner as a customer;
+    another customer's order is 404, another hub's 403 for staff without the customer role."""
     order = await service.get(session, order_id, for_update=for_update)
-    if any(g.role == "admin" for g in permit.grants):
+    if permit.allows(order.hub_id):
         return order
-    if any(g.scope_type == "hub" for g in permit.grants):
-        permit.ensure(order.hub_id)
-        return order
+    if not permit.has_role("customer"):
+        raise forbidden()
     household = await identity_api.household_for_user(session, permit.principal.user_id)
     if household is None or household.id != order.household_id:
         raise service.order_not_found()
