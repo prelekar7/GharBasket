@@ -135,6 +135,14 @@ gen-api: openapi
 sim *args:
     uv run python -m gharbasket_sim {{args}}
 
+# Pin the ML image's dependencies: backend/ml/requirements.lock from uv.lock (deploy-ml.yml does the same; git-ignored)
+ml-lock:
+    uv export --quiet --package gharbasket-ml --frozen --no-dev --no-emit-project -o backend/ml/requirements.lock
+
+# Smoke-test a deployed ML service, e.g. `just cloud-ml https://<space>.hf.space $ML_SERVICE_TOKEN`
+cloud-ml url token="":
+    uv run --directory backend/ml python -m gharbasket_ml.smoke {{url}} {{token}}
+
 # Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
 eval *args:
     uv run python -m gharbasket_training.eval {{args}}

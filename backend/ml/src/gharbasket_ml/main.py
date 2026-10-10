@@ -77,7 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Health with the served models and the road network",
     )
     async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
-        return registry.health(settings.models_manifest)
+        return await registry.health(settings.models_manifest, settings.osrm_url)
 
     @app.post(
         "/pantry/quantities",

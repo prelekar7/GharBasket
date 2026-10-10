@@ -5,15 +5,17 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Body, Query, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.hub_ops import packing, service
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.hub_ops.models import Hub, Vendor
+from gharbasket.modules.hub_ops.models import Hub, PackingTask, Vendor
 from gharbasket.modules.hub_ops.schemas import (
     BuildIn,
     BuildOut,
+    CompleteIn,
     GeoPolygon,
     HubIn,
     HubOut,
@@ -23,6 +25,9 @@ from gharbasket.modules.hub_ops.schemas import (
     PackingSummary,
     PackingTaskDetail,
     PackingTaskOut,
+    PickIn,
+    ShortageIn,
+    StartIn,
     TaskStatus,
     Timings,
     VendorIn,
@@ -35,8 +40,8 @@ from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.geo import LatLng
-from gharbasket.platform.idempotency import Idempotent
-from gharbasket.platform.locale import Lang
+from gharbasket.platform.idempotency import Idempotency, Idempotent
+from gharbasket.platform.locale import Lang, Language
 from gharbasket.platform.pagination import Cursor, Page, decode_cursor, encode_cursor
 from gharbasket.platform.permissions import Permit, require
 
@@ -289,8 +294,21 @@ async def patch_vendor(
 # --- packing (§3.2) -------------------------------------------------------------------------------
 
 CanReadPacking = Annotated[Permit, require("packing:read")]
+CanPack = Annotated[Permit, require("packing:write")]
 CanManagePacking = Annotated[Permit, require("packing:manage")]
 Day = Annotated[date | None, Query(alias="date", description="IST date; default today")]
+PACKER_MOVES: dict[int | str, dict[str, Any]] = {
+    **CREATES,
+    404: _problem("hub_ops.task_not_found, hub_ops.line_not_found"),
+    409: _problem(
+        "hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, "
+        "hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition"
+    ),
+    422: _problem(
+        "hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, "
+        "request.idempotency_mismatch, request.invalid"
+    ),
+}
 
 
 @router.get(
@@ -373,6 +391,24 @@ async def build_packing_tasks(
     return out
 
 
+@router.post(
+    "/hubs/{hub_id}/packing-tasks/next",
+    response_model=PackingTaskDetail,
+    summary="Claim the next task: the caller's own in picking, else the first queued one",
+    responses={**PACKER_MOVES, 204: {"description": "Nothing queued"}},
+)
+async def next_packing_task(
+    hub_id: uuid.UUID, permit: CanPack, session: DbSession, idem: Idempotent, lang: Lang
+) -> PackingTaskDetail | Response:
+    permit.ensure(hub_id)
+    by = packing.actor(permit, hub_id)
+    task = await packing.claim_next(session, hub_id, by, packing.packing_day(None))
+    if task is None:
+        await session.rollback()  # nothing happened, so the key is not kept either
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _answer(session, idem, task, lang)
+
+
 @router.get(
     "/packing-tasks/{task_id}",
     summary="A packing task with its lines",
@@ -384,3 +420,115 @@ async def get_packing_task(
     task = await packing.get_task(session, task_id, permit)
     response.headers["Cache-Control"] = "no-store"
     return await packing.detail(session, task, lang)
+
+
+async def _answer(
+    session: AsyncSession, idem: Idempotency, task: PackingTask, lang: Language
+) -> PackingTaskDetail:
+    out = await packing.detail(session, task, lang)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/packing-tasks/{task_id}/start",
+    summary="Start a task (the order moves locked → picking; Idempotency-Key)",
+    responses=PACKER_MOVES,
+)
+async def start_packing(
+    task_id: uuid.UUID,
+    permit: CanPack,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    body: Annotated[StartIn | None, Body()] = None,
+) -> PackingTaskDetail:
+    body = body or StartIn()
+    task = await packing.get_task(session, task_id, permit, for_update=True)
+    by = packing.actor(permit, task.hub_id)
+    await packing.start(session, task, by, body.bag_qr, body.client_at)
+    return await _answer(session, idem, task, lang)
+
+
+@router.post(
+    "/packing-tasks/{task_id}/pick",
+    summary="Set the steps picked for a line (absolute; Idempotency-Key)",
+    responses={**PACKER_MOVES, 403: _problem("auth.forbidden, hub_ops.not_your_task")},
+)
+async def pick_line(
+    task_id: uuid.UUID,
+    body: PickIn,
+    permit: CanPack,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> PackingTaskDetail:
+    task = await packing.get_task(session, task_id, permit, for_update=True)
+    by = packing.actor(permit, task.hub_id)
+    await packing.pick(session, task, by, body.product_id, body.picked_qty, body.client_at)
+    return await _answer(session, idem, task, lang)
+
+
+@router.post(
+    "/packing-tasks/{task_id}/shortage",
+    summary="Refund short steps, or substitute the whole line (Idempotency-Key)",
+    responses={**PACKER_MOVES, 403: _problem("auth.forbidden, hub_ops.not_your_task")},
+)
+async def record_shortage(
+    task_id: uuid.UUID,
+    body: ShortageIn,
+    permit: CanPack,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> PackingTaskDetail:
+    task = await packing.get_task(session, task_id, permit, for_update=True)
+    by = packing.actor(permit, task.hub_id)
+    await packing.shortage(
+        session,
+        task,
+        by,
+        body.product_id,
+        body.short_qty,
+        body.substitute_product_id,
+        body.client_at,
+    )
+    return await _answer(session, idem, task, lang)
+
+
+@router.post(
+    "/packing-tasks/{task_id}/complete",
+    summary="Pack the bag (the order moves picking → packed; Idempotency-Key)",
+    responses={**PACKER_MOVES, 403: _problem("auth.forbidden, hub_ops.not_your_task")},
+)
+async def complete_packing(
+    task_id: uuid.UUID,
+    permit: CanPack,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    body: Annotated[CompleteIn | None, Body()] = None,
+) -> PackingTaskDetail:
+    body = body or CompleteIn()
+    task = await packing.get_task(session, task_id, permit, for_update=True)
+    by = packing.actor(permit, task.hub_id)
+    await packing.complete(session, task, by, body.bags, body.crate_no, body.client_at)
+    return await _answer(session, idem, task, lang)
+
+
+@router.post(
+    "/packing-tasks/{task_id}/release",
+    summary="Free a started task so another packer can take it (hub manager; Idempotency-Key)",
+    responses=PACKER_MOVES,
+)
+async def release_packing(
+    task_id: uuid.UUID,
+    permit: CanManagePacking,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> PackingTaskDetail:
+    task = await packing.get_task(session, task_id, permit, for_update=True)
+    await packing.release(session, task, packing.actor(permit, task.hub_id))
+    return await _answer(session, idem, task, lang)
