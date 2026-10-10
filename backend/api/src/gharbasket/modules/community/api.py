@@ -21,6 +21,7 @@ __all__ = [
     "CAPTAIN_ENDED",
     "CaptainCard",
     "CaptainRef",
+    "SocietyLabels",
     "SocietyRef",
     "captain_card",
     "captain_for_society",
@@ -29,6 +30,7 @@ __all__ = [
     "get_society",
     "hubs_with_societies",
     "is_active_captain",
+    "society_labels",
 ]
 
 
@@ -74,6 +76,27 @@ async def hubs_with_societies(session: AsyncSession) -> list[uuid.UUID]:
         .order_by(Society.hub_id)
     )
     return [hub_id for hub_id in rows.scalars() if hub_id is not None]
+
+
+@dataclass(frozen=True)
+class SocietyLabels:
+    name: str
+    towers: dict[str, str]  # tower id -> label ("a" -> "A wing")
+
+
+async def society_labels(
+    session: AsyncSession, society_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, SocietyLabels]:
+    """Names and tower labels for packing queues and bag labels; unknown ids are left out."""
+    if not society_ids:
+        return {}
+    rows = await session.execute(
+        select(Society.id, Society.name, Society.towers).where(Society.id.in_(society_ids))
+    )
+    return {
+        society_id: SocietyLabels(name, {str(t["id"]): str(t["label"]) for t in towers})
+        for society_id, name, towers in rows.all()
+    }
 
 
 # --- captains (§3.2, ADR-0026 §4) ---------------------------------------------------------------
