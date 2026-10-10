@@ -366,6 +366,9 @@ class Deletion(Base):
     purge_on: Mapped[date] = mapped_column(Date)  # the IST date of the request + 30 days
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The IST day of the purge job's last attempt: a nightly run tries untried rows first and
+    # never the same row twice, so blocked or failing accounts cannot starve newer ones.
+    last_attempt_on: Mapped[date | None] = mapped_column(Date)
     # Why the last purge attempt waited ("open_orders", …); empty once purged.
     blocked_reasons: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
     counts: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # {module: {table: rows}}

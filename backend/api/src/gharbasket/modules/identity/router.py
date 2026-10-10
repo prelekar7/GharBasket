@@ -102,7 +102,10 @@ def _deliver(
     responses={
         401: _problem("auth.invalid_token: the Firebase ID token is not valid"),
         403: _problem("auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"),
-        409: _problem("identity.deletion_pending (with purge_on): send keep_account to keep it"),
+        409: _problem(
+            "identity.deletion_pending (with purge_on): send keep_account to keep it; "
+            "identity.account_deleted: the account was purged meanwhile"
+        ),
         429: _problem("auth.rate_limited (see Retry-After)"),
         503: _problem("auth.provider_unavailable: Firebase keys could not be fetched"),
     },
@@ -148,13 +151,13 @@ async def exchange(
     user, created = await service.find_or_create_user(session, phone)
     cancelled = user.status == "deleting"
     if cancelled:
-        scheduled = await deletion.pending(session, user.id)
+        scheduled = await deletion.for_sign_in(session, user.id)
         if not body.keep_account:
             raise ProblemError(
                 409,
                 "identity.deletion_pending",
                 "This account is being deleted. Do you want to keep it?",
-                extra={"purge_on": None if scheduled is None else scheduled.purge_on.isoformat()},
+                extra={"purge_on": scheduled.purge_on.isoformat()},
             )
         await deletion.cancel(session, user, scheduled)
     if user.status != "active":

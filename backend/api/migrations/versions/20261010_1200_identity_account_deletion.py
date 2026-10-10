@@ -1,5 +1,5 @@
 """identity: account deletion (M1 §3.5): users may be `deleting`, sessions keep the OTP's
-`auth_time`, and `deletions` records each request and stays as the purge's tombstone
+`auth_time`, and `deletions` records each request and is kept as the purge's tombstone
 
 Revision ID: 5d81c0e3a9f2
 Revises: 232e527f6a85
@@ -44,6 +44,7 @@ def upgrade() -> None:
         sa.Column("purge_on", sa.Date(), nullable=False),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("purged_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_attempt_on", sa.Date(), nullable=True),
         sa.Column(
             "blocked_reasons",
             postgresql.ARRAY(sa.Text()),

@@ -253,3 +253,24 @@ async def test_signing_in_during_the_grace_asks_then_keeps_the_account(
     assert (await api.delete("/v1/me", headers=bearer(again["access_token"]))).status_code == 202
     row = await db_session.get(Deletion, user_id, populate_existing=True)
     assert row is not None and row.cancelled_at is None
+
+
+async def test_keeping_an_account_the_purge_just_erased_is_refused(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """The purge and "Keep my account" race: the sign-in waits on the locked deletion row and,
+    when the purge won, refuses instead of reviving the account."""
+    api = clients()
+    headers, user_id = await customer(api, google)
+    assert (await api.delete("/v1/me", headers=headers)).status_code == 202
+    row = await db_session.get(Deletion, user_id)
+    assert row is not None
+    row.purged_at = datetime.now(UTC)  # what the purge's transaction commits before the user goes
+    await db_session.commit()
+
+    for body in ({}, {"keep_account": True}):
+        answer = await exchange(api, google, **body)
+        assert answer.status_code == 409
+        assert answer.json()["code"] == "identity.account_deleted"
+    user = await db_session.get(User, user_id, populate_existing=True)
+    assert user is not None and user.status == "deleting"
