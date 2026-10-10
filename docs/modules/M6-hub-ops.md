@@ -219,6 +219,16 @@ POST /v1/packing-tasks/{id}/release        hub_manager; Idempotency-Key
 - **Offline outbox (packer app).** Each tap is stored on the phone with an `Idempotency-Key` made **when tapped**, and sent in order, one task's queue at a time. A replay with the same key answers what the first call answered (M0; keys live 24 h, longer than a packing morning). `pick` is absolute, so a repeated pick under a new key changes nothing. On a 409 or 422 the app stops that task's queue and shows the conflict; other tasks continue. `client_at` (when the packer tapped) is stored in the task's events for audit and productivity; the server's time decides everything else.
 - **Order status follows the task**: `queued` = order `locked`, `picking` = `picking`, `packed` = `packed`. M6 never writes `orders.*`; an illegal move (for example an order already `packed` by a hub manager in the console) comes back as 409 `orders.illegal_transition` and the task is not changed.
 
+**As built (PR b1, packing tasks and the floor's reads).** Details the contract leaves open, settled in the code:
+- **Queue order.** The first build numbers tasks by slot start, society name, tower label and flat (digit runs compare as numbers, so `A-101` comes before `A-1203`), then order id. A later build (or job run) appends the orders that have no task yet after the highest `seq`, sorted the same way; existing tasks keep their place. `existing` in the build answer counts the tasks the date already had. Builds of one hub run one after the other (the hub row is locked).
+- **Routes are not consumed yet.** M7 is not built, so `route` is always `null` and nothing re-sequences queued tasks; the consumer of `logistics.route_published` comes with M7 and sets `route_id`/`stop_seq` on queued tasks.
+- **`flat_label`** is `"<tower label>, <flat>"` (`"B wing, B-402"`), or the flat alone when the tower is unknown, or `null` without an address. Tower and flat are copied from `identity.api.delivery_labels` when the task is built; society names and tower labels come from `community.api.society_labels`, the packer's name from `identity.api.user_names`.
+- **Lines** are ordered by the catalog category's `sort_order` (then category slug) and the name in the request's language; `catalog.api.LineProduct` gained `shelf` (category sort order, category slug) for this.
+- **Summary.** `crates` is the highest crate number packed so far in the society (0 before the first bag).
+- **Who.** The franchise owner and admins read the queue (`packing:read`); hub managers and admins build (`packing:manage`). A task of another hub is 404 `hub_ops.task_not_found`; another hub's list, summary or build is 403 `auth.forbidden`.
+- **Facade.** `hub_ops.api.society_loads` and `hub_ops.api.bag_for_order` are built as listed below.
+- The packer's moves (`next`, `start`, `pick`, `shortage`, `complete`, `release`) and `packing:write` follow in the next PR; the `packing_events` table is created here with the other packing tables.
+
 **Error codes** (in addition to §3.1)
 
 | Status | Code | When |

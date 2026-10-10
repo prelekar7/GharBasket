@@ -695,6 +695,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/packing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tasks by status and bags and crates per society for a date */
+        get: operations["packing_summary_v1_hubs__hub_id__packing_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's packing queue for a date, by seq */
+        get: operations["list_packing_tasks_v1_hubs__hub_id__packing_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key) */
+        post: operations["build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/partners": {
         parameters: {
             query?: never;
@@ -1105,6 +1156,23 @@ export interface paths {
          * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
          */
         post: operations["pay_order_v1_orders__order_id__pay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A packing task with its lines */
+        get: operations["get_packing_task_v1_packing_tasks__task_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1764,6 +1832,21 @@ export interface components {
             remaining_paise: number;
             /** Spent Paise */
             spent_paise: number;
+        };
+        /** BuildIn */
+        BuildIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** BuildOut */
+        BuildOut: {
+            /** Created */
+            created: number;
+            /** Existing */
+            existing: number;
         };
         /** CaptainCard */
         CaptainCard: {
@@ -3641,6 +3724,298 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Packer */
+        Packer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** PackingLineOut */
+        PackingLineOut: {
+            /**
+             * Done
+             * @description picked_qty + short_qty = qty
+             */
+            done: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Picked Qty
+             * @description Steps in the bag (of the substitute, if any)
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description The ordered product
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps ordered
+             */
+            qty: number;
+            /**
+             * Short Qty
+             * @description Steps refunded
+             */
+            short_qty: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+        };
+        /** PackingRoute */
+        PackingRoute: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /**
+             * Stop Seq
+             * @example 3
+             */
+            stop_seq: number;
+        };
+        /** PackingSlot */
+        PackingSlot: {
+            /**
+             * End
+             * @example 09:00
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @example 7-9 am
+             */
+            label: string;
+            /**
+             * Start
+             * @description IST HH:MM
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** PackingSociety */
+        PackingSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
+        /** PackingStep */
+        PackingStep: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @example g
+             */
+            unit: string;
+        };
+        /** PackingSubstitute */
+        PackingSubstitute: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
+        /** PackingSummary */
+        PackingSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Packed */
+            packed: number;
+            /** Picking */
+            picking: number;
+            /** Queued */
+            queued: number;
+            /** Societies */
+            societies: components["schemas"]["SocietyLoad"][];
+        };
+        /** PackingTaskDetail */
+        PackingTaskDetail: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By catalog category, then name
+             */
+            lines: components["schemas"]["PackingLineOut"][];
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
+        /** PackingTaskOut */
+        PackingTaskOut: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
         /** Page[Entry] */
         Page_Entry_: {
             /** Items */
@@ -3659,6 +4034,13 @@ export interface components {
         Page_OrderSummaryOut_: {
             /** Items */
             items: components["schemas"]["OrderSummaryOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PackingTaskOut] */
+        Page_PackingTaskOut_: {
+            /** Items */
+            items: components["schemas"]["PackingTaskOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -4599,6 +4981,22 @@ export interface components {
             date: string;
             /** Items */
             items: components["schemas"]["SlotOut"][];
+        };
+        /** SocietyLoad */
+        SocietyLoad: {
+            /** Bags */
+            bags: number;
+            /** Crates */
+            crates: number;
+            /** Name */
+            name: string;
+            /** Packed Bags */
+            packed_bags: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
         };
         /** SocietyOut */
         SocietyOut: {
@@ -8485,6 +8883,193 @@ export interface operations {
             };
         };
     };
+    packing_summary_v1_hubs__hub_id__packing_summary_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingSummary"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_packing_tasks_v1_hubs__hub_id__packing_tasks_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                status?: ("queued" | "picking" | "packed") | null;
+                society_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackingTaskOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_partners_v1_hubs__hub_id__partners_get: {
         parameters: {
             query?: {
@@ -10069,6 +10654,67 @@ export interface operations {
             };
             /** @description billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_packing_task_v1_packing_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

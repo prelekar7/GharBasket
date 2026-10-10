@@ -1,20 +1,29 @@
-"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1)."""
+"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1) and packing
+(§3.2)."""
 
 import uuid
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response, status
 
+from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
+from gharbasket.modules.hub_ops import packing, service
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.hub_ops import service
 from gharbasket.modules.hub_ops.models import Hub, Vendor
 from gharbasket.modules.hub_ops.schemas import (
+    BuildIn,
+    BuildOut,
     GeoPolygon,
     HubIn,
     HubOut,
     HubPatch,
     HubsOut,
     HubSummary,
+    PackingSummary,
+    PackingTaskDetail,
+    PackingTaskOut,
+    TaskStatus,
     Timings,
     VendorIn,
     VendorOut,
@@ -23,9 +32,12 @@ from gharbasket.modules.hub_ops.schemas import (
 )
 from gharbasket.platform import audit
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.geo import LatLng
 from gharbasket.platform.idempotency import Idempotent
+from gharbasket.platform.locale import Lang
+from gharbasket.platform.pagination import Cursor, Page, decode_cursor, encode_cursor
 from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["hub_ops"])
@@ -272,3 +284,103 @@ async def patch_vendor(
     await session.commit()
     set_etag(response, out.version)
     return out
+
+
+# --- packing (§3.2) -------------------------------------------------------------------------------
+
+CanReadPacking = Annotated[Permit, require("packing:read")]
+CanManagePacking = Annotated[Permit, require("packing:manage")]
+Day = Annotated[date | None, Query(alias="date", description="IST date; default today")]
+
+
+@router.get(
+    "/hubs/{hub_id}/packing-tasks",
+    summary="The hub's packing queue for a date, by seq",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range, request.invalid_cursor")},
+)
+async def list_packing_tasks(
+    hub_id: uuid.UUID,
+    permit: CanReadPacking,
+    session: DbSession,
+    response: Response,
+    day: Day = None,
+    task_status: Annotated[TaskStatus | None, Query(alias="status")] = None,
+    society_id: uuid.UUID | None = None,
+    cursor: Cursor = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> Page[PackingTaskOut]:
+    permit.ensure(hub_id)
+    after = None
+    if cursor is not None:
+        after = decode_cursor(cursor).get("after")
+        if not isinstance(after, int):
+            raise ProblemError(422, "request.invalid_cursor", "The cursor is not valid.")
+    tasks = await packing.list_tasks(
+        session,
+        hub_id,
+        packing.packing_day(day),
+        status=task_status,
+        society_id=society_id,
+        after_seq=after,
+        limit=limit + 1,
+    )
+    page = tasks[:limit]
+    response.headers["Cache-Control"] = "no-store"
+    return Page(
+        items=await packing.views(session, page),
+        next_cursor=encode_cursor({"after": page[-1].seq}) if len(tasks) > limit else None,
+    )
+
+
+@router.get(
+    "/hubs/{hub_id}/packing-summary",
+    summary="Tasks by status and bags and crates per society for a date",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range")},
+)
+async def packing_summary(
+    hub_id: uuid.UUID,
+    permit: CanReadPacking,
+    session: DbSession,
+    response: Response,
+    day: Day = None,
+) -> PackingSummary:
+    permit.ensure(hub_id)
+    on = packing.packing_day(day)
+    counts = await packing.status_counts(session, hub_id, on)
+    response.headers["Cache-Control"] = "no-store"
+    return PackingSummary(
+        date=on, **counts, societies=await packing.society_loads(session, hub_id, on)
+    )
+
+
+@router.post(
+    "/hubs/{hub_id}/packing-tasks/build",
+    summary="Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found"),
+        422: _problem("hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def build_packing_tasks(
+    hub_id: uuid.UUID, body: BuildIn, permit: CanManagePacking, session: DbSession, idem: Idempotent
+) -> BuildOut:
+    permit.ensure(hub_id)
+    created, existing = await packing.build(session, hub_id, packing.packing_day(body.date))
+    out = BuildOut(created=created, existing=existing)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/packing-tasks/{task_id}",
+    summary="A packing task with its lines",
+    responses={**SIGNED_IN, 404: _problem("hub_ops.task_not_found")},
+)
+async def get_packing_task(
+    task_id: uuid.UUID, permit: CanReadPacking, session: DbSession, lang: Lang, response: Response
+) -> PackingTaskDetail:
+    task = await packing.get_task(session, task_id, permit)
+    response.headers["Cache-Control"] = "no-store"
+    return await packing.detail(session, task, lang)
