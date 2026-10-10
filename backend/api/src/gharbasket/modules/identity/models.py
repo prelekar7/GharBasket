@@ -53,6 +53,8 @@ PLATFORMS = ("android", "web")
 DIETS = ("veg", "egg", "nonveg")
 AGE_BANDS = ("under_5", "5_17", "18_59", "60_plus")
 SEXES = ("f", "m", "other")
+# What packing does with a short item (spec §3.4): a similar item, or never substitute and refund.
+SHORTAGE_PREFERENCES = ("substitute", "refund")
 # Handbook 13 §DPDP. The first two are required for Autopilot; the rest are opt-ins.
 CONSENT_PURPOSES = (
     "service_delivery",
@@ -60,6 +62,7 @@ CONSENT_PURPOSES = (
     "health_personalisation",
     "marketing",
     "research_anonymised",
+    "whatsapp",  # updates on WhatsApp (M11 §3.1)
 )
 
 
@@ -185,6 +188,9 @@ class Household(Base):
             "no_cook_days <@ ARRAY[0, 1, 2, 3, 4, 5, 6]::smallint[]", name="no_cook_days"
         ),
         CheckConstraint("budget_paise IS NULL OR budget_paise >= 50000", name="budget_paise"),
+        CheckConstraint(
+            _one_of("shortage_preference", SHORTAGE_PREFERENCES), name="shortage_preference"
+        ),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         CheckConstraint("version >= 1", name="version"),
         {"schema": SCHEMA},
@@ -198,7 +204,7 @@ class Household(Base):
     society_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("community.societies.id", ondelete="RESTRICT"), index=True
     )
-    # Copied from the society; no foreign key until M6 owns hubs.
+    # Copied from the society; no foreign key: hub ids are checked through hub_ops.api (ADR-0026).
     hub_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     size: Mapped[int] = mapped_column(SmallInteger)
     diet: Mapped[str] = mapped_column(String(8))
@@ -213,6 +219,8 @@ class Household(Base):
     budget_paise: Mapped[int | None] = mapped_column(BigInteger)
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     auto_approve: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Spec §3.4: read by M6 packing and M4's mark_shortage when a shortage is recorded.
+    shortage_preference: Mapped[str] = mapped_column(Text, server_default="substitute")
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     # Optimistic locking: sent as the ETag, checked against If-Match.
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
