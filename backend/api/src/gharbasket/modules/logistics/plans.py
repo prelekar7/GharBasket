@@ -1,9 +1,10 @@
 """Route plans (spec §3.2): ask for a solve, run it, publish it, and read plans and their routes.
 
 A plan is `queued` when asked for, `solving` while `solver.solve` runs, then `solved` (or
-`failed`); publishing makes its routes `published` and supersedes the date's previous plan,
-cancelling its routes. One plan per hub, date and kind may be in flight and one published (partial
-unique indexes). Publishing takes an advisory lock on (hub, date, kind).
+`failed`). Publishing makes its routes `published` and supersedes the date's previous plan
+(cancelling its routes) and the date's other solved plans. One plan per hub, date and kind may
+be in flight and one published (partial unique indexes). Publishing takes an advisory lock on
+(hub, date, kind).
 """
 
 import uuid
@@ -222,6 +223,19 @@ async def _route_published(session: AsyncSession, plan: RoutePlan, route: Route)
     )
 
 
+async def _stops_on_two_routes(session: AsyncSession, plan_id: uuid.UUID) -> list[str]:
+    """`<society_id>/<slot_id>` of the plan's drops that are on more than one route or twice on
+    one: such a plan never publishes, whatever its problems say."""
+    rows = await session.execute(
+        select(RouteStop.society_id, RouteStop.slot_id)
+        .join(Route, Route.id == RouteStop.route_id)
+        .where(Route.plan_id == plan_id, RouteStop.kind == "drop")
+        .group_by(RouteStop.society_id, RouteStop.slot_id)
+        .having(func.count() > 1)
+    )
+    return sorted(f"{society}/{slot}" for society, slot in rows.all())
+
+
 async def publish(
     session: AsyncSession,
     plan: RoutePlan,
@@ -248,6 +262,14 @@ async def publish(
             "logistics.plan_incomplete",
             "Stops with orders are on no route; solve again once they can be served.",
             extra={"stop_ids": plan.unserved},
+        )
+    twice = await _stops_on_two_routes(session, plan.id)
+    if twice:
+        raise ProblemError(
+            409,
+            "logistics.plan_incomplete",
+            "Stops are on more than one route; solve again.",
+            extra={"stop_ids": twice},
         )
     problems = (plan.summary or {}).get("problems", [])
     if problems and not accept_problems:
@@ -280,6 +302,22 @@ async def publish(
                 },
             )
         await session.flush()
+    # Other solved plans of the day can no longer be published over this one (they are older
+    # or newer alternatives the manager did not choose): superseded, their drafts cancelled.
+    others = select(RoutePlan.id).where(
+        RoutePlan.hub_id == plan.hub_id,
+        RoutePlan.delivery_date == plan.delivery_date,
+        RoutePlan.kind == plan.kind,
+        RoutePlan.status == "solved",
+        RoutePlan.id != plan.id,
+    )
+    await session.execute(update(Route).where(Route.plan_id.in_(others)).values(status="cancelled"))
+    await session.execute(
+        update(RoutePlan)
+        .where(RoutePlan.id.in_(others))
+        .values(status="superseded")
+        .execution_options(synchronize_session="fetch")
+    )
     if problems:
         await audit.record(
             session,

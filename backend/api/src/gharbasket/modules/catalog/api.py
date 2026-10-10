@@ -190,16 +190,19 @@ async def line_grams(
 ) -> list[float | None]:
     """The weight in grams of order lines given as (product id, steps, step_qty, step_unit), by
     `grams_of`'s rule (M7's van loads): g and ml by the unit, a piece or bunch through the
-    product's `unit_g`; None where that is unknown."""
+    product's `unit_g`; None where that is unknown (a pack, or a piece without `unit_g`)."""
     ids = sorted({product_id for product_id, *_ in lines})
     rows = await session.execute(select(Product.id, Product.nutrition).where(Product.id.in_(ids)))
     unit_g = {pid: (nutrition or {}).get("unit_g") for pid, nutrition in rows.all()}
     weights: list[float | None] = []
     for product_id, steps, step_qty, step_unit in lines:
+        if step_unit not in BASE_UNIT:  # a pack has no weight of its own
+            weights.append(None)
+            continue
         base, factor = BASE_UNIT[step_unit]
-        qty = steps * step_qty * factor
         per_unit = 1 if base in ("g", "ml") else unit_g.get(product_id)
-        weights.append(None if per_unit is None else qty * float(per_unit))
+        weight = None if per_unit is None else steps * step_qty * factor * float(per_unit)
+        weights.append(weight)
     return weights
 
 

@@ -51,7 +51,7 @@ def test_trips_fill_each_vehicle_to_capacity_and_serve_every_stop() -> None:
     # 10 crates a van, 4 a stop: two stops a trip.
     assert [t.stops for t in trips] == [["s1", "s2"], ["s3", "s4"], ["s5"]]
     assert [t.van for t in trips] == [0, 1, 0]  # EV-1 goes out again when it is back first
-    assert routing.check(trips, stops, VANS, return_by_s=ELEVEN + 5400) == []
+    assert routing.check(trips, stops, VANS, depart_s=23_400, return_by_s=ELEVEN + 5400) == []
     first = trips[0]
     # Leaves just in time for 07:00, never before 06:30; waits at no stop after the first.
     assert first.start_s >= 6 * 3600 + 1800 and first.etas[0] == SEVEN
@@ -69,18 +69,20 @@ def test_a_stop_bigger_than_any_vehicle_rides_alone_and_is_flagged() -> None:
     huge = stop(6, (19.0420, 73.0380), crates=12)
     trips = routing.fill([huge, S1], VANS, HUB, depart_s=23_400)
     assert [t.stops for t in trips] == [["s6"], ["s1"]]
-    problems = routing.check(trips, {"s6": huge, "s1": S1}, VANS, return_by_s=ELEVEN)
+    problems = routing.check(trips, {"s6": huge, "s1": S1}, VANS, 23_400, ELEVEN)
     assert problems == ["EV-1 trip 1: over capacity leaving the hub"]
 
 
-def test_the_check_names_missing_stops_extra_trips_and_late_returns() -> None:
+def test_the_check_names_missing_stops_extra_or_early_trips_and_late_returns() -> None:
     stops = {s.id: s for s in (S1, S2, S3)}
     trips = [
-        Trip(0, 25_000, ["s1"], [25_200], end_s=27_000),
-        Trip(0, 28_000, ["s1"], [28_200], end_s=29_000),
-        Trip(0, 30_000, [], [], end_s=40_000),
+        Trip(0, 25_000, ["s1"], [25_200], end_s=27_000),  # before the vans are loaded
+        Trip(0, 28_000, ["s1"], [28_200], end_s=29_000),  # before trip 1 is back and reloaded
+        Trip(0, 31_000, [], [], end_s=40_000),
     ]
-    assert routing.check(trips, stops, VANS, return_by_s=36_000) == [
+    assert routing.check(trips, stops, VANS, depart_s=25_500, return_by_s=36_000) == [
+        "EV-1 trip 1: leaves before 07:05",
+        "EV-1 trip 2: leaves before trip 1 is back",
         "EV-1 trip 3: back after 10:00",
         "EV-1: 3 trips, more than 2",
         "not served: s2, s3",

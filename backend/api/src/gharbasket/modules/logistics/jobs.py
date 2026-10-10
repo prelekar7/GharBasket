@@ -1,8 +1,11 @@
 """Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST.
 
 `scheduled_for` decides the delivery date (the day after its IST calendar day), never the clock.
-A manual solve (`POST /v1/hubs/{id}/route-plans`) runs in the background right after its request;
-the job also solves any plan still queued, so a restart loses no solve.
+A manual solve (`POST /v1/hubs/{id}/route-plans`) runs in the background right after its request.
+If that solve is lost (a restart), the plan is marked failed ("abandoned") once it has been
+queued or solving for 10 minutes, so the manager can ask again; it is not solved again. The job
+also solves any plan still queued and younger than that. Each plan is solved in its own savepoint,
+so one hub's error never undoes another hub's published plan.
 """
 
 import asyncio
@@ -53,9 +56,18 @@ async def solve_routes(ctx: JobContext) -> dict[str, Any]:
             skipped += 1
             continue
         queued.append(plan)
+    outcomes = []
     for plan in queued:
-        await plans.run(ctx.session, plan, http=ctx.http, settings=ctx.settings)
-    outcomes = [plan.status for plan in queued]
+        plan_id = plan.id
+        try:
+            async with ctx.session.begin_nested():
+                await plans.run(ctx.session, plan, http=ctx.http, settings=ctx.settings)
+        except Exception as exc:  # this hub only: the others keep their plans
+            log.error("route_job_failed", plan_id=str(plan_id), error=type(exc).__name__)
+            await ctx.session.refresh(plan)
+            plan.status, plan.error = "failed", f"unexpected error: {type(exc).__name__}"
+            await ctx.session.flush()
+        outcomes.append(plan.status)
     return {
         "delivery_date": day.isoformat(),
         "plans": len(queued),

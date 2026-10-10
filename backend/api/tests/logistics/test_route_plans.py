@@ -14,10 +14,15 @@ import time_machine
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.models import Product
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.hub_ops import service as hub_service
+from gharbasket.modules.hub_ops.schemas import HubIn
 from gharbasket.modules.logistics import jobs, plans, solver
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop
+from gharbasket.modules.orders.models import Order, OrderLine
+from gharbasket.platform.geo import LatLng
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.settings import Settings
@@ -31,6 +36,7 @@ from .conftest import (
     ARJUN,
     KAVITA,
     MEENA,
+    NEHA,
     PRIYA,
     RAMESH,
     SANJAY,
@@ -592,3 +598,181 @@ async def test_plans_belong_to_the_hubs_managers_and_owners_only(
         PLANS, json={"date": DAY.isoformat(), "kind": "tiffin"}, headers={**manager, **key()}
     )
     assert tiffin.status_code == 422
+
+
+# --- review fixes -------------------------------------------------------------------------------
+
+
+async def test_a_pack_has_no_weight_of_its_own(db_session: AsyncSession) -> None:
+    ids = await catalog_api.product_ids_by_slug(db_session, ["tomato"])
+    tomato = ids["tomato"]
+    weights = await catalog_api.line_grams(
+        db_session, [(tomato, 2, 1, "pack"), (tomato, 2, 500, "g"), (tomato, 1, 1, "kg")]
+    )
+    assert weights == [None, 1000.0, 1000.0]
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_packs_weigh_half_a_kilo_a_step_and_picking_orders_stay_on_the_plan(
+    db_session: AsyncSession,
+) -> None:
+    early = await slot(db_session, time(7))
+    priya = await locked_order(db_session, PRIYA, early, DAY)
+    ramesh = await locked_order(db_session, RAMESH, early, DAY)
+    # Priya's tomatoes sold by the pack (2 steps); Ramesh's box already being picked at 05:00.
+    await db_session.execute(
+        update(OrderLine)
+        .where(OrderLine.order_id == priya, OrderLine.step_unit == "g", OrderLine.step_qty == 500)
+        .values(step_unit="pack", step_qty=1)
+    )
+    await db_session.execute(update(Order).where(Order.id == ramesh).values(status="picking"))
+    await vehicle(db_session, "EV-1")
+
+    await solve_job(db_session, None)
+
+    plan = await only_plan(db_session)
+    assert plan.status == "published" and plan.summary is not None
+    assert plan.summary["orders"] == 2
+    kg = dict((await db_session.execute(select(RouteStop.society_id, RouteStop.kg_tenths))).all())
+    # 3.5 kg less 1 kg of tomatoes plus 2 packs at 0.5 kg; Ramesh's box as it is.
+    assert kg == {SEED_SOCIETY_ID: 35, KRISHNA_KUNJ: 35}
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_an_odd_ml_answer_is_named_and_a_stop_on_two_routes_never_publishes(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    early = await slot(db_session, time(7))
+    for phone in (PRIYA, RAMESH):
+        await locked_order(db_session, phone, early, DAY)
+    await vehicle(db_session, "EV-1")
+    await vehicle(db_session, "EV-2")
+    sunrise = f"{SEED_SOCIETY_ID}/{early}"
+    krishna = f"{KRISHNA_KUNJ}/{early}"
+
+    def answer(body: dict[str, Any]) -> dict[str, Any]:
+        def stop(i: str, eta: int) -> dict[str, Any]:
+            return {"id": i, "kind": "drop", "eta_s": eta, "late_s": 0}
+
+        return {
+            "status": "fallback",  # M10's own nearest neighbour
+            "source": "haversine",
+            "routes": [
+                {
+                    "van": 0,
+                    "start_s": 24_000,
+                    "end_s": 30_000,
+                    "stops": [stop(sunrise, 25_200), stop(krishna, 26_500)],
+                },
+                {
+                    "van": 1,
+                    "start_s": 24_000,
+                    "end_s": 30_000,
+                    "stops": [stop(krishna, 26_000), stop("nowhere/at-all", 27_000)],
+                },
+            ],
+            "summary": {"vans": 2, "km": 20.0, "cost_paise": 60_000, "on_time": 1.0, "late_min": 0},
+            "seconds": 0.3,
+            "model": "cvrptw-waves-v0",
+        }
+
+    async with fake_ml(answer, []) as http:
+        await solve_job(db_session, http)
+
+    plan = await only_plan(db_session)
+    assert (plan.status, plan.source) == ("solved", "ml_fallback")
+    assert plan.summary is not None
+    assert plan.summary["problems"] == [
+        "van 1: unknown stops nowhere/at-all",
+        f"visited twice: {krishna}",
+    ]
+    plan_id = plan.id
+    api = clients()
+    manager = await as_user(api, google, VIKRAM)
+    await db_session.commit()
+    refused = await api.post(
+        f"/v1/route-plans/{plan_id}/publish",
+        json={"accept_problems": True},
+        headers={**manager, **key()},
+    )
+    assert (refused.status_code, refused.json()["code"]) == (409, "logistics.plan_incomplete")
+    assert refused.json()["stop_ids"] == [krishna]
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_request_m10_would_refuse_is_planned_by_m7_alone(
+    db_session: AsyncSession,
+) -> None:
+    await day_of_orders(db_session)
+    for n in range(61):  # M10 takes at most 60 vans
+        await vehicle(db_session, f"EV-{n:02d}")
+
+    def never(body: dict[str, Any]) -> dict[str, Any]:
+        raise AssertionError("an invalid request must not be sent")
+
+    async with fake_ml(never, []) as http:
+        await solve_job(db_session, http)
+
+    plan = await only_plan(db_session)
+    assert (plan.status, plan.source) == ("published", "fallback_nearest")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_one_hubs_error_never_undoes_another_hubs_plan(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = await hub_service.create_hub(
+        db_session,
+        HubIn(
+            slug="vashi",
+            name="Vashi hub",
+            address="Sector 17, Vashi, Navi Mumbai 400703",
+            location=LatLng(lat=19.0771, lng=72.9986),
+        ),
+    )
+    await db_session.commit()
+    real_run = plans.run
+
+    async def run(session: AsyncSession, plan: RoutePlan, **kwargs: Any) -> None:
+        if plan.hub_id == SEED_HUB_ID:
+            plan.source = "ml"
+            await session.flush()
+            raise RuntimeError("bug")
+        await real_run(session, plan, **kwargs)
+
+    monkeypatch.setattr(plans, "run", run)
+    summary = await solve_job(db_session, None)
+
+    assert (summary["plans"], summary["published"], summary["failed"]) == (2, 1, 1)
+    statuses = dict((await db_session.execute(select(RoutePlan.hub_id, RoutePlan.status))).all())
+    assert statuses == {SEED_HUB_ID: "failed", other.id: "published"}
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_publishing_one_solved_plan_supersedes_the_others(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await day_of_orders(db_session)
+    await vehicle(db_session, "EV-1")
+    solved = []
+    for _ in range(2):
+        plan = await plans.request_solve(db_session, SEED_HUB_ID, DAY, "box", trigger="manual")
+        await plans.run(db_session, plan, http=None, settings=make_settings())
+        solved.append(plan.id)
+    await db_session.commit()
+    api = clients()
+    manager = await as_user(api, google, VIKRAM)
+    admin = await as_user(api, google, NEHA)
+    await db_session.commit()
+
+    published = await api.post(f"/v1/route-plans/{solved[0]}/publish", headers={**manager, **key()})
+    assert published.status_code == 200, published.text
+    newer = (await api.get(f"/v1/route-plans/{solved[1]}", headers=manager)).json()
+    assert (newer["status"], [r["status"] for r in newer["routes"]]) == (
+        "superseded",
+        ["cancelled"],
+    )
+    late = await api.post(f"/v1/route-plans/{solved[1]}/publish", headers={**manager, **key()})
+    assert (late.status_code, late.json()["code"]) == (409, "logistics.plan_not_publishable")
+    unknown = await api.get(f"/v1/hubs/{uuid.uuid4()}/route-plans", headers=admin)
+    assert (unknown.status_code, unknown.json()["code"]) == (404, "hub_ops.hub_not_found")

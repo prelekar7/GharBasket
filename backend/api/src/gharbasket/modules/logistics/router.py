@@ -305,7 +305,11 @@ async def solve_plan(
 @router.get(
     "/hubs/{hub_id}/route-plans",
     summary="A hub's route plans for a date, newest first (without routes)",
-    responses={**SIGNED_IN, 422: _problem("logistics.date_out_of_range")},
+    responses={
+        **SIGNED_IN,
+        404: _problem("hub_ops.hub_not_found"),
+        422: _problem("logistics.date_out_of_range"),
+    },
 )
 async def list_plans(
     hub_id: uuid.UUID,
@@ -316,6 +320,7 @@ async def list_plans(
     kind: Annotated[PlanKind | None, Query(description="Only this kind")] = None,
 ) -> RoutePlansOut:
     permit.ensure(hub_id)
+    await service.ensure_hub(session, hub_id)
     found = await plans.list_plans(
         session, hub_id, _within(day or datetime.now(IST).date(), -7, 1), kind
     )

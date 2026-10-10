@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import date, time, timedelta
 
 import httpx2
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,12 +29,14 @@ from gharbasket.platform.settings import Settings
 
 VEHICLE_KIND = {"box": "cargo_3w", "tiffin": "two_wheeler"}
 ORDER_KINDS = ("box", "addon")
-ORDER_STATUSES = ("locked", "packed")
+# Picking (M6, from 05:00) too: a re-solve during packing keeps those societies on the plan.
+ORDER_STATUSES = ("locked", "picking", "packed")
 BAGS_PER_CRATE = 3  # M6's three bags to a crate
 STEP_GRAMS = 500  # a step of a product without a weight
 RETURN_MARGIN_S = 90 * 60  # back within 90 minutes of the latest window's end
 TIME_LIMIT_S = 20.0  # two waves of 10 s
 PREVIOUS_DAYS = 7
+log = structlog.get_logger("gharbasket.logistics")
 
 
 class SolveFailed(Exception):
@@ -161,13 +164,17 @@ def _request(
 def _from_ml(
     answer: intel_api.RoutePlan, fleet: list[Van], stops: dict[str, Stop], hub: routing.Point
 ) -> tuple[list[Trip], list[str]]:
-    """The ML service's trips with van index i as the i-th vehicle by label; food-bank stops
-    (none in S5) and unknown ids are dropped, a van outside the fleet is a problem."""
+    """The ML service's trips with van index i as the i-th vehicle by label. A van outside the
+    fleet and a stop that is not one of this plan's drops (no food bank is sent in S5) are
+    named in the problems and left off."""
     trips, problems = [], []
     for route in answer.routes:
         if route.van >= len(fleet):
             problems.append(f"van {route.van}: not in the fleet")
             continue
+        unknown = [s.id for s in route.stops if s.kind != "drop" or s.id not in stops]
+        if unknown:
+            problems.append(f"van {route.van}: unknown stops " + ", ".join(unknown))
         drops = [s for s in route.stops if s.kind == "drop" and s.id in stops]
         trip = Trip(route.van, route.start_s, [s.id for s in drops], [s.eta_s for s in drops])
         trip.end_s = route.end_s
@@ -206,9 +213,13 @@ async def solve(
             raise SolveFailed("no orders with a location")
         latest_end = max(s.window[1] for s in stops.values())
         back_s = max(latest_end + RETURN_MARGIN_S, depart_s + 3600)
-        request = _request(hub, stops, fleet, depart_s, back_s)
         answer = None
-        if http is not None:
+        try:
+            request = _request(hub, stops, fleet, depart_s, back_s)
+        except ValueError as exc:  # more stops or vans than M10 takes: M7 plans it alone
+            log.warning("route_request_invalid", plan_id=str(plan.id), error=type(exc).__name__)
+            request = None
+        if http is not None and request is not None:
             answer = await intel_api.solve_routes(
                 http, settings, request, session=session, hub_id=hub.id, for_date=plan.delivery_date
             )
@@ -216,7 +227,9 @@ async def solve(
             trips, extra = _from_ml(answer, fleet, stops, hub_point)
             problems += extra + answer.summary.problems
             figures = answer.summary.model_dump(include={"km", "cost_paise", "on_time", "late_min"})
-            plan.source, plan.distance_source, plan.model = "ml", answer.source, answer.model
+            # M10 answers `fallback` when its solver found nothing and it used nearest neighbour.
+            plan.source = "ml" if answer.status == "solved" else "ml_fallback"
+            plan.distance_source, plan.model = answer.source, answer.model
             prediction = await intel_api.latest_prediction(
                 session, kind="route", subject_id=hub.id, for_date=plan.delivery_date
             )
@@ -232,7 +245,7 @@ async def solve(
             trips = routing.fill(sequence, fleet, hub_point, depart_s)
             figures = routing.summary(trips, stops)
             plan.distance_source = "haversine"
-        problems += routing.check(trips, stops, fleet, back_s)
+        problems += routing.check(trips, stops, fleet, depart_s, back_s)
     routed = {s for t in trips for s in t.stops}
     plan.unserved = sorted(set(unlocated) | (set(stops) - routed))
     await _write_routes(session, plan, vehicles, trips, stops, back_s)

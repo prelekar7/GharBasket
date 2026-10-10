@@ -5173,9 +5173,9 @@ export interface components {
             seconds: number | null;
             /**
              * Source
-             * @description Null until solved
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
              */
-            source: ("ml" | "fallback_previous" | "fallback_nearest") | null;
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
             /**
              * Status
              * @enum {string}
@@ -5240,9 +5240,9 @@ export interface components {
             seconds: number | null;
             /**
              * Source
-             * @description Null until solved
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
              */
-            source: ("ml" | "fallback_previous" | "fallback_nearest") | null;
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
             /**
              * Status
              * @enum {string}
@@ -5302,6 +5302,7 @@ export interface components {
             kind: "box" | "tiffin";
             /**
              * Km
+             * @description Estimate: the straight line x 1.3 along the stops
              * @example 14.8
              */
             km: number;
@@ -10066,6 +10067,15 @@ export interface operations {
             };
             /** @description auth.forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

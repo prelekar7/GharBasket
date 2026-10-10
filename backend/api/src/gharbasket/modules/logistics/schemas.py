@@ -105,7 +105,7 @@ class VehiclePatch(_VehicleFields):
 
 PlanKind = Literal["box", "tiffin"]
 PlanStatus = Literal["queued", "solving", "solved", "published", "failed", "superseded"]
-PlanSource = Literal["ml", "fallback_previous", "fallback_nearest"]
+PlanSource = Literal["ml", "ml_fallback", "fallback_previous", "fallback_nearest"]
 RouteStatus = Literal["draft", "published", "in_progress", "completed", "cancelled"]
 
 
@@ -151,7 +151,9 @@ class RouteSummary(BaseModel):
     stops_done: int = Field(examples=[0])
     crates: int = Field(examples=[18])
     bags: int = Field(examples=[52])
-    km: float = Field(examples=[14.8])
+    km: float = Field(
+        examples=[14.8], description="Estimate: the straight line x 1.3 along the stops"
+    )
     started_at: datetime | None
     completed_at: datetime | None
     version: int
@@ -164,7 +166,10 @@ class RoutePlanSummary(BaseModel):
     kind: PlanKind
     status: PlanStatus
     trigger: Literal["job", "manual"]
-    source: PlanSource | None = Field(description="Null until solved")
+    source: PlanSource | None = Field(
+        description="Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own "
+        "nearest neighbour; fallback_*: M7 planned it because M10 did not answer"
+    )
     distance_source: Literal["osrm", "haversine"] | None = Field(
         description="How the distances were priced"
     )

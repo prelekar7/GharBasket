@@ -154,15 +154,23 @@ def check(
     trips: Sequence[Trip],
     stops: dict[str, Stop],
     fleet: Sequence[Van],
+    depart_s: int,
     return_by_s: int,
 ) -> list[str]:
     """M7's structural check (spec §3.2): every stop on exactly one route, kg and crates within
-    the vehicle's capacity leaving the hub, no more than two routes per vehicle, and every route
-    back by `return_by_s`."""
+    the vehicle's capacity leaving the hub, no more than two routes per vehicle, no route leaving
+    before the vans are loaded (`depart_s`) or before the vehicle's previous trip is back and
+    reloaded, and every route back by `return_by_s`."""
     problems: list[str] = []
     seen = [stop_id for trip in trips for stop_id in trip.stops]
+    back_at: dict[int, int] = {}
     for van, trip_no, trip in numbered(trips):
         label = fleet[van].label
+        if trip.start_s < depart_s:
+            problems.append(f"{label} trip {trip_no}: leaves before {clock(depart_s)}")
+        if van in back_at and trip.start_s < back_at[van] + RELOAD_S:
+            problems.append(f"{label} trip {trip_no}: leaves before trip {trip_no - 1} is back")
+        back_at[van] = trip.end_s
         kg = sum(stops[s].kg_tenths for s in trip.stops if s in stops)
         crates = sum(stops[s].crates for s in trip.stops if s in stops)
         if kg > fleet[van].capacity_kg * 10 or crates > fleet[van].capacity_crates:

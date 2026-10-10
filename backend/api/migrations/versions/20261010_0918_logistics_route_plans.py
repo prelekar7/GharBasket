@@ -55,7 +55,8 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("kind IN ('box', 'tiffin')", name=op.f("ck_route_plans_kind")),
         sa.CheckConstraint(
-            "source IS NULL OR source IN ('ml', 'fallback_previous', 'fallback_nearest')",
+            "source IS NULL OR source IN "
+            "('ml', 'ml_fallback', 'fallback_previous', 'fallback_nearest')",
             name=op.f("ck_route_plans_source"),
         ),
         sa.CheckConstraint(
