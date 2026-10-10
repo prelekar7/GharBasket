@@ -30,7 +30,6 @@ from .conftest import alembic_config, make_settings
 
 pytestmark = pytest.mark.services
 
-FUZZ_DATABASE = "gharbasket_fuzz"
 FUZZ_PHONE = "+919800009999"
 
 
@@ -62,26 +61,35 @@ def _seed(database_url: str) -> None:
 
 @pytest.fixture(scope="module")
 def fuzz_database_url(database_url: str) -> Iterator[str]:
-    url = make_url(database_url).set(database=FUZZ_DATABASE).render_as_string(hide_password=False)
-    _admin(f"DROP DATABASE IF EXISTS {FUZZ_DATABASE} WITH (FORCE)", database_url)
-    _admin(f"CREATE DATABASE {FUZZ_DATABASE}", database_url)
+    # Named after the test database, so runs against different test databases (parallel
+    # worktrees, reviews) never drop each other's fuzz database.
+    fuzz_database = f"{make_url(database_url).database}_fuzz"
+    url = make_url(database_url).set(database=fuzz_database).render_as_string(hide_password=False)
+    _admin(f"DROP DATABASE IF EXISTS {fuzz_database} WITH (FORCE)", database_url)
+    _admin(f"CREATE DATABASE {fuzz_database}", database_url)
     try:
         command.upgrade(alembic_config(url), "head")
         _seed(url)  # societies, so onboarding and search have something real to hit
         yield url
     finally:
-        _admin(f"DROP DATABASE IF EXISTS {FUZZ_DATABASE} WITH (FORCE)", database_url)
+        _admin(f"DROP DATABASE IF EXISTS {fuzz_database} WITH (FORCE)", database_url)
 
 
 @pytest.fixture(scope="module")
 def fuzz_app(fuzz_database_url: str) -> FastAPI:
     # APP_ENV=dev: the fuzzer signs in with dev_phone. No Valkey: rate limits stay out of the way.
-    # A webhook secret, so fuzzed webhooks reach the signature check (401) instead of the
-    # "payments not configured" 503 a server error check would flag.
+    # Webhook secrets, so fuzzed webhooks reach the signature and verify-token checks (401, 403)
+    # instead of the "not configured" 503 a server error check would flag. Storage settings for
+    # the same reason: presigning signs locally and never reaches the (absent) endpoint.
     settings = make_settings(
         app_env="dev",
         database_url=fuzz_database_url,
         razorpay_webhook_secret="fuzz-webhook-secret",
+        whatsapp_app_secret="fuzz-whatsapp-secret",
+        whatsapp_verify_token="fuzz-verify-token",
+        s3_endpoint_url="http://127.0.0.1:9",
+        s3_access_key="fuzz",
+        s3_secret_key="fuzz-storage-secret",
     )
     return create_app(settings)
 
