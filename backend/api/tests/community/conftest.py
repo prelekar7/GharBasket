@@ -10,6 +10,7 @@ from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.platform.outbox import relay
 from gharbasket.tools.seed import (
     seed,
+    seed_delivery,
     seed_households,
     seed_hubs,
     seed_partners,
@@ -73,3 +74,9 @@ async def kindness_world(db_session: AsyncSession) -> None:
     await seed_hubs(db_session)
     await seed_societies(db_session)
     await seed_households(db_session)
+
+
+@pytest.fixture
+async def donation_world(db_session: AsyncSession, kindness_world: None) -> None:
+    """The kindness world with the seed hub's slot and Tuesday delivery for its societies."""
+    await seed_delivery(db_session)

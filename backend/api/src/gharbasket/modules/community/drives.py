@@ -9,10 +9,11 @@ except `cancelled`, so no job has to start or end a drive.
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnElement, and_, false, or_, select, true, tuple_
+from sqlalchemy import ColumnElement, and_, false, or_, select, text, true, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -176,11 +177,37 @@ async def list_drives(
     return found[:limit], encode_cursor({"s": last.starts_on.isoformat(), "id": str(last.id)})
 
 
+K_MIN = 5  # households; fewer and a customer sees no progress numbers (k = 5, §3.7, §11)
+_PROGRESS = text(
+    "SELECT d.drive_id, count(DISTINCT d.household_id),"
+    " coalesce(sum((l->>'qty')::numeric)"
+    "   FILTER (WHERE d.status IN ('scheduled', 'picked_up')), 0),"
+    " coalesce(sum((l->>'counted')::numeric)"
+    "   FILTER (WHERE d.status IN ('verified', 'handed_over')), 0)"
+    " FROM community.donations d CROSS JOIN LATERAL jsonb_array_elements(d.items) l"
+    " WHERE d.drive_id = ANY(:ids) AND d.status NOT IN ('cancelled', 'rejected')"
+    " GROUP BY d.drive_id"
+)
+
+
 async def progress(
-    session: AsyncSession, drive_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, tuple[int, int]]:
-    """(pledged, verified) items per drive. Donations arrive with the next part of §3.4."""
-    return {}
+    session: AsyncSession, drive_ids: list[uuid.UUID], *, exact: bool
+) -> dict[uuid.UUID, tuple[int | None, int | None]]:
+    """(pledged, verified) items per drive, a kilogram counting as one item; (None, None) under
+    k households unless `exact` (hub staff)."""
+    if not drive_ids:
+        return {}
+    found: dict[uuid.UUID, tuple[int | None, int | None]] = {}
+    for drive_id, households, pledged, verified in await session.execute(
+        _PROGRESS, {"ids": drive_ids}
+    ):
+        shown = exact or households >= K_MIN
+        found[drive_id] = (half_up(pledged), half_up(verified)) if shown else (None, None)
+    return {i: found.get(i, (0, 0) if exact else (None, None)) for i in drive_ids}
+
+
+def half_up(value: Decimal) -> int:
+    return int(value.quantize(Decimal(1), rounding=ROUND_HALF_UP))
 
 
 def is_admin(permit: Permit) -> bool:

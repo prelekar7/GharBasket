@@ -54,13 +54,13 @@ def rate_out(rate: PointRate, lang: Language) -> PointRateOut:
 
 
 async def _drives_out(
-    session: DbSession, found: list[DonationDrive], lang: Language
+    session: DbSession, found: list[DonationDrive], lang: Language, *, exact: bool = True
 ) -> list[DriveOut]:
-    counts = await drives.progress(session, [drive.id for drive in found])
+    counts = await drives.progress(session, [drive.id for drive in found], exact=exact)
     on = drives.today()
     out: list[DriveOut] = []
     for drive in found:
-        pledged, verified = counts.get(drive.id, (0, 0))
+        pledged, verified = counts[drive.id]
         out.append(
             DriveOut(
                 id=drive.id,
@@ -159,7 +159,8 @@ async def list_drives(
     found, next_cursor = await drives.list_drives(
         session, viewer, states, cursor=cursor, limit=limit
     )
-    return DrivesOut(items=await _drives_out(session, found, lang), next_cursor=next_cursor)
+    out = await _drives_out(session, found, lang, exact=viewer.staff)
+    return DrivesOut(items=out, next_cursor=next_cursor)
 
 
 EDITS = {

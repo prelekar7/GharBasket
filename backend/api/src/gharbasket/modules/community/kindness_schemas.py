@@ -5,7 +5,7 @@ pages build against: changing them needs a PR reviewed by both app owners.
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Self
 
@@ -63,10 +63,11 @@ class DriveNgo(BaseModel):
 
 
 class DriveProgress(BaseModel):
-    """Items (pieces, and kilograms counted as one item per kg); no households, no names."""
+    """Items (pieces, and kilograms counted as one item per kg); no households, no names. Null
+    for customers while fewer than 5 households took part (k = 5, §3.7)."""
 
-    pledged: int = Field(examples=[40], description="In scheduled and picked-up donations")
-    verified: int = Field(examples=[31], description="Counted by the hub")
+    pledged: int | None = Field(examples=[40], description="In scheduled and picked-up donations")
+    verified: int | None = Field(examples=[31], description="Counted by the hub")
 
 
 class DriveOut(BaseModel):
@@ -151,3 +152,85 @@ class DrivePatch(BaseModel):
             if name in self.model_fields_set and getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be null")
         return self
+
+
+# --- donations ----------------------------------------------------------------------------------
+
+DonationStatus = Literal[
+    "scheduled", "picked_up", "verified", "rejected", "handed_over", "cancelled"
+]
+
+
+class DonationLineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(max_length=20, examples=["clothes"])
+    qty: Decimal = Field(
+        max_digits=7,
+        examples=[3],
+        description="In the rate's unit: whole pieces, or kg in 0.5 steps",
+    )
+
+
+class DonationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[DonationLineIn] = Field(max_length=5, description="1 to 5 lines, distinct codes")
+    photo_keys: list[str] = Field(
+        default_factory=list[str],
+        max_length=3,
+        description="Your own `donation_photo` uploads (POST /v1/files/presign)",
+    )
+    drive_id: uuid.UUID | None = None
+    pickup_on: date = Field(description="One of `pickup_dates`")
+
+    @field_validator("items")
+    @classmethod
+    def _distinct_codes(cls, items: list[DonationLineIn]) -> list[DonationLineIn]:
+        _distinct([line.code for line in items])
+        return items
+
+
+class DonationLine(BaseModel):
+    code: str
+    unit: Literal["kg", "each"]
+    qty: float = Field(description="As declared")
+    counted: float | None = Field(description="Set by the hub at verification")
+    points: int | None
+
+
+class DriveRef(BaseModel):
+    id: uuid.UUID
+    name: str
+    multiplier: float
+
+
+class DonationNgo(BaseModel):
+    name: str
+
+
+class TimelineEntry(BaseModel):
+    status: DonationStatus
+    at: datetime
+
+
+class DonationOut(BaseModel):
+    id: uuid.UUID
+    status: DonationStatus
+    items: list[DonationLine]
+    photos: int = Field(description="How many; customers never get links back")
+    drive: DriveRef | None
+    pickup_on: date
+    estimated_points: int = Field(description="From the declared items, before counting")
+    points_awarded: int | None
+    reject_reason: Literal["unusable", "not_accepted", "unsafe", "other"] | None
+    cancel_reason: Literal["customer", "not_ready"] | None
+    ngo: DonationNgo | None = Field(description="Once handed over (§3.5)")
+    timeline: list[TimelineEntry]
+    created_at: datetime
+
+
+class DonationsOut(BaseModel):
+    items: list[DonationOut]
+    next_cursor: str | None
+    pickup_dates: list[date] = Field(description="The next two dates this household can choose")

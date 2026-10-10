@@ -571,6 +571,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My household's donations, newest first, and the next two pickup dates */
+        get: operations["my_donations_v1_donations_get"];
+        put?: never;
+        /** Schedule a donation pickup on one of the next pickup dates (Idempotency-Key) */
+        post: operations["schedule_donation_v1_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a donation still waiting for pickup (Idempotency-Key) */
+        post: operations["cancel_donation_v1_donations__donation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/drives": {
         parameters: {
             query?: never;
@@ -2189,6 +2224,126 @@ export interface components {
              */
             signed_in_at: string;
         };
+        /** DonationIn */
+        DonationIn: {
+            /** Drive Id */
+            drive_id?: string | null;
+            /**
+             * Items
+             * @description 1 to 5 lines, distinct codes
+             */
+            items: components["schemas"]["DonationLineIn"][];
+            /**
+             * Photo Keys
+             * @description Your own `donation_photo` uploads (POST /v1/files/presign)
+             */
+            photo_keys?: string[];
+            /**
+             * Pickup On
+             * Format: date
+             * @description One of `pickup_dates`
+             */
+            pickup_on: string;
+        };
+        /** DonationLine */
+        DonationLine: {
+            /** Code */
+            code: string;
+            /**
+             * Counted
+             * @description Set by the hub at verification
+             */
+            counted: number | null;
+            /** Points */
+            points: number | null;
+            /**
+             * Qty
+             * @description As declared
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** DonationLineIn */
+        DonationLineIn: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description In the rate's unit: whole pieces, or kg in 0.5 steps
+             * @example 3
+             */
+            qty: number | string;
+        };
+        /** DonationNgo */
+        DonationNgo: {
+            /** Name */
+            name: string;
+        };
+        /** DonationOut */
+        DonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+        };
+        /** DonationsOut */
+        DonationsOut: {
+            /** Items */
+            items: components["schemas"]["DonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Pickup Dates
+             * @description The next two dates this household can choose
+             */
+            pickup_dates: string[];
+        };
         /** DriveIn */
         DriveIn: {
             /**
@@ -2354,7 +2509,8 @@ export interface components {
         };
         /**
          * DriveProgress
-         * @description Items (pieces, and kilograms counted as one item per kg); no households, no names.
+         * @description Items (pieces, and kilograms counted as one item per kg); no households, no names. Null
+         *     for customers while fewer than 5 households took part (k = 5, §3.7).
          */
         DriveProgress: {
             /**
@@ -2362,13 +2518,25 @@ export interface components {
              * @description In scheduled and picked-up donations
              * @example 40
              */
-            pledged: number;
+            pledged: number | null;
             /**
              * Verified
              * @description Counted by the hub
              * @example 31
              */
-            verified: number;
+            verified: number | null;
+        };
+        /** DriveRef */
+        DriveRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Multiplier */
+            multiplier: number;
+            /** Name */
+            name: string;
         };
         /** DrivesOut */
         DrivesOut: {
@@ -3773,7 +3941,7 @@ export interface components {
             /** Subtotal Paise */
             subtotal_paise: number;
             /** Timeline */
-            timeline: components["schemas"]["TimelineEntry"][];
+            timeline: components["schemas"]["gharbasket__modules__orders__schemas__TimelineEntry"][];
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -5358,25 +5526,6 @@ export interface components {
             /** Mr */
             mr: string;
         };
-        /** TimelineEntry */
-        TimelineEntry: {
-            /**
-             * Actor
-             * @description Who moved it, as a kind of actor only: never a name or id
-             * @enum {string}
-             */
-            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
-            /**
-             * At
-             * Format: date-time
-             */
-            at: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
-        };
         /**
          * Timings
          * @description The hub's day as IST `HH:MM`, in this order; display and job planning only.
@@ -5701,6 +5850,19 @@ export interface components {
              */
             outcomes: string[];
         };
+        /** TimelineEntry */
+        gharbasket__modules__community__kindness_schemas__TimelineEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+        };
         /**
          * CaptainOut
          * @description An appointment as hub staff see it (§3.2): never the captain's flat or phone.
@@ -5762,6 +5924,25 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** TimelineEntry */
+        gharbasket__modules__orders__schemas__TimelineEntry: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
          * CaptainOut
@@ -8280,6 +8461,223 @@ export interface operations {
             };
             /** @description request.precondition_required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_donations_v1_donations_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    schedule_donation_v1_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.too_many_open_donations */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.no_items, community.item_code_unknown, community.donation_qty_invalid, community.pickup_date_invalid (dates), community.no_pickup_day, community.drive_not_open, community.photo_key_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable (photos sent while storage is down) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_donation_v1_donations__donation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_cancellable (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

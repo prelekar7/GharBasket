@@ -231,3 +231,95 @@ class DonationDrive(Base):
     created_by: Mapped[uuid.UUID] = mapped_column(Uuid)
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- Kindness: donations (§3.4) -----------------------------------------------------------------
+
+DONATION_STATUSES = ("scheduled", "picked_up", "verified", "rejected", "handed_over", "cancelled")
+REJECT_REASONS = ("unusable", "not_accepted", "unsafe", "other")
+CANCEL_REASONS = ("customer", "not_ready")
+
+
+class Donation(Base):
+    """Items a household gives, collected at the door on a delivery day and counted at the hub.
+
+    `items` is `[{code, unit, qty, counted, rate, points}]`: `qty` as declared, the rest set at
+    verification from the rates in force then. `user_id` stays after erasure (like M4's orders).
+    """
+
+    __tablename__ = "donations"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", DONATION_STATUSES), name="status"),
+        CheckConstraint(
+            f"reject_reason IS NULL OR {_one_of('reject_reason', REJECT_REASONS)}",
+            name="reject_reason",
+        ),
+        CheckConstraint(
+            f"cancel_reason IS NULL OR {_one_of('cancel_reason', CANCEL_REASONS)}",
+            name="cancel_reason",
+        ),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        CheckConstraint("jsonb_typeof(items) = 'array'", name="items"),
+        CheckConstraint("pickup_misses BETWEEN 0 AND 1", name="pickup_misses"),
+        CheckConstraint("multiplier BETWEEN 1.0 AND 3.0", name="multiplier"),
+        CheckConstraint("version >= 1", name="version"),
+        Index("ix_donations_hub_id_status", "hub_id", "status"),
+        Index("ix_donations_household_id_status", "household_id", "status"),
+        Index("ix_donations_drive_id", "drive_id"),
+        Index(
+            "ix_donations_society_id_pickup_on",
+            "society_id",
+            "pickup_on",
+            postgresql_where=text("status = 'scheduled'"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    # identity's user and household ids, M6's hub id: plain UUIDs, no foreign key across schemas.
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    household_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    society_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.societies.id"))
+    drive_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.donation_drives.id"))
+    # The drive's multiplier when it was scheduled: a later change or cancel does not touch it.
+    multiplier: Mapped[Decimal] = mapped_column(Numeric(2, 1), server_default=text("1.0"))
+    items: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    photo_keys: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    status: Mapped[str] = mapped_column(String(12), server_default="scheduled")
+    pickup_on: Mapped[date] = mapped_column(Date)
+    pickup_misses: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    picked_up_on: Mapped[date | None] = mapped_column(Date)
+    picked_up_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    estimated_points: Mapped[int] = mapped_column(Integer)
+    points_awarded: Mapped[int | None] = mapped_column(Integer)
+    has_unsuitable: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    reject_reason: Mapped[str | None] = mapped_column(String(16))
+    cancel_reason: Mapped[str | None] = mapped_column(String(12))
+    note: Mapped[str | None] = mapped_column(String(300))  # the hub's, staff only
+    verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The NGO hand-off that took it; the foreign key to community.ngo_handoffs comes with §3.5.
+    handoff_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DonationEvent(Base):
+    """A donation's timeline: one row per status it reached."""
+
+    __tablename__ = "donation_events"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", DONATION_STATUSES), name="status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    donation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.donations.id"), index=True)
+    status: Mapped[str] = mapped_column(String(12))
+    by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
