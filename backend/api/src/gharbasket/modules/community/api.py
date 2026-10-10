@@ -13,7 +13,12 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED, SOCIETY_LIVE
+from gharbasket.modules.community.events import (
+    CAPTAIN_ASSIGNED,
+    CAPTAIN_ENDED,
+    REFERRAL_CONVERTED,
+    SOCIETY_LIVE,
+)
 from gharbasket.modules.community.models import Captain, Society
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import api as partners_api
@@ -22,6 +27,7 @@ from gharbasket.platform.geo import geography
 __all__ = [
     "CAPTAIN_ASSIGNED",
     "CAPTAIN_ENDED",
+    "REFERRAL_CONVERTED",
     "SOCIETY_LIVE",
     "CaptainCard",
     "CaptainRef",

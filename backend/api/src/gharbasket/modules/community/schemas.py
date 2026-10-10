@@ -6,7 +6,7 @@ ever carries a captain's flat number or phone.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -162,3 +162,59 @@ class CaptainEndIn(BaseModel):
     @classmethod
     def _tidy_note(cls, value: str | None) -> str | None:
         return _tidy(value)
+
+
+ReferralStatus = Literal["joined", "converted", "void"]
+
+
+class ReferralRewards(BaseModel):
+    referrer_points: int = Field(examples=[250])
+    referee_points: int = Field(examples=[250])
+    monthly_cap: int = Field(examples=[10], description="Rewarded conversions per IST month")
+
+
+class ReferralSummary(BaseModel):
+    joined: int = Field(examples=[3])
+    converted: int = Field(examples=[2])
+    points_earned: int = Field(examples=[500])
+
+
+class ReferredBy(BaseModel):
+    status: ReferralStatus
+    points: int | None = Field(examples=[250], description="Set once converted")
+
+
+class ReferralItem(BaseModel):
+    """A neighbour who joined with the caller's code: never a name, flat, tower or phone."""
+
+    id: uuid.UUID
+    status: ReferralStatus
+    joined_on: date
+    converted_on: date | None
+    points: int | None = Field(description="Set once converted; 0 over the monthly cap")
+
+
+class ReferralsOut(BaseModel):
+    code: str = Field(examples=["K7Q2XD"])
+    link: str | None = Field(
+        examples=["https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD"],
+        description="null while the caller has no household",
+    )
+    share_text: str = Field(description="In the request language; carries the link")
+    rewards: ReferralRewards
+    summary: ReferralSummary
+    referred_by: ReferredBy | None
+    items: list[ReferralItem] = Field(description="Newest first, at most 50")
+
+
+class ReferralClaimIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=16, examples=["K7Q2XD"])
+
+
+class ReferralClaimOut(BaseModel):
+    id: uuid.UUID
+    status: Literal["joined"]
+    referee_points: int = Field(examples=[250])
+    converts_on: Literal["first_delivered_box"]

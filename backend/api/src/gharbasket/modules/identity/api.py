@@ -3,6 +3,7 @@
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -43,6 +44,7 @@ class HouseholdRef:
     owner_user_id: uuid.UUID
     society_id: uuid.UUID
     hub_id: uuid.UUID | None
+    data_source: str = "real"
 
 
 async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> HouseholdRef | None:
@@ -50,11 +52,22 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
     row = (
         await session.execute(
             select(
-                Household.id, Household.owner_user_id, Household.society_id, Household.hub_id
+                Household.id,
+                Household.owner_user_id,
+                Household.society_id,
+                Household.hub_id,
+                Household.data_source,
             ).where(Household.owner_user_id == user_id)
         )
     ).first()
     return None if row is None else HouseholdRef(*row)
+
+
+async def signed_up_at(session: AsyncSession, user_id: uuid.UUID) -> datetime | None:
+    """When the user first signed in (M9: the 14-day referral claim window)."""
+    return (
+        await session.execute(select(User.created_at).where(User.id == user_id))
+    ).scalar_one_or_none()
 
 
 @dataclass(frozen=True)

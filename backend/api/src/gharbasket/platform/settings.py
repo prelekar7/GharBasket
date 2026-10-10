@@ -89,6 +89,12 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
+    public_web_url: str = "https://gharbasket.in"
+    # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
+    # §3.3, owner 2026-10-09): half a donated meal each.
+    referral_points_referrer: int = Field(default=250, ge=0, le=5000)
+    referral_points_referee: int = Field(default=250, ge=0, le=5000)
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
