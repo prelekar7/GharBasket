@@ -10,3 +10,6 @@ HOUSEHOLD_UPDATED = "identity.household_updated"
 DATA_EXPORT_REQUESTED = "identity.data_export_requested"
 # {export_id, user_id}: the file is written; M11 says so, never with the link (spec §3.3).
 DATA_EXPORT_READY = "identity.data_export_ready"
+# {user_id, household_id, purge_on}: the account's deletion was requested (spec §3.5, not built
+# yet); other modules do their part (M9 voids open referrals).
+DELETION_REQUESTED = "identity.deletion_requested"

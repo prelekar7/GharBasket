@@ -27,6 +27,7 @@ on:
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
     - cron: "40 20 * * 0" # 02:10 IST Monday: recompute_unlock_thresholds
+    - cron: "40 21 * * *" # 03:10 IST daily: expire_referrals
     - cron: "03 23 * * *" # 04:33 IST daily: purge_notifications
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
   workflow_dispatch:
@@ -72,6 +73,7 @@ jobs:
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
             "40 20 * * 0") job=recompute_unlock_thresholds ;;
+            "40 21 * * *") job=expire_referrals ;;
             "03 23 * * *") job=purge_notifications ;;
             "17 * * * *") job=outbox_sweep ;;
             "") job="$INPUT_JOB" ;;

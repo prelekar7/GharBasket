@@ -19,9 +19,10 @@ from gharbasket.modules.identity.models import (
     UserRole,
 )
 
-# Events other modules consume (M9: the unlock count).
+# Events other modules consume (M9: the unlock count, referrals).
 HOUSEHOLD_CREATED = events.HOUSEHOLD_CREATED
 HOUSEHOLD_UPDATED = events.HOUSEHOLD_UPDATED
+DELETION_REQUESTED = events.DELETION_REQUESTED
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
