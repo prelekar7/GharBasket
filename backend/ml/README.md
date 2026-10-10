@@ -33,6 +33,7 @@ answers late, so the API's rule fallbacks keep working and say `source: "fallbac
 pings `/health` every 10 minutes so the Space does not sleep.
 
 Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the image to
-the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `MODELS_MANIFEST`
+the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `OSRM_TIMEOUT_S`
+(default 2.5: `/route/solve` prices with haversine when OSRM is slower), `MODELS_MANIFEST`
 (a local stand-in for the R2 registry pointer). The service is stateless and receives no personal
 data (DPDP; the Space is hosted outside India).
