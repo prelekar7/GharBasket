@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Posting
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
 CREDIT_NORMAL = ("liability", "revenue")
 
@@ -173,3 +174,28 @@ async def _same(
     if entry.kind != kind or recorded != wanted:
         raise entry_conflict(entry.idempotency_key)
     return entry
+
+
+async def account_entries(
+    session: AsyncSession, account: LedgerAccount, cursor: str | None, limit: int
+) -> tuple[list[tuple[JournalEntry, int]], str | None]:
+    """An account's entries, newest first, each with its amount as the owner sees it (into the
+    account +). Entry ids are uuidv7 (time-ordered), so the cursor is the last id seen."""
+    stmt = (
+        select(JournalEntry, Posting.amount)
+        .join(Posting, Posting.entry_id == JournalEntry.id)
+        .where(Posting.account_id == account.id)
+    )
+    if cursor is not None:
+        try:
+            before = uuid.UUID(str(decode_cursor(cursor).get("before")))
+        except ValueError as exc:
+            raise ProblemError(422, "request.invalid_cursor", "The cursor is not valid.") from exc
+        stmt = stmt.where(JournalEntry.id < before)
+    rows = (await session.execute(stmt.order_by(JournalEntry.id.desc()).limit(limit + 1))).all()
+    sign = -1 if account.kind in CREDIT_NORMAL else 1
+    found = [(entry, sign * amount) for entry, amount in rows[:limit]]
+    next_cursor = None
+    if len(rows) > limit:
+        next_cursor = encode_cursor({"before": str(found[-1][0].id)})
+    return found, next_cursor

@@ -26,6 +26,7 @@ on:
     - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
+    - cron: "03 19 * * *" # 00:33 IST daily: expire_kindness_points
     - cron: "03 23 * * *" # 04:33 IST daily: purge_notifications
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
   workflow_dispatch:
@@ -70,6 +71,7 @@ jobs:
             "33 22 * * *") job=cleanup_idempotency_keys ;;
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
+            "03 19 * * *") job=expire_kindness_points ;;
             "03 23 * * *") job=purge_notifications ;;
             "17 * * * *") job=outbox_sweep ;;
             "") job="$INPUT_JOB" ;;
