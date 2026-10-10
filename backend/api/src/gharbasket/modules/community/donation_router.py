@@ -4,24 +4,32 @@ dates, scheduling and cancelling. Customers never get photo links back."""
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 from sqlalchemy import select
 
-from gharbasket.modules.community import donations
+from gharbasket.modules.community import donations, drives, verification
 from gharbasket.modules.community.kindness_schemas import (
     DonationIn,
     DonationLine,
     DonationOut,
     DonationsOut,
+    DonationStatus,
     DriveRef,
+    PhotoUrl,
+    PickedUpBy,
+    RejectIn,
+    StaffDonationOut,
+    StaffSociety,
     TimelineEntry,
+    VerifyIn,
 )
-from gharbasket.modules.community.models import Donation, DonationDrive
+from gharbasket.modules.community.models import Donation, DonationDrive, Society
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.platform import audit, files
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
-from gharbasket.platform.pagination import Cursor, Limit
+from gharbasket.platform.pagination import Cursor, Limit, Page
 from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter()
@@ -137,6 +145,154 @@ async def cancel_donation(
     user_id = permit.principal.user_id
     donation = await donations.own(session, user_id, donation_id)
     await donations.cancel(session, donation, "customer", user_id)
+    out = (await views(session, [donation], lang))[0]
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+# --- the hub: verification queue, verify and reject ---------------------------------------------
+
+CanReview = Annotated[Permit, require("donations:review")]
+CanVerify = Annotated[Permit, require("donations:verify")]
+
+
+async def _staff_views(
+    session: DbSession, permit: Permit, found: list[Donation], lang: Language, request: Request
+) -> list[StaffDonationOut]:
+    labels = await identity_api.delivery_labels(session, {d.household_id for d in found})
+    societies = {
+        s.id: s
+        for s in (
+            await session.execute(
+                select(Society).where(Society.id.in_({d.society_id for d in found}))
+            )
+        ).scalars()
+    }
+    collectors = await identity_api.user_contacts(
+        session, [d.picked_up_by_user_id for d in found if d.picked_up_by_user_id]
+    )
+    store: files.ObjectStore | None = getattr(request.app.state, "storage", None)
+    out: list[StaffDonationOut] = []
+    for view, d in zip(await views(session, found, lang), found, strict=True):
+        society, label = societies[d.society_id], labels.get(d.household_id)
+        towers = {str(t["id"]): str(t["label"]) for t in society.towers}
+        photos: list[PhotoUrl] = []
+        if store is not None and d.photo_keys:  # none while storage is down; `photos` still counts
+            expires = donations.now() + files.GET_TTL
+            photos = [
+                PhotoUrl(url=store.signed_get(key), expires_at=expires) for key in d.photo_keys
+            ]
+            await audit.record(
+                session,
+                actor_user_id=permit.principal.user_id,
+                action="community.donation_photo_links",
+                entity_type="donation",
+                entity_id=str(d.id),
+                after={"photos": len(photos)},
+            )
+        collector = collectors.get(d.picked_up_by_user_id) if d.picked_up_by_user_id else None
+        out.append(
+            StaffDonationOut(
+                **view.model_dump(),
+                household_id=d.household_id,
+                society=StaffSociety(id=society.id, name=society.name),
+                tower=towers.get(label.tower_id, label.tower_id) if label else None,
+                flat=label.flat if label else None,
+                picked_up_by=None if collector is None else PickedUpBy(name=collector.name),
+                picked_up_on=d.picked_up_on,
+                photo_urls=photos,
+            )
+        )
+    return out
+
+
+@router.get(
+    "/admin/donations",
+    summary="The hub's donations, oldest first: the verification queue (5-minute photo links)",
+    responses={
+        403: _problem("auth.forbidden: another hub"),
+        422: _problem("request.invalid_cursor"),
+    },
+)
+async def hub_donations(
+    permit: CanReview,
+    session: DbSession,
+    lang: Lang,
+    request: Request,
+    response: Response,
+    hub_id: uuid.UUID | None = None,
+    status: Annotated[DonationStatus | None, Query(description="e.g. picked_up")] = None,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[StaffDonationOut]:
+    if hub_id is not None:
+        permit.ensure(hub_id)
+    hub_ids = (
+        frozenset({hub_id})
+        if hub_id is not None
+        else None
+        if drives.is_admin(permit)
+        else frozenset(g.scope_id for g in permit.grants if g.scope_id is not None)
+    )
+    found, next_cursor = await verification.queue(session, hub_ids, status, cursor, limit)
+    items = await _staff_views(session, permit, found, lang, request)
+    await session.commit()  # the audit of minted photo links
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=items, next_cursor=next_cursor)
+
+
+VERDICT = {
+    400: _problem("request.idempotency_key_required"),
+    404: _problem("community.donation_not_found (also outside your hubs)"),
+    409: _problem(
+        "community.donation_not_picked_up, community.donation_already_verified (donation_status)"
+    ),
+}
+
+
+@router.post(
+    "/donations/{donation_id}/verify",
+    summary="Record what the hub counted; points are computed and sent to M5 (Idempotency-Key)",
+    responses={
+        **VERDICT,
+        422: _problem(
+            "community.item_code_unknown, community.donation_qty_invalid, "
+            "community.nothing_counted, request.invalid"
+        ),
+    },
+)
+async def verify_donation(
+    donation_id: uuid.UUID,
+    body: VerifyIn,
+    permit: CanVerify,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> DonationOut:
+    donation = await verification.staff_donation(session, permit, donation_id)
+    await verification.verify(session, donation, body, permit.principal.user_id)
+    out = (await views(session, [donation], lang))[0]
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/donations/{donation_id}/reject",
+    summary="Reject a picked-up donation; its items go to a recycler (Idempotency-Key)",
+    responses={**VERDICT, 422: _problem("request.invalid")},
+)
+async def reject_donation(
+    donation_id: uuid.UUID,
+    body: RejectIn,
+    permit: CanVerify,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> DonationOut:
+    donation = await verification.staff_donation(session, permit, donation_id)
+    await verification.reject(session, donation, body, permit.principal.user_id)
     out = (await views(session, [donation], lang))[0]
     await idem.save(200, out)
     await session.commit()

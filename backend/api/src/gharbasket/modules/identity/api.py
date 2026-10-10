@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import households, service
 from gharbasket.modules.identity.models import (
+    Address,
     Consent,
     Household,
     HouseholdMember,
@@ -51,6 +52,28 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
         )
     ).first()
     return None if row is None else HouseholdRef(*row)
+
+
+@dataclass(frozen=True)
+class DeliveryLabel:
+    tower_id: str
+    flat: str
+
+
+async def delivery_labels(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, DeliveryLabel]:
+    """Tower and flat per household, for bag labels and hub queues (ADR-0026): never a name
+    or a phone. Households without an address are left out."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Address.household_id, Address.tower_id, Address.flat).where(
+            Address.household_id.in_(ids)
+        )
+    )
+    return {household_id: DeliveryLabel(tower, flat) for household_id, tower, flat in rows.all()}
 
 
 @dataclass(frozen=True)
