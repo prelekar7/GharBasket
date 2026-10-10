@@ -6092,6 +6092,95 @@
         "title": "PlanOut",
         "type": "object"
       },
+      "PlanSummary": {
+        "properties": {
+          "cost_paise": {
+            "examples": [
+              412000
+            ],
+            "title": "Cost Paise",
+            "type": "integer"
+          },
+          "km": {
+            "examples": [
+              61.2
+            ],
+            "title": "Km",
+            "type": "number"
+          },
+          "late_min": {
+            "examples": [
+              0.0
+            ],
+            "title": "Late Min",
+            "type": "number"
+          },
+          "on_time": {
+            "description": "Share of stops reached within the window",
+            "examples": [
+              1.0
+            ],
+            "title": "On Time",
+            "type": "number"
+          },
+          "orders": {
+            "examples": [
+              212
+            ],
+            "title": "Orders",
+            "type": "integer"
+          },
+          "problems": {
+            "description": "Empty, or the plan needs a hub manager's review before it is published",
+            "examples": [
+              [
+                "EV-2 trip 1: over capacity leaving the hub"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "routes": {
+            "examples": [
+              6
+            ],
+            "title": "Routes",
+            "type": "integer"
+          },
+          "stops": {
+            "description": "Stops with orders, routed or not",
+            "examples": [
+              18
+            ],
+            "title": "Stops",
+            "type": "integer"
+          },
+          "vehicles": {
+            "description": "Vehicles used",
+            "examples": [
+              4
+            ],
+            "title": "Vehicles",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stops",
+          "orders",
+          "vehicles",
+          "routes",
+          "km",
+          "cost_paise",
+          "on_time",
+          "late_min",
+          "problems"
+        ],
+        "title": "PlanSummary",
+        "type": "object"
+      },
       "PlansOut": {
         "properties": {
           "items": {
@@ -6810,6 +6899,19 @@
         "title": "ProductRef",
         "type": "object"
       },
+      "PublishIn": {
+        "additionalProperties": false,
+        "properties": {
+          "accept_problems": {
+            "default": false,
+            "description": "Publish although summary.problems is not empty (audited)",
+            "title": "Accept Problems",
+            "type": "boolean"
+          }
+        },
+        "title": "PublishIn",
+        "type": "object"
+      },
       "PushTokenIn": {
         "properties": {
           "push_token": {
@@ -7447,6 +7549,550 @@
           "status"
         ],
         "title": "RoleOut",
+        "type": "object"
+      },
+      "RoutePlanOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "distance_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "osrm",
+                  "haversine"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the distances were priced",
+            "title": "Distance Source"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a plan failed",
+            "title": "Error"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "cvrptw-waves-v0"
+            ],
+            "title": "Model"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/RouteSummary"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              7.9
+            ],
+            "title": "Seconds"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ml",
+                  "fallback_previous",
+                  "fallback_nearest"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until solved",
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "solving",
+              "solved",
+              "published",
+              "failed",
+              "superseded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "enum": [
+              "job",
+              "manual"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "delivery_date",
+          "kind",
+          "status",
+          "trigger",
+          "source",
+          "distance_source",
+          "model",
+          "summary",
+          "seconds",
+          "error",
+          "requested_by",
+          "created_at",
+          "published_at",
+          "routes"
+        ],
+        "title": "RoutePlanOut",
+        "type": "object"
+      },
+      "RoutePlanSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "distance_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "osrm",
+                  "haversine"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the distances were priced",
+            "title": "Distance Source"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a plan failed",
+            "title": "Error"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "cvrptw-waves-v0"
+            ],
+            "title": "Model"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "requested_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              7.9
+            ],
+            "title": "Seconds"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ml",
+                  "fallback_previous",
+                  "fallback_nearest"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until solved",
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "solving",
+              "solved",
+              "published",
+              "failed",
+              "superseded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "enum": [
+              "job",
+              "manual"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "delivery_date",
+          "kind",
+          "status",
+          "trigger",
+          "source",
+          "distance_source",
+          "model",
+          "summary",
+          "seconds",
+          "error",
+          "requested_by",
+          "created_at",
+          "published_at"
+        ],
+        "title": "RoutePlanSummary",
+        "type": "object"
+      },
+      "RoutePlansOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RoutePlanSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RoutePlansOut",
+        "type": "object"
+      },
+      "RouteSummary": {
+        "properties": {
+          "bags": {
+            "examples": [
+              52
+            ],
+            "title": "Bags",
+            "type": "integer"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "crates": {
+            "examples": [
+              18
+            ],
+            "title": "Crates",
+            "type": "integer"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "depart": {
+            "description": "IST HH:MM",
+            "examples": [
+              "06:30"
+            ],
+            "title": "Depart",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "km": {
+            "examples": [
+              14.8
+            ],
+            "title": "Km",
+            "type": "number"
+          },
+          "plan_id": {
+            "format": "uuid",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "return_by": {
+            "description": "IST HH:MM",
+            "examples": [
+              "11:30"
+            ],
+            "title": "Return By",
+            "type": "string"
+          },
+          "rider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiderRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until a rider is set"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "description": "draft while its plan is not published",
+            "enum": [
+              "draft",
+              "published",
+              "in_progress",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stops_done": {
+            "examples": [
+              0
+            ],
+            "title": "Stops Done",
+            "type": "integer"
+          },
+          "stops_total": {
+            "examples": [
+              6
+            ],
+            "title": "Stops Total",
+            "type": "integer"
+          },
+          "trip": {
+            "description": "A vehicle's second trip of the day is 2",
+            "examples": [
+              1
+            ],
+            "title": "Trip",
+            "type": "integer"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleRef"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "plan_id",
+          "hub_id",
+          "delivery_date",
+          "kind",
+          "trip",
+          "status",
+          "vehicle",
+          "rider",
+          "depart",
+          "return_by",
+          "stops_total",
+          "stops_done",
+          "crates",
+          "bags",
+          "km",
+          "started_at",
+          "completed_at",
+          "version"
+        ],
+        "title": "RouteSummary",
         "type": "object"
       },
       "SavedTemplatesOut": {
@@ -8142,6 +8788,32 @@
           "distance_m"
         ],
         "title": "SocietySummary",
+        "type": "object"
+      },
+      "SolveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "Today or tomorrow (IST)",
+            "examples": [
+              "2026-12-29"
+            ],
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "kind": {
+            "const": "box",
+            "default": "box",
+            "description": "tiffin plans come with M8 (§3.7)",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "SolveIn",
         "type": "object"
       },
       "StartIn": {
@@ -9269,6 +9941,35 @@
         "title": "UserOut",
         "type": "object"
       },
+      "UserRef": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Vikram Desai"
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "UserRef",
+        "type": "object"
+      },
       "VehicleIn": {
         "additionalProperties": false,
         "description": "Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;\ntwo_wheeler 40 kg, 0 crates, 30 tiffins.",
@@ -9588,6 +10289,37 @@
           }
         },
         "title": "VehiclePatch",
+        "type": "object"
+      },
+      "VehicleRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "cargo_3w",
+              "two_wheeler"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "EV-1"
+            ],
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "kind"
+        ],
+        "title": "VehicleRef",
         "type": "object"
       },
       "VehiclesOut": {
@@ -16121,6 +16853,272 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/route-plans": {
+      "get": {
+        "operationId": "list_plans_v1_hubs__hub_id__route_plans_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "description": "Only this kind",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "box",
+                    "tiffin"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this kind",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlansOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's route plans for a date, newest first (without routes)",
+        "tags": [
+          "logistics"
+        ]
+      },
+      "post": {
+        "description": "Answers at once with the queued plan; the solve runs in the background (the ML solver, or M7's fallback when it is down). Poll GET /v1/route-plans/{id}. A manual plan is never published automatically.",
+        "operationId": "solve_plan_v1_hubs__hub_id__route_plans_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.solve_running, logistics.routes_started"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.date_out_of_range, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Solve (or re-solve) a hub's routes for today or tomorrow (Idempotency-Key required)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/vehicles": {
       "get": {
         "operationId": "list_vehicles_v1_hubs__hub_id__vehicles_get",
@@ -21301,6 +22299,250 @@
         "summary": "One recipe with its ingredients and the cost of a serving at the caller's hub",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/route-plans/{plan_id}": {
+      "get": {
+        "operationId": "get_plan_v1_route_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.plan_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A route plan with its routes (poll it after a solve)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/route-plans/{plan_id}/publish": {
+      "post": {
+        "description": "The routes become published; the date's previously published plan is superseded and its routes cancelled, unless one of them has started. A plan with problems needs accept_problems (audited); one that leaves a stop off every route never publishes.",
+        "operationId": "publish_plan_v1_route_plans__plan_id__publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PublishIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.plan_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.plan_not_publishable, logistics.plan_incomplete, logistics.plan_has_problems, logistics.routes_started"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Publish a solved plan (Idempotency-Key required)",
+        "tags": [
+          "logistics"
         ]
       }
     },

@@ -7,7 +7,7 @@ a PR reviewed by both app owners. Whether a vehicle can carry its kind's load
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -99,3 +99,104 @@ class VehiclePatch(_VehicleFields):
             if getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be null")
         return self
+
+
+# --- route plans (§3.2) ----------------------------------------------------------------------
+
+PlanKind = Literal["box", "tiffin"]
+PlanStatus = Literal["queued", "solving", "solved", "published", "failed", "superseded"]
+PlanSource = Literal["ml", "fallback_previous", "fallback_nearest"]
+RouteStatus = Literal["draft", "published", "in_progress", "completed", "cancelled"]
+
+
+class PlanSummary(BaseModel):
+    stops: int = Field(examples=[18], description="Stops with orders, routed or not")
+    orders: int = Field(examples=[212])
+    vehicles: int = Field(examples=[4], description="Vehicles used")
+    routes: int = Field(examples=[6])
+    km: float = Field(examples=[61.2])
+    cost_paise: int = Field(examples=[412000])
+    on_time: float = Field(examples=[1.0], description="Share of stops reached within the window")
+    late_min: float = Field(examples=[0.0])
+    problems: list[str] = Field(
+        examples=[["EV-2 trip 1: over capacity leaving the hub"]],
+        description="Empty, or the plan needs a hub manager's review before it is published",
+    )
+
+
+class UserRef(BaseModel):
+    user_id: uuid.UUID
+    name: str | None = Field(examples=["Vikram Desai"])
+
+
+class VehicleRef(BaseModel):
+    id: uuid.UUID
+    label: str = Field(examples=["EV-1"])
+    kind: VehicleKind
+
+
+class RouteSummary(BaseModel):
+    id: uuid.UUID
+    plan_id: uuid.UUID
+    hub_id: uuid.UUID
+    delivery_date: date
+    kind: PlanKind
+    trip: int = Field(examples=[1], description="A vehicle's second trip of the day is 2")
+    status: RouteStatus = Field(description="draft while its plan is not published")
+    vehicle: VehicleRef
+    rider: RiderRef | None = Field(description="Null until a rider is set")
+    depart: str = Field(examples=["06:30"], description="IST HH:MM")
+    return_by: str = Field(examples=["11:30"], description="IST HH:MM")
+    stops_total: int = Field(examples=[6])
+    stops_done: int = Field(examples=[0])
+    crates: int = Field(examples=[18])
+    bags: int = Field(examples=[52])
+    km: float = Field(examples=[14.8])
+    started_at: datetime | None
+    completed_at: datetime | None
+    version: int
+
+
+class RoutePlanSummary(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    delivery_date: date
+    kind: PlanKind
+    status: PlanStatus
+    trigger: Literal["job", "manual"]
+    source: PlanSource | None = Field(description="Null until solved")
+    distance_source: Literal["osrm", "haversine"] | None = Field(
+        description="How the distances were priced"
+    )
+    model: str | None = Field(examples=["cvrptw-waves-v0"])
+    summary: PlanSummary | None
+    seconds: float | None = Field(examples=[7.9])
+    error: str | None = Field(description="Why a plan failed")
+    requested_by: UserRef | None
+    created_at: datetime
+    published_at: datetime | None
+
+
+class RoutePlanOut(RoutePlanSummary):
+    routes: list[RouteSummary]
+
+
+class RoutePlansOut(BaseModel):
+    items: list[RoutePlanSummary]
+
+
+class SolveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_date: date = Field(
+        alias="date", examples=["2026-12-29"], description="Today or tomorrow (IST)"
+    )
+    kind: Literal["box"] = Field(default="box", description="tiffin plans come with M8 (§3.7)")
+
+
+class PublishIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    accept_problems: bool = Field(
+        default=False, description="Publish although summary.problems is not empty (audited)"
+    )
