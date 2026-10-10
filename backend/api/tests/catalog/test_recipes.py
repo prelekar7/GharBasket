@@ -207,12 +207,16 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
         headers=headers,
     )
     none = await api.get(
-        "/v1/festivals", params={"from": "2026-11-01", "to": "2026-11-30"}, headers=headers
+        "/v1/festivals", params={"from": "2027-09-01", "to": "2027-09-30"}, headers=headers
     )
 
     items = response.json()["items"]
-    assert [i["date"] for i in items] == [date(2026, 10, d).isoformat() for d in range(11, 20)]
-    assert items[0] == {
+    # October 2026 in Maharashtra: Indira Ekadashi, nine days of Navratri, Dussehra,
+    # Papankusha Ekadashi and Sankashti Chaturthi (kalagana; see data/external/festivals).
+    assert [i["date"] for i in items] == [
+        date(2026, 10, d).isoformat() for d in (6, *range(11, 20), 21, 22, 29)
+    ]
+    assert items[1] == {
         "date": "2026-10-11",
         "code": "navratri",
         "name": "नवरात्रि",
@@ -220,7 +224,8 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
         "rules": {"fasting": True, "no_onion_garlic": True},
         "verified": False,
     }
-    assert none.json()["items"] == []
+    assert {i["code"] for i in items} == {"ekadashi", "navratri", "dussehra", "sankashti"}
+    assert none.json()["items"] == []  # beyond the generated window
 
 
 @pytest.mark.parametrize(

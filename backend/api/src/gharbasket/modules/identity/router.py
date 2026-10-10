@@ -11,8 +11,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 
+from gharbasket.modules.identity import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.identity import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.identity import service
+from gharbasket.modules.identity.exports import router as exports_router
 from gharbasket.modules.identity.firebase import FirebaseTokenVerifier
 from gharbasket.modules.identity.household_router import router as household_router
 from gharbasket.modules.identity.models import LoginSession, User, UserRole
@@ -22,6 +24,7 @@ from gharbasket.modules.identity.schemas import (
     ExchangeOut,
     MeOut,
     MeUpdate,
+    PushTokenIn,
     RefreshIn,
     RoleGrantIn,
     RoleGrantOut,
@@ -246,6 +249,7 @@ async def _signed_in_user(principal: CurrentPrincipal, session: DbSession) -> Us
 
 
 SignedInUser = Annotated[User, Depends(_signed_in_user)]
+router.include_router(exports_router, dependencies=[Depends(_signed_in_user)])
 
 
 async def _roles(session: DbSession, user_id: uuid.UUID) -> list[RoleOut]:
@@ -324,6 +328,19 @@ async def sign_out_device(
         raise ProblemError(404, "identity.device_not_found", "No such signed-in device.")
     await session.commit()
     await mark_revoked(valkey, [device_id])
+
+
+@router.put(
+    "/me/push-token",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Set or clear this device's FCM token for push notifications (M11 §3.1)",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def put_push_token(
+    body: PushTokenIn, principal: CurrentPrincipal, user: SignedInUser, session: DbSession
+) -> None:
+    await service.set_push_token(session, user.id, principal.session_id, body.push_token)
+    await session.commit()
 
 
 @router.post(

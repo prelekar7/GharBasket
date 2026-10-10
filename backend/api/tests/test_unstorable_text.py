@@ -1,30 +1,20 @@
 """Text Postgres cannot store (NUL characters) is a 422, not a 500 (found by the fuzzer)."""
 
-from collections.abc import AsyncIterator
-
 import httpx2
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
 from gharbasket.platform.db import get_session
 
+from .commit_guard import CommitGuard
 from .conftest import make_settings
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
 
-async def test_nul_characters_are_refused_as_invalid_input(db_session: AsyncSession) -> None:
+async def test_nul_characters_are_refused_as_invalid_input(commit_guard: CommitGuard) -> None:
     app = create_app(make_settings(app_env="dev"))
-
-    async def session_override() -> AsyncIterator[AsyncSession]:
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
-
-    app.dependency_overrides[get_session] = session_override
+    app.dependency_overrides[get_session] = commit_guard.override()
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as api:
         signed_in = await api.post(

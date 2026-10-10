@@ -14,11 +14,11 @@
 | Model / engine | Type | Where it trains | How often | Typical time |
 |---|---|---|---|---|
 | M-A Pantry digital twin | Hierarchical Bayesian (NumPyro) + closed-form online updates | `backend/training` job in GitHub Actions (CPU); the online update runs in the API with plain arithmetic; development on laptops | Weekly full fit; online update after every delivery / feedback | 1–5 min |
-| M-B Next-basket ranker | LightGBM LambdaRank | ML service batch job (CPU) | Weekly | < 2 min |
-| M-E Demand forecast | StatsForecast + MLForecast (LightGBM) + MinT reconciliation | ML service batch job (CPU) | Nightly | < 5 min |
-| Chronos-2 | Pretrained foundation model, **zero-shot** (no training) | Inference on CPU in an ML service batch job | Nightly, only for hubs with < 8 weeks of data | seconds–minutes |
+| M-B Next-basket ranker | LightGBM LambdaRank | `backend/training` job in GitHub Actions (CPU) | Weekly | < 2 min |
+| M-E Demand forecast | StatsForecast + MLForecast (LightGBM) + MinT reconciliation | `backend/training` job in GitHub Actions (CPU) | Nightly | < 5 min |
+| Chronos-2 | Pretrained foundation model, **zero-shot** (no training) | Inference on CPU in a `backend/training` job in GitHub Actions (optional torch extra) | Nightly, only for hubs with < 8 weeks of data | seconds–minutes |
 | M-C Meal planner, M-D Budget Lock, M-F Routing, M-G Kitchen assignment, kit selection | OR-Tools CP-SAT / Routing — **solvers, no training** | `ml` service at request/batch time | Per cycle / per slot | 1–30 s |
-| M-I Churn + uplift | LightGBM + T-learner | ML service batch job | Monthly | < 1 min |
+| M-I Churn + uplift | LightGBM + T-learner | `backend/training` job in GitHub Actions | Monthly | < 1 min |
 | Embeddings (bge-m3) | Pretrained, no training | One-off batch on a laptop, or Google Colab / Kaggle free GPU; re-run on catalog change | On change | minutes |
 | Assistant | Claude API — prompting + tool use, **no fine-tuning** | Anthropic API | — | — |
 | (Optional, research) Chronos fine-tune | Fine-tune | Kaggle / Colab free GPU (T4/P100) | Once, for the paper | ~1 h |
@@ -36,7 +36,7 @@ flowchart LR
     PG[("PostgreSQL 18<br/>OLTP (Neon)")] -->|"02:00 IST export_snapshots<br/>(DuckDB postgres extension)"| PQ[("Lake bucket, S3 API<br/>snapshots/date=.../*.parquet")]
     PQ --> VAL["pandera<br/>data validation"]
     VAL --> FEAT["Feature build<br/>Polars / DuckDB<br/>point-in-time as-of cut-off"]
-    FEAT --> TRAIN["Train challenger<br/>(ML service batch job)"]
+    FEAT --> TRAIN["Train challenger<br/>(backend/training in GitHub Actions)"]
     TRAIN --> EVAL["Evaluate on time-based holdout<br/>last 2-4 weeks, never random split"]
     EVAL --> GATE{"Beats @champion on<br/>primary metric AND guardrails?"}
     GATE -->|no| KEEP["Keep champion<br/>log run in MLflow"]
@@ -74,8 +74,8 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant SCH as Scheduler
-    participant MW as ml service - batch job
+    participant SCH as GitHub Actions schedule
+    participant MW as backend/training job
     participant S3 as Lake bucket (S3 API)
     participant MLF as MLflow (tracking + registry)
     participant ML as ml service
@@ -314,7 +314,7 @@ Data sources (all free; fetch dates recorded with every run): IFCT 2017 and ICMR
 - **D7** — Research covers all four algorithms; meal planner and pantry twin are deepest ([ADR-0007](../adr/0007-research-scope-four-algorithms.md)).
 - **D8** — Simulator first; `data_source` tagging ([ADR-0008](../adr/0008-simulator-first-data-source-tagging.md)).
 - **D13** — Assistant model chosen after the S8 eval ([ADR-0013](../adr/0013-assistant-model-chosen-by-eval.md)).
-- **D21** — Jobs without a broker until the pilot; long ML jobs run in the ML service or offline ([ADR-0021](../adr/0021-jobs-without-a-broker.md)).
+- **D21** — Jobs without a broker until the pilot; long ML jobs never run inside an API request ([ADR-0021](../adr/0021-jobs-without-a-broker.md)); D25 puts them in GitHub Actions (`backend/training`).
 - **D25** — ML runtime: Hugging Face Space for serving, GitHub Actions for training, R2 for the lake and registry, cron-job.org for minute-level jobs ([ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md)).
 - **Open:** confirm bge-m3 CPU embedding speed in the S7 spike; decide whether to attempt the optional Chronos fine-tune for the paper.
 

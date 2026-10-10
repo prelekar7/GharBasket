@@ -23,7 +23,7 @@
 | Time | ISO-8601 with offset. Business dates as `YYYY-MM-DD` in Asia/Kolkata. |
 | Webhooks in | Signature verified → raw payload stored (`billing.payment_webhooks`) → processed idempotently by a job. |
 | Realtime | Server-Sent Events: `GET /v1/orders/{id}/events`, `GET /v1/routes/{id}/live`. |
-| Files | `POST /v1/files/presign` → direct upload to object storage over the S3 API (Cloudflare R2; SeaweedFS locally). The API stores only the key and metadata. |
+| Files | `POST /v1/files/presign` (purpose, type, size) → direct upload to the private bucket over the S3 API (Cloudflare R2; SeaweedFS locally). The API stores only the key and metadata; reads use 5-minute signed links (M0 §3.1). |
 
 **Contract-first workflow.** FastAPI generates `openapi.json`. `just gen-api` regenerates `frontend/packages/api-client` (openapi-typescript `schema.d.ts` types + openapi-fetch client + openapi-react-query TanStack Query hooks, D22); it is never edited by hand. CI runs `oasdiff` to block breaking changes unless the PR is labelled `breaking`, and fails if the generated client is stale.
 
@@ -105,8 +105,8 @@ flowchart LR
 
 | Module | Events |
 |---|---|
-| identity | `identity.household_created` |
-| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
+| identity | `identity.household_created`, `identity.data_export_ready` |
+| subscriptions | `subscriptions.cycle_generated`, `subscriptions.box_ready`, `subscriptions.cutoff_reminder`, `subscriptions.box_approved`, `subscriptions.box_skipped` |
 | orders | `orders.locked`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` |
 | billing | `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued` |
 | ops | `hub_ops.procurement_plan_ready`, `hub_ops.waste_logged` |
@@ -117,13 +117,14 @@ flowchart LR
 
 ## 10.4 Scheduled jobs (IST, per hub; T = delivery day)
 
-Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by the `JOBS_TOKEN` secret and called by a GitHub Actions scheduled workflow (D21). Jobs are idempotent, take a Postgres advisory lock and use the scheduled time, not the run time. Long ML jobs (`retrain_models`, forecasts) run in the ML service or offline.
+Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by the `JOBS_TOKEN` secret and called by a GitHub Actions scheduled workflow for daily and weekly jobs (`jobs-staging.yml`, D21) and by cron-job.org for minute-level ones (D25). Jobs are idempotent, take a Postgres advisory lock and use the scheduled time, not the run time. Long ML jobs (`retrain_models`, forecasts, snapshots) run in `backend/training` on GitHub Actions (`training-jobs.yml`, D25), never inside the ML service or an API request.
 
 | When | Job | Module |
 |---|---|---|
-| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts) | intel → subscriptions |
-| T-3 18:30 | `send_box_ready_and_pre_debit_notices` | notify / billing |
-| T-1 19:00 | `remind_unapproved` | notify |
+| T-3 18:00 | `generate_weekly_plans` (meal plan → box drafts; cron-job.org) | intel → subscriptions |
+| T-3 18:30 | `send_box_ready_notices` (draft → awaiting approval; publishes `subscriptions.box_ready`; M11 notifies; cron-job.org) | subscriptions → notify |
+| T-1 19:00 | `remind_unapproved` (publishes `subscriptions.cutoff_reminder` once per unapproved box auto-approve will not take; cron-job.org) | subscriptions → notify |
+| every minute | `send_deliveries` (push and WhatsApp, cron-job.org) | notify |
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
 | T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
@@ -133,25 +134,28 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T 07:00 | `solve_routes` (per slot) | intel → logistics |
 | T 12:30 | `surplus_cascade` | ops |
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
-| Sun 03:00 | `retrain_models` (champion/challenger) | ml |
+| Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
+| Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
+| Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
 
 ## 10.5 Key endpoints per module (v1)
 
 | Module | Endpoints |
 |---|---|
-| M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `GET /me/data-export`, `DELETE /me` |
-| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals` |
-| M3 subscriptions | `/subscriptions`, `/cycles/current`, `PATCH /cycles/{id}/lines`, `POST /cycles/{id}/approve`, `/skip`, `/budget-lock` |
-| M4 orders | `/orders`, `/orders/{id}`, `/orders/{id}/events` (SSE), `/slots`, `/addons` |
-| M5 billing | `/wallet`, `/wallet/topups`, `/mandates`, `/payments/webhook/razorpay`, `/kindness/balance`, `/statements` |
+| M0 platform | `/health`, `/ready`, `POST /files/presign`; internal `GET /internal/jobs`, `POST /internal/jobs/{name}` (`JOBS_TOKEN`) |
+| M1 identity | `POST /auth/exchange`, `/auth/refresh`, `GET/PATCH /me`, `/households`, `/households/{id}/members`, `/addresses`, `/consents`, `/me/roles`, `POST/GET /me/data-export`, `DELETE /me` |
+| M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3) |
+| M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock` |
+| M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
+| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=`, `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`; `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact` |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
-| M11 notify | `/notifications` (inbox), `/preferences`, `/devices` |
+| M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
 | M12 analytics | `/analytics/*` (KPIs, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
@@ -183,7 +187,7 @@ flowchart LR
 | Integration | Purpose | Prototype mode | Notes |
 |---|---|---|---|
 | Firebase Auth | Phone OTP | Free tier (test numbers) | Avoids TRAI DLT SMS registration in the prototype; ID tokens verified with PyJWT; real OTPs need the Blaze plan at the pilot |
-| FCM | Push notifications | Free | Device tokens in `notify` |
+| FCM | Push notifications | Free | HTTP v1 API with a service-account key; tokens on M1's `identity.sessions` |
 | WhatsApp Cloud API | Order/box notifications | Test number | Template messages only |
 | Razorpay | Top-ups, UPI Autopay, partner payouts (Route) | Test mode | Our own thin async client on httpx2 (not the official SDK); webhook signatures verified; hourly reconciliation; UPI Autopay from the pilot phase |
 | OSRM | Road distance/time matrix | Self-hosted (MMR extract) | No Google Maps bills |
