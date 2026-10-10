@@ -1,5 +1,270 @@
-"""HTTP endpoints of M8 Partner Network."""
+"""HTTP endpoints of M8 Partner Network: the partner core (spec §3.3).
 
-from fastapi import APIRouter
+A partner's own records (`/partners/me`, pause and resume), and hub staff's list, profile, suspend
+and reinstate. Applications, training, kitchens, ratings and earnings arrive in S6.
+"""
+
+import uuid
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Query, Response
+
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.partners import permissions as _permissions  # noqa: F401 (registers rules)
+from gharbasket.modules.partners import service
+from gharbasket.modules.partners.models import Partner
+from gharbasket.modules.partners.schemas import (
+    PartnerKind,
+    PartnerOut,
+    PartnersOut,
+    PartnerStaffOut,
+    PartnerStatus,
+    RatingOut,
+    ReinstateIn,
+    SuspendIn,
+    SuspensionOut,
+)
+from gharbasket.platform.auth import CurrentPrincipal
+from gharbasket.platform.db import DbSession
+from gharbasket.platform.idempotency import Idempotent
+from gharbasket.platform.pagination import Cursor, Limit, Page
+from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["partners"])
+
+CanRead = Annotated[Permit, require("partners:read")]
+CanSuspend = Annotated[Permit, require("partners:suspend")]
+# Ratings are shown from this many on (§3.5).
+RATING_SHOWN_FROM = 5
+
+
+def _problem(description: str) -> dict[str, Any]:
+    return {"description": description, "content": {"application/problem+json": {}}}
+
+
+def _no_store(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _out(partner: Partner, *, staff: bool = False) -> dict[str, Any]:
+    rating = None
+    if partner.rating_avg is not None and partner.rating_count >= RATING_SHOWN_FROM:
+        rating = RatingOut(average=float(partner.rating_avg), count=partner.rating_count)
+    suspension = None
+    if partner.suspended_at is not None and partner.suspend_reason_code is not None:
+        suspension = SuspensionOut(
+            at=partner.suspended_at,
+            reason_code=partner.suspend_reason_code,  # pyright: ignore[reportArgumentType]
+            note=partner.suspend_note if staff else None,
+        )
+    return {
+        "id": partner.id,
+        "user_id": partner.user_id,
+        "kind": partner.kind,
+        "hub_id": partner.hub_id,
+        "display_name": partner.display_name,
+        "photo_url": None,
+        "status": partner.status,
+        "rating": rating,
+        "verified_at": partner.verified_at,
+        "suspension": suspension,
+        "version": partner.version,
+    }
+
+
+async def _staff_views(session: DbSession, partners: list[Partner]) -> list[PartnerStaffOut]:
+    contacts = await identity_api.user_contacts(session, [p.user_id for p in partners])
+    views = []
+    for partner in partners:
+        contact = contacts.get(partner.user_id)
+        views.append(
+            PartnerStaffOut(
+                **_out(partner, staff=True),
+                name=contact.name if contact else None,
+                phone_e164=contact.phone_e164 if contact else None,
+                application_id=partner.application_id,
+                # The requested society comes from the application (S6); seeded partners have none.
+                requested_society=None,
+            )
+        )
+    return views
+
+
+async def _staff_partner(session: DbSession, permit: Permit, partner_id: uuid.UUID) -> Partner:
+    """The partner, if she is in one of the caller's hubs (admins: any); else 404."""
+    partner = await service.get(session, partner_id)
+    if not permit.allows(partner.hub_id):
+        raise service.not_found()
+    return partner
+
+
+async def _own_partner(session: DbSession, user_id: uuid.UUID, partner_id: uuid.UUID) -> Partner:
+    partner = await service.get(session, partner_id)
+    if partner.user_id != user_id:
+        raise service.not_found()
+    return partner
+
+
+@router.get(
+    "/partners/me",
+    summary="Your partner records, one per kind",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def my_partners(
+    principal: CurrentPrincipal, session: DbSession, response: Response
+) -> PartnersOut:
+    _no_store(response)
+    partners = await service.for_user(session, principal.user_id)
+    return PartnersOut(items=[PartnerOut(**_out(p)) for p in partners])
+
+
+@router.get(
+    "/hubs/{hub_id}/partners",
+    summary="The hub's partners by name (hub staff, admin)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        422: _problem("request.invalid_cursor, request.invalid"),
+    },
+)
+async def hub_partners(
+    hub_id: uuid.UUID,
+    permit: CanRead,
+    session: DbSession,
+    response: Response,
+    kind: PartnerKind | None = None,
+    status: Annotated[PartnerStatus | None, Query()] = None,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[PartnerStaffOut]:
+    permit.ensure(hub_id)
+    _no_store(response)
+    partners, next_cursor = await service.list_for_hub(
+        session, hub_id, kind=kind, status=status, cursor=cursor, limit=limit
+    )
+    return Page(items=await _staff_views(session, partners), next_cursor=next_cursor)
+
+
+@router.get(
+    "/partners/{partner_id}",
+    summary="A partner's profile (hub staff of her hub, admin)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        404: _problem("partners.partner_not_found"),
+    },
+)
+async def get_partner(
+    partner_id: uuid.UUID, permit: CanRead, session: DbSession, response: Response
+) -> PartnerStaffOut:
+    _no_store(response)
+    partner = await _staff_partner(session, permit, partner_id)
+    (view,) = await _staff_views(session, [partner])
+    return view
+
+
+@router.post(
+    "/partners/{partner_id}/suspend",
+    summary="Suspend a partner at once (Idempotency-Key required; audit-logged)",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        404: _problem("partners.partner_not_found"),
+        409: _problem("partners.already_suspended"),
+        422: _problem("request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def suspend_partner(
+    partner_id: uuid.UUID,
+    body: SuspendIn,
+    permit: CanSuspend,
+    session: DbSession,
+    idem: Idempotent,
+) -> PartnerStaffOut:
+    partner = await _staff_partner(session, permit, partner_id)
+    await service.suspend(
+        session,
+        partner,
+        reason_code=body.reason_code,
+        note=body.note,
+        by_user_id=permit.principal.user_id,
+    )
+    (view,) = await _staff_views(session, [partner])
+    await idem.save(200, view)
+    await session.commit()
+    return view
+
+
+@router.post(
+    "/partners/{partner_id}/reinstate",
+    summary="Make a suspended partner active again (Idempotency-Key required; audit-logged)",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        404: _problem("partners.partner_not_found"),
+        409: _problem("partners.not_suspended"),
+        422: _problem("request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def reinstate_partner(
+    partner_id: uuid.UUID,
+    body: ReinstateIn,
+    permit: CanSuspend,
+    session: DbSession,
+    idem: Idempotent,
+) -> PartnerStaffOut:
+    partner = await _staff_partner(session, permit, partner_id)
+    await service.reinstate(session, partner, note=body.note, by_user_id=permit.principal.user_id)
+    (view,) = await _staff_views(session, [partner])
+    await idem.save(200, view)
+    await session.commit()
+    return view
+
+
+async def _pause(
+    partner_id: uuid.UUID,
+    principal: CurrentPrincipal,
+    session: DbSession,
+    idem: Idempotent,
+    *,
+    paused: bool,
+) -> PartnerOut:
+    partner = await _own_partner(session, principal.user_id, partner_id)
+    await service.set_paused(session, partner, paused=paused)
+    view = PartnerOut(**_out(partner))
+    await idem.save(200, view)
+    await session.commit()
+    return view
+
+
+PAUSE_RESPONSES: dict[int | str, dict[str, Any]] = {
+    400: _problem("request.idempotency_key_required"),
+    401: _problem("auth.invalid_token"),
+    404: _problem("partners.partner_not_found"),
+    409: _problem("partners.pause_not_allowed"),
+    422: _problem("request.idempotency_mismatch, request.invalid"),
+}
+
+
+@router.post(
+    "/partners/{partner_id}/pause",
+    summary="Take a break: no new offers (kitchens, riders, packers; Idempotency-Key required)",
+    responses=PAUSE_RESPONSES,
+)
+async def pause_partner(
+    partner_id: uuid.UUID, principal: CurrentPrincipal, session: DbSession, idem: Idempotent
+) -> PartnerOut:
+    return await _pause(partner_id, principal, session, idem, paused=True)
+
+
+@router.post(
+    "/partners/{partner_id}/resume",
+    summary="Come back from a break (Idempotency-Key required)",
+    responses=PAUSE_RESPONSES,
+)
+async def resume_partner(
+    partner_id: uuid.UUID, principal: CurrentPrincipal, session: DbSession, idem: Idempotent
+) -> PartnerOut:
+    return await _pause(partner_id, principal, session, idem, paused=False)

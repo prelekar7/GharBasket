@@ -30,7 +30,7 @@ from redis.asyncio import Redis
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.platform import outbox
+from gharbasket.platform import files, outbox
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import KEY_TTL
@@ -50,6 +50,7 @@ class JobContext:
     settings: Settings
     http: httpx2.AsyncClient | None = None
     valkey: Redis | None = None
+    storage: files.ObjectStore | None = None
 
 
 JobFn = Callable[[JobContext], Awaitable[dict[str, Any]]]
@@ -97,6 +98,7 @@ async def run_job(
     scheduled_for: datetime | None = None,
     http: httpx2.AsyncClient | None = None,
     valkey: Redis | None = None,
+    storage: files.ObjectStore | None = None,
 ) -> JobRun:
     """Run one job inside `session`'s transaction and commit; the run row is always kept."""
     found = JOBS.get(name)
@@ -119,7 +121,7 @@ async def run_job(
         log.info("job_skipped", job=name, reason="already running")
         return run
 
-    context = JobContext(session, scheduled_for, settings, http, valkey)
+    context = JobContext(session, scheduled_for, settings, http, valkey, storage)
     try:
         summary = await found.run(context)
     except Exception as exc:
@@ -162,6 +164,16 @@ async def cleanup_idempotency_keys(ctx: JobContext) -> dict[str, Any]:
         .returning(IdempotencyKey.key)
     )
     return {"deleted": len(deleted.all())}
+
+
+@job(
+    "sweep_uploads",
+    "Delete uploads never claimed within 24 hours, and claimed ones past delete_after",
+)
+async def sweep_uploads(ctx: JobContext) -> dict[str, Any]:
+    if ctx.storage is None:
+        raise RuntimeError("object storage is not configured (S3_ENDPOINT_URL)")
+    return await files.sweep(ctx.session, ctx.storage, now=ctx.scheduled_for)
 
 
 # --- HTTP ---------------------------------------------------------------------------------------
@@ -225,6 +237,7 @@ async def trigger_job(
         scheduled_for=body.scheduled_for,
         http=getattr(request.app.state, "http", None),
         valkey=valkey,
+        storage=getattr(request.app.state, "storage", None),
     )
     if run.status == "failed":
         # A non-2xx answer, so a cron or a person sees it; the run row has the error.

@@ -3,7 +3,7 @@
 **Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
-**Deployables:** `backend/ml` (FastAPI; hosting to be decided before P3/P4) — long jobs run in the service or offline until a paid `ml-worker` (Taskiq queue `ml`) exists at the pilot (ADR-0021); gateway module in the API: `gharbasket.modules.intel_gateway`
+**Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`
 **Postgres schema:** `intel` (written by the ML service through the gateway's contract)
 
 ## 1. Purpose
@@ -268,7 +268,7 @@ Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs ag
 | `intel.pantry_priors` | cohort (small, medium, large), product_id, prior_mean_per_ae (base units a week per adult equivalent), prior_weeks, version, updated_at — the promoted `pantry_priors` version's, replaced whole by `just promote` (§3.3 v1) |
 | `intel.price_index` | product_id, day, market, modal_paise_per_kg, index_4w (today over the 4-week median; 1.62 = 62 % above usual), source, updated_at |
 
-Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decided with the ML hosting): Parquet snapshots in `s3://gb-lake/`, MLflow artifacts in `s3://gb-mlflow/`, simulator ground truth in `data/sim_truth/`.
+Outside Postgres (S3-API object storage; SeaweedFS locally, Cloudflare R2 when hosted, ADR-0025): Parquet snapshots in `s3://gb-lake/`, model versions in `s3://gb-mlflow/models/<name>/<version>/` with a `latest.json` pointer per model, simulator ground truth in `data/sim_truth/`.
 
 ## 5. Events
 **Published:** `intel.plans_ready`, `intel.forecast_ready`, `intel.routes_ready`, `intel.assignment_ready`, `intel.substitutions_learned`.
@@ -281,11 +281,11 @@ Outside Postgres (S3-API object storage; SeaweedFS locally, hosted storage decid
 | `export_snapshots` | Daily 02:03 IST (Actions, `DATABASE_URL_RO`) | The module tables through the API's SQLAlchemy models with a read-only role, in one `REPEATABLE READ, READ ONLY` transaction → `snapshots/date=<day>/<table>.parquet` in the lake. `<day>` is the IST day of the run; a partition holds only rows created (or, for events, happened) before the end of that IST day, so `--day` backfills never see later rows. One fixed Arrow schema per table. No personal data: households without owner, members or address; no society anywhere (the hub is the only geography); the monthly budget as a band (`budget_band`); every table with `data_source`. Then the point-in-time household features → `intel.feature_snapshots` (`POST /v1/internal/intel/feature-snapshots`, timezone-aware `as_of`) as of the latest order cut-off at or before the run: 21:00 IST of the previous evening for the 02:03 IST run (`orders.api.cutoff_for`). **Retention and erasure:** snapshot partitions are deleted after 180 days (a lifecycle rule on `snapshots/` in the bucket, proposed); an erased household (`DELETE /v1/me`, handbook 13) is left out of every later partition and feature run, and its random id leaves the older partitions as they age out |
 | `generate_weekly_plans` | T-3 18:00 | Batch CP-SAT across CPU cores |
 | `forecast` (`backend/training`) | T-1 21:10 IST (Actions, cron-job.org for the minute) | StatsForecast v0 (§3.6); MLForecast and reconciliation in v1 |
-| `retrain_models` | Sunday 03:00 | Champion/challenger; MLflow alias `@champion` |
+| `retrain_models` | Sunday 03:00 | Champion/challenger; promotion moves the model's `latest.json` on R2 (manual `just promote` in v1, ADR-0025) |
 | `refit_pantry` (`backend/training`) | Sunday 03:03 IST (`training-jobs.yml`, `DATABASE_URL_RO`) | The pantry twin's cohort priors (§3.3 v1), one candidate per data source → registry `models/pantry_priors/<version>-<data_source>/` and its out-of-sample metrics → `model_metrics`; serving (`intel.pantry_priors`) changes only through `just promote` |
 | `monitor_drift` | Daily 03:33 IST (`jobs-staging.yml`; API job) | For the last 7 delivery days, per hub and data source: the forecast stored for that delivery day (`for_date`), its uncommitted q50 per product against that day's sold lines of add-on and tiffin orders (`orders.api.sold_lines`: every status past `locked`, the forecast job's `SOLD`, classified by the order's kind) of the forecast's own source (`synthetic`, or orders marked `real` for `pilot`/`live`) → `model_metrics` split `live`, labelled with that source (never `mixed`), with `drift` = 1 when the realised WAPE is more than 10 points worse than the newest `wape`/`backtest` row of the same model, hub and source (no such row: `wape` only, `backtest_wape` null); plan acceptance per plan source and cycle data source (`subscriptions.api.acceptance_on`; a `real` cycle is labelled `REAL_DATA_SOURCE`, `pilot` until launch) → `planner_<source>` `acceptance`. Once per hub, source and day (details carry `hub_id`, `for_date`). Waste waits for M6 |
 
-Until a paid worker exists, these batch jobs run in the ML service or offline, triggered by the API's internal job endpoints on a GitHub Actions schedule (ADR-0021).
+These batch jobs run in `backend/training` on GitHub Actions (daily and weekly schedules), never inside the ML service or an API request (ADR-0025, ADR-0021); results reach `intel.*` through the API's internal endpoints.
 
 ## 7. Permissions
 Service-to-service token for API ↔ ML calls; `models:read` for admin in the console.

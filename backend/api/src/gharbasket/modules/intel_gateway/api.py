@@ -16,6 +16,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
+from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
 from gharbasket.modules.intel_gateway.models import ModelMetric
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
@@ -47,6 +48,7 @@ ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a c
 
 __all__ = [
     "AssignRequest",
+    "HardRule",
     "HubDrift",
     "KitchenAssignment",
     "MetricRow",
@@ -68,6 +70,7 @@ __all__ = [
     "latest_metrics",
     "latest_prediction",
     "model_health",
+    "next_recipe",
     "pantry_priors",
     "pantry_quantities",
     "plan_week",
@@ -75,6 +78,7 @@ __all__ = [
     "rank_basket",
     "record_metrics",
     "route_timeout_s",
+    "rule_breaks",
     "solve_routes",
 ]
 

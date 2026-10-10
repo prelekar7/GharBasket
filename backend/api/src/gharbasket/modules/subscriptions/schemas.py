@@ -1,16 +1,24 @@
-"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1)."""
+"""Request and response models of M3 Plans & Subscriptions: the S3 contract (spec §3.1), the
+meal swap (§3.2), and a week that failed to pay (§3.3)."""
 
 import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PlanCode = Literal["autopilot", "tiffin", "salad"]
 PaymentMode = Literal["wallet", "autopay"]
 SubscriptionStatus = Literal["active", "paused", "ended"]
 CycleStatus = Literal[
-    "draft", "awaiting_approval", "approved", "skipped", "cancelled", "locked", "preview"
+    "draft",
+    "awaiting_approval",
+    "approved",
+    "skipped",
+    "cancelled",
+    "locked",
+    "payment_failed",
+    "preview",
 ]
 LineSource = Literal["ai", "rule", "customer"]
 Unit = Literal["g", "kg", "ml", "l", "piece", "bunch", "pack"]
@@ -115,6 +123,7 @@ class MealOut(BaseModel):
     name: str | None
     tiffin: bool
     sides: list[str]
+    source: Literal["plan", "customer"] = Field(description="customer: set with PUT .../meals")
 
 
 class DayOut(BaseModel):
@@ -190,6 +199,28 @@ class LinesPatch(BaseModel):
     ops: list[LineOp] = Field(min_length=1, max_length=20, description="Applied in order")
 
 
+class MealSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    slot: str = Field(
+        json_schema_extra={"enum": ["breakfast", "lunch", "dinner"]},
+        description="Another value is 422 subscriptions.meal_unknown",
+    )
+    set: Literal["next", "recipe", "tiffin", "no_cook", "planned"] = Field(
+        default="next",
+        description="next: the cheapest allowed dish not in the week; recipe: recipe_id; "
+        "tiffin, no_cook: no ingredients; planned: back to the planner's dish",
+    )
+    recipe_id: uuid.UUID | None = Field(default=None, description="Only with set: recipe")
+
+    @model_validator(mode="after")
+    def _recipe_only_with_recipe(self) -> "MealSet":
+        if (self.set == "recipe") != (self.recipe_id is not None):
+            raise ValueError("recipe_id goes with set: recipe, and only with it")
+        return self
+
+
 class FeedbackItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -208,8 +239,20 @@ class FeedbackOut(BaseModel):
 
 
 class CaptainOut(BaseModel):
-    name: str
-    flat: str
+    """The society captain's card (M9 §3.2): never a flat or a phone."""
+
+    display_name: str = Field(examples=["Meena tai"])
+    photo_url: str | None
+
+
+class PaymentDueOut(BaseModel):
+    """What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay."""
+
+    order_id: uuid.UUID
+    total_paise: int
+    wallet_paise: int = Field(description="The wallet's balance now")
+    shortfall_paise: int = Field(description="What a top-up must add: total minus wallet, >= 0")
+    due_at: datetime = Field(description="The end of the grace period (T-1 23:00 IST), in UTC")
 
 
 class CycleOut(BaseModel):
@@ -230,3 +273,4 @@ class CycleOut(BaseModel):
     order_id: uuid.UUID | None
     generated_at: datetime | None
     approved_at: datetime | None
+    payment_due: PaymentDueOut | None = Field(description="Only while the week is payment_failed")

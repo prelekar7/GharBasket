@@ -36,8 +36,14 @@ SECOND = date(2026, 10, 20)
 
 
 async def generate(api: httpx2.AsyncClient, at: str) -> dict[str, Any]:
+    """Draft the week (18:00 IST), then show it to the household (18:30, the box-ready notice)."""
     answer = await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": at})
     assert answer.status_code == 200, answer.text
+    notice_at = (datetime.fromisoformat(at) + timedelta(minutes=30)).isoformat()
+    shown = await api.post(
+        "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": notice_at}
+    )
+    assert shown.status_code == 200, shown.text
     return answer.json()["summary"]
 
 
