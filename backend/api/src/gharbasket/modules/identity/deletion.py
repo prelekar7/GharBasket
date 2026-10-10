@@ -53,6 +53,25 @@ async def pending(session: AsyncSession, user_id: uuid.UUID) -> Deletion | None:
     ).scalar_one_or_none()
 
 
+async def for_sign_in(session: AsyncSession, user_id: uuid.UUID) -> Deletion:
+    """The scheduled deletion of an account that is signing in, locked: a purge running at the
+    same moment holds the same row, so the sign-in waits for it and then sees it purged (409
+    identity.account_deleted) instead of keeping an account that is being erased."""
+    found = await session.scalar(
+        select(Deletion)
+        .where(Deletion.user_id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if found is None or found.purged_at is not None or found.cancelled_at is not None:
+        raise ProblemError(
+            409,
+            "identity.account_deleted",
+            "This account has just been deleted. Sign in again to start a new one.",
+        )
+    return found
+
+
 async def household_id_of(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
     return await session.scalar(select(Household.id).where(Household.owner_user_id == user_id))
 
@@ -97,6 +116,7 @@ async def request(
         "purge_on": purge_on,
         "cancelled_at": None,
         "purged_at": None,
+        "last_attempt_on": None,
         "blocked_reasons": [],
         "counts": None,
     }
@@ -137,13 +157,11 @@ async def request(
     return deletion, ended
 
 
-async def cancel(session: AsyncSession, user: User, deletion: Deletion | None) -> None:
+async def cancel(session: AsyncSession, user: User, deletion: Deletion) -> None:
     """The customer signed in again and chose "Keep my account" (spec §3.5). Nothing that
     already happened (the ended subscription, the refund, roles) is undone."""
     at = datetime.now(UTC)
-    user.status = "active"
-    if deletion is not None:
-        deletion.cancelled_at = at
+    user.status, deletion.cancelled_at = "active", at
     await publish(session, events.DELETION_CANCELLED, {"user_id": str(user.id)})
     await audit.record(
         session,

@@ -7155,7 +7155,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it */
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
             409: {
                 headers: {
                     [name: string]: unknown;
