@@ -16,7 +16,8 @@ from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.modules.subscriptions import planning, service
 from gharbasket.modules.subscriptions.models import BoxLine, WeeklyCycle
 from gharbasket.platform.models import OutboxEvent
-from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
+from gharbasket.platform.outbox import relay
+from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_partners
 
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
@@ -29,6 +30,7 @@ MEENA = "+919800001004"  # Jain household, same society
 VIKRAM = "+919800001008"  # hub manager of the seed hub
 NOW = datetime(2026, 10, 10, 10, 0, tzinfo=UTC)  # Saturday 15:30 IST
 GENERATE_AT = "2026-10-10T12:30:00Z"  # Sat 18:00 IST → delivery Tue 13 Oct
+NOTICE_AT = "2026-10-10T13:00:00Z"  # Sat 18:30 IST: send_box_ready_notices for the same Tuesday
 WEEK_TWO = date(2026, 10, 20)
 
 
@@ -160,9 +162,9 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     assert none_yet.json()["code"] == "subscriptions.no_cycle"
     assert first.json()["summary"] == {
         "hubs": 1,
-        "created": 1,  # Priya; Meena is paused; the two unsubscribed households are skipped
+        "created": 1,  # Priya; Meena is paused; the three unsubscribed households are skipped
         "existing": 0,
-        "skipped": 3,
+        "skipped": 4,
         "delivery_date": "2026-10-13",
     }
     assert second.json()["summary"]["created"] == 0 and second.json()["summary"]["existing"] == 1
@@ -170,14 +172,34 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     assert len(cycles) == 1
     cycle = cycles[0]
     cycle_id, household_id = cycle.id, cycle.household_id  # a failed request expires rows
+    # Generated as a draft: nobody is told yet, and it cannot be approved or edited.
     assert (cycle.delivery_date, cycle.week_start, cycle.status) == (
         date(2026, 10, 13),
         date(2026, 10, 12),
-        "awaiting_approval",
+        "draft",
     )
     assert cycle.cutoff_at == datetime(2026, 10, 12, 15, 30, tzinfo=UTC)
     assert cycle.plan_source == "fallback"  # no ML service in tests: the rules planner answers
-    assert cycle.plan_prediction_id is not None and cycle.notice_sent_at is not None
+    assert cycle.plan_prediction_id is not None and cycle.notice_sent_at is None
+    await db_session.commit()
+    early = await api.post(
+        f"/v1/cycles/{cycle_id}/approve",
+        headers={**priya, "Idempotency-Key": "a0", "If-Match": '"1"'},
+    )
+    assert (early.status_code, early.json()["code"]) == (409, "subscriptions.not_editable")
+
+    # 18:30 IST: the box-ready notice opens it, once however often the job runs.
+    noticed = await api.post(
+        "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT}
+    )
+    again = await api.post(
+        "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT}
+    )
+    assert noticed.json()["summary"] == {"sent": 1, "delivery_date": "2026-10-13"}
+    assert again.json()["summary"] == {"sent": 0, "delivery_date": "2026-10-13"}
+    cycle = await db_session.get(WeeklyCycle, cycle_id, populate_existing=True)
+    assert cycle is not None
+    assert (cycle.status, cycle.notice_sent_at, cycle.version) == ("awaiting_approval", NOW, 1)
     lines = (
         (await db_session.execute(select(BoxLine).where(BoxLine.cycle_id == cycle.id)))
         .scalars()
@@ -203,6 +225,26 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     kinds = {line["reason_code"] for line in body["lines"]}
     assert {"meal_plan", "daily_use"} <= kinds
     assert body["total_paise"] == sum(line["total_paise"] for line in body["lines"]) > 0
+    ready = (
+        (
+            await db_session.execute(
+                select(OutboxEvent.payload).where(
+                    OutboxEvent.event_type == "subscriptions.box_ready"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert ready == [
+        {
+            "cycle_id": str(cycle_id),
+            "household_id": str(household_id),
+            "delivery_date": "2026-10-13",
+            "cutoff_at": "2026-10-12T15:30:00+00:00",
+            "total_paise": body["total_paise"],
+        }
+    ]
     assert body["budget_lock"] is None and body["order_id"] is None and body["captain"] is None
     # Priya's ₹6,000 Budget Lock is tight for a family of four: the box flags it, honestly.
     assert body["highlights"] == [
@@ -269,6 +311,7 @@ async def test_a_staple_left_from_last_week_lowers_the_next_box_but_does_not_ski
     fresh_qty = atta_on(fresh.lines)
 
     await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT})
+    await api.post("/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT})
     week_one = (await api.get("/v1/cycles/current", headers=priya)).json()
     drafted = sum(line["qty"] for line in week_one["lines"] if line["product_id"] == str(atta.id))
     assert drafted == fresh_qty == 3  # the week's need n is over 2 kg and at most 3 kg
@@ -328,3 +371,19 @@ async def test_a_synthetic_household_gets_synthetic_cycles(
 
     cycle = await subscriptions_api.cycle_for(db_session, household.id, date(2026, 10, 13))
     assert cycle is not None and cycle.data_source == "synthetic"  # ADR-0008
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_the_cycle_shows_the_society_captains_card(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await seed_partners(db_session)
+    while (await relay(db_session)).sent:  # M9 appoints Meena for Sunrise Towers
+        pass
+    api = clients()
+    priya, _ = await as_user(api, google, PRIYA)
+
+    preview = await api.get("/v1/cycles/preview", headers=priya)
+
+    # The card only: never her flat or phone (M9 §3.2).
+    assert preview.json()["captain"] == {"display_name": "Meena tai", "photo_url": None}
