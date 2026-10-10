@@ -1141,6 +1141,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orders/{order_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's live timeline: JSON for polling clients, or a Server-Sent Events stream
+         * @description `Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.
+         */
+        get: operations["order_events_v1_orders__order_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orders/{order_id}/issues": {
         parameters: {
             query?: never;
@@ -3623,6 +3643,29 @@ export interface components {
              */
             title: string;
         };
+        /**
+         * OrderEventsOut
+         * @description The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).
+         */
+        OrderEventsOut: {
+            /**
+             * Eta
+             * @description null until M7 publishes route progress
+             */
+            eta?: null;
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["TimelineEvent"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Version */
+            version: number;
+        };
         /** OrderLineOut */
         OrderLineOut: {
             /**
@@ -5633,6 +5676,34 @@ export interface components {
              * Format: date-time
              */
             at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /**
+         * TimelineEvent
+         * @description A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.
+         */
+        TimelineEvent: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The order_events row; also the SSE event id
+             */
+            id: string;
             /**
              * Status
              * @enum {string}
@@ -10681,6 +10752,77 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    order_events_v1_orders__order_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: string | null;
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderEventsOut"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: hub staff of another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.too_many_streams: more than 3 open streams for this user */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
