@@ -25,6 +25,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity import events, service
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport
+from gharbasket.modules.identity.partner_roles import sync_partner_role
 from gharbasket.modules.notifications import api as notifications_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.partners import api as partners_api
@@ -154,5 +155,7 @@ async def on_captain_ended(session: AsyncSession, event: OutboxEvent) -> None:
     await service.revoke_system_role(session, target[0], "captain", target[1])
 
 
+for _event in (partners_api.VERIFIED, partners_api.SUSPENDED, partners_api.REINSTATED):
+    subscribe(_event, sync_partner_role)  # the hub role follows the partner record (M8 §3.3)
 subscribe(community_api.CAPTAIN_ASSIGNED, on_captain_assigned)
 subscribe(community_api.CAPTAIN_ENDED, on_captain_ended)

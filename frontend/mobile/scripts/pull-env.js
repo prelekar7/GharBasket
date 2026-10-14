@@ -8,6 +8,9 @@ const PUBLIC = {
   FIREBASE_APP_ID: "VITE_FIREBASE_APP_ID",
   FIREBASE_MESSAGING_SENDER_ID: "VITE_FIREBASE_MESSAGING_SENDER_ID",
   API_BASE_URL: "VITE_API_BASE_URL",
+  // "true" only in an environment that uses Firebase fictional test numbers; never forced here,
+  // or a real-phone build would skip app verification.
+  FIREBASE_TEST_MODE: "VITE_FIREBASE_TEST_MODE",
 };
 
 let input = "";
@@ -17,14 +20,11 @@ const secrets = Array.isArray(parsed)
   ? Object.fromEntries(parsed.map((s) => [s.key, s.value]))
   : parsed;
 
-const lines = [
-  "# Written by `pnpm env:pull` from Infisical staging. Public values only.",
-  "VITE_FIREBASE_TEST_MODE=true",
-];
+const lines = ["# Written by `pnpm env:pull` from Infisical staging. Public values only."];
 for (const [from, to] of Object.entries(PUBLIC))
   if (secrets[from]) lines.push(`${to}=${secrets[from]}`);
 console.log(lines.join("\n"));
 const missing = Object.keys(PUBLIC).filter((k) => !secrets[k]);
 console.error(
-  `Wrote ${lines.length - 2} public values${missing.length ? `; not in Infisical yet: ${missing.join(", ")}` : ""}.`,
+  `Wrote ${lines.length - 1} public values${missing.length ? `; not in Infisical yet: ${missing.join(", ")}` : ""}.`,
 );

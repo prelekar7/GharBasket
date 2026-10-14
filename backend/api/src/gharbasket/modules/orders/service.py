@@ -341,11 +341,30 @@ async def lines_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderLine
     return list(rows.scalars())
 
 
-async def timeline_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderEvent]:
-    rows = await session.execute(
-        select(OrderEvent).where(OrderEvent.order_id == order_id).order_by(OrderEvent.id)
-    )
+async def timeline_of(
+    session: AsyncSession, order_id: uuid.UUID, *, after: uuid.UUID | None = None
+) -> list[OrderEvent]:
+    """The order's timeline rows, oldest first (ids are uuidv7); only those after `after`."""
+    query = select(OrderEvent).where(OrderEvent.order_id == order_id)
+    if after is not None:
+        query = query.where(OrderEvent.id > after)
+    rows = await session.execute(query.order_by(OrderEvent.id))
     return list(rows.scalars())
+
+
+async def has_event(session: AsyncSession, order_id: uuid.UUID, event_id: uuid.UUID) -> bool:
+    found = await session.scalar(
+        select(OrderEvent.id).where(OrderEvent.order_id == order_id, OrderEvent.id == event_id)
+    )
+    return found is not None
+
+
+async def status_of(session: AsyncSession, order_id: uuid.UUID) -> tuple[str, int]:
+    """The order's status and version, read fresh (the live timeline polls this)."""
+    row = (
+        await session.execute(select(Order.status, Order.version).where(Order.id == order_id))
+    ).one()
+    return row.status, row.version
 
 
 async def list_orders(

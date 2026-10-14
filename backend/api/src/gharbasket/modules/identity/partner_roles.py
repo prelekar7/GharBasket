@@ -18,7 +18,6 @@ from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform import audit
 from gharbasket.platform.models import OutboxEvent
-from gharbasket.platform.outbox import subscribe
 
 ROLE_OF_KIND = {"kitchen": "kitchen_partner", "rider": "rider", "packer": "packer"}
 
@@ -67,7 +66,3 @@ async def sync_partner_role(session: AsyncSession, event: OutboxEvent) -> None:
         before=before,
         after={"role": role, "scope_id": str(partner.hub_id), "status": status},
     )
-
-
-for _event in (partners_api.VERIFIED, partners_api.SUSPENDED, partners_api.REINSTATED):
-    subscribe(_event, sync_partner_role)

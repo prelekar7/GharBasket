@@ -137,3 +137,62 @@ def test_no_token_is_401_before_any_permission_check(client: TestClient) -> None
 
     assert response.status_code == 401
     assert response.json()["code"] == "auth.invalid_token"
+
+
+# --- a person with a customer role and a scoped staff role (the mixed-role hole) ----------------
+
+PERMISSIONS.allow("customer", "test_mixed:read")
+PERMISSIONS.allow("hub_manager", "test_mixed:read")
+PERMISSIONS.allow("admin", "test_mixed:read")
+
+
+def _permit(*grants: Grant) -> Permit:
+    return Permit(principal=None, permission="p", grants=grants)  # pyright: ignore[reportArgumentType]
+
+
+def test_a_customer_grant_covers_no_scope_even_beside_a_scoped_one() -> None:
+    customer = Grant("customer", None)
+    mixed = _permit(customer, Grant("hub_manager", HUB_A))
+
+    assert mixed.allows(HUB_A) and not mixed.allows(HUB_B)
+    assert not _permit(customer).allows(HUB_A)
+    assert not mixed.is_global and mixed.has_role("customer")
+    assert _permit(customer, Grant("admin", None)).is_global
+    assert not _permit(Grant("captain", SOCIETY)).allows(HUB_A)
+
+
+@pytest.fixture
+def mixed_client() -> TestClient:
+    app: FastAPI = create_app(make_settings())
+
+    @app.get("/v1/_test/mixed/hubs/{hub_id}")
+    async def hub_thing(
+        hub_id: uuid.UUID, permit: Annotated[Permit, require("test_mixed:read")]
+    ) -> dict[str, str]:
+        permit.ensure(hub_id)
+        return {"via": ",".join(str(g) for g in permit.grants)}
+
+    return TestClient(app)
+
+
+@pytest.mark.parametrize("active", [None, "customer", f"hub_manager:{HUB_A}"])
+def test_a_customer_and_hub_manager_never_reaches_another_hub(
+    mixed_client: TestClient, active: str | None
+) -> None:
+    headers = _headers("customer", f"hub_manager:{HUB_A}", active=active)
+
+    other = mixed_client.get(f"/v1/_test/mixed/hubs/{HUB_B}", headers=headers)
+    own = mixed_client.get(f"/v1/_test/mixed/hubs/{HUB_A}", headers=headers)
+
+    assert (other.status_code, other.json()["code"]) == (403, "auth.forbidden")
+    # Her own hub through the hub role; as a customer alone, no hub at all.
+    assert own.status_code == (403 if active == "customer" else 200)
+
+
+@pytest.mark.parametrize("roles", [("customer",), ("customer", "admin")])
+def test_single_roles_and_admins_are_unchanged(
+    mixed_client: TestClient, roles: tuple[str, ...]
+) -> None:
+    answer = mixed_client.get(f"/v1/_test/mixed/hubs/{HUB_B}", headers=_headers(*roles))
+
+    assert answer.status_code == (200 if "admin" in roles else 403)
