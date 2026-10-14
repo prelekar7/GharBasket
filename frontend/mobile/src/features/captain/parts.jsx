@@ -53,3 +53,20 @@ export const proof = (bag, typed) => ({
   path: `/v1/deliveries/${bag.order_id}/proof`,
   body: { proof_kind: "captain_scan", bag_code: bag.code, typed, at: new Date().toISOString() },
 });
+
+/**
+ * Sends the problems sorted out on Exceptions: not home → POST …/undelivered (lobby or back to the
+ * hub), damaged → POST …/damage with the captain's words and the photo.
+ * @param {import("./day.js").Bag} bag @param {import("./queries.js").Issue} issue
+ * @returns {import("./day.js").Action}
+ */
+export const issueAction = (bag, issue) =>
+  issue.kind === "not_home"
+    ? {
+        path: `/v1/deliveries/${bag.order_id}/undelivered`,
+        body: { reason: "not_home", outcome: issue.outcome ?? "lobby", bag_code: bag.code },
+      }
+    : {
+        path: `/v1/deliveries/${bag.order_id}/damage`,
+        body: { note: issue.note, photo_key: issue.photo_key ?? null, bag_code: bag.code },
+      };

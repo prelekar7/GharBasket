@@ -1,11 +1,11 @@
 import { Button, ProgressBar, RoleSwitcher, Skeleton } from "@gharbasket/ui";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { tally } from "@/features/captain/day.js";
 import { clock, dayLabel, ReceivedCard, useCrates } from "@/features/captain/parts.jsx";
-import { useCaptainDay } from "@/features/captain/queries.js";
+import { useCaptainDay, useDrafts } from "@/features/captain/queries.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** Captain's morning at a glance: when the van comes, what it brings, how far along (design CaptainToday; M7). */
@@ -19,12 +19,15 @@ function Today() {
   const { roles, setActiveRole } = useSession();
   const day = useCaptainDay();
   const { crates, receive } = useCrates(day.data);
+  const [drafts] = useDrafts(day.data?.date);
 
   if (day.isPending) return <Skeleton lines={8} />;
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
   const n = tally(d);
+  const issues = Object.keys(drafts.issues).length;
   const next = crates.find((c) => c.state === "waiting");
+  /** @type {[string, number][]} */
   const rows = [
     [t("captain.today.crates"), d.crates.length],
     [t("captain.today.bags"), n.total],
@@ -75,17 +78,7 @@ function Today() {
           </p>
         </section>
       )}
-      <dl className="m-0">
-        {rows.map(([label, value]) => (
-          <div
-            key={label}
-            className="flex items-baseline justify-between gap-3 border-b border-line py-2.5"
-          >
-            <dt className="text-[15px] leading-[22px] text-fg-secondary">{label}</dt>
-            <dd className="m-0 font-bold tabular-nums">{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <Rows rows={rows} />
       <ProgressBar
         tone="accent"
         label={t("captain.today.delivered")}
@@ -93,9 +86,14 @@ function Today() {
         max={n.total}
         valueLabel={t("captain.ofTotal", { done: n.handled, total: n.total })}
       />
-      <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
-        {t("captain.today.noExceptions")}
-      </p>
+      <Link
+        to="/captain/flats/exceptions"
+        className={`flex min-h-12 items-center text-[15px] leading-[22px] text-link ${issues ? "font-semibold underline underline-offset-[3px]" : ""}`}
+      >
+        {issues
+          ? t("captain.exceptions.count", { count: issues })
+          : t("captain.today.noExceptions")}
+      </Link>
       <div className="mt-auto flex flex-col">
         {d.stop.handed_over_at ? (
           <Button
@@ -120,5 +118,22 @@ function Today() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Label and count rows. @param {{ rows: [string, number][] }} props */
+function Rows({ rows }) {
+  return (
+    <dl className="m-0">
+      {rows.map(([label, value]) => (
+        <div
+          key={label}
+          className="flex items-baseline justify-between gap-3 border-b border-line py-2.5"
+        >
+          <dt className="text-[15px] leading-[22px] text-fg-secondary">{label}</dt>
+          <dd className="m-0 font-bold tabular-nums">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

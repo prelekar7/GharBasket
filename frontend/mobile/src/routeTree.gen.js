@@ -56,6 +56,7 @@ import { Route as AuthRiderStopRouteImport } from "./routes/_auth/rider/stop"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
 import { Route as AuthCaptainFlatsIndexRouteImport } from "./routes/_auth/captain/flats.index"
+import { Route as AuthCaptainFlatsExceptionsRouteImport } from "./routes/_auth/captain/flats.exceptions"
 import { Route as AuthCaptainFlatsManualRouteImport } from "./routes/_auth/captain/flats.manual"
 
 const IndexRoute = IndexRouteImport.update({
@@ -294,6 +295,12 @@ const AuthCaptainFlatsIndexRoute = AuthCaptainFlatsIndexRouteImport.update({
   path: "/flats/",
   getParentRoute: () => AuthCaptainRoute,
 })
+const AuthCaptainFlatsExceptionsRoute =
+  AuthCaptainFlatsExceptionsRouteImport.update({
+    id: "/flats/exceptions",
+    path: "/flats/exceptions",
+    getParentRoute: () => AuthCaptainRoute,
+  })
 const AuthCaptainFlatsManualRoute = AuthCaptainFlatsManualRouteImport.update({
   id: "/flats/manual",
   path: "/flats/manual",
@@ -321,6 +328,7 @@ const AuthCaptainRouteChildren = {
   AuthCaptainEarningsRoute: AuthCaptainEarningsRoute,
   AuthCaptainScanRoute: AuthCaptainScanRoute,
   AuthCaptainIndexRoute: AuthCaptainIndexRoute,
+  AuthCaptainFlatsExceptionsRoute: AuthCaptainFlatsExceptionsRoute,
   AuthCaptainFlatsManualRoute: AuthCaptainFlatsManualRoute,
   AuthCaptainFlatsIndexRoute: AuthCaptainFlatsIndexRoute,
 }
