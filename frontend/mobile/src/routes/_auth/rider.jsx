@@ -1,3 +1,4 @@
+import { GullakIcon } from "@gharbasket/ui";
 import { InfoIcon, ReceiptIcon, TruckIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -22,6 +23,7 @@ function RiderShell() {
       tabs={[
         { value: "", label: t("rider.tabs.route"), Icon: TruckIcon },
         { value: "stop", label: t("rider.tabs.stop"), Icon: InfoIcon },
+        { value: "pickups", label: t("rider.tabs.pickups"), Icon: GullakIcon },
         { value: "earnings", label: t("rider.tabs.earnings"), Icon: ReceiptIcon },
       ]}
     />
