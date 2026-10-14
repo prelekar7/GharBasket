@@ -110,18 +110,37 @@ export function useAddKycDocument() {
 }
 
 /**
+ * One contract for every training screen: applicants (Become a partner, then the quiz) and verified
+ * partners (Kitchen, Training) read GET /v1/trainings and send POST /v1/trainings/{code}/complete.
+ * `answer` and `why` are teaching content, not a secret: the quiz shows the reason right after each
+ * answer (also offline), the pass is a learning check, not a security gate, and the server re-scores
+ * the `answers` it gets, which is the only score that counts. Keeping `answer` out of GET would need
+ * a request per question, or feedback only at the end.
+ *
  * @typedef {{ id: string, text: string, options: { value: string, title: string }[], answer: string, why: string }} QuizQuestion
  * @typedef {{ score: number, total: number, passed: boolean, completed_at: string }} TrainingResult
- * @typedef {{ code: string, title: string, result: TrainingResult | null, questions: QuizQuestion[] }} TrainingModule
+ * @typedef {object} TrainingModule
+ * @property {string} code "hygiene"
+ * @property {string} title In the caller's language
+ * @property {"required" | "refresher"} kind A refresher renews a pass and comes only after you are verified
+ * @property {number} minutes
+ * @property {string | null} due YYYY-MM-DD, for refreshers
+ * @property {TrainingResult | null} result Your best result so far; a pass is kept; null = not tried
+ * @property {QuizQuestion[]} questions
+ *
+ * @typedef {object} Trainings GET /v1/trainings
+ * @property {boolean} verified Documents and required modules checked by the hub
+ * @property {number} required_done Required modules passed
+ * @property {number} required_total
+ * @property {TrainingModule[]} modules In the order to take them
  */
 
-/** Training modules in order, each with its quiz, in your language (GET /v1/trainings, M8 US-3). */
+/** Your training modules with their quizzes, in your language (GET /v1/trainings, M8 US-3). */
 export function useTrainings() {
   const { i18n } = useTranslation();
   return useQuery({
     queryKey: ["trainings", i18n.resolvedLanguage],
-    queryFn: async () =>
-      /** @type {{ modules: TrainingModule[] }} */ (await request("/v1/trainings")).modules,
+    queryFn: async () => /** @type {Trainings} */ (await request("/v1/trainings")),
   });
 }
 

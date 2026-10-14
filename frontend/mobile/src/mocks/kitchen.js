@@ -1,5 +1,5 @@
 // M8 kitchen-partner mocks (docs/modules/M8-partners.md §3): tiffin assignments and prep, capacity
-// and menu skills, training and earnings. The spec lists paths, not JSON; these shapes are our
+// and menu skills and earnings (trainings are in mocks/trainings.js). The spec lists paths, not JSON; these shapes are our
 // proposal (see features/kitchen/queries.js). The seed is the designs' Lata tai at the Kharghar hub:
 // lunch on Tue 6 Oct, ₹70 per tiffin to her. Money is integer paise, and the server's numbers.
 import { HttpResponse, http } from "msw";
@@ -37,7 +37,7 @@ const batch = (id, dish, societies, status, note = null) => ({
   societies,
 });
 
-/** The designs' state (KitchenToday, KitchenPrep, KitchenMenu, KitchenTraining, KitchenEarnings). */
+/** The designs' state (KitchenToday, KitchenPrep, KitchenMenu, KitchenEarnings). */
 const seed = () => ({
   next_date: "2026-10-06",
   assignments: [
@@ -66,37 +66,6 @@ const seed = () => ({
     { date, meal: "dinner", max_portions: dinner },
   ]),
   skills: ["maharashtrian_thali", "chapati_bhaji", "jain", "puran_poli"],
-  trainings: [
-    { code: "hygiene", kind: "required", score: 5, out_of: 5, done: true, due: null, minutes: 10 },
-    { code: "storage", kind: "required", score: 4, out_of: 5, done: true, due: null, minutes: 10 },
-    {
-      code: "allergens_jain",
-      kind: "required",
-      score: 5,
-      out_of: 5,
-      done: true,
-      due: null,
-      minutes: 8,
-    },
-    {
-      code: "packing_labels",
-      kind: "required",
-      score: 5,
-      out_of: 5,
-      done: true,
-      due: null,
-      minutes: 8,
-    },
-    {
-      code: "monsoon_safety",
-      kind: "refresher",
-      score: null,
-      out_of: 5,
-      done: false,
-      due: "2026-10-31",
-      minutes: 5,
-    },
-  ],
   earnings: [
     { date: "2026-10-06", meal: "lunch", tiffins: 18 },
     { date: "2026-10-05", meal: "lunch", tiffins: 16 },
@@ -133,8 +102,8 @@ const problem = (
     { status, headers: { "content-type": "application/problem+json" } },
   );
 
-// Earnings, trainings and the certificate are shared with other roles; another role's call goes
-// on to its own mock.
+// Earnings and the certificate are shared with other roles; another role's call goes on to its
+// own mock.
 const otherRole = (/** @type {Request} */ request) => {
   const role = request.headers.get("x-active-role");
   return !!role && !role.startsWith("kitchen");
@@ -306,31 +275,6 @@ export const kitchenHandlers = [
       }
       if (body.skills) s.skills = body.skills;
       return HttpResponse.json({ skills: s.skills, days: s.capacity });
-    }),
-  ),
-
-  http.get(
-    "*/v1/trainings",
-    read((s) => {
-      // A refresher renews a required module already passed, so it still counts as done.
-      return {
-        verified: true,
-        required_done: s.trainings.filter((m) => m.done || m.kind === "refresher").length,
-        required_total: s.trainings.length,
-        items: s.trainings,
-      };
-    }),
-  ),
-
-  http.post(
-    "*/v1/trainings/:code/complete",
-    write(async (s, r, { code }) => {
-      const m = s.trainings.find((x) => x.code === code);
-      if (!m) return problem(404, "partners.training_not_found", "No such module");
-      const body = /** @type {{ score?: number }} */ (await r.json().catch(() => ({})));
-      m.done = true;
-      m.score = Number.isInteger(body.score) ? /** @type {number} */ (body.score) : null;
-      return HttpResponse.json(m);
     }),
   ),
 

@@ -5,13 +5,9 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { clock, dateLabel, dayLabel } from "@/features/kitchen/format.js";
-import {
-  useAssignments,
-  useKitchenWrite,
-  usePartnerMe,
-  useTrainings,
-} from "@/features/kitchen/queries.js";
+import { useAssignments, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
+import { useTrainings } from "@/features/partners/queries.js";
 
 /** Tomorrow's tiffins: the counts, accept or decline, or a quiet day (designs KitchenToday, KitchenNoTiffins; M8 US-6). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -63,7 +59,7 @@ function KitchenToday() {
     );
   }
 
-  const due = trainings.data?.items.find((m) => !m.done && m.due);
+  const due = trainings.data?.modules.find((m) => !m.result?.passed && m.due);
   const respond = (/** @type {"accept" | "decline"} */ action) =>
     write({
       name: "assignments",

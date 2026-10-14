@@ -625,9 +625,21 @@ describe("partner documents (M8 US-2)", () => {
 
   it("opens training once the documents are in, and scores a module on the server", async () => {
     await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+    expect((await call("GET", "/v1/trainings")).status).toBe(404);
     await call("POST", "/v1/partner-applications", { kind: "captain" }, key());
-    const { modules } = await (await call("GET", "/v1/trainings")).json();
-    expect(modules[1]).toMatchObject({ code: "storage", title: "Safe storage", result: null });
+    const t = await (await call("GET", "/v1/trainings")).json();
+    // Applicants get the required modules only; the refresher comes once verified.
+    expect(t).toMatchObject({ verified: false, required_done: 0, required_total: 5 });
+    const { modules } = t;
+    expect(modules).toHaveLength(5);
+    expect(modules[1]).toMatchObject({
+      code: "storage",
+      title: "Safe storage",
+      kind: "required",
+      minutes: 10,
+      due: null,
+      result: null,
+    });
     expect(modules[1].questions[2].answer).toBe("b");
     const all = Object.fromEntries(
       modules[0].questions.map((/** @type {{ id: string, answer: string }} */ q) => [
@@ -655,5 +667,11 @@ describe("partner documents (M8 US-2)", () => {
     );
     const res = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
     expect(await res.json()).toMatchObject({ score: 3, total: 3, passed: true });
+    const after = await (await call("GET", "/v1/trainings")).json();
+    expect(after).toMatchObject({ required_done: 1, required_total: 5 });
+    expect(after.modules[0].result).toMatchObject({ score: 3, total: 3, passed: true });
+    expect((await call("POST", "/v1/trainings/monsoon_safety/complete", {}, key())).status).toBe(
+      404,
+    );
   });
 });
