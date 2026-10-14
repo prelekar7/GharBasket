@@ -1,18 +1,10 @@
-import {
-  Badge,
-  Button,
-  Chip,
-  EmptyState,
-  GullakCoin,
-  GullakMeter,
-  Skeleton,
-  toast,
-} from "@gharbasket/ui";
+import { Badge, Button, Chip, EmptyState, GullakCoin, Skeleton, toast } from "@gharbasket/ui";
 import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { KindnessGullak } from "@/features/billing/KindnessGullak.jsx";
 import { useKindness } from "@/features/billing/queries.js";
 import {
   DONATION_ITEMS,
@@ -82,16 +74,7 @@ function Kindness() {
   return (
     <div className="flex flex-col gap-3">
       {header}
-      <GullakMeter
-        points={k.points}
-        goal={k.goal.points}
-        label={t(`wallet.goals.${k.goal.code}`)}
-        labels={{
-          title: t("wallet.kindness"),
-          progress: t("wallet.kindnessProgress"),
-          remaining: t("wallet.kindnessRemaining"),
-        }}
-      />
+      <KindnessGullak balance={k} canDonate />
       <p className="text-sm leading-[22px] text-fg-secondary">
         {k.expiring[0]
           ? t("kindness.pointsNote", {

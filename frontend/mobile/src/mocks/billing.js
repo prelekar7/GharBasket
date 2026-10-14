@@ -1,6 +1,6 @@
-// M5 billing mocks (docs/modules/M5-billing.md §3.1): wallet, top-ups in the frozen shapes, plus
-// mandates, statements and M3 subscriptions (not in the contract yet). Money is integer paise,
-// times are UTC. A top-up is only "paid" through /v1/dev/razorpay/pay, which the real API also
+// M5 billing mocks (docs/modules/M5-billing.md): wallet, top-ups, statements, refund to source
+// (§3.3) and Kindness points (§3.6) in the frozen shapes, plus mandates (§3.7: no contract, a
+// design-review mock). Money is integer paise, times are UTC. A top-up is only "paid" through /v1/dev/razorpay/pay, which the real API also
 // serves in dev and test: it stands in for Razorpay Checkout and its webhook.
 import { HttpResponse, http } from "msw";
 import { caller, isNewUser } from "./handlers.js";
@@ -12,7 +12,7 @@ const UNPAID_MS = 30 * 60_000; // a top-up holds its amount for 30 minutes, then
 const WINDOW_MS = 60 * 60_000; // more than 10 top-ups an hour: 429
 const uuid = () => crypto.randomUUID();
 
-/** @returns {{ balance_paise: number, entries: any[], orders: Record<string, any>, mandate: any, subscription: any }} */
+/** @returns {{ balance_paise: number, entries: any[], orders: Record<string, any>, mandate: any, subscription: any, refunds?: any[] }} */
 const load = () => {
   try {
     return (
@@ -80,6 +80,104 @@ function room(s) {
   };
 }
 
+const istDay = (/** @type {string} */ at) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(at));
+const SETTLE_MS = 10_000; // the send_refunds job settles a dev refund; the mock does it after 10 s
+const REFUNDS_PER_DAY = 3;
+
+/** A cursor page of newest-first rows: the cursor is an offset, limit 1 to 100 (default 50). @param {Request} request @param {any[]} rows */
+function pageOf(request, rows) {
+  const q = new URL(request.url).searchParams;
+  const limit = q.has("limit") ? Number(q.get("limit")) : 50;
+  const at = q.has("cursor") ? Number(q.get("cursor")) : 0;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(at) || at < 0)
+    return problem(422, "request.invalid", "Unprocessable Content", {
+      errors: [
+        {
+          loc: ["query", q.has("limit") && !(limit >= 1 && limit <= 100) ? "limit" : "cursor"],
+          message: "Input should be valid",
+          type: "value_error",
+        },
+      ],
+    });
+  const next = at + limit;
+  return HttpResponse.json({
+    items: rows.slice(at, next),
+    next_cursor: next < rows.length ? String(next) : null,
+  });
+}
+
+/** What POST /v1/wallet/refund-to-source can send back now: the balance, up to what paid top-ups can still take. @param {ReturnType<typeof load>} s */
+function refundable(s) {
+  const topped = s.entries
+    .filter((e) => e.kind === "topup")
+    .reduce((t, e) => t + e.amount_paise, 0);
+  const taken = (s.refunds ?? []).reduce((t, r) => t + r.amount_paise, 0);
+  return Math.max(0, Math.min(s.balance_paise, topped - taken));
+}
+
+/** A refund as the API shows it: pending, then processed once the job has run. @param {any} r */
+function refundOut(r) {
+  const done = Date.now() - Date.parse(r.created_at) > SETTLE_MS;
+  return {
+    id: r.id,
+    amount_paise: r.amount_paise,
+    reason: "customer",
+    status: done ? "processed" : "pending",
+    parts: r.parts.map((/** @type {any} */ p) => ({
+      ...p,
+      status: done ? "processed" : "pending",
+      razorpay_refund_id: done ? `rfnd_dev_${p.topup_id.replaceAll("-", "").slice(0, 14)}` : null,
+    })),
+    created_at: r.created_at,
+    settled_at: done ? new Date(Date.parse(r.created_at) + SETTLE_MS).toISOString() : null,
+  };
+}
+
+// ---- Kindness points (M5 §3.6): a separate currency in lots that expire after 365 days.
+const POINTS_KEY = "gb-mock-points";
+const GOAL = { points: 500, code: "child_meal" };
+const SOON_DAYS = 90;
+/** @typedef {{ id: string, kind: "points_earned" | "points_expired" | "points_donated", points: number, ref: { type: "donation", id: string } | null, expires_on: string | null, at: string }} PointsEntry */
+/** @returns {{ lots: { points: number, on: string }[], entries: PointsEntry[], keys: Record<string, any> }} */
+const loadPoints = () => {
+  try {
+    const s = JSON.parse(localStorage.getItem(POINTS_KEY) ?? "null");
+    if (s) return s;
+  } catch {
+    // fall through to the seed
+  }
+  return {
+    lots: [
+      { points: 120, on: "2026-12-31" },
+      { points: 220, on: "2027-09-29" },
+    ],
+    entries: [
+      {
+        id: uuid(),
+        kind: "points_earned",
+        points: 220,
+        ref: { type: "donation", id: "don-1" },
+        expires_on: "2027-09-29",
+        at: "2026-09-29T11:00:00Z",
+      },
+      {
+        id: uuid(),
+        kind: "points_earned",
+        points: 120,
+        ref: null,
+        expires_on: "2026-12-31",
+        at: "2025-12-31T10:00:00Z",
+      },
+    ],
+    keys: {},
+  };
+};
+const savePoints = (/** @type {ReturnType<typeof loadPoints>} */ s) =>
+  localStorage.setItem(POINTS_KEY, JSON.stringify(s));
+const totalPoints = (/** @type {ReturnType<typeof loadPoints>} */ s) =>
+  s.lots.reduce((t, l) => t + l.points, 0);
+
 /** A mandate as the API shows it, without the idempotency key the mock keeps beside it. */
 const shown = (/** @type {any} */ { key, ...m }) => m;
 
@@ -101,22 +199,25 @@ function seed(request) {
 }
 
 export const billingHandlers = [
-  // @proposal (not in the contract yet): a month of the ledger for the wallet (M5 §3: GET
-  // /v1/statements?period=YYYY-MM, JSON here), entries in the real Entry shape.
+  // GET /v1/statements?period=YYYY-MM (M5 §3.2): a month of the wallet ledger, newest first, with
+  // the running balance after each entry. A month after the current one (IST) is refused.
   http.get("*/v1/statements", ({ request }) => {
     const period = new URL(request.url).searchParams.get("period") ?? "";
-    if (!/^\d{4}-\d{2}$/.test(period))
-      return problem(422, "billing.period_invalid", "period must be YYYY-MM");
+    if (
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(period) ||
+      period > istDay(new Date().toISOString()).slice(0, 7)
+    )
+      return problem(422, "billing.period_invalid", "period must be YYYY-MM, not after this month");
     seed(request);
     const s = load();
-    const month = (/** @type {any} */ e) =>
-      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" })
-        .format(new Date(e.at))
-        .slice(0, 7);
-    const inPeriod = (/** @type {any} */ e) => month(e) === period;
-    const before = (/** @type {any} */ e) => month(e) < period;
-    const entries = s.entries.filter(inPeriod);
-    const opening = s.entries.filter(before).reduce((t, e) => t + e.amount_paise, 0);
+    const month = (/** @type {any} */ e) => istDay(e.at).slice(0, 7);
+    let running = 0;
+    const all = s.entries.map((e) => {
+      running += e.amount_paise;
+      return { ...e, balance_after_paise: running };
+    });
+    const entries = all.filter((e) => month(e) === period);
+    const opening = all.filter((e) => month(e) < period).reduce((t, e) => t + e.amount_paise, 0);
     const credits = entries
       .filter((e) => e.amount_paise > 0)
       .reduce((t, e) => t + e.amount_paise, 0);
@@ -125,24 +226,89 @@ export const billingHandlers = [
       .reduce((t, e) => t + e.amount_paise, 0);
     return HttpResponse.json({
       period,
+      currency: "INR",
       opening_paise: opening,
       credits_paise: credits,
       debits_paise: debits,
       closing_paise: opening + credits + debits,
       entries: [...entries].reverse(),
+      generated_at: new Date().toISOString(),
     });
   }),
 
-  // Kindness points are not money: a separate balance with its own expiry (M5, M9).
-  http.get("*/v1/kindness/balance", () =>
-    HttpResponse.json({
-      points: 340,
-      goal: { points: 500, code: "child_meal" },
-      expiring: [{ points: 120, on: "2026-12-31" }],
-    }),
-  ),
+  // GET /v1/kindness/balance (M5 §3.6): points apart from money, what expires in the next 90 days
+  // (at most 3 dates, soonest first) and the points one donated meal takes.
+  http.get("*/v1/kindness/balance", () => {
+    const s = loadPoints();
+    const horizon = istDay(new Date(Date.now() + SOON_DAYS * 86_400_000).toISOString());
+    const soon = [...s.lots]
+      .filter((l) => l.on <= horizon)
+      .sort((x, y) => x.on.localeCompare(y.on))
+      .slice(0, 3)
+      .map((l) => ({ points: l.points, on: l.on }));
+    return HttpResponse.json({ points: totalPoints(s), expiring: soon, goal: GOAL });
+  }),
 
-  // WalletOut: balance, the cap, what can still be added now, and the latest 20 entries.
+  // GET /v1/kindness/entries (M5 §3.6): earned, expired and donated points, newest first.
+  http.get("*/v1/kindness/entries", ({ request }) => pageOf(request, loadPoints().entries)),
+
+  // POST /v1/kindness/donations (Idempotency-Key): points become meals for children, taken from the
+  // oldest lots first. No money is touched; fewer points than meals × goal is 409.
+  http.post("*/v1/kindness/donations", async ({ request }) => {
+    const missing = needsKey(request);
+    if (missing) return missing;
+    const key = /** @type {string} */ (request.headers.get("idempotency-key"));
+    const body = /** @type {any} */ (await request.json().catch(() => null));
+    const meals = body?.meals;
+    if (!Number.isInteger(meals) || meals < 1 || meals > 10)
+      return problem(422, "request.invalid", "Unprocessable Content", {
+        errors: [
+          { loc: ["body", "meals"], message: "Input should be 1 to 10", type: "value_error" },
+        ],
+      });
+    const s = loadPoints();
+    const before = s.keys[key];
+    if (before)
+      return before.meals === meals
+        ? HttpResponse.json(before, { status: 201 })
+        : problem(422, "request.idempotency_mismatch", "That key was used with different meals");
+    const needed = meals * GOAL.points;
+    const points = totalPoints(s);
+    if (points < needed)
+      return problem(409, "billing.not_enough_points", "Not enough Kindness points yet", {
+        points,
+        needed,
+      });
+    let left = needed;
+    s.lots.sort((x, y) => x.on.localeCompare(y.on));
+    for (const lot of s.lots) {
+      const take = Math.min(lot.points, left);
+      lot.points -= take;
+      left -= take;
+    }
+    s.lots = s.lots.filter((l) => l.points > 0);
+    const done = {
+      id: uuid(),
+      meals,
+      points: needed,
+      code: GOAL.code,
+      at: new Date().toISOString(),
+    };
+    s.entries.unshift({
+      id: done.id,
+      kind: "points_donated",
+      points: -needed,
+      ref: null,
+      expires_on: null,
+      at: done.at,
+    });
+    s.keys[key] = done;
+    savePoints(s);
+    return HttpResponse.json(done, { status: 201 });
+  }),
+
+  // WalletOut: balance, the cap, what can still be added now, what can go back to the bank, and
+  // the latest 20 entries.
   http.get("*/v1/wallet", ({ request }) => {
     seed(request);
     const s = load();
@@ -151,8 +317,94 @@ export const billingHandlers = [
       balance_paise: s.balance_paise,
       cap_paise: CAP_PAISE,
       topup_room_paise: Math.min(r.cap, r.month),
+      refundable_paise: refundable(s),
       entries: s.entries.slice(-20).reverse(),
     });
+  }),
+
+  // GET /v1/wallet/entries?cursor=&limit=: Page[Entry], newest first.
+  http.get("*/v1/wallet/entries", ({ request }) => {
+    seed(request);
+    return pageOf(request, [...load().entries].reverse());
+  }),
+
+  // POST /v1/wallet/refund-to-source (M5 §3.3, Idempotency-Key): unused balance back to the paying
+  // UPI or card. The wallet is debited at once; the refund is processed later by a job.
+  http.post("*/v1/wallet/refund-to-source", async ({ request }) => {
+    const missing = needsKey(request);
+    if (missing) return missing;
+    seed(request);
+    const s = load();
+    s.refunds ??= [];
+    const key = /** @type {string} */ (request.headers.get("idempotency-key"));
+    const body = /** @type {any} */ (await request.json().catch(() => null));
+    const asked = body?.amount_paise ?? null;
+    if (asked !== null && !Number.isInteger(asked))
+      return problem(422, "request.invalid", "Unprocessable Content", {
+        errors: [
+          {
+            loc: ["body", "amount_paise"],
+            message: "Input should be a valid integer",
+            type: "int_type",
+          },
+        ],
+      });
+    const before = s.refunds.find((r) => r.key === key);
+    if (before)
+      return before.asked === asked
+        ? HttpResponse.json(refundOut(before), { status: 202 })
+        : problem(422, "request.idempotency_mismatch", "That key was used with a different amount");
+    const open = s.refunds.find((r) => refundOut(r).status === "pending");
+    if (open)
+      return problem(409, "billing.refund_in_progress", "An earlier refund is still on its way", {
+        refund_id: open.id,
+      });
+    const today = istDay(new Date().toISOString());
+    if (s.refunds.filter((r) => istDay(r.created_at) === today).length >= REFUNDS_PER_DAY)
+      return problem(429, "billing.too_many_refunds", "Too many refund requests today");
+    const can = refundable(s);
+    const amount = asked ?? can;
+    if (amount < 100) return problem(422, "billing.refund_too_small", "Refund at least ₹1");
+    if (amount > can)
+      return problem(
+        422,
+        "billing.refund_exceeds_refundable",
+        "That is more than can go back to your bank",
+        { refundable_paise: can },
+      );
+    const topup = [...s.entries].reverse().find((e) => e.kind === "topup");
+    const refund = {
+      id: uuid(),
+      key,
+      asked,
+      amount_paise: amount,
+      created_at: new Date().toISOString(),
+      parts: [
+        {
+          topup_id: topup?.ref?.id ?? uuid(),
+          razorpay_payment_id: `pay_dev_${uuid().replaceAll("-", "").slice(0, 14)}`,
+          amount_paise: amount,
+        },
+      ],
+    };
+    s.refunds.push(refund);
+    s.balance_paise -= amount;
+    s.entries.push(
+      entry("refund_to_source", -amount, refund.created_at, { type: "refund", id: refund.id }),
+    );
+    save(s);
+    return HttpResponse.json(refundOut(refund), { status: 202 });
+  }),
+
+  // GET /v1/wallet/refunds[/{id}]: status of refunds to source, newest first.
+  http.get("*/v1/wallet/refunds", ({ request }) =>
+    pageOf(request, [...(load().refunds ?? [])].reverse().map(refundOut)),
+  ),
+  http.get("*/v1/wallet/refunds/:id", ({ params }) => {
+    const r = (load().refunds ?? []).find((x) => x.id === params.id);
+    return r
+      ? HttpResponse.json(refundOut(r))
+      : problem(404, "billing.refund_not_found", "Refund not found");
   }),
 
   // POST /v1/wallet/topups (Idempotency-Key, one per amount): the same key replays the same order.
@@ -302,7 +554,10 @@ export const billingHandlers = [
 ];
 
 /** Dev helper: empty the mock wallet. */
-export const resetBilling = () => localStorage.removeItem(KEY);
+export const resetBilling = () => {
+  localStorage.removeItem(KEY);
+  localStorage.removeItem(POINTS_KEY);
+};
 
 /**
  * Takes a box payment from the wallet (the cut-off charge, M5 W3); false when the balance is short.

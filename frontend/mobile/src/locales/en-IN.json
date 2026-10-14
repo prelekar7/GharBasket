@@ -602,13 +602,15 @@
     "goals": {
       "child_meal": "a meal for a child"
     },
-    "pointsNote": "Kindness points are not money. {points} expire on {date}. Use them as a discount on a box.",
+    "pointsNote": "Kindness points are not money. {points} expire on {date}. Use them to donate a meal for a child.",
     "recent": "Recent",
     "noEntries": "No payments yet.",
     "entry": {
       "topup": "Top-up with UPI · {date}",
       "box": "Box for {day}",
       "refund": "Refund · {date}",
+      "refund_to_source": "Sent back to your bank · {date}",
+      "refund_to_source_failed": "Bank refund failed, back in your wallet · {date}",
       "topup_bonus": "Bonus · {date}",
       "adjustment": "Adjustment · {date}",
       "generic": "Wallet entry · {date}",
@@ -749,8 +751,11 @@
   },
   "kindness": {
     "title": "Your gullak",
-    "pointsNote": "Points, not money. {points} expire on {date}. Use them as a discount on a box.",
-    "pointsNoteNoExpiry": "Points, not money. Use them as a discount on a box.",
+    "pointsNote": "Points, not money. {points} expire on {date}. Use them to donate a meal for a child.",
+    "pointsNoteNoExpiry": "Points, not money. Use them to donate a meal for a child.",
+    "donateMeal": "Donate a meal",
+    "mealGiven": "A meal for a child is on its way. Thank you.",
+    "mealFailed": "Could not donate the meal. Try again.",
     "give": "Give something away",
     "drive": "{name} drive · {x}× points",
     "drives": {

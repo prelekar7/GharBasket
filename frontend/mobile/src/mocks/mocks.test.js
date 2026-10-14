@@ -484,10 +484,18 @@ describe("wallet statement (M5)", () => {
   it("adds up a month from the ledger, opening to closing", async () => {
     const r = await mockFetch(new Request("http://localhost/v1/statements?period=2026-10"));
     // A signed-out request sees an empty wallet; the shape is what matters here.
-    expect(await r.json()).toMatchObject({ period: "2026-10", opening_paise: 0, closing_paise: 0 });
-    expect((await mockFetch(new Request("http://localhost/v1/statements?period=oct"))).status).toBe(
-      422,
-    );
+    expect(await r.json()).toMatchObject({
+      period: "2026-10",
+      currency: "INR",
+      opening_paise: 0,
+      closing_paise: 0,
+      generated_at: expect.any(String),
+    });
+    for (const bad of ["oct", "2099-01"]) {
+      const res = await mockFetch(new Request(`http://localhost/v1/statements?period=${bad}`));
+      expect(res.status).toBe(422);
+      expect((await res.json()).code).toBe("billing.period_invalid");
+    }
   });
 });
 
@@ -503,6 +511,7 @@ describe("wallet and top-ups (M5 §3.1)", () => {
       "balance_paise",
       "cap_paise",
       "entries",
+      "refundable_paise",
       "topup_room_paise",
     ]);
     expect(w).toMatchObject({
@@ -554,6 +563,128 @@ describe("wallet and top-ups (M5 §3.1)", () => {
     const res = await mockFetch(new Request("http://localhost/v1/wallet/topups/nope"));
     expect(res.status).toBe(404);
     expect((await res.json()).code).toBe("billing.topup_not_found");
+  });
+});
+
+describe("refund to source and wallet entries (M5 §3.3)", () => {
+  const get = async (/** @type {string} */ path) =>
+    mockFetch(new Request(`http://localhost${path}`));
+  const fund = async (/** @type {number} */ amount) => {
+    const order = await (
+      await post("/v1/wallet/topups", { amount_paise: amount }, `f-${amount}`)
+    ).json();
+    await post("/v1/dev/razorpay/pay", { razorpay_order_id: order.razorpay_order_id });
+  };
+
+  it("sends the refundable balance back once per key, then settles it", async () => {
+    await fund(50_000);
+    expect((await (await get("/v1/wallet")).json()).refundable_paise).toBe(50_000);
+    expect((await post("/v1/wallet/refund-to-source", { amount_paise: 50 }, "r0")).status).toBe(
+      422,
+    );
+    const over = await post("/v1/wallet/refund-to-source", { amount_paise: 60_000 }, "r1");
+    expect(await over.json()).toMatchObject({
+      code: "billing.refund_exceeds_refundable",
+      refundable_paise: 50_000,
+    });
+    const res = await post("/v1/wallet/refund-to-source", { amount_paise: null }, "r2");
+    expect(res.status).toBe(202);
+    const refund = await res.json();
+    expect(refund).toMatchObject({
+      amount_paise: 50_000,
+      reason: "customer",
+      status: "pending",
+      settled_at: null,
+    });
+    expect(refund.parts[0]).toMatchObject({
+      amount_paise: 50_000,
+      status: "pending",
+      razorpay_refund_id: null,
+    });
+    expect(
+      (await (await post("/v1/wallet/refund-to-source", { amount_paise: null }, "r2")).json()).id,
+    ).toBe(refund.id);
+    const w = await (await get("/v1/wallet")).json();
+    expect(w).toMatchObject({ balance_paise: 0, refundable_paise: 0 });
+    expect(w.entries[0]).toMatchObject({
+      kind: "refund_to_source",
+      amount_paise: -50_000,
+      ref: { type: "refund", id: refund.id },
+    });
+    const again = await post("/v1/wallet/refund-to-source", { amount_paise: 100 }, "r3");
+    expect(await again.json()).toMatchObject({
+      code: "billing.refund_in_progress",
+      refund_id: refund.id,
+    });
+    expect((await (await get(`/v1/wallet/refunds/${refund.id}`)).json()).id).toBe(refund.id);
+    expect((await (await get("/v1/wallet/refunds")).json()).items).toHaveLength(1);
+    expect((await get("/v1/wallet/refunds/nope")).status).toBe(404);
+  });
+
+  it("pages entries newest first with a cursor", async () => {
+    await fund(20_000);
+    await fund(30_000);
+    const first = await (await get("/v1/wallet/entries?limit=1")).json();
+    expect(first.items).toHaveLength(1);
+    expect(first.next_cursor).toBe("1");
+    const rest = await (
+      await get(`/v1/wallet/entries?limit=100&cursor=${first.next_cursor}`)
+    ).json();
+    expect(rest.next_cursor).toBeNull();
+    expect((await get("/v1/wallet/entries?limit=101")).status).toBe(422);
+  });
+});
+
+describe("Kindness points (M5 §3.6)", () => {
+  const get = async (/** @type {string} */ path) =>
+    (await mockFetch(new Request(`http://localhost${path}`))).json();
+
+  it("shows points, what expires soon and the goal, and lists entries newest first", async () => {
+    const b = await get("/v1/kindness/balance");
+    expect(b).toMatchObject({ points: 340, goal: { points: 500, code: "child_meal" } });
+    expect(b.expiring.length).toBeLessThanOrEqual(3);
+    const e = await get("/v1/kindness/entries");
+    expect(e.items.map((/** @type {{ kind: string }} */ x) => x.kind)).toEqual([
+      "points_earned",
+      "points_earned",
+    ]);
+    expect(e.items[0]).toMatchObject({ points: 220, ref: { type: "donation", id: "don-1" } });
+  });
+
+  it("donates a meal once per key, oldest points first, and refuses when short", async () => {
+    const short = await post("/v1/kindness/donations", { meals: 1 }, "m0");
+    expect(short.status).toBe(409);
+    expect(await short.json()).toMatchObject({
+      code: "billing.not_enough_points",
+      points: 340,
+      needed: 500,
+    });
+    expect((await post("/v1/kindness/donations", { meals: 0 }, "m1")).status).toBe(422);
+    // 340 points are not enough for a meal at 500, so top the gullak up with a verified donation.
+    localStorage.setItem(
+      "gb-mock-points",
+      JSON.stringify({
+        lots: [
+          { points: 120, on: "2026-12-31" },
+          { points: 400, on: "2027-09-29" },
+        ],
+        entries: [],
+        keys: {},
+      }),
+    );
+    const ok = await post("/v1/kindness/donations", { meals: 1 }, "m2");
+    expect(ok.status).toBe(201);
+    const done = await ok.json();
+    expect(done).toMatchObject({ meals: 1, points: 500, code: "child_meal" });
+    expect((await (await post("/v1/kindness/donations", { meals: 1 }, "m2")).json()).id).toBe(
+      done.id,
+    );
+    const b = await get("/v1/kindness/balance");
+    expect(b.points).toBe(20);
+    expect((await get("/v1/kindness/entries")).items[0]).toMatchObject({
+      kind: "points_donated",
+      points: -500,
+    });
   });
 });
 
