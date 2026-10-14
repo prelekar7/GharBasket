@@ -1,13 +1,23 @@
-// M6 hub-ops mocks for the packer (docs/modules/M6-hub-ops.md §3): the morning's packing tasks in
-// route order, scan-driven picking and shortages. The spec lists endpoints, not fields; these shapes
-// are our proposal. GET /v1/hubs/{id}/shortages is not in the spec yet (the GRN gap per item, with
-// what each family gets); we propose it to M6. Example data follows the field-role designs: Tue 6 Oct,
-// Kharghar hub, 58 bags (46 Sunrise Towers + 12 Krishna Kunj), methi short.
+// M6 hub-ops mocks for the packer, in the real shapes of docs/modules/M6-hub-ops.md §3.2 (frozen,
+// built in PRs #153 and #154): the hub with its day timings, the packing queue as a cursor Page of
+// PackingTaskOut, one PackingTaskDetail with its lines, and start, pick, shortage and complete (each
+// answers the whole task). Ids are UUIDs, quantities are steps, `bag_qr` is "GB1:<order id>", a
+// started task belongs to the packer and a packed one takes a crate number. Example data follows
+// the field-role designs: Tue 6 Oct, Kharghar hub, 58 bags (46 Sunrise Towers + 12 Krishna Kunj),
+// methi short. GET /v1/hubs/{id}/shortages is not in the spec (the goods-receipt gap per item and
+// what each family gets); it stays a mock-only proposal to M6.
 import { HttpResponse, http } from "msw";
 
-const KEY = "gb-mock-packing";
-const HUB = "hub-kharghar";
+const KEY = "gb-mock-packing-v2";
 const DATE = "2026-10-06";
+
+/** Ids are UUIDs: the namespace picks the kind, the number the row. @param {string} ns @param {number} n */
+const uid = (ns, n) => `0199${ns}000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
+/** The seeded Kharghar hub, as in the real dev database. */
+export const HUB_ID = uid("a", 0xa001);
+const ME = { user_id: uid("9", 7), name: "Kavita More" };
+const OTHER = { user_id: uid("9", 8), name: "Sunil Gaikwad" };
+const SLOT = { id: uid("f", 1), label: "7-9 am", start: "07:00", end: "09:00" };
 
 /** @typedef {"en" | "hi" | "mr"} Lang */
 /** @type {(r: Request) => Lang} */
@@ -15,67 +25,62 @@ const langOf = (r) => {
   const l = r.headers.get("accept-language") ?? "";
   return l.startsWith("hi") ? "hi" : l.startsWith("mr") ? "mr" : "en";
 };
+const L = (/** @type {Lang} */ lang) => ({ en: 0, hi: 1, mr: 2 })[lang];
 
-/** @type {Record<string, [string, string, string]>} */
-const SHELVES = {
-  leafy: ["Leafy greens, shelf 3", "हरी सब्ज़ियाँ, शेल्फ़ 3", "पालेभाज्या, शेल्फ 3"],
-  veg: ["Vegetables, shelf 5", "सब्ज़ियाँ, शेल्फ़ 5", "भाज्या, शेल्फ 5"],
-  cold: ["Cold room, rack 1", "कोल्ड रूम, रैक 1", "कोल्ड रूम, रॅक 1"],
-  dry: ["Dry goods, aisle 2", "सूखा सामान, गली 2", "किराणा, रांग 2"],
-  tiffin: ["Tiffin counter", "टिफ़िन काउंटर", "टिफिन काउंटर"],
+/** The unit as `step.label` writes it, per language. @type {Record<string, [string, string, string]>} */
+const UNIT_LABEL = {
+  g: ["g", "ग्रा", "ग्रॅ"],
+  kg: ["kg", "किलो", "किलो"],
+  l: ["l", "लीटर", "लि."],
+  piece: ["pc", "नग", "नग"],
+  bunch: ["bunch", "गुच्छा", "जुडी"],
 };
 
-/** code → [en, hi, mr, unit, qty, shelf] */
-/** @type {Record<string, [string, string, string, string, number, string]>} */
+/**
+ * code → [slug, en, hi, mr, step qty, step unit, category order]. Lines come by category, then name.
+ * @type {Record<string, [string, string, string, string, number, string, number]>}
+ */
 const PRODUCTS = {
-  "P-101": ["Methi", "मेथी", "मेथी", "judi", 1, "leafy"],
-  "P-102": ["Palak", "पालक", "पालक", "judi", 1, "leafy"],
-  "P-103": ["Bhindi", "भिंडी", "भेंडी", "g", 250, "veg"],
-  "P-104": ["Paneer", "पनीर", "पनीर", "g", 200, "cold"],
-  "P-105": ["Tomato", "टमाटर", "टोमॅटो", "g", 500, "veg"],
-  "P-106": ["Onion", "प्याज़", "कांदा", "kg", 1, "veg"],
-  "P-107": ["Potato", "आलू", "बटाटा", "kg", 1, "veg"],
-  "P-108": ["Toor dal", "तूर दाल", "तूर डाळ", "g", 500, "dry"],
-  "P-109": ["Coriander", "धनिया", "कोथिंबीर", "judi", 1, "leafy"],
-  "P-110": ["Green chilli", "हरी मिर्च", "हिरवी मिरची", "g", 100, "veg"],
-  "P-111": ["Curd", "दही", "दही", "g", 400, "cold"],
-  "P-112": ["Milk", "दूध", "दूध", "l", 1, "cold"],
-  "P-113": ["Lauki", "लौकी", "दुधी भोपळा", "pc", 1, "veg"],
-  "P-114": ["Ginger", "अदरक", "आले", "g", 100, "veg"],
-  "P-115": ["Atta", "आटा", "कणीक", "kg", 1, "dry"],
-  "P-116": ["Eggs", "अंडे", "अंडी", "pc", 6, "cold"],
-  "P-117": ["Rice", "चावल", "तांदूळ", "kg", 1, "dry"],
-  "P-118": ["Cauliflower", "फूलगोभी", "फ्लॉवर", "pc", 1, "veg"],
-  "T-201": [
-    "Tiffin, Lata’s kitchen",
-    "टिफ़िन, लता की रसोई",
-    "टिफिन, लताचे स्वयंपाकघर",
-    "pc",
-    2,
-    "tiffin",
-  ],
+  "P-101": ["methi", "Methi", "मेथी", "मेथी", 1, "bunch", 1],
+  "P-102": ["palak", "Palak", "पालक", "पालक", 1, "bunch", 1],
+  "P-103": ["bhindi", "Bhindi", "भिंडी", "भेंडी", 250, "g", 2],
+  "P-104": ["paneer", "Paneer", "पनीर", "पनीर", 200, "g", 3],
+  "P-105": ["tomato", "Tomato", "टमाटर", "टोमॅटो", 500, "g", 2],
+  "P-106": ["onion", "Onion", "प्याज़", "कांदा", 1, "kg", 2],
+  "P-107": ["potato", "Potato", "आलू", "बटाटा", 1, "kg", 2],
+  "P-108": ["toor-dal", "Toor dal", "तूर दाल", "तूर डाळ", 500, "g", 4],
+  "P-109": ["coriander", "Coriander", "धनिया", "कोथिंबीर", 1, "bunch", 1],
+  "P-110": ["green-chilli", "Green chilli", "हरी मिर्च", "हिरवी मिरची", 100, "g", 2],
+  "P-111": ["curd", "Curd", "दही", "दही", 400, "g", 3],
+  "P-112": ["milk", "Milk", "दूध", "दूध", 1, "l", 3],
+  "P-113": ["lauki", "Lauki", "लौकी", "दुधी भोपळा", 1, "piece", 2],
+  "P-114": ["ginger", "Ginger", "अदरक", "आले", 100, "g", 2],
+  "P-115": ["atta", "Atta", "आटा", "कणीक", 1, "kg", 4],
+  "P-116": ["eggs", "Eggs", "अंडे", "अंडी", 6, "piece", 3],
+  "P-117": ["rice", "Rice", "चावल", "तांदूळ", 1, "kg", 4],
+  "P-118": ["cauliflower", "Cauliflower", "फूलगोभी", "फ्लॉवर", 1, "piece", 2],
 };
-const POOL = Object.keys(PRODUCTS).filter((c) => c.startsWith("P-"));
+const POOL = Object.keys(PRODUCTS);
 const METHI = "P-101";
+const PALAK = "P-102";
+const pid = (/** @type {string} */ code) => uid("d", Number(code.slice(2)));
+/** The ordered product, or its substitute, as a line shows it. @param {string} code @param {Lang} lang */
+const productOut = (code, lang) => {
+  const [slug, , , , qty, unit] = PRODUCTS[code];
+  return {
+    product_id: pid(code),
+    slug,
+    name: PRODUCTS[code][1 + L(lang)],
+    step: { qty, unit, label: `${qty} ${UNIT_LABEL[unit][L(lang)]}` },
+  };
+};
 
 const SOCIETIES = [
-  {
-    id: "sunrise-towers",
-    names: ["Sunrise Towers", "सनराइज़ टावर्स", "सनराइज टॉवर्स"],
-    captain: ["Meena tai", "मीना ताई", "मीना ताई"],
-    prefix: "B-2",
-    crate: "S",
-  },
-  {
-    id: "krishna-kunj",
-    names: ["Krishna Kunj", "कृष्णा कुंज", "कृष्णा कुंज"],
-    captain: ["Asha tai", "आशा ताई", "आशा ताई"],
-    prefix: "K-1",
-    crate: "K",
-  },
+  { id: uid("e", 1), name: "Sunrise Towers" },
+  { id: uid("e", 2), name: "Krishna Kunj" },
 ];
 
-// Flats in route order. The first five are the designs' queue (B-205 is a tiffin-only order).
+// Flats in route order. The first five are the designs' queue.
 const SUNRISE_FLATS = ["A-1203", "B-402", "C-807", "A-604", "B-205", "C-1102"];
 for (let i = 0; SUNRISE_FLATS.length < 46; i++) {
   const flat = `${"ABC"[i % 3]}-${Math.floor(i / 3) + 1}0${(i % 4) + 1}`;
@@ -84,81 +89,111 @@ for (let i = 0; SUNRISE_FLATS.length < 46; i++) {
 const KUNJ_FLATS = ["A-102", "A-201", "A-203", "A-302", "A-101", "B-101"];
 KUNJ_FLATS.push("B-104", "B-202", "B-301", "B-303", "B-402", "B-404");
 
-/** Bags that are short of methi today, in route order, and what each family chose (designs). */
+/** Tasks (queue position) that are short of methi today, and what each family chose (designs). */
 const METHI_SHORT = [
-  { bag: "B-215", outcome: "swap" },
-  { bag: "B-216", outcome: "refund" },
-  { bag: "B-218", outcome: "swap" },
-  { bag: "K-105", outcome: "refund" },
-  { bag: "B-252", outcome: "swap" },
-  { bag: "K-110", outcome: "refund" },
+  { seq: 3, outcome: "swap" },
+  { seq: 4, outcome: "refund" },
+  { seq: 6, outcome: "swap" },
+  { seq: 51, outcome: "refund" },
+  { seq: 40, outcome: "swap" },
+  { seq: 56, outcome: "refund" },
 ];
-const SHORT_BAGS = METHI_SHORT.map((s) => s.bag);
+const prefersRefund = (/** @type {number} */ seq) =>
+  METHI_SHORT.find((m) => m.seq === seq)?.outcome === "refund";
 
 /**
- * The day's bags in route order, without progress. Deterministic, so every screen agrees.
- * @typedef {{ id: string, bag: string, seq: number, soc: typeof SOCIETIES[number], flat: string, crate: string,
- *   kind: "box" | "tiffin", total: number, lines: { code: string, qty: number, addon?: boolean }[] }} Planned
+ * The day's tasks in queue order, without progress. Deterministic, so every screen agrees.
+ * @typedef {{ id: string, order_id: string, seq: number, society: typeof SOCIETIES[number], flat: string,
+ *   kind: "box" | "addon", lines: { code: string, qty: number }[] }} Planned
  * @returns {Planned[]}
  */
 function plan() {
   return Array.from({ length: 58 }, (_, i) => {
     const seq = i + 1;
     const sunrise = seq <= 46;
-    const n = sunrise ? seq : seq - 46;
-    const soc = SOCIETIES[sunrise ? 0 : 1];
-    const bag = `${soc.prefix}${String(sunrise ? 12 + n : n).padStart(2, "0")}`;
-    const base = {
-      id: `pt-${bag}`,
-      bag,
-      seq,
-      soc,
-      flat: (sunrise ? SUNRISE_FLATS : KUNJ_FLATS)[n - 1],
-      crate: sunrise ? `S-${n <= 16 ? 1 : n <= 31 ? 2 : 3}` : "K-1",
-    };
-    if (seq === 5) {
-      return { ...base, kind: "tiffin", total: 18000, lines: [{ code: "T-201", qty: 2 }] };
-    }
-    if (seq === 2) {
-      // Priya's box (B-402): the designs' Pick and pack, methi and bhindi just picked.
-      const codes = ["P-105", "P-106", "P-107", "P-108", "P-109", "P-101", "P-103", "P-104"];
-      codes.push("P-111", "P-112", "P-110", "P-114");
-      const lines = codes.map((code) => ({ code, qty: code === METHI ? 2 : PRODUCTS[code][4] }));
-      return { ...base, kind: "box", total: 54000, lines };
-    }
-    const count = { 1: 14, 3: 16, 4: 17 }[seq] ?? 10 + ((seq * 5) % 7);
+    // Tiffins are cooked by kitchens (M8) and never packed here; task 5 is an add-on order.
+    const addon = seq === 5;
+    const count = addon ? 2 : ({ 1: 14, 3: 16, 4: 17 }[seq] ?? 10 + ((seq * 5) % 7));
     const start = (seq * 3) % POOL.length;
-    const codes = Array.from({ length: count }, (_, k) => POOL[(start + k) % POOL.length]);
-    if (SHORT_BAGS.includes(bag) && !codes.includes(METHI)) codes[0] = METHI;
-    const lines = codes.map((code, k) => ({
-      code,
-      qty: PRODUCTS[code][4],
-      addon: seq === 4 && k >= count - 2,
-    }));
-    const total = { 1: 69000, 3: 76000, 4: 81000 }[seq] ?? 40000 + ((seq * 13) % 40) * 1000;
-    return { ...base, kind: "box", total, lines };
+    let codes = Array.from({ length: count }, (_, k) => POOL[(start + k) % POOL.length]);
+    // Task 2 is Priya's box, the designs' Pick and pack.
+    if (seq === 2)
+      codes = [
+        "P-105",
+        "P-106",
+        "P-107",
+        "P-108",
+        "P-109",
+        "P-101",
+        "P-103",
+        "P-104",
+        "P-111",
+        "P-112",
+        "P-110",
+        "P-114",
+      ];
+    if (METHI_SHORT.some((m) => m.seq === seq) && !codes.includes(METHI)) codes[0] = METHI;
+    const lines = codes
+      .map((code) => ({ code, qty: seq === 2 && code === METHI ? 2 : 1 }))
+      .sort(
+        (a, b) =>
+          PRODUCTS[a.code][6] - PRODUCTS[b.code][6] ||
+          PRODUCTS[a.code][1].localeCompare(PRODUCTS[b.code][1]),
+      );
+    return {
+      id: uid("c", seq),
+      order_id: uid("b", seq),
+      seq,
+      society: SOCIETIES[sunrise ? 0 : 1],
+      flat: (sunrise ? SUNRISE_FLATS : KUNJ_FLATS)[sunrise ? seq - 1 : seq - 47],
+      kind: addon ? "addon" : "box",
+      lines,
+    };
   });
 }
 const PLAN = plan();
+const findTask = (/** @type {string} */ id) => PLAN.find((t) => t.id === id);
+const bagQr = (/** @type {Planned} */ t) => `GB1:${t.order_id.replaceAll("-", "")}`;
 
 /**
- * Progress kept across reloads: task and line status, closing times, reported shortages and
- * answered Idempotency-Keys. Seeded like the designs: 18 of 58 packed (stop 1 by Kavita, stops
- * 20 to 36 by the other packer), B-214 open with 7 of 12 lines picked.
- * @typedef {{ tasks: Record<string, string>, lines: Record<string, string>, done: Record<string, string>,
- *   reported: { task_id: string, code: string, qty: number }[], keys: Record<string, unknown> }} State
+ * Progress kept across reloads: each task's status, holder, crate and lines, and the answers to
+ * Idempotency-Keys. Seeded like the designs: 18 of 58 packed (task 1 by Kavita, 20 to 36 by the other
+ * packer), task 2 in picking with 7 of 12 lines picked.
+ * @typedef {{ picked_qty: number, short_qty: number, substitute: string | null }} LineState
+ * @typedef {{ status: "queued" | "picking" | "packed", packer: typeof ME | null, started_at: string | null,
+ *   packed_at: string | null, crate_no: number | null, bags: number, version: number, lines: LineState[] }} TaskState
+ * @typedef {{ tasks: Record<string, TaskState>, keys: Record<string, { fingerprint: string, body: any }> }} State
  */
+const CRATE_BAGS = 3;
+/** The society's current crate: three bags to a crate. @param {State} s @param {Planned} t */
+const crateFor = (s, t) => {
+  const packed = PLAN.filter((x) => x.id !== t.id && x.society.id === t.society.id)
+    .filter((x) => s.tasks[x.id]?.status === "packed")
+    .reduce((n, x) => n + s.tasks[x.id].bags, 0);
+  return Math.min(Math.floor(packed / CRATE_BAGS) + 1, 99);
+};
 /** @returns {State} */
 function seed() {
   /** @type {State} */
-  const s = { tasks: {}, lines: {}, done: {}, reported: [], keys: {} };
+  const s = { tasks: {}, keys: {} };
   for (const t of PLAN) {
     const packed = t.seq === 1 || (t.seq >= 20 && t.seq <= 36);
-    s.tasks[t.id] = packed ? "packed" : t.seq === 2 ? "packing" : "to_pack";
-    if (packed) s.done[t.id] = `${DATE}T05:${String(10 + t.seq).padStart(2, "0")}:00+05:30`;
-    t.lines.forEach((_, i) => {
-      if (packed || (t.seq === 2 && i < 7)) s.lines[`${t.id}-${i + 1}`] = "picked";
-    });
+    const picking = t.seq === 2;
+    s.tasks[t.id] = {
+      status: packed ? "packed" : picking ? "picking" : "queued",
+      packer: packed ? (t.seq === 1 ? ME : OTHER) : picking ? ME : null,
+      started_at: packed || picking ? `${DATE}T05:0${t.seq % 10}:00+05:30` : null,
+      packed_at: packed ? `${DATE}T05:${String(10 + t.seq).padStart(2, "0")}:00+05:30` : null,
+      crate_no: null,
+      bags: 1,
+      version: 1,
+      lines: t.lines.map((l, i) => ({
+        picked_qty: packed || (picking && i < 7) ? l.qty : 0,
+        short_qty: 0,
+        substitute: null,
+      })),
+    };
+    if (packed) s.tasks[t.id].crate_no = crateFor(s, t);
   }
   return s;
 }
@@ -176,221 +211,358 @@ const problem = (
   /** @type {number} */ status,
   /** @type {string} */ code,
   /** @type {string} */ title,
+  /** @type {Record<string, unknown>} */ extra = {},
 ) =>
   HttpResponse.json(
-    { type: "about:blank", title, status, code },
+    { type: "about:blank", title, status, code, ...extra },
     { status, headers: { "content-type": "application/problem+json" } },
   );
-const needsKey = (/** @type {Request} */ r) =>
-  r.headers.get("idempotency-key")
-    ? null
-    : problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
+const invalid = () => problem(422, "request.invalid", "The request is not valid");
 
-const L = (/** @type {Lang} */ lang) => ({ en: 0, hi: 1, mr: 2 })[lang];
+const isDone = (/** @type {LineState} */ l, /** @type {number} */ qty) =>
+  l.picked_qty + l.short_qty >= qty;
 
-/** One task as the API returns it. @param {Planned} t @param {State} s */
+/** One task as PackingTaskOut. @param {Planned} t @param {State} s */
 function taskOut(t, s) {
+  const st = s.tasks[t.id];
   return {
     id: t.id,
-    bag_qr: t.bag,
-    route_seq: t.seq,
-    society_id: t.soc.id,
-    flat: t.flat,
-    crate: t.crate,
-    kind: t.kind,
-    total_paise: t.total,
-    status: s.tasks[t.id],
-    done_at: s.done[t.id] ?? null,
-    lines: t.lines.map((l, i) => ({
-      id: `${t.id}-${i + 1}`,
-      product_code: l.code,
-      qty: l.qty,
-      addon: !!l.addon,
-      status: s.lines[`${t.id}-${i + 1}`] ?? "todo",
-    })),
+    hub_id: HUB_ID,
+    order_id: t.order_id,
+    order_kind: t.kind,
+    delivery_date: DATE,
+    slot: SLOT,
+    society: t.society,
+    flat_label: `${t.flat[0]} wing, ${t.flat}`,
+    seq: t.seq,
+    route: null,
+    status: st.status,
+    packer: st.packer,
+    bag_qr: bagQr(t),
+    bags: st.bags,
+    crate_no: st.crate_no,
+    lines_total: t.lines.length,
+    lines_done: t.lines.filter((l, i) => isDone(st.lines[i], l.qty)).length,
+    started_at: st.started_at,
+    packed_at: st.packed_at,
+    version: st.version,
   };
 }
 
-/** What a family gets for a short line: their allowed swap, or money back (₹20 a judi here). */
-function outcomeFor(
-  /** @type {string} */ bag,
-  /** @type {string} */ code,
-  /** @type {Lang} */ lang,
-) {
-  const chosen = METHI_SHORT.find((m) => m.bag === bag);
-  const swap = code === METHI ? chosen?.outcome === "swap" : false;
-  return swap
-    ? { outcome: "swap", swap_name: PRODUCTS["P-102"][L(lang)] }
-    : { outcome: "refund", refund_paise: 2000 };
+/** PackingTaskDetail: the task and its lines. @param {Planned} t @param {State} s @param {Lang} lang */
+const detail = (t, s, lang) => ({
+  ...taskOut(t, s),
+  lines: t.lines.map((l, i) => {
+    const st = s.tasks[t.id].lines[i];
+    return {
+      ...productOut(l.code, lang),
+      qty: l.qty,
+      picked_qty: st.picked_qty,
+      short_qty: st.short_qty,
+      substitute: st.substitute ? productOut(st.substitute, lang) : null,
+      done: isDone(st, l.qty),
+    };
+  }),
+});
+
+/** Only packers and hub managers work the floor; another role's call is refused. @param {Request} request */
+function staff(request) {
+  const role = request.headers.get("x-active-role");
+  return !role || role.startsWith("packer") || role.startsWith("hub_manager")
+    ? null
+    : problem(403, "auth.forbidden", "This role cannot use packing");
 }
 
-/** A planned task by id. @param {string} id */
-const findTask = (id) => PLAN.find((t) => t.id === id);
+/** The line of the ordered product, or of its substitute. @param {Planned} t @param {TaskState} st @param {string} id */
+const lineOf = (t, st, id) =>
+  t.lines.findIndex((l, i) => {
+    const sub = st.lines[i].substitute;
+    return id === pid(l.code) || (sub !== null && id === pid(sub));
+  });
+
+/** Pick, shortage and complete need a started task that the caller holds. @param {TaskState} st */
+function held(st) {
+  if (st.status === "packed") return problem(409, "hub_ops.task_packed", "This task is packed.");
+  if (st.status === "queued")
+    return problem(409, "hub_ops.task_not_started", "Start the task first.");
+  if (st.packer && st.packer.user_id !== ME.user_id)
+    return problem(403, "hub_ops.not_your_task", "Another packer holds this task.");
+  return null;
+}
+const noLine = () => problem(404, "hub_ops.line_not_found", "This product is not on the task.");
 
 /**
- * Shared steps of the packing writes: key check, replay of an answered key, task lookup.
+ * Shared steps of the packing writes: role, Idempotency-Key (a repeat answers what the first call
+ * answered; the same key with another body is refused), task lookup, then `act`, which returns a
+ * problem or nothing. The answer is the whole task.
  * @param {Request} request @param {string} id
- * @param {(t: Planned, s: State, body: any) => Response | object} act
+ * @param {(t: Planned, st: TaskState, s: State, body: any) => Response | undefined} act
  */
 async function write(request, id, act) {
-  const missing = needsKey(request);
-  if (missing) return missing;
-  const key = /** @type {string} */ (request.headers.get("idempotency-key"));
-  const s = load();
-  if (s.keys[key]) return HttpResponse.json(s.keys[key]);
-  const t = findTask(id);
-  if (!t) return problem(404, "hub_ops.task_not_found", "No such packing task");
+  const denied = staff(request);
+  if (denied) return denied;
+  const key = request.headers.get("idempotency-key");
+  if (!key)
+    return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
   const body = await request.json().catch(() => ({}));
-  const out = act(t, s, body);
-  if (out instanceof Response) return out;
-  s.keys[key] = out;
+  const fingerprint = JSON.stringify([new URL(request.url).pathname, body]);
+  const s = load();
+  const seen = s.keys[key];
+  if (seen)
+    return seen.fingerprint === fingerprint
+      ? HttpResponse.json(seen.body)
+      : problem(422, "request.idempotency_mismatch", "That key was used for another request");
+  const t = findTask(id);
+  if (!t) return problem(404, "hub_ops.task_not_found", "No such packing task.");
+  const refused = act(t, s.tasks[t.id], s, body);
+  if (refused) return refused;
+  const answer = detail(t, s, langOf(request));
+  s.keys[key] = { fingerprint, body: answer };
   save(s);
-  return HttpResponse.json(out);
+  return HttpResponse.json(answer);
 }
 
 export const packerHandlers = [
-  // The day's packing tasks in route order (M6 §3), with the products to scan and the societies.
+  // The hub, for its name and the day's timings (the van leaves at `timings.dispatch`).
+  http.get("*/v1/hubs/:hubId", ({ params }) =>
+    params.hubId === HUB_ID
+      ? HttpResponse.json({
+          id: HUB_ID,
+          slug: "kharghar",
+          name: "Kharghar hub",
+          status: "active",
+          address: "Sector 20, Kharghar, Navi Mumbai",
+          location: { lat: 19.033, lng: 73.0627 },
+          service_area: null,
+          timings: { receiving: "04:00", packing: "05:00", dispatch: "06:30", surplus: "12:30" },
+          procurement_buffer_pct: 10,
+          version: 1,
+          created_at: "2026-09-01T04:00:00Z",
+          updated_at: "2026-09-01T04:00:00Z",
+        })
+      : problem(404, "hub_ops.hub_not_found", "No such hub."),
+  ),
+
+  // The hub's packing queue for a date, by seq: Page[PackingTaskOut] (limit 1 to 200, default 50).
   http.get("*/v1/hubs/:hubId/packing-tasks", ({ request, params }) => {
-    if (params.hubId !== HUB) return problem(404, "hub_ops.hub_not_found", "No such hub");
-    const lang = langOf(request);
+    const denied = staff(request);
+    if (denied) return denied;
+    if (params.hubId !== HUB_ID) return problem(403, "auth.forbidden", "Not your hub");
+    const q = new URL(request.url).searchParams;
+    const limit = Number(q.get("limit") ?? 50);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return invalid();
+    let after = 0;
+    if (q.get("cursor")) {
+      try {
+        after = JSON.parse(atob(/** @type {string} */ (q.get("cursor")))).after;
+      } catch {
+        return problem(422, "request.invalid_cursor", "The cursor is not valid.");
+      }
+    }
     const s = load();
+    const rows = PLAN.filter(
+      (t) =>
+        t.seq > after &&
+        (!q.get("status") || s.tasks[t.id].status === q.get("status")) &&
+        (!q.get("society_id") || t.society.id === q.get("society_id")),
+    );
+    const page = rows.slice(0, limit);
     return HttpResponse.json({
-      hub: { id: HUB, name: ["Kharghar hub", "खारघर हब", "खारघर हब"][L(lang)] },
-      date: DATE,
-      van_departs_at: "07:00",
-      societies: SOCIETIES.map((soc, i) => ({
-        id: soc.id,
-        name: soc.names[L(lang)],
-        stop: i + 1,
-        captain: soc.captain[L(lang)],
-      })),
-      products: Object.fromEntries(
-        Object.entries(PRODUCTS).map(([code, p]) => [
-          code,
-          { name: p[L(lang)], unit: p[3], shelf: SHELVES[p[5]][L(lang)] },
-        ]),
-      ),
-      tasks: PLAN.map((t) => taskOut(t, s)),
+      items: page.map((t) => taskOut(t, s)),
+      next_cursor:
+        rows.length > limit ? btoa(JSON.stringify({ after: page[page.length - 1].seq })) : null,
     });
   }),
 
-  // Items that came in short today (GRN gap) with what each family would get, and what has been
-  // reported (our proposal; M6 §3 has only the per-task POST).
+  // A packing task with its lines, in the request's language.
+  http.get("*/v1/packing-tasks/:id", ({ request, params }) => {
+    const denied = staff(request);
+    if (denied) return denied;
+    const t = findTask(String(params.id));
+    return t
+      ? HttpResponse.json(detail(t, load(), langOf(request)))
+      : problem(404, "hub_ops.task_not_found", "No such packing task.");
+  }),
+
+  // Scanning a bag starts it: the packer holds it from now on. A scanned code must match the bag.
+  http.post("*/v1/packing-tasks/:id/start", ({ request, params }) =>
+    write(request, String(params.id), (t, st, _s, body) => {
+      if (st.status === "packed")
+        return problem(409, "hub_ops.task_packed", "This task is packed.");
+      if (body.bag_qr != null && body.bag_qr !== bagQr(t))
+        return problem(422, "hub_ops.bag_mismatch", "This bag belongs to another order.");
+      if (st.packer && st.packer.user_id !== ME.user_id)
+        return problem(409, "hub_ops.task_taken", "Another packer holds this task.");
+      if (st.packer) return undefined;
+      st.status = "picking";
+      st.packer = ME;
+      st.started_at = new Date().toISOString();
+      st.version++;
+      return undefined;
+    }),
+  ),
+
+  // Steps in the bag for a line, absolute (0 to qty less short), so a repeat changes nothing.
+  http.post("*/v1/packing-tasks/:id/pick", ({ request, params }) =>
+    write(request, String(params.id), (t, st, _s, body) => {
+      if (typeof body.product_id !== "string" || !Number.isInteger(body.picked_qty))
+        return invalid();
+      const refused = held(st);
+      if (refused) return refused;
+      const i = lineOf(t, st, body.product_id);
+      if (i < 0) return noLine();
+      const line = st.lines[i];
+      if (body.picked_qty < 0 || body.picked_qty > t.lines[i].qty - line.short_qty)
+        return problem(422, "hub_ops.qty_invalid", "Picked steps are out of range.");
+      if (line.picked_qty !== body.picked_qty) {
+        line.picked_qty = body.picked_qty;
+        st.version++;
+      }
+      return undefined;
+    }),
+  ),
+
+  // A line that cannot be filled, once: refund short steps, or replace the whole line with the
+  // substitute (methi to palak) unless the family chose "never substitute, refund".
+  http.post("*/v1/packing-tasks/:id/shortage", ({ request, params }) =>
+    write(request, String(params.id), (t, st, _s, body) => {
+      if (typeof body.product_id !== "string" || !Number.isInteger(body.short_qty))
+        return invalid();
+      const refused = held(st);
+      if (refused) return refused;
+      const i = lineOf(t, st, body.product_id);
+      if (i < 0) return noLine();
+      const line = st.lines[i];
+      const qty = t.lines[i].qty;
+      if (line.short_qty || line.substitute)
+        return problem(409, "hub_ops.shortage_recorded", "This line already has its shortage.");
+      const sub = body.substitute_product_id ?? null;
+      const cannotReplace = (/** @type {string} */ reason) =>
+        problem(422, "hub_ops.substitute_invalid", "This product cannot replace the line.", {
+          reason,
+        });
+      if (sub === null) {
+        if (body.short_qty < 1 || body.short_qty > qty - line.picked_qty)
+          return problem(422, "hub_ops.qty_invalid", "Short steps are out of range.");
+        line.short_qty = body.short_qty;
+      } else {
+        if (body.short_qty !== qty || line.picked_qty) return cannotReplace("partial");
+        if (prefersRefund(t.seq)) return cannotReplace("refund_preferred");
+        if (t.lines[i].code !== METHI || sub !== pid(PALAK))
+          return cannotReplace("not_a_substitute");
+        line.substitute = PALAK;
+      }
+      st.version++;
+      return undefined;
+    }),
+  ),
+
+  // Closing a bag needs every line done. The crate is the society's current one unless given.
+  http.post("*/v1/packing-tasks/:id/complete", ({ request, params }) =>
+    write(request, String(params.id), (t, st, s, body) => {
+      const refused = held(st);
+      if (refused) return refused;
+      const outside = (/** @type {any} */ v, /** @type {number} */ max) =>
+        v != null && !(Number.isInteger(v) && v >= 1 && v <= max);
+      if (outside(body.bags, 5) || outside(body.crate_no, 99)) return invalid();
+      const open = t.lines.filter((l, i) => !isDone(st.lines[i], l.qty)).map((l) => pid(l.code));
+      if (open.length)
+        return problem(409, "hub_ops.lines_open", "Pick or mark short every line first.", {
+          product_ids: open,
+        });
+      st.crate_no = body.crate_no ?? crateFor(s, t);
+      st.bags = body.bags ?? st.bags;
+      st.status = "packed";
+      st.packed_at = new Date().toISOString();
+      st.version++;
+      return undefined;
+    }),
+  ),
+
+  // MOCK-ONLY PROPOSAL (not in M6 §3.2): items that came in short today (the goods-receipt gap,
+  // M6 §3.4 once built), the bags that can still take the shortage and those that have, each with
+  // what the family gets: a swap they allowed (`substitute`, chosen by the server from
+  // catalog.api.substitute_ids) or money back. `needed` and `received` are in steps.
   http.get("*/v1/hubs/:hubId/shortages", ({ request, params }) => {
-    if (params.hubId !== HUB) return problem(404, "hub_ops.hub_not_found", "No such hub");
+    const denied = staff(request);
+    if (denied) return denied;
+    if (params.hubId !== HUB_ID) return problem(403, "auth.forbidden", "Not your hub");
     const lang = langOf(request);
     const s = load();
-    const bagOut = (/** @type {Planned} */ t, /** @type {string} */ code) => ({
-      task_id: t.id,
-      bag_qr: t.bag,
-      society: t.soc.names[L(lang)],
-      flat: t.flat,
-      qty: 1,
-      ...outcomeFor(t.bag, code, lang),
+    /** @param {Planned} t @param {string} code @param {boolean} swap */
+    const bagOut = (t, code, swap) => {
+      const task = taskOut(t, s);
+      return {
+        task_id: t.id,
+        bag_qr: task.bag_qr,
+        society: t.society.name,
+        flat_label: task.flat_label,
+        qty: t.lines.find((l) => l.code === code)?.qty ?? 1,
+        outcome: swap ? "swap" : "refund",
+        substitute: swap ? productOut(PALAK, lang) : null,
+        refund_paise: 2000,
+      };
+    };
+    /** Lines short or substituted, per product code. @type {Record<string, ReturnType<typeof bagOut>[]>} */
+    const reported = {};
+    for (const t of PLAN)
+      t.lines.forEach((l, i) => {
+        const line = s.tasks[t.id].lines[i];
+        if (!line.short_qty && !line.substitute) return;
+        reported[l.code] = [...(reported[l.code] ?? []), bagOut(t, l.code, !!line.substitute)];
+      });
+    // Bags that can still take the methi shortage: not packed, methi not picked or reported.
+    const methiBags = METHI_SHORT.map((m) => PLAN[m.seq - 1])
+      .sort((a, b) => a.seq - b.seq)
+      .filter((t) => {
+        const st = s.tasks[t.id];
+        const line = st.lines[t.lines.findIndex((l) => l.code === METHI)];
+        return st.status !== "packed" && !line.picked_qty && !line.short_qty && !line.substitute;
+      });
+    /** @param {string} code @param {{ needed: number, received: number, bags: ReturnType<typeof bagOut>[] }} [gap] */
+    const item = (code, gap) => ({
+      ...productOut(code, lang),
+      needed: gap?.needed ?? null,
+      received: gap?.received ?? null,
+      bags: gap?.bags ?? [],
+      reported: reported[code] ?? [],
     });
-    const reportedFor = (/** @type {string} */ code) =>
-      s.reported
-        .filter((r) => r.code === code)
-        .map((r) => bagOut(/** @type {Planned} */ (findTask(r.task_id)), code));
-    const methiDone = new Set(s.reported.filter((r) => r.code === METHI).map((r) => r.task_id));
-    const others = [...new Set(s.reported.map((r) => r.code))].filter((c) => c !== METHI);
     return HttpResponse.json({
       items: [
-        {
-          product_code: METHI,
+        item(METHI, {
           needed: 30,
           received: 26,
-          // Bags still able to take the shortage: not reported, methi not yet picked.
-          bags: METHI_SHORT.map((m) => /** @type {Planned} */ (findTask(`pt-${m.bag}`)))
-            .filter((t) => {
-              const i = t.lines.findIndex((l) => l.code === METHI);
-              return !methiDone.has(t.id) && s.lines[`${t.id}-${i + 1}`] !== "picked";
-            })
-            .map((t) => bagOut(t, METHI)),
-          reported: reportedFor(METHI),
-        },
-        ...others.map((code) => ({
-          product_code: code,
-          needed: null,
-          received: null,
-          bags: [],
-          reported: reportedFor(code),
-        })),
+          bags: methiBags.map((t) => bagOut(t, METHI, !prefersRefund(t.seq))),
+        }),
+        ...Object.keys(reported)
+          .filter((code) => code !== METHI)
+          .map((code) => item(code)),
       ],
     });
   }),
-
-  // Scanning a bag starts it. A packed bag cannot be opened again.
-  http.post("*/v1/packing-tasks/:id/start", ({ request, params }) =>
-    write(request, String(params.id), (t, s) => {
-      if (s.tasks[t.id] === "packed")
-        return problem(409, "hub_ops.task_already_packed", "This bag is already packed");
-      s.tasks[t.id] = "packing";
-      return taskOut(t, s);
-    }),
-  ),
-
-  // One scanned item: the first open line with that product. Anything else is the wrong item.
-  http.post("*/v1/packing-tasks/:id/pick", ({ request, params }) =>
-    write(request, String(params.id), (t, s, body) => {
-      if (s.tasks[t.id] === "packed")
-        return problem(409, "hub_ops.task_already_packed", "This bag is already packed");
-      const i = t.lines.findIndex(
-        (l, n) => l.code === body.product_code && !s.lines[`${t.id}-${n + 1}`],
-      );
-      if (i < 0) return problem(422, "hub_ops.wrong_item", "This bag doesn’t need that item");
-      s.tasks[t.id] = "packing";
-      s.lines[`${t.id}-${i + 1}`] = "picked";
-      return taskOut(t, s);
-    }),
-  ),
-
-  // Closing a bag needs every line picked or marked short.
-  http.post("*/v1/packing-tasks/:id/complete", ({ request, params }) =>
-    write(request, String(params.id), (t, s) => {
-      if (t.lines.some((_, n) => !s.lines[`${t.id}-${n + 1}`]))
-        return problem(409, "hub_ops.lines_open", "Some lines are not picked or marked short");
-      s.tasks[t.id] = "packed";
-      s.done[t.id] ??= new Date().toISOString();
-      return taskOut(t, s);
-    }),
-  ),
-
-  // A line that cannot be filled. The family's own choice decides a swap or money back (via
-  // orders.api on the server); the answer says which.
-  http.post("*/v1/packing-tasks/:id/shortage", ({ request, params }) =>
-    write(request, String(params.id), (t, s, body) => {
-      const i = t.lines.findIndex(
-        (l, n) => l.code === body.product_code && !s.lines[`${t.id}-${n + 1}`],
-      );
-      if (i < 0)
-        return problem(409, "hub_ops.line_not_open", "That line is already picked or short");
-      s.lines[`${t.id}-${i + 1}`] = "short";
-      s.reported.push({ task_id: t.id, code: body.product_code, qty: Number(body.qty) || 1 });
-      return {
-        task_id: t.id,
-        product_code: body.product_code,
-        ...outcomeFor(t.bag, body.product_code, langOf(request)),
-      };
-    }),
-  ),
 ];
 
 /** Dev and test helper: back to the designs' morning. */
 export const resetPacking = () => localStorage.removeItem(KEY);
 
-/** Demo helper: every bag packed (design PackerDone), with methi short in 4 bags. */
+/** Demo helper: every bag packed (design PackerDone), with methi refunded in 4 bags. */
 export function seedAllPacked() {
   const s = seed();
   for (const t of PLAN) {
-    s.tasks[t.id] = "packed";
-    s.done[t.id] ??= `${DATE}T06:${String(t.seq % 40).padStart(2, "0")}:00+05:30`;
+    const st = s.tasks[t.id];
     t.lines.forEach((l, i) => {
-      const short = l.code === METHI && SHORT_BAGS.slice(0, 4).includes(t.bag);
-      s.lines[`${t.id}-${i + 1}`] = short ? "short" : "picked";
-      if (short) s.reported.push({ task_id: t.id, code: METHI, qty: 1 });
+      st.lines[i].picked_qty = l.qty;
     });
+    const methi = t.lines.findIndex((l) => l.code === METHI);
+    if (methi >= 0 && METHI_SHORT.slice(0, 4).some((m) => m.seq === t.seq)) {
+      st.lines[methi].picked_qty = 0;
+      st.lines[methi].short_qty = t.lines[methi].qty;
+    }
+    st.status = "packed";
+    st.packer ??= ME;
+    st.started_at ??= `${DATE}T05:00:00+05:30`;
+    st.packed_at ??= `${DATE}T06:${String(t.seq % 40).padStart(2, "0")}:00+05:30`;
+    st.crate_no ??= crateFor(s, t);
   }
-  s.done["pt-K-112"] = `${DATE}T06:40:00+05:30`;
   save(s);
 }
