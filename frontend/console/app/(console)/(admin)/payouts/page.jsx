@@ -1,17 +1,14 @@
-import { apiGet } from "@/lib/api.js";
+import { getRole } from "@/lib/auth.js";
+import { currentHub } from "@/lib/hub.js";
+import { getPayouts } from "./data.js";
 import { PayoutsView } from "./PayoutsView.jsx";
 
 export const metadata = { title: "Payouts" };
 
-/**
- * @typedef {import("@/mocks/billing.js").Payout} Payout
- * @typedef {{ week_start: string, paid_on: string, next_run: string, test_mode: boolean,
- *   totals: { paid_paise: number, paid_partners: number, held_paise: number, failed_paise: number, failed_count: number },
- *   items: Payout[] }} Payouts
- */
-
-export default async function Page() {
-  /** @type {Payouts} */
-  const payouts = await apiGet("/v1/admin/payouts");
-  return <PayoutsView payouts={payouts} />;
+/** @param {{ searchParams: Promise<{ week?: string }> }} props */
+export default async function Page({ searchParams }) {
+  const { week } = await searchParams;
+  const [hub, role] = await Promise.all([currentHub(), getRole()]);
+  const data = await getPayouts(hub.id, week);
+  return <PayoutsView {...data} canRetry={role === "admin"} />;
 }

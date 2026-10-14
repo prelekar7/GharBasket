@@ -1,10 +1,9 @@
-// Money-side console mocks (M5): reconciliation, refunds review and partner payouts. Only
+// Money-side console mocks (M5): reconciliation and refunds review. Only
 // `GET /v1/admin/reconciliation` is in the spec (§3); everything else here is a proposal for the console:
 //   POST /v1/admin/reconciliation/check            run the hourly job now
 //   POST /v1/admin/reconciliation/{id}/credit      post the missing wallet credit (a correcting journal entry)
 //   POST /v1/admin/reconciliation/{id}/investigate mark a mismatch as being looked at
 //   GET  /v1/admin/refunds, POST …/{id}/approve | reject | reopen
-//   GET  /v1/admin/payouts?week=, POST …/{id}/retry
 // All money is integer paise. Nothing is edited or deleted: every fix would be a new ledger entry.
 import { HttpResponse, http } from "msw";
 import { STORY_NOW } from "./orders.js";
@@ -123,65 +122,6 @@ const refunds = () =>
       ]),
   );
 
-// ---------- Payouts ----------
-
-/**
- * @typedef {{ id: string, name: string, masked_account: string, role: string, work: string, amount_paise: number,
- *   kyc: "verified" | "pending", status: "paid" | "failed" | "held", failure: string | null }} Payout
- */
-
-const payouts = () =>
-  mockStore(
-    "payouts",
-    () =>
-      /** @type {Payout[]} */ ([
-        {
-          id: "po-lata",
-          name: "Lata Shinde",
-          masked_account: "••••7731",
-          role: "Kitchen",
-          work: "47 tiffins",
-          amount_paise: 329000,
-          kyc: "verified",
-          status: "paid",
-          failure: null,
-        },
-        {
-          id: "po-kavita",
-          name: "Kavita More",
-          masked_account: "••••2208",
-          role: "Packer",
-          work: "3 packing shifts",
-          amount_paise: 210000,
-          kyc: "verified",
-          status: "paid",
-          failure: null,
-        },
-        {
-          id: "po-meena",
-          name: "Meena Jadhav",
-          masked_account: "••••5190",
-          role: "Society Captain",
-          work: "3 delivery days · 128 boxes",
-          amount_paise: 128000,
-          kyc: "verified",
-          status: "paid",
-          failure: null,
-        },
-        {
-          id: "po-arjun",
-          name: "Arjun Pawar",
-          masked_account: "••••0943",
-          role: "Rider",
-          work: "3 routes",
-          amount_paise: 178000,
-          kyc: "verified",
-          status: "failed",
-          failure: "name mismatch",
-        },
-      ]),
-  );
-
 export const billingHandlers = [
   // GET /v1/admin/reconciliation (M5 §3, admin)
   http.get("*/v1/admin/reconciliation", ({ request }) =>
@@ -249,40 +189,5 @@ export const billingHandlers = [
         return HttpResponse.json(r);
       }),
     ),
-  ),
-
-  // GET /v1/admin/payouts?week= : the latest run unless a week is given.
-  http.get("*/v1/admin/payouts", ({ request }) => {
-    if (!allowed(request, ["admin"])) return problem(403, "auth.forbidden", "Admins only");
-    const items = payouts();
-    const sum = (/** @type {Payout["status"]} */ s) =>
-      items.filter((p) => p.status === s).reduce((t, p) => t + p.amount_paise, 0);
-    return HttpResponse.json({
-      week_start: "2026-09-28",
-      paid_on: "2026-10-05",
-      next_run: "2026-10-12T10:00:00+05:30",
-      test_mode: true,
-      totals: {
-        paid_paise: sum("paid"),
-        paid_partners: items.filter((p) => p.status === "paid").length,
-        held_paise: sum("held"),
-        failed_paise: sum("failed"),
-        failed_count: items.filter((p) => p.status === "failed").length,
-      },
-      items,
-    });
-  }),
-
-  http.post("*/v1/admin/payouts/:id/retry", ({ request, params }) =>
-    idempotent(request, () => {
-      if (!allowed(request, ["admin"])) return problem(403, "auth.forbidden", "Admins only");
-      const p = payouts().find((x) => x.id === params.id);
-      if (!p) return problem(404, "billing.payout_not_found", "No such payout");
-      if (p.status !== "failed")
-        return problem(409, "billing.payout_not_failed", "Only a failed payout can be retried");
-      p.status = "paid";
-      p.failure = null;
-      return HttpResponse.json(p);
-    }),
   ),
 ];

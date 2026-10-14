@@ -16,6 +16,7 @@ import { opsBoardHandlers } from "./opsboard.js";
 import { ordersHandlers } from "./orders.js";
 import { packingHandlers } from "./packing.js";
 import { partnersHandlers } from "./partners.js";
+import { payoutsHandlers } from "./payouts.js";
 import { plansHandlers } from "./plans.js";
 import { pricesHandlers } from "./prices.js";
 import { procurementHandlers } from "./procurement.js";
@@ -42,6 +43,7 @@ export const handlers = [
   ...notificationsHandlers,
   ...ordersHandlers,
   ...partnersHandlers,
+  ...payoutsHandlers,
   ...plansHandlers,
   ...pricesHandlers,
   ...publicHandlers,
