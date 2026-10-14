@@ -1,6 +1,5 @@
-import "maplibre-gl/dist/maplibre-gl.css";
-import { LngLatBounds, Map as MapLibre, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+import { LngLatBounds, Map as MapLibre, Marker } from "@/lib/maplibre.js";
 
 // OpenFreeMap tiles, as in PinMap (TDD §3.2: MapLibre, not Google Maps).
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
