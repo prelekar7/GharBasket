@@ -2,7 +2,8 @@
 
 import { Button, TextField, toast } from "@gharbasket/ui";
 import { DataTable } from "@gharbasket/ui/console";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
 import { dayAndTime } from "@/lib/dates.js";
 import { formatPaiseExact, parseDecimal, toDecimalText } from "@/lib/money.js";
@@ -21,7 +22,7 @@ const FIELDS = [
     key: "aov_paise",
     label: "Average box value (AOV)",
     unit: "rupee",
-    help: "From September’s boxes",
+    help: "Average of the boxes delivered",
   },
   { key: "margin_bp", label: "Margin on produce", unit: "percent", help: "After vendor cost" },
   {
@@ -66,13 +67,32 @@ const MOVE_FIELDS = {
   cac: "cac_paise",
 };
 
+/** What a source badge says in the arithmetic. @type {Record<string, string>} */
+const SOURCE_WORDS = { measured: "measured", assumed: "assumed", override: "your change" };
+
+/**
+ * "Delivery per box ₹45 → ₹40" for a history entry's changes.
+ * @param {{ key: string, from: number, to: number }[]} changes
+ */
+function changeText(changes) {
+  return changes
+    .map((c) => {
+      const field = FIELDS.find((f) => f.key === c.key);
+      if (!field) return c.key;
+      return `${field.label.replace(/ \(.*\)$/, "")} ${short(field.key, c.from)} → ${short(field.key, c.to)}`;
+    })
+    .join("; ");
+}
+
 /**
  * The unit-economics calculator: change an assumption and the box's arithmetic updates as you type.
- * Saving writes the hub's assumptions, which the P&L then uses.
+ * A number the pilot measured is used as it is unless you change it here (override, then measured, then
+ * saved: the same order as the server). Saving writes the hub's assumptions, which the P&L then uses.
  * @param {{ data: import("./data.js").UnitEconomics }} props
  */
 export function UnitEconomicsView({ data }) {
   const saved = data.assumptions;
+  const version = useRef(data.version);
   const [text, setText] = useState(() =>
     Object.fromEntries(FIELDS.map((f) => [f.key, toDecimalText(saved[f.key])])),
   );
@@ -84,16 +104,25 @@ export function UnitEconomicsView({ data }) {
     Object.fromEntries(parsed.map((p) => [p.key, p.value ?? saved[p.key]]))
   );
   const dirty = FIELDS.some((f) => draft[f.key] !== saved[f.key]);
-  const box = boxEconomics(draft);
+  /** What the box is worked out from: your change, else what was measured, else the saved number. */
+  const inUse = /** @type {Assumptions} */ (
+    Object.fromEntries(
+      FIELDS.map((f) => [f.key, draft[f.key] !== saved[f.key] ? draft[f.key] : data.used[f.key]]),
+    )
+  );
+  /** @param {keyof Assumptions} key */
+  const sourceOf = (key) => (draft[key] !== saved[key] ? "override" : data.sources[key]);
+  const box = boxEconomics(inUse, data.delivery_fee_paise);
 
   /** @param {Assumptions} next @param {Assumptions | null} undoTo */
   function save(next, undoTo) {
     startSaving(async () => {
-      const result = await saveAssumptions(next);
+      const result = await saveAssumptions(next, version.current);
       if (!result.ok) {
         toast(result.message);
         return;
       }
+      version.current = result.version;
       if (undoTo) {
         const back = undoTo;
         toast("Assumptions saved. The P&L uses them now.", {
@@ -106,20 +135,27 @@ export function UnitEconomicsView({ data }) {
     });
   }
 
+  /** @param {keyof Assumptions} key */
+  const tag = (key) => ` · ${SOURCE_WORDS[sourceOf(key)]}`;
   const steps = [
     [
-      `AOV × margin (${formatRupees(draft.aov_paise)} × ${short("margin_bp", draft.margin_bp)})`,
+      `AOV × margin (${formatRupees(inUse.aov_paise)}${tag("aov_paise")} × ${short("margin_bp", inUse.margin_bp)}${tag("margin_bp")})`,
       box.margin_paise,
-      false,
     ],
-    ["− Delivery", box.delivery_paise, true],
-    ["− Packing", box.packing_paise, true],
-    ["− Captain commission", box.captain_paise, true],
-    [`− Payment fee (${short("payment_fee_bp", draft.payment_fee_bp)})`, box.fee_paise, true],
-    ["− Acquisition", box.cac_paise, true],
+    ...(box.delivery_fee_paise > 0
+      ? [["+ Delivery fee before the society is live · measured", box.delivery_fee_paise]]
+      : []),
+    [`− Delivery${tag("delivery_paise")}`, box.delivery_paise],
+    [`− Packing${tag("packing_paise")}`, box.packing_paise],
+    [`− Captain commission${tag("captain_paise")}`, box.captain_paise],
+    [
+      `− Payment fee (${short("payment_fee_bp", inUse.payment_fee_bp)})${tag("payment_fee_bp")}`,
+      box.fee_paise,
+    ],
+    [`− Acquisition${tag("cac_paise")}`, box.cac_paise],
   ];
 
-  const moves = sensitivities(draft)
+  const moves = sensitivities(inUse, data.delivery_fee_paise)
     .sort((a, b) => Math.abs(b.change_paise) - Math.abs(a.change_paise))
     .map((m) => {
       const field = MOVE_FIELDS[m.key];
@@ -136,13 +172,14 @@ export function UnitEconomicsView({ data }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Unit economics · one box">
+      <PageHeader title="Unit economics · one box" actions={<DataSourceControl />}>
         Change an assumption and see what one box earns. Saved assumptions feed the P&amp;L; the
-        history of changes is kept.
+        history of changes is kept. A number marked measured comes from the last 4 weeks of{" "}
+        {data.boxes} boxes and is used until you change it here.
       </PageHeader>
       <p className="rounded-sm border border-line bg-bg px-3 py-2.5 font-mono text-[13px] leading-5">
-        contribution per order = AOV × margin − (delivery + packing + captain commission + payment
-        fee + CAC)
+        contribution per box = AOV × margin + delivery fee − (delivery + packing + captain
+        commission + payment fee + CAC)
       </p>
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
@@ -156,7 +193,11 @@ export function UnitEconomicsView({ data }) {
               key={f.key}
               label={f.label}
               prefix={f.unit === "rupee" ? "₹" : "%"}
-              description={f.help}
+              description={
+                data.measured[f.key] == null
+                  ? f.help
+                  : `${f.help} · measured ${short(f.key, data.measured[f.key] ?? 0)}`
+              }
               inputMode="decimal"
               value={text[f.key]}
               onChange={(v) => setText((t) => ({ ...t, [f.key]: v }))}
@@ -248,8 +289,8 @@ export function UnitEconomicsView({ data }) {
           rows={data.history.map((h, i) => ({
             id: String(i),
             at: dayAndTime(h.at),
-            by: h.by,
-            change: h.change,
+            by: h.by.name,
+            change: changeText(h.changes),
           }))}
           labels={{ empty: "No changes yet. The seed assumptions are in use." }}
         />
