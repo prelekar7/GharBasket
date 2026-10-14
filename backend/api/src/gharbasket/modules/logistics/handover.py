@@ -20,7 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import attempts, events, tracking
-from gharbasket.modules.logistics.execution import ensure_running, stop_not_found, tap
+from gharbasket.modules.logistics.execution import (
+    ensure_running,
+    route_orders,
+    stop_not_found,
+    tap,
+)
 from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
 from gharbasket.modules.logistics.routing import DETOUR, metres
@@ -179,25 +184,23 @@ async def hand_over(
 ) -> tuple[Handover, list[uuid.UUID], list[uuid.UUID]]:
     """Move the stop's dispatched orders to `at_society`: all of them when the counts match, the
     scanned ones otherwise (409 `logistics.count_mismatch` without scans); `check_proof` first."""
-    orders = await orders_api.orders_for_delivery(
-        session, route.hub_id, route.delivery_date, ("dispatched",), kinds=KINDS
-    )
-    dispatched = [
-        s.order.id
-        for s in orders
-        if (s.order.society_id, s.order.slot_id) == (stop.society_id, stop.slot_id)
-    ]
-    mismatch = (body.crates, body.bags) != (stop.crates, stop.bags)
+    dispatched = [o.id for o in (await route_orders(session, route, ("dispatched",)))[stop.id]]
+    # Redelivered bags: those back from the hub are counted; one the captain kept overnight is
+    # not, yet it moves with the handover (§3.4).
+    again = await attempts.riding(session, [stop.id])
+    kept = {d.order_id for d in again if d.kept_by_captain}
+    expected_bags = stop.bags + sum(not d.kept_by_captain for d in again)
+    mismatch = (body.crates, body.bags) != (stop.crates, expected_bags)
     moving = dispatched
     if mismatch:
         if not body.scanned_bags:
             raise conflict(
                 "logistics.count_mismatch",
                 "The counts do not match what the van carries; scan the bags you have.",
-                expected={"crates": stop.crates, "bags": stop.bags},
+                expected={"crates": stop.crates, "bags": expected_bags},
             )
         scanned = {bag_order_id(qr) for qr in body.scanned_bags}
-        moving = [o for o in dispatched if o in scanned]
+        moving = [o for o in dispatched if o in scanned or o in kept]
     for order_id in moving:
         await orders_api.transition(
             session, order_id, "at_society", actor=actor.kind, actor_user_id=actor.user_id
@@ -214,7 +217,7 @@ async def hand_over(
         partner_id=actor.partner_id,
         crates_expected=stop.crates,
         crates_counted=body.crates,
-        bags_expected=stop.bags,
+        bags_expected=expected_bags,
         bags_counted=body.bags,
         mismatch=mismatch,
         proof=proof,

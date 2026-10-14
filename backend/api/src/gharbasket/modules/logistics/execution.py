@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.logistics import attempts, events
-from gharbasket.modules.logistics.models import FieldEvent, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, conflict, get_route
 from gharbasket.modules.logistics.views import IST, ist_seconds, now, stops_of
 from gharbasket.modules.orders import api as orders_api
@@ -95,7 +95,8 @@ def tap(
 async def route_orders(
     session: AsyncSession, route: Route, statuses: tuple[str, ...]
 ) -> dict[uuid.UUID, list[orders_api.Order]]:
-    """The orders of each stop of the route (its society and slot on the route's date)."""
+    """The orders of each stop of the route: its society and slot on the route's date, and the
+    redeliveries booked on it."""
     stops = await stops_of(session, route.id)
     by_pair = {(s.society_id, s.slot_id): s.id for s in stops}
     out: dict[uuid.UUID, list[orders_api.Order]] = {s.id: [] for s in stops}
@@ -106,6 +107,10 @@ async def route_orders(
         stop_id = by_pair.get((summary.order.society_id, summary.order.slot_id))
         if stop_id is not None:
             out[stop_id].append(summary.order)
+    for again in await attempts.riding(session, list(out)):  # redeliveries of an earlier day
+        order = await orders_api.get(session, again.order_id)
+        if order.status in statuses and again.stop_id is not None:
+            out[again.stop_id].append(order)
     return out
 
 
@@ -197,6 +202,9 @@ async def start(
         )
     actor, actor_user = order_actor(route, who)
     stops = await stops_of(session, route.id)
+    booked: dict[tuple[uuid.UUID, uuid.UUID], list[Delivery]] = {}
+    for again in await attempts.redeliveries_for(session, route.hub_id, route.delivery_date):
+        booked.setdefault((again.society_id, again.slot_id), []).append(again)
     for stop in stops:
         packed = [o for o in per_stop[stop.id] if o.status == "packed"]
         for order in packed:
@@ -204,6 +212,15 @@ async def start(
                 session, order.id, "dispatched", actor=actor, actor_user_id=actor_user
             )
         await attempts.open_attempts(session, stop, packed)
+        for again in (
+            booked.get((stop.society_id, stop.slot_id), [])
+            if stop.society_id and stop.slot_id
+            else []
+        ):
+            await orders_api.transition(
+                session, again.order_id, "dispatched", actor=actor, actor_user_id=actor_user
+            )
+            again.status, again.stop_id = "on_route", stop.id
         stop.bags, stop.crates = len(packed), math.ceil(len(packed) / BAGS_PER_CRATE)
         stop.handover_code = f"{secrets.randbelow(10_000):04d}"
         stop.code_attempts = 0

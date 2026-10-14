@@ -9,10 +9,12 @@ by the bag's scan alone; a rider needs the household's code or a photo.
 """
 
 import uuid
-from datetime import date, time
+from datetime import date, time, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.logistics import events
 from gharbasket.modules.logistics.attempts import latest, new_code
 from gharbasket.modules.logistics.handover import (
@@ -286,3 +288,78 @@ async def resolve(
         after={"outcome": body.outcome, "refund_paise": amount, "note": body.note},
     )
     await session.flush()
+
+
+# --- the evening jobs (§6) ----------------------------------------------------------------------
+
+SECOND_MISS_FEE_PAISE = 2_000  # ₹20 (spec §11)
+MISSED = ("not_home", "returned_to_hub")
+
+
+async def _due(session: AsyncSession, day: date, statuses: tuple[str, ...]) -> list[Delivery]:
+    rows = await session.execute(
+        select(Delivery)
+        .where(Delivery.delivery_date == day, Delivery.status.in_(statuses))
+        .order_by(Delivery.id)
+        .with_for_update(skip_locked=True)
+    )
+    return list(rows.scalars())
+
+
+async def expire_holds(session: AsyncSession, day: date) -> dict[str, int]:
+    """T 20:30: every order of the day still at the society becomes undelivered (actor system):
+    `not_home` for a held bag, `not_confirmed` (to triage) for one never scanned at a door."""
+    counts = {"not_home": 0, "not_confirmed": 0}
+    for attempt in await _due(session, day, ("with_captain", "held")):
+        order = await orders_api.get(session, attempt.order_id, for_update=True)
+        if order.status != "at_society":
+            continue
+        reason = "not_home" if attempt.status == "held" else "not_confirmed"
+        await orders_api.transition(
+            session, order.id, "undelivered", actor="system", payload={"reason": reason}
+        )
+        attempt.status = "undelivered" if reason == "not_home" else "triage"
+        attempt.reason, attempt.by_actor, attempt.user_id = reason, "system", None
+        attempt.hold_until, attempt.at = None, now()
+        counts[reason] += 1
+    await session.flush()
+    return counts
+
+
+async def second_miss_refund(session: AsyncSession, order: orders_api.Order) -> int:
+    """The perishable lines' paid steps (delivered steps at the paid price) minus ₹20, never
+    below 0 (ADR-0027 §2); the non-perishables are not refunded."""
+    [summary] = await orders_api.summaries(session, [order.id])
+    fresh = await catalog_api.perishable_ids(session, [ln.product_id for ln in summary.lines])
+    paid = sum(
+        (ln.qty - ln.shortage_qty) * ln.unit_price_paise
+        for ln in summary.lines
+        if ln.product_id in fresh
+    )
+    most = await orders_api.refundable_paise(session, order.id)
+    return max(0, min(paid - SECOND_MISS_FEE_PAISE, most))
+
+
+async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
+    """T 20:45: the day's not-home and returned bags (box, add-on). A first miss gets the one free
+    redelivery tomorrow; a second miss refunds the perishables minus the fee."""
+    counts = {"redelivery": 0, "refunded": 0}
+    for attempt in await _due(session, day, ("undelivered",)):
+        if attempt.reason not in MISSED or attempt.order_kind not in ("box", "addon"):
+            continue
+        order = await orders_api.get(session, attempt.order_id, for_update=True)
+        if order.status != "undelivered":
+            continue
+        if attempt.attempt == 1:
+            again = await schedule_redelivery(
+                session, attempt, order, day + timedelta(days=1), actor="system", actor_user_id=None
+            )
+            # held until the end of the hold window: the bag spent the night with the captain
+            again.kept_by_captain = attempt.reason == "not_home" and attempt.by_actor == "system"
+            counts["redelivery"] += 1
+        else:
+            amount = await second_miss_refund(session, order)
+            await refund(session, attempt, order.id, amount, "second_miss")
+            counts["refunded"] += 1
+    await session.flush()
+    return counts
