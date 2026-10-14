@@ -1,4 +1,5 @@
-"""Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST.
+"""Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST; `persist_gps_pings`
+every minute, `close_routes` at T 16:00 and `purge_gps_pings` daily (90 days).
 
 `scheduled_for` decides the delivery date (the day after its IST calendar day), never the clock.
 A manual solve (`POST /v1/hubs/{id}/route-plans`) runs in the background right after its request.
@@ -20,8 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import plans
-from gharbasket.modules.logistics.models import RoutePlan
+from gharbasket.modules.logistics import execution, plans, tracking
+from gharbasket.modules.logistics.models import Route, RoutePlan
 from gharbasket.platform import outbox
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import JobContext, job
@@ -29,6 +30,7 @@ from gharbasket.platform.settings import Settings
 
 IST = ZoneInfo("Asia/Kolkata")
 log = structlog.get_logger("gharbasket.logistics")
+RETENTION = timedelta(days=90)  # GPS trails (handbook 13 §13.5)
 
 
 @job("solve_routes", "Solve tomorrow's box routes at every active hub (T-1 23:15 IST)")
@@ -117,3 +119,38 @@ def solve_soon(
     task = asyncio.create_task(solve_queued(sessionmaker, http, settings, plan_id))
     _tasks.add(task)
     task.add_done_callback(_tasks.discard)
+
+
+# --- GPS and the day's end (§6) ---------------------------------------------------------------
+
+
+@job("persist_gps_pings", "Move the riders' GPS pings from Valkey into Postgres (every minute)")
+async def persist_gps_pings(ctx: JobContext) -> dict[str, Any]:
+    read, inserted = await tracking.persist(ctx.session, ctx.valkey)
+    return {"read": read, "inserted": inserted}
+
+
+@job("close_routes", "Complete the routes still in progress; their bags ride back (T 16:00 IST)")
+async def close_routes(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(IST).date()
+    routes = (
+        await ctx.session.execute(
+            select(Route)
+            .where(Route.status == "in_progress", Route.delivery_date <= day)
+            .order_by(Route.id)
+            .with_for_update(skip_locked=True)  # not one a rider is completing right now
+        )
+    ).scalars()
+    closed = back = 0
+    for route in list(routes):
+        back += await execution.close(ctx.session, route, "system", None)
+        route.version += 1
+        await tracking.forget(ctx.valkey, route.id)
+        closed += 1
+    return {"date": day.isoformat(), "closed": closed, "returned_to_hub": back}
+
+
+@job("purge_gps_pings", "Delete GPS pings older than 90 days (daily 03:43 IST)")
+async def purge_gps_pings(ctx: JobContext) -> dict[str, Any]:
+    deleted, dropped = await tracking.purge(ctx.session, ctx.scheduled_for - RETENTION)
+    return {"deleted": deleted, "partitions_dropped": dropped}

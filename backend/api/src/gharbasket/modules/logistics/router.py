@@ -10,13 +10,15 @@ from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import execution, jobs, plans, service, views
+from gharbasket.modules.logistics import execution, jobs, plans, service, tracking, views
 from gharbasket.modules.logistics import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.logistics import routes as route_ops
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.schemas import (
     CompleteIn,
     FieldTap,
+    LocationIn,
+    LocationOut,
     PlanKind,
     PlanSummary,
     PublishIn,
@@ -38,6 +40,7 @@ from gharbasket.modules.logistics.schemas import (
     VehiclePatch,
     VehiclesOut,
 )
+from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
@@ -51,6 +54,7 @@ from gharbasket.platform.permissions import (
     require,
 )
 from gharbasket.platform.settings import Settings, get_settings
+from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["logistics"])
 
@@ -598,3 +602,38 @@ async def skip_stop(
         session, route, stop, who, reason=body.reason, note=body.note, client_at=body.client_at
     )
     return await _stop_answer(session, idem, route, stop)
+
+
+# --- GPS (§3.3) -------------------------------------------------------------------------------
+
+
+@router.post(
+    "/riders/me/location",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Send a batch of 1 to 20 GPS pings for the caller's started route",
+    description="No Idempotency-Key: pings are deduplicated. A ping too old (10 min), ahead of "
+    "the clock (1 min), outside India, less accurate than 200 m or under 5 s after the previous "
+    "one is dropped and counted. 12 requests a minute per rider.",
+    responses={
+        **SIGNED_IN,
+        409: _problem("logistics.no_active_route"),
+        422: _problem("request.invalid"),
+        429: _problem("logistics.location_rate_limited (Retry-After)"),
+    },
+)
+async def post_location(
+    body: LocationIn, permit: CanDrive, session: DbSession, valkey: Valkey
+) -> LocationOut:
+    rider = permit.principal.user_id
+    await rate_limit.enforce(
+        valkey,
+        f"logistics:loc:{rider}",
+        limit=12,
+        window_s=60,
+        code="logistics.location_rate_limited",
+        detail="Too many location batches; send at most 12 a minute.",
+    )
+    route = await tracking.active_route(session, rider, body.route_id)
+    accepted = await tracking.accept(session, valkey, route, rider, body.pings)
+    await session.commit()
+    return LocationOut(accepted=accepted, dropped=len(body.pings) - accepted)

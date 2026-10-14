@@ -323,3 +323,32 @@ class SkipIn(FieldTap):
 
 class CompleteIn(FieldTap):
     empties_returned: int | None = Field(default=None, ge=0, le=500, examples=[6])
+
+
+# --- GPS (§3.3) ---------------------------------------------------------------------------------
+
+
+class PingIn(BaseModel):
+    """One position. A ping that is too old, ahead of the clock, outside India, less accurate
+    than 200 m or under 5 s after the previous one is dropped (counted, never an error)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    at: datetime = Field(examples=["2026-12-29T01:41:15Z"])
+    lat: float = Field(ge=-90, le=90, examples=[19.0331])
+    lng: float = Field(ge=-180, le=180, examples=[73.0298])
+    accuracy_m: int = Field(ge=0, le=10_000, examples=[12])
+    speed_mps: float | None = Field(default=None, ge=0, le=100, examples=[6.1])
+    heading: int | None = Field(default=None, ge=0, le=359, examples=[90])
+
+
+class LocationIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    route_id: uuid.UUID
+    pings: list[PingIn] = Field(min_length=1, max_length=20, description="Oldest first")
+
+
+class LocationOut(BaseModel):
+    accepted: int = Field(examples=[4])
+    dropped: int = Field(examples=[1])

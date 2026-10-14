@@ -33,7 +33,7 @@ from gharbasket.tools.seed import (
 from ..conftest import make_settings
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
-from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
+from ..identity.conftest import bearer, clients, google, sign_in, valkey  # noqa: F401
 from ..identity.fake_firebase import FakeGoogle
 
 PRIYA = "+919800001001"  # Sunrise Towers
