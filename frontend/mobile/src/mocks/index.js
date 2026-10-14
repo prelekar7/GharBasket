@@ -8,6 +8,7 @@ import { identityHandlers } from "./identity.js";
 import { kindnessHandlers } from "./kindness.js";
 import { notificationHandlers } from "./notifications.js";
 import { orderHandlers } from "./orders.js";
+import { packerHandlers } from "./packer.js";
 import { partnerHandlers } from "./partners.js";
 import { profileHandlers } from "./profile.js";
 import { subscriptionHandlers } from "./subscriptions.js";
@@ -25,6 +26,7 @@ const all = [
   ...assistantHandlers,
   ...catalogHandlers,
   ...notificationHandlers,
+  ...packerHandlers,
 ];
 
 /**
