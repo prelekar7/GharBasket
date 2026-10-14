@@ -11,3 +11,7 @@ PERMISSIONS.allow("hub_manager", "routes:write")
 # routes (§3.3, routes:read) but not the plans.
 for role in ("hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "route_plans:read")
+# Routes (§3.3): hub staff read the hub's routes; riders read and drive their own routes.
+for role in ("hub_manager", "franchise_owner", "packer", "admin"):
+    PERMISSIONS.allow(role, "routes:read")
+PERMISSIONS.allow("rider", "routes:execute")

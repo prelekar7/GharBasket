@@ -205,3 +205,94 @@ class PublishIn(BaseModel):
     accept_problems: bool = Field(
         default=False, description="Publish although summary.problems is not empty (audited)"
     )
+
+
+# --- rider execution (§3.3) ------------------------------------------------------------------
+
+StopStatus = Literal["pending", "arrived", "handed_over", "skipped"]
+
+
+class RoutesOut(BaseModel):
+    items: list[RouteSummary]
+
+
+class LatLngOut(BaseModel):
+    lat: float
+    lng: float
+
+
+class StopSociety(BaseModel):
+    id: uuid.UUID
+    name: str | None = Field(examples=["Sunrise Towers"])
+    location: LatLngOut | None = Field(
+        description="Where the van stops (the gate, or a point inside)"
+    )
+
+
+class StopSlot(BaseModel):
+    id: uuid.UUID
+    label: str = Field(examples=["Morning"])
+    start: str = Field(examples=["07:00"], description="IST HH:MM")
+    end: str = Field(examples=["09:00"], description="IST HH:MM")
+
+
+class CaptainOut(BaseModel):
+    display_name: str = Field(examples=["Meena J."])
+    photo_url: str | None
+
+
+class StopOut(BaseModel):
+    id: uuid.UUID
+    seq: int = Field(examples=[1])
+    kind: Literal["drop", "bank", "kitchen"]
+    society: StopSociety | None
+    slot: StopSlot | None
+    eta: str = Field(examples=["07:12"], description="Planned, IST HH:MM")
+    late_min: int = Field(examples=[0], description="Planned minutes after the window's end")
+    eta_now: str | None = Field(
+        examples=["07:20"],
+        description="After start: the planned ETA plus the route's current delay (no live traffic)",
+    )
+    status: StopStatus
+    crates: int = Field(
+        examples=[3], description="Planned; the packed counts once the route starts"
+    )
+    bags: int = Field(examples=[9])
+    redelivery_bags: int = Field(
+        examples=[1], description="Redelivery bags the van carries for this stop (§3.4)"
+    )
+    empties_expected: int = Field(examples=[2], description="§3.6")
+    captain: CaptainOut | None = Field(description="Null: no active captain (rider mode)")
+    rider_mode: bool = Field(description="The rider does the handover and the doors")
+    handover_code: str | None = Field(
+        examples=["4821"],
+        description="Only to the route's rider and hub staff while the route is in progress",
+    )
+    navigate_url: str | None = Field(
+        examples=["https://www.google.com/maps/dir/?api=1&destination=19.03,73.03"]
+    )
+    arrived_at: datetime | None
+    handed_over_at: datetime | None
+
+
+class RouteDetail(RouteSummary):
+    stops: list[StopOut]
+    source: PlanSource | None
+    left_behind: list[uuid.UUID] = Field(description="Orders not packed when the route started")
+
+
+class RoutePatch(BaseModel):
+    """Before the route starts. A new rider gets logistics.route_published again."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rider_user_id: uuid.UUID | None = Field(default=None, description="A rider of this hub")
+    vehicle_id: uuid.UUID | None = Field(
+        default=None, description="An active vehicle of this hub of the route's kind"
+    )
+
+    @model_validator(mode="after")
+    def _vehicle_not_null(self) -> Self:
+        if "vehicle_id" in self.model_fields_set and self.vehicle_id is None:
+            raise ValueError("vehicle_id cannot be null")
+        return self
