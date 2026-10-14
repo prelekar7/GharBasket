@@ -11,7 +11,6 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.hub_ops import api as hub_ops_api
 
 
 async def society_live(session: AsyncSession, society_id: uuid.UUID) -> bool:
@@ -24,5 +23,9 @@ async def box_fee(session: AsyncSession, hub_id: uuid.UUID, society_id: uuid.UUI
     hub's pre-live fee."""
     if await society_live(session, society_id):
         return 0
+    # Imported here, not at the top: hub_ops.api loads hub_ops.packing, which imports orders.api,
+    # which re-exports box_fee; at the top that is a cycle whenever orders.service loads first.
+    from gharbasket.modules.hub_ops import api as hub_ops_api
+
     hub = await hub_ops_api.get_hub(session, hub_id)
     return 0 if hub is None else hub.pre_live_box_fee_paise
