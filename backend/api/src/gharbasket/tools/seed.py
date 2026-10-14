@@ -48,18 +48,17 @@ from gharbasket.modules.catalog.service import (
     save_category,
     save_product,
 )
-from gharbasket.modules.community import jobs as _community_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.community.service import SocietyData, save_society
 from gharbasket.modules.hub_ops import service as hub_service
 from gharbasket.modules.hub_ops.models import Hub
 from gharbasket.modules.hub_ops.schemas import GeoPolygon, HubIn, HubPatch, VendorIn
-from gharbasket.modules.identity import jobs as _identity_jobs  # noqa: F401 (consumers)
 from gharbasket.modules.identity.households import create_household, household_of
 from gharbasket.modules.identity.schemas import HouseholdIn
 from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service as partners_service
+from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
 from gharbasket.platform.db import create_engine, is_local_database
@@ -567,6 +566,7 @@ class Report:
 
 
 async def run(database_url: str) -> Report:
+    load_modules()  # the relay at the end needs every module's consumers
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
