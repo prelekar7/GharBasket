@@ -342,6 +342,8 @@ async function kitchenName(id) {
     partnersHandlers,
     new Request(
       `http://mock.gharbasket.local/v1/hubs/${KHARGHAR_HUB_ID}/partners?kind=kitchen&status=active`,
+      // The list is for staff only (M8), and this lookup is the mock's own: it asks as an admin.
+      { headers: { "x-gb-role": "admin" } },
     ),
   );
   const { items } = res ? await res.json() : { items: [] };

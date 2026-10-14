@@ -9,7 +9,7 @@ export const metadata = { title: "Partner" };
 export default async function Page({ params }) {
   const { id } = await params;
   try {
-    return <PartnerProfileView partner={await getPartner(id)} />;
+    return <PartnerProfileView data={await getPartner(id)} />;
   } catch (e) {
     if (e instanceof ApiProblem && e.status === 404) notFound();
     throw e;
