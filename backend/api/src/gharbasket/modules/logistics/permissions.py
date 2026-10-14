@@ -15,3 +15,7 @@ for role in ("hub_manager", "franchise_owner", "admin"):
 for role in ("hub_manager", "franchise_owner", "packer", "admin"):
     PERMISSIONS.allow(role, "routes:read")
 PERMISSIONS.allow("rider", "routes:execute")
+# The live map (§3.3): who sees what is decided per route (the rider, the hub's managers, the
+# captain of a stop's society, a customer with an order on it).
+for role in ("rider", "hub_manager", "captain", "customer"):
+    PERMISSIONS.allow(role, "routes:live")

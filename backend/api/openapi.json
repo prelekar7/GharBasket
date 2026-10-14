@@ -24182,6 +24182,115 @@
         ]
       }
     },
+    "/v1/routes/{route_id}/live": {
+      "get": {
+        "description": "Events: `snapshot` first, then `position`, `stop` and `end` (`handed_over`, `route_completed`, `access_ended`, `reconnect` after 30 minutes); `: keep-alive` every 20 s. The route's rider and the hub's managers see every stop; a captain sees her stop and a customer the stop of their order (positions rounded), until its handover.",
+        "operationId": "live_route_v1_routes__route_id__live_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "route_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Route Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.route_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.too_many_streams: more than 3 open streams for this user"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The van on the map: a Server-Sent Events stream",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/routes/{route_id}/start": {
       "post": {
         "description": "Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route.",
