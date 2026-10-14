@@ -180,8 +180,9 @@ sequenceDiagram
   - Capacity in kg and crates; society time windows; service time per stop.
   - Donation and crate pickups on the return leg (same-vehicle constraint).
 - **Data:** distance/time matrix from self-hosted **OSRM** (Mumbai Metropolitan Region extract).
-- **Solver:** 30 s limit with guided local search.
+- **Solver:** guided local search within the request's `time_limit_s` for both waves together (default 10 s, at most 20 s); OSRM gets 2.5 s before haversine prices the slot instead, and the gateway waits `time_limit_s` + 6 s.
 - **Metrics:** ₹ per order, km per order, on-time %. Baselines: one trip per order, nearest-neighbour.
+- **Status (5 Oct 2026, v0):** `POST /route/solve` serves the two-wave CVRPTW from S-3 with the independent checker, OSRM from the Space image (haversine when it is down or slow, nearest neighbour within the fleet when no plan is found); `intel_gateway.api.solve_routes` records the plan for the hub and returns None when the service is down, so M7 keeps the previous day's sequence. M7's tables and endpoints come with the M7 product PR (January).
 - **Spike S-3 (4 Oct 2026, passed):** 50 societies are routed in under 5 s, all on time, at ₹6.87 an order against ₹7.93 for nearest neighbour and ₹76.57 for one trip per order. Vans do **two trips** by solving one window wave at a time (07–09, then 08–10, with vans carried over). That cuts the fleet by 40–45 % at 50 to 200 societies, while a single chained model stops scaling after about 50. See [S-3 note](../spikes/S-3-routing.md).
 
 ### M-G Fair kitchen assignment (research)
@@ -189,6 +190,7 @@ sequenceDiagram
   - Constraints: capacity, menu skills, rating floor, distance ≤ X km.
 - **Objective:** minimise distance + quality penalty + **λ × earnings inequality**. The inequality term is the maximum deviation from the fair share over a rolling 4 weeks (a linear proxy for the Gini coefficient).
 - **Metrics:** Gini of weekly partner earnings, cost per portion, rating. Compared with a greedy nearest-kitchen baseline. A λ-sweep produces a Pareto curve (paper figure).
+- **Status (5 Oct 2026, v0):** `POST /assign/kitchens` serves the CP-SAT model with the λ term and greedy nearest as baseline and fallback; the gateway records the plan per hub. The λ sweep in the eval harness and M8's tables and job come with the January product PR. λ is in paise per portion of imbalance among the kitchens that can cook tonight (default 300); orders no kitchen can take come back in `unassigned` with `status: partial` (M10 §3.5).
 
 ### M-H Slot pricing ("green slots")
 - The marginal insertion cost of an address into existing tentative routes → slot discount ranking.

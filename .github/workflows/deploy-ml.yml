@@ -1,0 +1,77 @@
+# Deploy the ML service to its Hugging Face Space (ADR-0025): after CI passes on main (or by hand,
+# from main only), export the locked dependencies and mirror backend/ml to the Space's repository;
+# the Space builds the Dockerfile (uvicorn on 7860 plus osrm-routed with the baked MMR network) and
+# restarts. Every run uploads: `hf upload` makes no commit when no file changed, so the Space
+# rebuilds only when backend/ml or the locked versions did.
+#
+# Needs the repository secrets HF_TOKEN (a write token) and HF_SPACE (e.g. "gharbasket/ml"), and the
+# Space's own settings APP_ENV=prod and ML_SERVICE_TOKEN (the same value the API sends). Until the
+# secrets exist the workflow skips with a notice.
+name: Deploy ML
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ml
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Upload backend/ml to the Space
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # The Hub client is pinned; bump it on purpose (the `hf upload` flags below are its CLI).
+      HF_HUB_VERSION: "1.0.0"
+    steps:
+      - name: Check that the Space is configured
+        id: configured
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "::notice::The ML Space is not configured yet (HF_TOKEN, HF_SPACE). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: astral-sh/setup-uv@v10.2.0
+        if: steps.configured.outputs.ready == 'true'
+
+      - name: Export the locked dependencies for the image
+        if: steps.configured.outputs.ready == 'true'
+        run: >-
+          uv export --quiet --package gharbasket-ml --frozen --no-dev --no-emit-project
+          -o backend/ml/requirements.lock
+
+      # --delete "*" mirrors the folder: Space files that no longer exist here are removed in the
+      # same commit; excluded paths are not uploaded.
+      - name: Upload the folder to the Space
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
+        run: |
+          uvx --from "huggingface_hub==${HF_HUB_VERSION}" hf upload "$HF_SPACE" backend/ml . \
+            --repo-type space --commit-message "deploy ${SHA::7}" \
+            --exclude "tests/*" --exclude ".pytest_cache/*" --exclude "__pycache__/*" \
+            --delete "*"

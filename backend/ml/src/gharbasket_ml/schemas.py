@@ -1,8 +1,8 @@
 """Request and response of POST /plan/week (M10 §3.1) and POST /pantry/quantities (§3.3)."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Slot = Literal["breakfast", "lunch", "dinner"]
 Rule = Literal["repeat", "cook_time", "budget"]
@@ -170,3 +170,233 @@ class PantryItemOut(BaseModel):
 class PantryResponse(BaseModel):
     items: list[PantryItemOut]
     model: str = "pantry-gamma-poisson-v0"
+
+
+# --- POST /route/solve (M10 §3.4): one delivery slot's van routes -------------------------------
+
+
+class Point(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class FoodBankIn(Point):
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError("food_bank: window_start_s is after window_end_s")
+        return self
+
+
+class StopIn(BaseModel):
+    """A society stop: what the van drops and picks up, inside the captain's window.
+    Times are seconds after the slot day's midnight IST; weights in tenths of a kg."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80, description="The society id (opaque here)")
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    orders: int = Field(default=0, ge=0)
+    kg_tenths: int = Field(default=0, ge=0)
+    crates: int = Field(default=0, ge=0)
+    empties: int = Field(default=0, ge=0)
+    donation_kg_tenths: int = Field(default=0, ge=0)
+    window_start_s: int = Field(ge=0)
+    window_end_s: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _window_in_order(self) -> Self:
+        if self.window_start_s > self.window_end_s:
+            raise ValueError(f"stop {self.id}: window_start_s is after window_end_s")
+        return self
+
+
+class VansIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    count: int = Field(ge=1, le=60, description="Vans available (the solver uses fewer)")
+    capacity_kg: int = Field(default=400, ge=1)
+    capacity_crates: int = Field(default=24, ge=1)
+    traffic_factor: float = Field(default=1.5, ge=1.0, le=3.0, description="times the road time")
+    reload_s: int = Field(default=1200, ge=0)
+
+
+class ServiceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    drop_s: int = Field(default=240, ge=0, description="Handover time at a society")
+    per_crate_s: int = Field(default=30, ge=0)
+
+
+class CostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fixed_paise_per_van: int = Field(default=25_000, ge=0)
+    paise_per_km: int = Field(default=60, ge=0)
+    wage_paise_per_s: int = Field(default=3, ge=0)
+    late_paise_per_s: int = Field(default=50, ge=0)
+
+
+class RouteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hub: Point
+    depart_s: int = Field(ge=0, description="Vans are loaded by then (06:30 → 23400)")
+    return_by_s: int = Field(ge=0, description="Back at the hub (11:30 → 41400)")
+    stops: list[StopIn] = Field(min_length=1, max_length=400)
+    food_bank: FoodBankIn | None = None
+    vans: VansIn
+    service: ServiceIn = Field(default_factory=ServiceIn)
+    cost: CostIn = Field(default_factory=CostIn)
+    time_limit_s: float = Field(default=10.0, ge=0.5, le=20.0, description="Both waves together")
+    max_late_s: int = Field(
+        default=1800,
+        ge=0,
+        description="A drop later than this past its window's end is a checker problem",
+    )
+
+    @model_validator(mode="after")
+    def _consistent(self) -> Self:
+        if self.depart_s >= self.return_by_s:
+            raise ValueError("depart_s must be before return_by_s")
+        if self.food_bank is None and any(s.donation_kg_tenths for s in self.stops):
+            raise ValueError("donations need a food_bank to take them to")
+        return self
+
+
+class RouteStopOut(BaseModel):
+    id: str
+    kind: Literal["drop", "bank"]
+    eta_s: int
+    late_s: int = 0
+
+
+class RouteVanOut(BaseModel):
+    van: int
+    start_s: int
+    end_s: int
+    stops: list[RouteStopOut]
+
+
+class RouteSummary(BaseModel):
+    vans: int
+    km: float
+    cost_paise: int
+    on_time: float
+    late_min: float
+    problems: list[str] = Field(default_factory=list, description="The checker's findings")
+
+
+class RouteResponse(BaseModel):
+    status: Literal["solved", "fallback"]
+    source: Literal["osrm", "haversine"]
+    routes: list[RouteVanOut]
+    summary: RouteSummary
+    seconds: float
+    model: str = "cvrptw-waves-v0"
+
+
+# --- POST /assign/kitchens (M10 §3.5): tomorrow's tiffin portions to home kitchens ------------
+
+FAIRNESS_LAMBDA = 300.0  # paise per portion of imbalance: the knee of the test sweep (M10 §3.5)
+MAX_ORDERS_FOR_SOLVER = 500  # measured: up to 500x60 ends within ~2 % of optimal in 5 s
+
+
+class TiffinOrderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80, description="The order id (opaque here)")
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    portions: int = Field(ge=1, le=200)
+    skills: list[str] = Field(default_factory=list, description="Menu skills the order needs")
+
+
+class KitchenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80)
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+    max_portions: int = Field(ge=0, le=1000, description="Capacity for this meal")
+    skills: list[str] = Field(default_factory=list)
+    rating: float = Field(default=4.5, ge=0, le=5)
+    earnings_paise: int = Field(
+        default=0, ge=0, le=10**12, description="Rolling earnings before tonight"
+    )
+
+
+class AssignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    orders: list[TiffinOrderIn] = Field(min_length=1, max_length=2000)
+    kitchens: list[KitchenIn] = Field(min_length=1, max_length=300)
+    fairness_lambda: float = Field(
+        default=FAIRNESS_LAMBDA,
+        ge=0,
+        le=10_000,
+        description="Paise of cost per portion of earnings imbalance; 0 = cost only",
+    )
+    rating_floor: float = Field(default=3.8, ge=0, le=5)
+    max_km: float = Field(default=5.0, gt=0, le=50)
+    paise_per_portion: int = Field(
+        default=6000, ge=1, le=100_000, description="What a kitchen earns"
+    )
+    quality_paise_per_star: int = Field(
+        default=500, ge=0, le=10_000, description="Penalty per portion per star below 5"
+    )
+    max_kitchens_per_order: int = Field(
+        default=15, ge=1, le=300, description="Only the nearest this many kitchens are candidates"
+    )
+    time_limit_s: float = Field(
+        default=5.0, ge=0.1, le=20.0, description="Wall clock, model building included"
+    )
+    max_orders_for_solver: int = Field(
+        default=MAX_ORDERS_FOR_SOLVER, ge=1, le=2000, description="Above this, greedy answers"
+    )
+
+
+class AssignmentOut(BaseModel):
+    order_id: str
+    kitchen_id: str
+    portions: int
+    km: float
+
+
+class UnassignedOut(BaseModel):
+    order_id: str
+    reason: Literal[
+        "below_rating_floor", "no_skills", "too_many_portions", "out_of_reach", "no_room"
+    ]
+
+
+class KitchenEarningsOut(BaseModel):
+    kitchen_id: str
+    earnings_paise: int = Field(description="Rolling earnings after tonight")
+
+
+class AssignSummary(BaseModel):
+    portions: int = Field(description="Assigned portions")
+    kitchens_used: int
+    km_per_portion: float
+    cost_paise_per_portion: int
+    gini: float = Field(description="Of every kitchen's rolling earnings after tonight")
+    gini_eligible: float = Field(
+        description="Of the kitchens that could take an order tonight: what λ balances"
+    )
+    earnings_paise: list[KitchenEarningsOut]
+
+
+class AssignResponse(BaseModel):
+    status: Literal["solved", "partial", "fallback", "infeasible"]
+    assignments: list[AssignmentOut]
+    unassigned: list[UnassignedOut]
+    summary: AssignSummary | None
+    seconds: float
+    model: str = "assignment-cpsat-v0"
