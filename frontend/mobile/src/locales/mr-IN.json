@@ -1177,6 +1177,50 @@
       "missingBody": "{rider} आणि हबला कळवले जाईल. त्या कुटुंबांना पुढच्या स्लॉटमध्ये बॉक्स मिळेल किंवा पैसे परत.",
       "missingConfirm": "कळवा आणि पुढे चला",
       "missingCancel": "स्कॅन करत राहा"
+    },
+    "flats": {
+      "title": "फ्लॅट",
+      "when": "{society} · {day}",
+      "wing": "विंग",
+      "progress": "{wing} विंगमध्ये पोहोचवल्या",
+      "scan": "दारात बॅग स्कॅन करा",
+      "manual": "त्याऐवजी बॅगचा कोड टाइप करा",
+      "contents": {
+        "box": "बॉक्स",
+        "box_tiffin": "बॉक्स + डबा",
+        "tiffin": "डबा"
+      },
+      "lobbyPickup": "लॉबीतून घेणार",
+      "status": {
+        "delivered": "पोहोचली",
+        "next": "पुढची",
+        "inLobby": "लॉबीत",
+        "toDeliver": "बाकी",
+        "returned": "हबला परत",
+        "reported": "अडचण कळवली",
+        "missing": "गहाळ",
+        "notHome": "घरी कोणी नाही",
+        "damaged": "मोडतोड"
+      },
+      "delivered": "{code} · {flat} पोहोचली",
+      "notToday": "{code} आजच्या बॅगांमध्ये नाही. लेबल तपासा.",
+      "alreadyDone": "{flat} ची {code} आधीच झाली आहे",
+      "firstHandover": "आधी क्रेट घ्या"
+    },
+    "manual": {
+      "back": "फ्लॅटकडे परत",
+      "why": "लेबल स्कॅन झाले नाही",
+      "title": "बॅगचा कोड टाइप करा",
+      "field": "बॅग कोड",
+      "help": "हा कोड बॅगच्या लेबलवर चौकोनाखाली छापलेला आहे.",
+      "found": "सापडली",
+      "match": "{code} · फ्लॅट {flat}",
+      "matchDetail": "{contents} · {lines} वस्तू · {society}",
+      "check": "देण्याआधी लेबलवरचा फ्लॅट दाराशी जुळतो का ते पाहा.",
+      "confirm": "{flat} ला पोहोचवली",
+      "confirmAny": "पोहोचवली",
+      "notFound": "आज या कोडची कोणतीही बॅग नाही",
+      "done": "{code} {flat} ला पोहोचवली"
     }
   }
 }

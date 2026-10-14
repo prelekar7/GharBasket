@@ -1181,6 +1181,50 @@
       "missingBody": "{rider} and the hub are told. Those families get their box in the next slot or their money back.",
       "missingConfirm": "Report and continue",
       "missingCancel": "Keep scanning"
+    },
+    "flats": {
+      "title": "Flats",
+      "when": "{society} · {day}",
+      "wing": "Wing",
+      "progress": "{wing} wing delivered",
+      "scan": "Scan the bag at the door",
+      "manual": "Type the bag code instead",
+      "contents": {
+        "box": "Box",
+        "box_tiffin": "Box + tiffin",
+        "tiffin": "Tiffin"
+      },
+      "lobbyPickup": "Lobby pickup",
+      "status": {
+        "delivered": "Delivered",
+        "next": "Next",
+        "inLobby": "In lobby",
+        "toDeliver": "To deliver",
+        "returned": "Back to hub",
+        "reported": "Reported",
+        "missing": "Missing",
+        "notHome": "No one home",
+        "damaged": "Damaged"
+      },
+      "delivered": "{code} · {flat} delivered",
+      "notToday": "{code} isn’t one of today’s bags. Check the label.",
+      "alreadyDone": "{code} for {flat} is already done",
+      "firstHandover": "Receive the crates first"
+    },
+    "manual": {
+      "back": "Back to flats",
+      "why": "The label didn’t scan",
+      "title": "Type the bag code",
+      "field": "Bag code",
+      "help": "It’s printed under the square on the bag label.",
+      "found": "Found",
+      "match": "{code} · flat {flat}",
+      "matchDetail": "{contents} · {lines, plural, one {# item} other {# items}} · {society}",
+      "check": "Check the flat on the label matches the door before you hand it over.",
+      "confirm": "Delivered to {flat}",
+      "confirmAny": "Delivered",
+      "notFound": "No bag with this code today",
+      "done": "{code} delivered to {flat}"
     }
   }
 }
