@@ -6,8 +6,13 @@
 import { HttpResponse, http } from "msw";
 import { catalogStore } from "./catalog.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
-import { procurementState, VENDORS } from "./procurement.js";
-import { idempotent, mockStore, problem } from "./util.js";
+import { todaysPlan } from "./procurement.js";
+import { idempotent, mockStore, mockUuid, problem } from "./util.js";
+import { vendorState } from "./vendors.js";
+
+/** The vendors of the sent purchase orders, shaped for the board below (rewritten with Receiving's own sync). */
+const VENDORS = () =>
+  vendorState().vendors.map((v) => ({ id: v.id, name: v.name, supplies: v.notes ?? "" }));
 
 /** @typedef {"A" | "B" | "C"} Grade */
 /** @typedef {{ received_qty: number, grade: Grade, wasted_kg: number | null, note: string | null }} Receipt */
@@ -20,8 +25,8 @@ const receipts = () =>
   mockStore("receiving", () => ({
     /** @type {Record<string, Receipt>} */
     byProduct: {
-      palak: { received_qty: 32, grade: "A", wasted_kg: null, note: null },
-      coriander: {
+      [mockUuid("b000", 1)]: { received_qty: 32, grade: "A", wasted_kg: null, note: null },
+      [mockUuid("b000", 3)]: {
         received_qty: 46,
         grade: "A",
         wasted_kg: 0.7,
@@ -35,36 +40,37 @@ const receipts = () =>
  * @param {string} productId
  */
 function expiresOn(productId) {
-  const hours = catalogStore().products.find((p) => p.slug === productId)?.shelf_life_h ?? 48;
+  const hours = catalogStore().products.find((p) => p.id === productId)?.shelf_life_h ?? 48;
   const d = new Date(`${DATE}T12:00:00+05:30`);
   d.setDate(d.getDate() + Math.floor(hours / 24));
   return d.toISOString().slice(0, 10);
 }
 
 function board() {
-  const { plan } = procurementState();
   const got = receipts();
-  const lines = plan.lines.map((l) => {
-    const r = got[l.product_id];
-    return {
-      vendor_id: l.vendor_id,
-      product_id: l.product_id,
-      name: l.name,
-      unit: l.unit,
-      ordered_qty: l.order_qty,
-      needed_today: l.committed_qty,
-      received_qty: r?.received_qty ?? null,
-      grade: r?.grade ?? null,
-      wasted_kg: r?.wasted_kg ?? null,
-      note: r?.note ?? null,
-      expires_on: r?.grade === "C" ? null : expiresOn(l.product_id),
-      status: r ? (r.grade === "C" ? "rejected" : "received") : "pending",
-    };
-  });
+  const lines = todaysPlan()
+    .lines.filter((l) => l.vendor)
+    .map((l) => {
+      const r = got[l.product_id];
+      return {
+        vendor_id: /** @type {string} */ (l.vendor?.id),
+        product_id: l.product_id,
+        name: l.name,
+        unit: l.unit,
+        ordered_qty: l.order_qty,
+        needed_today: l.committed_qty,
+        received_qty: r?.received_qty ?? null,
+        grade: r?.grade ?? null,
+        wasted_kg: r?.wasted_kg ?? null,
+        note: r?.note ?? null,
+        expires_on: r?.grade === "C" ? null : expiresOn(l.product_id),
+        status: r ? (r.grade === "C" ? "rejected" : "received") : "pending",
+      };
+    });
   return {
     date: DATE,
     as_of: "4:40 AM",
-    vendors: VENDORS.map((v) => ({
+    vendors: VENDORS().map((v) => ({
       id: v.id,
       name: v.name,
       supplies: v.supplies,
