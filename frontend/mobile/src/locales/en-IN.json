@@ -56,6 +56,10 @@
     "saveFailed": "We couldn’t save that. Check your internet and try again.",
     "thisPhone": "This phone",
     "activeNow": "Active now",
+    "platform": {
+      "android": "Android phone",
+      "web": "Web browser"
+    },
     "lastSeen": "Last used {date}",
     "signOutDevice": "Sign out",
     "revoked": "{device} is signed out.",
