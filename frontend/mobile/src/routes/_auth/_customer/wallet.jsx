@@ -1,6 +1,7 @@
 import {
   Button,
   Chip,
+  Dialog,
   ErrorState,
   formatPaise,
   GullakMeter,
@@ -13,7 +14,7 @@ import {
   WalletCard,
 } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useKindness, useWallet } from "@/features/billing/queries.js";
@@ -31,6 +32,8 @@ export const Route = createFileRoute("/_auth/_customer/wallet")({ component: Wal
 function Wallet() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const navigate = useNavigate();
+  const [confirming, setConfirming] = useState(false);
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const wallet = useWallet();
   const kindness = useKindness();
@@ -94,7 +97,7 @@ function Wallet() {
         balancePaise={balance}
         weekTotalPaise={nextBox?.total_paise}
         onTopUp={() => setOpen(true)}
-        onStatement={() => toast(t("wallet.statementSoon"))}
+        onStatement={() => navigate({ to: "/wallet/statement" })}
         labels={{
           name: t("wallet.title"),
           balance: t("wallet.balance"),
@@ -158,9 +161,9 @@ function Wallet() {
             isPending={topUp.busy}
             isDisabled={amountPaise < 10_000 || overCap}
             onPress={() => {
-              // Close the sheet first: Razorpay (or the test dialog) opens its own layer.
+              // Money needs a clear confirm (Core-D3); the sheet closes so the dialog is on top.
               setOpen(false);
-              topUp.start(amountPaise);
+              setConfirming(true);
             }}
           >
             {t("wallet.continue")}
@@ -215,6 +218,19 @@ function Wallet() {
           <p className="text-sm text-fg-secondary">{t("wallet.cap")}</p>
         </div>
       </Sheet>
+      <Dialog
+        isOpen={confirming}
+        onOpenChange={setConfirming}
+        title={t("wallet.confirmTitle", { amount: formatPaise(amountPaise) })}
+        confirmLabel={t("wallet.confirmPay", { amount: formatPaise(amountPaise) })}
+        cancelLabel={t("wallet.confirmCancel")}
+        onConfirm={() => topUp.start(amountPaise)}
+      >
+        {t("wallet.confirmBody", {
+          from: formatPaise(balance),
+          to: formatPaise(balance + amountPaise),
+        })}
+      </Dialog>
       {topUp.dialog}
     </div>
   );

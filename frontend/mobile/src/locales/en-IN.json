@@ -510,7 +510,6 @@
     "covered": " · covered",
     "topUp": "Top up",
     "statement": "Statement",
-    "statementSoon": "Statements arrive with the billing module",
     "kindness": "Kindness points",
     "kindnessProgress": "Kindness points toward {goal}",
     "kindnessRemaining": "{n} more for {goal}",
@@ -532,7 +531,18 @@
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
     "added": "{amount} added to your wallet",
-    "rules": "Only for GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request."
+    "rules": "Only for GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request.",
+    "confirmTitle": "Top up {amount}?",
+    "confirmBody": "Paid from any UPI app. Your wallet goes from {from} to {to}.",
+    "confirmPay": "Pay {amount} with UPI",
+    "confirmCancel": "Not now",
+    "statementTitle": "Statement",
+    "month": "Month",
+    "opening": "Opening balance",
+    "credits": "Money in",
+    "debits": "Money out",
+    "closing": "Closing balance",
+    "statementNote": "Every rupee in and out of your wallet, from our double-entry ledger. Unused money goes back to your bank on request."
   },
   "society": {
     "title": "Your society",

@@ -20,3 +20,16 @@ export function useKindness() {
     queryFn: () => /** @type {Promise<KindnessBalance>} */ (request("/v1/kindness/balance")),
   });
 }
+
+/** @typedef {{ period: string, opening_paise: number, credits_paise: number, debits_paise: number, closing_paise: number, entries: (Wallet["entries"][number] & { ref?: string })[] }} Statement */
+
+/** One month of the wallet ledger (GET /v1/statements?period=YYYY-MM, M5). @param {string} period */
+export function useStatement(period) {
+  return useQuery({
+    queryKey: ["statement", period],
+    queryFn: () =>
+      /** @type {Promise<Statement>} */ (
+        request(`/v1/statements?${new URLSearchParams({ period })}`)
+      ),
+  });
+}

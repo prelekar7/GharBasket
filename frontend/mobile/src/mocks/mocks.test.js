@@ -240,3 +240,14 @@ describe("price spike (Core-B4)", () => {
     expect(c.total_paise).toBe(69000);
   });
 });
+
+describe("wallet statement (M5)", () => {
+  it("adds up a month from the ledger, opening to closing", async () => {
+    const r = await mockFetch(new Request("http://localhost/v1/statements?period=2026-10"));
+    // A signed-out request sees an empty wallet; the shape is what matters here.
+    expect(await r.json()).toMatchObject({ period: "2026-10", opening_paise: 0, closing_paise: 0 });
+    expect((await mockFetch(new Request("http://localhost/v1/statements?period=oct"))).status).toBe(
+      422,
+    );
+  });
+});
