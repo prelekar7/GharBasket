@@ -1,0 +1,134 @@
+import { Button, Dialog, EmptyState, Skeleton, TiffinSteam } from "@gharbasket/ui";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { FieldHeader } from "@/components/FieldFrame.jsx";
+import { ScreenError } from "@/components/ScreenError.jsx";
+import { clock, dayLabel } from "@/features/kitchen/format.js";
+import { useAssignments, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
+import { Muted, Row } from "@/features/kitchen/ui.jsx";
+
+/** Tomorrow's tiffins: the counts, accept or decline, or a quiet day (designs KitchenToday, KitchenNoTiffins; M8 US-6). */
+// @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
+export const Route = createFileRoute("/_auth/kitchen/")({ component: KitchenToday });
+
+function KitchenToday() {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.resolvedLanguage ?? "en-IN";
+  const navigate = useNavigate();
+  const me = usePartnerMe();
+  const assignments = useAssignments();
+  const write = useKitchenWrite();
+  const [declining, setDeclining] = useState(false);
+
+  if (me.isPending || assignments.isPending) return <Skeleton lines={8} />;
+  if (me.isError || assignments.isError) {
+    return (
+      <ScreenError
+        onRetry={() => {
+          me.refetch();
+          assignments.refetch();
+        }}
+      />
+    );
+  }
+  const header = (
+    <FieldHeader
+      eyebrow={t("kitchen.hello", { name: me.data.display_name, hub: me.data.hub_name })}
+      title={t("kitchen.today.title")}
+    />
+  );
+  const a = assignments.data.items[0];
+  if (!a) {
+    return (
+      <>
+        {header}
+        <div className="flex flex-col gap-4 pt-3">
+          <EmptyState
+            illustration={<TiffinSteam />}
+            title={t("kitchen.today.emptyTitle", { day: dayLabel(assignments.data.date, lang) })}
+            body={t("kitchen.today.emptyBody")}
+          />
+          <Muted>{t("kitchen.today.emptyNote")}</Muted>
+        </div>
+      </>
+    );
+  }
+
+  const respond = (/** @type {"accept" | "decline"} */ action) =>
+    write({
+      name: "assignments",
+      path: `/v1/assignments/${a.id}/${action}`,
+      update: (/** @type {import("@/features/kitchen/queries.js").Assignments} */ d) => ({
+        ...d,
+        items: d.items.map((x) =>
+          x.id === a.id ? { ...x, status: action === "accept" ? "accepted" : "declined" } : x,
+        ),
+      }),
+    });
+  const day = dayLabel(a.date, lang);
+  const accepted = a.status === "accepted" || a.status === "ready";
+
+  return (
+    <>
+      {header}
+      <section className="flex flex-col gap-1.5 rounded-md bg-accent-soft p-4">
+        <Muted>{t("kitchen.today.forDay", { meal: a.meal, day })}</Muted>
+        <span className="text-[32px] leading-9 font-bold tabular-nums">
+          {t("kitchen.tiffins", { n: a.portions })}
+        </span>
+        <p>
+          {a.status === "offered"
+            ? t("kitchen.today.window", { time: clock(a.counts_at, lang) })
+            : accepted
+              ? t("kitchen.today.accepted")
+              : t("kitchen.today.declined", { day })}
+        </p>
+      </section>
+      <ul>
+        {a.batches.map((b) => (
+          <Row
+            key={b.id}
+            title={b.note ? `${b.dish} (${b.note})` : b.dish}
+            sub={b.societies.map((s) => s.name).join(" · ")}
+            end={<strong className="tabular-nums">{b.portions}</strong>}
+          />
+        ))}
+      </ul>
+      <Muted>{t("kitchen.today.fair")}</Muted>
+      <div className="mt-auto flex flex-col gap-1 pt-2">
+        {a.status === "offered" && (
+          <>
+            <Button variant="primary" size="lg" block onPress={() => respond("accept")}>
+              {t("kitchen.today.accept", { n: a.portions })}
+            </Button>
+            <Button variant="quiet" block onPress={() => setDeclining(true)}>
+              {t("kitchen.today.decline")}
+            </Button>
+          </>
+        )}
+        {accepted && (
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            onPress={() => navigate({ to: "/kitchen/prep" })}
+          >
+            {t("kitchen.today.toPrep")}
+          </Button>
+        )}
+      </div>
+      <Dialog
+        isOpen={declining}
+        onOpenChange={setDeclining}
+        tone="danger"
+        title={t("kitchen.today.declineTitle", { day })}
+        confirmLabel={t("kitchen.today.declineConfirm")}
+        cancelLabel={t("kitchen.today.declineCancel")}
+        onConfirm={() => respond("decline")}
+      >
+        {t("kitchen.today.declineBody", { n: a.portions })}
+      </Dialog>
+    </>
+  );
+}
