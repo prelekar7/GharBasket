@@ -1,11 +1,16 @@
 import { Button, Dialog, EmptyState, Skeleton, TiffinSteam } from "@gharbasket/ui";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { clock, dayLabel } from "@/features/kitchen/format.js";
-import { useAssignments, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
+import { clock, dateLabel, dayLabel } from "@/features/kitchen/format.js";
+import {
+  useAssignments,
+  useKitchenWrite,
+  usePartnerMe,
+  useTrainings,
+} from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
 
 /** Tomorrow's tiffins: the counts, accept or decline, or a quiet day (designs KitchenToday, KitchenNoTiffins; M8 US-6). */
@@ -18,6 +23,7 @@ function KitchenToday() {
   const navigate = useNavigate();
   const me = usePartnerMe();
   const assignments = useAssignments();
+  const trainings = useTrainings();
   const write = useKitchenWrite();
   const [declining, setDeclining] = useState(false);
 
@@ -57,6 +63,7 @@ function KitchenToday() {
     );
   }
 
+  const due = trainings.data?.items.find((m) => !m.done && m.due);
   const respond = (/** @type {"accept" | "decline"} */ action) =>
     write({
       name: "assignments",
@@ -98,6 +105,14 @@ function KitchenToday() {
         ))}
       </ul>
       <Muted>{t("kitchen.today.fair")}</Muted>
+      {due?.due && (
+        <Link
+          to="/kitchen/training"
+          className="text-[15px] leading-[22px] font-semibold text-link underline"
+        >
+          {t("kitchen.today.training", { minutes: due.minutes, date: dateLabel(due.due, lang) })}
+        </Link>
+      )}
       <div className="mt-auto flex flex-col gap-1 pt-2">
         {a.status === "offered" && (
           <>

@@ -1288,11 +1288,14 @@
     "tabs": {
       "today": "Today",
       "menu": "Menu",
-      "prep": "Prep"
+      "prep": "Prep",
+      "earnings": "Earnings"
     },
     "meal": "{meal, select, dinner {Dinner} other {Lunch}}",
     "hello": "Namaste, {name} · {hub}",
     "whoHub": "{name} · {hub}",
+    "whoRole": "{name} · kitchen partner",
+    "whoRoleHub": "{name} · kitchen partner, {hub}",
     "tiffins": "{n, plural, one {# tiffin} other {# tiffins}}",
     "today": {
       "title": "Tomorrow’s tiffins",
@@ -1301,6 +1304,7 @@
       "accepted": "Accepted. Buy tonight; your prep list is ready for the morning.",
       "declined": "You said you can’t cook on {day}. These tiffins go to other kitchens at the hub.",
       "fair": "Shared fairly between the hub’s kitchens, within the capacity you set.",
+      "training": "Training: a {minutes}-minute refresher is due by {date}",
       "accept": "{n, plural, one {Accept # tiffin} other {Accept # tiffins}}",
       "decline": "I can’t cook tomorrow",
       "toPrep": "Go to prep",
@@ -1355,6 +1359,47 @@
       "emptyTitle": "Nothing to cook yet",
       "emptyBody": "When you accept tomorrow’s tiffins, each dish shows here to mark as you cook and pack.",
       "emptyAction": "See tomorrow’s tiffins"
+    },
+    "training": {
+      "back": "Back to today",
+      "title": "Training",
+      "done": "Required modules done",
+      "doneValue": "{done} of {total}",
+      "quiz": "Quiz {score} of {total}",
+      "finished": "Finished",
+      "todo": "{kind, select, refresher {Refresher} other {Required}} · about {minutes} minutes",
+      "todoDue": "{kind, select, refresher {Refresher} other {Required}} · due {date} · about {minutes} minutes",
+      "badge": {
+        "done": "Done",
+        "next": "Next",
+        "todo": "To do"
+      },
+      "why": "You’re verified. Short refreshers keep your hygiene rating current; your hub manager sees the scores.",
+      "whyPending": "Finish the required modules to get verified. Your hub manager sees the scores.",
+      "next": "Start: {name}",
+      "about": "About {minutes} minutes",
+      "soon": "The video and quiz for this module come with the training content. Until then, your hub manager goes through it with you; tap Mark as done when you have.",
+      "markDone": "Mark as done",
+      "doneToast": "Marked done. Your hub manager sees it.",
+      "modules": {
+        "hygiene": "Kitchen hygiene",
+        "storage": "Safe storage and leftovers",
+        "allergens_jain": "Allergens and Jain food",
+        "packing_labels": "Packing and labels",
+        "monsoon_safety": "Monsoon food safety"
+      }
+    },
+    "earnings": {
+      "title": "Earnings",
+      "week": "This week so far",
+      "count": "{n, plural, one {# tiffin} other {# tiffins}} over {days, plural, one {# day} other {# days}}",
+      "line": "{n, plural, one {# tiffin} other {# tiffins}} · {meal, select, dinner {dinner} other {lunch}}",
+      "lastWeek": "Last week · {n, plural, one {# tiffin} other {# tiffins}}",
+      "rating": "Families’ rating, last 30 days",
+      "stars": "{rating} ★",
+      "payout": "Paid every Monday to your bank, from the same ledger as every rupee in GharBasket.",
+      "cert": "Download income certificate (PDF)",
+      "certFailed": "Couldn’t get the certificate. Check your internet and try again."
     }
   }
 }
