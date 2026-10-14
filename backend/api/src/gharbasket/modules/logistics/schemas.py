@@ -296,3 +296,30 @@ class RoutePatch(BaseModel):
         if "vehicle_id" in self.model_fields_set and self.vehicle_id is None:
             raise ValueError("vehicle_id cannot be null")
         return self
+
+
+SkipReason = Literal["captain_absent", "no_access", "vehicle_issue", "other"]
+
+
+class FieldTap(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_at: datetime | None = Field(
+        default=None, description="When the tap happened on the phone (stored for audit)"
+    )
+
+
+class StartIn(FieldTap):
+    leave_behind: bool = Field(
+        default=False,
+        description="Start although orders are still locked or picking: they stay off the route",
+    )
+
+
+class SkipIn(FieldTap):
+    reason: SkipReason
+    note: str | None = Field(default=None, max_length=300)
+
+
+class CompleteIn(FieldTap):
+    empties_returned: int | None = Field(default=None, ge=0, le=500, examples=[6])

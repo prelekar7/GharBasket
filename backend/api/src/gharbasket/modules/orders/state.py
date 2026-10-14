@@ -29,14 +29,20 @@ _BOX: Table = {
     "locked": {"picking": frozenset({"packer", "hub"}), "packed": frozenset({"hub"})},
     "picking": {"packed": frozenset({"packer", "hub"})},
     "packed": {"dispatched": frozenset({"rider", "hub"})},
-    "dispatched": {"at_society": frozenset({"captain", "rider", "hub"})},
+    "dispatched": {
+        "at_society": frozenset({"captain", "rider", "hub"}),
+        # Bags that ride back to the hub: a skipped stop, a count mismatch, `close_routes`
+        # (ADR-0027 §5); M7 then schedules the redelivery.
+        "undelivered": frozenset({"rider", "system", "hub"}),
+    },
     "at_society": {
         "delivered": frozenset({"captain", "rider", "hub"}),
         # `system`: the `hold_expiry` job at the end of the hold window (ADR-0026 §6)
         "undelivered": frozenset({"captain", "rider", "system", "hub"}),
     },
     "undelivered": {
-        "redelivery": frozenset({"customer", "hub"}),
+        # `system`: the free redelivery of `schedule_redeliveries` (ADR-0027 §5)
+        "redelivery": frozenset({"customer", "system", "hub"}),
         "refunded": frozenset({"customer", "system"}),
     },
     "redelivery": {"dispatched": frozenset({"rider", "hub"})},

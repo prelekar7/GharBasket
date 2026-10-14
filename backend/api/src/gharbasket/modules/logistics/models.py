@@ -47,6 +47,19 @@ STARTED = ("in_progress", "completed")
 STOP_KINDS = ("drop", "bank", "kitchen")
 STOP_STATUSES = ("pending", "arrived", "handed_over", "skipped")
 SKIP_REASONS = ("captain_absent", "no_access", "vehicle_issue", "other")
+FIELD_ACTIONS = (
+    "start",
+    "arrive",
+    "skip",
+    "handover",
+    "proof",
+    "undelivered",
+    "hold",
+    "resolve",
+    "complete",
+    "pickup",
+    "rider_mode",
+)
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -220,3 +233,29 @@ class RouteStop(Base):
     empties_expected: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     skip_reason: Mapped[str | None] = mapped_column(String(16))
+
+
+class FieldEvent(Base):
+    """What a rider, captain or hub manager did on a route, for audit (spec §4): `client_at` is
+    when the tap happened on the phone, `at` when the server took it (the server's time decides)."""
+
+    __tablename__ = "field_events"
+    __table_args__ = (
+        CheckConstraint(_one_of("action", FIELD_ACTIONS), name="action"),
+        Index("ix_field_events_route", "route_id", "at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    route_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.routes.id", ondelete="CASCADE")
+    )
+    stop_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.route_stops.id", ondelete="CASCADE")
+    )
+    order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    action: Mapped[str] = mapped_column(String(12))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # null once the user is erased
+    payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

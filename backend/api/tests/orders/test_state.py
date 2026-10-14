@@ -28,9 +28,10 @@ BOX_MOVES = {
     ("packed", "dispatched"): {"rider", "hub"},
     ("redelivery", "dispatched"): {"rider", "hub"},
     ("dispatched", "at_society"): {"captain", "rider", "hub"},
+    ("dispatched", "undelivered"): {"rider", "system", "hub"},  # rides back (ADR-0027 §5)
     ("at_society", "delivered"): {"captain", "rider", "hub"},
     ("at_society", "undelivered"): {"captain", "rider", "system", "hub"},
-    ("undelivered", "redelivery"): {"customer", "hub"},
+    ("undelivered", "redelivery"): {"customer", "system", "hub"},  # system: ADR-0027 §5
     ("undelivered", "refunded"): {"customer", "system"},
 }
 TIFFIN_MOVES = {

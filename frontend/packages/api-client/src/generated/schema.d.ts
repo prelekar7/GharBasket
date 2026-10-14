@@ -1670,6 +1670,43 @@ export interface paths {
         patch: operations["patch_route_v1_routes__route_id__patch"];
         trace?: never;
     };
+    "/v1/routes/{route_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete a route: bags not handed over ride back to the hub (Idempotency-Key) */
+        post: operations["complete_route_v1_routes__route_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/routes/{route_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a route: its packed orders are dispatched (Idempotency-Key required)
+         * @description Today's published route of the caller (or a hub manager for its rider), with no other route of the rider in progress. Orders still locked or picking refuse the start (logistics.bags_not_packed) unless leave_behind: they then stay off the route.
+         */
+        post: operations["start_route_v1_routes__route_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search": {
         parameters: {
             query?: never;
@@ -1818,6 +1855,40 @@ export interface paths {
         get: operations["get_statement_v1_statements_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stops/{stop_id}/arrive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record the arrival at a stop and tell the captain (Idempotency-Key) */
+        post: operations["arrive_at_stop_v1_stops__stop_id__arrive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stops/{stop_id}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip a stop: its bags ride back to the hub (Idempotency-Key) */
+        post: operations["skip_stop_v1_stops__stop_id__skip_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2172,18 +2243,6 @@ export interface components {
              * @example leafy-greens
              */
             slug: string;
-        };
-        /** CompleteIn */
-        CompleteIn: {
-            /** Bags */
-            bags?: number | null;
-            /**
-             * Client At
-             * @description When the packer tapped (audit only; the server's time decides)
-             */
-            client_at?: string | null;
-            /** Crate No */
-            crate_no?: number | null;
         };
         /** ConsentIn */
         ConsentIn: {
@@ -2640,6 +2699,14 @@ export interface components {
         Festivals: {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
+        };
+        /** FieldTap */
+        FieldTap: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
         };
         /**
          * GeoPolygon
@@ -5583,6 +5650,21 @@ export interface components {
             /** Substitute Product Id */
             substitute_product_id?: string | null;
         };
+        /** SkipIn */
+        SkipIn: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "captain_absent" | "no_access" | "vehicle_issue" | "other";
+        };
         /** SlotIn */
         SlotIn: {
             /**
@@ -5877,19 +5959,6 @@ export interface components {
              * @constant
              */
             kind: "box";
-        };
-        /** StartIn */
-        StartIn: {
-            /**
-             * Bag Qr
-             * @description When scanned
-             */
-            bag_qr?: string | null;
-            /**
-             * Client At
-             * @description When the packer tapped (audit only; the server's time decides)
-             */
-            client_at?: string | null;
         };
         /** StatementEntry */
         StatementEntry: {
@@ -6910,6 +6979,31 @@ export interface components {
              */
             user_id: string;
         };
+        /** CompleteIn */
+        gharbasket__modules__hub_ops__schemas__CompleteIn: {
+            /** Bags */
+            bags?: number | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /** Crate No */
+            crate_no?: number | null;
+        };
+        /** StartIn */
+        gharbasket__modules__hub_ops__schemas__StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+        };
         /** CaptainOut */
         gharbasket__modules__logistics__schemas__CaptainOut: {
             /**
@@ -6919,6 +7013,33 @@ export interface components {
             display_name: string;
             /** Photo Url */
             photo_url: string | null;
+        };
+        /** CompleteIn */
+        gharbasket__modules__logistics__schemas__CompleteIn: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Empties Returned
+             * @example 6
+             */
+            empties_returned?: number | null;
+        };
+        /** StartIn */
+        gharbasket__modules__logistics__schemas__StartIn: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Leave Behind
+             * @description Start although orders are still locked or picking: they stay off the route
+             * @default false
+             */
+            leave_behind: boolean;
         };
         /**
          * CaptainOut
@@ -12257,7 +12378,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["CompleteIn"] | null;
+                "application/json": components["schemas"]["gharbasket__modules__hub_ops__schemas__CompleteIn"] | null;
             };
         };
         responses: {
@@ -12589,7 +12710,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["StartIn"] | null;
+                "application/json": components["schemas"]["gharbasket__modules__hub_ops__schemas__StartIn"] | null;
             };
         };
         responses: {
@@ -13869,6 +13990,172 @@ export interface operations {
             };
         };
     };
+    complete_route_v1_routes__route_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__CompleteIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stops_open, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_route_v1_routes__route_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__StartIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, logistics.route_not_published, logistics.routes_started, logistics.route_closed, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     search_v1_search_get: {
         parameters: {
             query: {
@@ -14423,6 +14710,172 @@ export interface operations {
                 };
             };
             /** @description billing.period_invalid: not YYYY-MM, or after the current month (IST) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    arrive_at_stop_v1_stops__stop_id__arrive_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FieldTap"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_started, logistics.route_closed, logistics.already_handed_over, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    skip_stop_v1_stops__stop_id__skip_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkipIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_started, logistics.route_closed, logistics.already_handed_over, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

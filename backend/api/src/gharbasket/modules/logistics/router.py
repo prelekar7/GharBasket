@@ -10,11 +10,13 @@ from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import jobs, plans, service, views
+from gharbasket.modules.logistics import execution, jobs, plans, service, views
 from gharbasket.modules.logistics import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.logistics import routes as route_ops
-from gharbasket.modules.logistics.models import Route, RoutePlan, Vehicle
+from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.schemas import (
+    CompleteIn,
+    FieldTap,
     PlanKind,
     PlanSummary,
     PublishIn,
@@ -25,7 +27,10 @@ from gharbasket.modules.logistics.schemas import (
     RoutePlansOut,
     RoutePlanSummary,
     RoutesOut,
+    SkipIn,
     SolveIn,
+    StartIn,
+    StopOut,
     UserRef,
     VehicleIn,
     VehicleKind,
@@ -37,7 +42,7 @@ from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
-from gharbasket.platform.idempotency import Idempotent
+from gharbasket.platform.idempotency import Idempotency, Idempotent
 from gharbasket.platform.permissions import (
     PERMISSIONS,
     Permit,
@@ -471,3 +476,125 @@ async def patch_route(
     out = await _detail(session, route, response)
     await session.commit()
     return out
+
+
+# --- field moves (§3.3) -----------------------------------------------------------------------
+
+RouteDriver = Annotated[Permit, require_any("routes:execute", "routes:write")]
+FIELD_MOVES: dict[int | str, dict[str, Any]] = {
+    **CREATES,
+    403: _problem("auth.forbidden, logistics.not_your_route"),
+    409: _problem(
+        "logistics.route_not_started, logistics.route_closed, logistics.already_handed_over, "
+        "orders.illegal_transition"
+    ),
+    422: _problem("request.idempotency_mismatch, request.invalid"),
+}
+
+
+async def _stop_answer(
+    session: AsyncSession, idem: Idempotency, route: Route, stop: RouteStop
+) -> StopOut:
+    [out] = await views.stop_views(session, route, [stop])
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/routes/{route_id}/start",
+    summary="Start a route: its packed orders are dispatched (Idempotency-Key required)",
+    description="Today's published route of the caller (or a hub manager for its rider), with no "
+    "other route of the rider in progress. Orders still locked or picking refuse the start "
+    "(logistics.bags_not_packed) unless leave_behind: they then stay off the route.",
+    responses={
+        **FIELD_MOVES,
+        **ROUTE_404,
+        409: _problem(
+            "logistics.route_not_today, logistics.rider_busy, logistics.bags_not_packed, "
+            "logistics.route_not_published, logistics.routes_started, logistics.route_closed, "
+            "orders.illegal_transition"
+        ),
+    },
+)
+async def start_route(
+    route_id: uuid.UUID,
+    permit: RouteDriver,
+    session: DbSession,
+    idem: Idempotent,
+    response: Response,
+    body: Annotated[StartIn | None, Body()] = None,
+) -> RouteDetail:
+    body = body or StartIn()
+    route, who = await route_ops.get_route(session, route_id, permit, for_update=True, acting=True)
+    await execution.start(
+        session, route, who, leave_behind=body.leave_behind, client_at=body.client_at
+    )
+    out = await _detail(session, route, response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/routes/{route_id}/complete",
+    summary="Complete a route: bags not handed over ride back to the hub (Idempotency-Key)",
+    responses={
+        **FIELD_MOVES,
+        **ROUTE_404,
+        409: _problem(
+            "logistics.stops_open, logistics.route_not_started, logistics.route_closed, "
+            "orders.illegal_transition"
+        ),
+    },
+)
+async def complete_route(
+    route_id: uuid.UUID,
+    permit: RouteDriver,
+    session: DbSession,
+    idem: Idempotent,
+    response: Response,
+    body: Annotated[CompleteIn | None, Body()] = None,
+) -> RouteDetail:
+    body = body or CompleteIn()
+    route, who = await route_ops.get_route(session, route_id, permit, for_update=True, acting=True)
+    await execution.complete(
+        session, route, who, empties_returned=body.empties_returned, client_at=body.client_at
+    )
+    out = await _detail(session, route, response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/stops/{stop_id}/arrive",
+    summary="Record the arrival at a stop and tell the captain (Idempotency-Key)",
+    responses={**FIELD_MOVES, 404: _problem("logistics.stop_not_found")},
+)
+async def arrive_at_stop(
+    stop_id: uuid.UUID,
+    permit: RouteDriver,
+    session: DbSession,
+    idem: Idempotent,
+    body: Annotated[FieldTap | None, Body()] = None,
+) -> StopOut:
+    body = body or FieldTap()
+    stop, route, who = await execution.get_stop(session, stop_id, permit)
+    await execution.arrive(session, route, stop, who, body.client_at)
+    return await _stop_answer(session, idem, route, stop)
+
+
+@router.post(
+    "/stops/{stop_id}/skip",
+    summary="Skip a stop: its bags ride back to the hub (Idempotency-Key)",
+    responses={**FIELD_MOVES, 404: _problem("logistics.stop_not_found")},
+)
+async def skip_stop(
+    stop_id: uuid.UUID, body: SkipIn, permit: RouteDriver, session: DbSession, idem: Idempotent
+) -> StopOut:
+    stop, route, who = await execution.get_stop(session, stop_id, permit)
+    await execution.skip(
+        session, route, stop, who, reason=body.reason, note=body.note, client_at=body.client_at
+    )
+    return await _stop_answer(session, idem, route, stop)
