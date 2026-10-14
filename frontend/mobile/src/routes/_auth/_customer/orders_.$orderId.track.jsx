@@ -4,14 +4,21 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { hhmm } from "@/features/orders/format.js";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
-import { useOrder, useTracking } from "@/features/orders/queries.js";
+import { useDeliveryPlace, useOrder, useTracking } from "@/features/orders/queries.js";
+import { legOf, PILL, statusKey } from "@/features/orders/status.js";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
 import { intlLocale } from "@/lib/intlLocale.js";
 
 const TrackMap = lazy(() => import("@/components/TrackMap.jsx"));
 
-/** Live tracking of today's box: the van on a map, when it reaches your society, the last metres (design HcTracking; M4, M7). */
+/**
+ * Live tracking of today's box: the van on a map, when it reaches your society, the last metres
+ * (design HcTracking; M4, M7). The order alone gives the steps and times (the delivery slot's end
+ * is the ETA); the van, the rider and the map come from M7's tracking, a proposal, and drop out
+ * while it is not there.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders_/$orderId/track")({
   component: Track,
@@ -35,9 +42,10 @@ function Track() {
   const router = useRouter();
   const { orderId } = Route.useParams();
   const order = useOrder(orderId, lang);
-  const live = useTracking(orderId, lang);
-  const [reporting, setReporting] = useState(false);
   const o = order.data;
+  const live = useTracking(orderId, lang, o?.status === "dispatched");
+  const place = useDeliveryPlace();
+  const [reporting, setReporting] = useState(false);
   const v = live.data;
 
   const back = (
@@ -45,19 +53,14 @@ function Track() {
       <ArrowLeftIcon size={24} />
     </IconButton>
   );
-  if (order.isError || live.isError || ((!o || !v) && !order.isPending && !live.isPending))
+  if (order.isError || (!o && !order.isPending))
     return (
       <div className="flex flex-col gap-4">
         <div className="-ml-3">{back}</div>
-        <ScreenError
-          onRetry={() => {
-            order.refetch();
-            live.refetch();
-          }}
-        />
+        <ScreenError onRetry={() => order.refetch()} />
       </div>
     );
-  if (!o || !v)
+  if (!o)
     return (
       <div className="flex flex-col gap-4">
         <div className="-ml-3">{back}</div>
@@ -66,38 +69,39 @@ function Track() {
       </div>
     );
 
-  const time = (/** @type {string} */ hhmm) => clockTime(hhmm, lang);
-  const at = (/** @type {string} */ status) => {
-    const e = o.events.find((x) => x.to_status === status);
+  const time = (/** @type {string} */ clock) => clockTime(clock, lang);
+  const at = (/** @type {import("@/features/orders/queries.js").OrderStatus} */ status) => {
+    const e = o.timeline.find((x) => x.status === status);
     return e ? time(istClock(e.at)) : undefined;
   };
-  const arrived = o.status !== "DISPATCHED";
-  const delivered = o.status === "DELIVERED";
-  const captain = o.captain?.name ?? "";
+  const leg = legOf(o.status);
+  const arrived = leg >= 2;
+  const delivered = leg === 3;
+  const society = place.society ?? t("orders.yourSociety");
+  // The slot's end is when the box is at the door by; the van's own ETA, when known, is for the gate.
+  const doorBy = time(hhmm(o.slot.end));
+  const gateBy = v ? time(istClock(v.eta_at)) : doorBy;
   /** @type {{ label: string, time?: string, state: "done" | "current" | "todo" }[]} */
   const steps = [
-    { label: t("track.stage.packed"), time: at("PACKED"), state: "done" },
-    { label: t("track.stage.left"), time: at("DISPATCHED"), state: "done" },
+    { label: t("track.stage.packed"), time: at("packed"), state: leg >= 1 ? "done" : "current" },
+    { label: t("track.stage.left"), time: at("dispatched"), state: leg >= 1 ? "done" : "todo" },
     {
-      label: t("track.stage.society", { society: v.society.name }),
-      time: arrived ? at("AT_SOCIETY") : t("track.about", { time: time(v.eta_at) }),
-      state: arrived ? "done" : "current",
+      label: t("track.stage.society", { society }),
+      time: arrived ? at("at_society") : t("track.about", { time: gateBy }),
+      state: arrived ? "done" : leg === 1 ? "current" : "todo",
     },
     {
-      label: t("track.stage.captain", { captain }),
+      label: place.captain
+        ? t("track.stage.captain", { captain: place.captain })
+        : t("track.stage.captainNone"),
       state: delivered ? "done" : arrived ? "current" : "todo",
     },
     {
-      label: t("track.stage.door", { flat: o.address.flat }),
-      time: delivered
-        ? at("DELIVERED")
-        : o.eta_by
-          ? t("track.by", { time: time(o.eta_by) })
-          : undefined,
+      label: place.flat ? t("track.stage.door", { flat: place.flat }) : t("track.stage.doorNone"),
+      time: delivered ? at("delivered") : t("track.by", { time: doorBy }),
       state: delivered ? "done" : "todo",
     },
   ];
-  const away = km(v.van, v.society);
   const title = t("track.title", {
     day: `${weekdayName(o.delivery_date, lang)} ${shortDate(o.delivery_date, lang)}`,
   });
@@ -110,51 +114,49 @@ function Track() {
           <h1 className="font-display text-[28px] leading-[34px] font-semibold">{title}</h1>
         </div>
         <div className="shrink-0 whitespace-nowrap">
-          <StatusPill status={delivered ? "delivered" : "out"}>
-            {t(`orders.status.${o.status}`)}
-          </StatusPill>
+          <StatusPill status={PILL[o.status]}>{t(statusKey(o))}</StatusPill>
         </div>
       </header>
-      <figure className="m-0">
-        <Suspense fallback={<Skeleton className="h-[220px] w-full" />}>
-          <TrackMap
-            van={v.van}
-            society={v.society}
-            labels={{
-              van: t("track.vanLabel", { rider: v.rider.name }),
-              society: v.society.name,
-            }}
-            fallback={
-              <div className="grid h-[220px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center text-sm leading-5 text-fg-secondary">
-                {arrived
-                  ? t("track.noMapThere", { society: v.society.name })
-                  : t("track.noMap", {
-                      km: away.toLocaleString(intlLocale(lang), { maximumFractionDigits: 1 }),
-                      society: v.society.name,
-                    })}
-              </div>
-            }
-          />
-        </Suspense>
-      </figure>
+      {v && (
+        <figure className="m-0">
+          <Suspense fallback={<Skeleton className="h-[220px] w-full" />}>
+            <TrackMap
+              van={v.van}
+              society={v.society}
+              labels={{ van: t("track.vanLabel", { rider: v.rider.name }), society }}
+              fallback={
+                <div className="grid h-[220px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center text-sm leading-5 text-fg-secondary">
+                  {arrived
+                    ? t("track.noMapThere", { society })
+                    : t("track.noMap", {
+                        km: km(v.van, v.society).toLocaleString(intlLocale(lang), {
+                          maximumFractionDigits: 1,
+                        }),
+                        society,
+                      })}
+                </div>
+              }
+            />
+          </Suspense>
+        </figure>
+      )}
       <section className="flex items-center gap-3 rounded-md bg-surface px-3.5 py-3">
         <TruckIcon aria-hidden size={28} className="shrink-0 text-role-rider" />
         <div className="flex flex-col">
           <strong>
             {delivered
-              ? t("track.delivered", { time: at("DELIVERED") ?? "" })
+              ? t("track.delivered", { time: at("delivered") ?? "" })
               : arrived
-                ? t("track.arrived", { society: v.society.name, time: at("AT_SOCIETY") ?? "" })
-                : t("track.eta", { society: v.society.name, time: time(v.eta_at) })}
+                ? t("track.arrived", { society, time: at("at_society") ?? "" })
+                : t("track.eta", { society, time: gateBy })}
           </strong>
           {!delivered && (
             <span className="text-sm leading-5 text-fg-secondary">
               {arrived
-                ? t("track.captain", {
-                    captain,
-                    time: o.eta_by ? time(o.eta_by) : "",
-                  })
-                : t("track.rider", { rider: v.rider.name, hub: v.hub.name })}
+                ? place.captain
+                  ? t("track.captain", { captain: place.captain, time: doorBy })
+                  : t("track.captainNone", { time: doorBy })
+                : v && t("track.rider", { rider: v.rider.name, hub: v.hub.name })}
             </span>
           )}
         </div>

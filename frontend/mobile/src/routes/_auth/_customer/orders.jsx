@@ -12,8 +12,25 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { hhmm, istDate } from "@/features/orders/format.js";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
-import { useOrders } from "@/features/orders/queries.js";
+import {
+  useDeliveryPlace,
+  useOrder,
+  useOrders,
+  useRating,
+  useTiffinInfo,
+} from "@/features/orders/queries.js";
+import {
+  ACTIVE,
+  FINISHED,
+  PILL,
+  STAGE_KEY,
+  STAGE_OF,
+  STAGES,
+  statusKey,
+  TRACKABLE,
+} from "@/features/orders/status.js";
 import {
   clockTime,
   istClock,
@@ -21,54 +38,27 @@ import {
   todayIst,
   weekdayName,
 } from "@/features/subscriptions/format.js";
+import { useCurrentCycle } from "@/features/subscriptions/queries.js";
 
 /**
  * Orders: today's delivery with its timeline, live tracking, rating it once delivered, and what's
- * coming up (designs HcOrders, HcTracking, HcRate; M4).
+ * coming up (designs HcOrders, HcTracking, HcRate; M4). Orders exist from the moment a week is
+ * approved; the week still waiting for approval is M3's cycle, shown as the last "coming up" row.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders")({ component: Orders });
 
-/** Statuses after the cut-off and before the door: the order is being handled now. */
-const ACTIVE = new Set([
-  "LOCKED",
-  "PICKING",
-  "PACKED",
-  "DISPATCHED",
-  "AT_SOCIETY",
-  "UNDELIVERED",
-  "REDELIVERY",
-  "ASSIGNED",
-  "PREPARING",
-  "READY",
-  "PICKED_UP",
-]);
-/** @type {Record<string, "preparing" | "out" | "delivered" | "issue">} */
-const PILL = {
-  LOCKED: "preparing",
-  PICKING: "preparing",
-  PACKED: "preparing",
-  DISPATCHED: "out",
-  AT_SOCIETY: "out",
-  DELIVERED: "delivered",
-  UNDELIVERED: "issue",
-  REDELIVERY: "out",
-};
-/** Box timeline stages; a status in between counts as the stage before it. */
-const STAGES = ["APPROVED", "LOCKED", "PACKED", "AT_SOCIETY", "DELIVERED"];
-const STAGE_OF = /** @type {Record<string, string>} */ ({
-  PICKING: "LOCKED",
-  DISPATCHED: "PACKED",
-  UNDELIVERED: "AT_SOCIETY",
-  REDELIVERY: "AT_SOCIETY",
-});
-/** The van or the captain is on the way: live tracking is worth opening. */
-const TRACKABLE = new Set(["DISPATCHED", "AT_SOCIETY"]);
+/** Today's box first, then a tiffin the same day. @param {import("@/features/orders/queries.js").OrderSummary} a @param {import("@/features/orders/queries.js").OrderSummary} b */
+const soonest = (a, b) =>
+  a.delivery_date.localeCompare(b.delivery_date) ||
+  Number(a.kind !== "box") - Number(b.kind !== "box");
 
 function Orders() {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { data, isPending, isError, refetch } = useOrders(lang);
+  const cycle = useCurrentCycle(lang);
+  const place = useDeliveryPlace();
   const navigate = useNavigate();
   const [reporting, setReporting] = useState(false);
 
@@ -87,9 +77,15 @@ function Orders() {
     </header>
   );
 
-  const current = data?.find(
-    (o) => ACTIVE.has(o.status) || (o.status === "DELIVERED" && o.delivery_date >= yesterday),
+  // The API lists the newest delivery first; the screen wants the soonest.
+  const orders = [...(data ?? [])].sort(soonest);
+  const current = orders.find(
+    (o) => ACTIVE.has(o.status) || (o.status === "delivered" && o.delivery_date >= yesterday),
   );
+  // The list has no lines or timeline: the one order on show is read in full.
+  const detail = useOrder(current?.id, lang);
+  const tiffin = useTiffinInfo(current?.kind === "tiffin" ? current.id : undefined, lang);
+  const rating = useRating(current?.status === "delivered" ? current.id : undefined);
 
   if (isPending)
     return (
@@ -117,33 +113,50 @@ function Orders() {
       </div>
     );
 
-  const upcoming = data.filter(
-    (o) => o !== current && o.status !== "DELIVERED" && o.delivery_date >= today,
-  );
+  /** The week still to approve (M3): not an order yet. */
+  const toApprove =
+    /** @type {{ status: string, delivery_date: string, generated_at?: string | null } | undefined} */ (
+      cycle.data
+    );
+  /** @type {({ id: string, date: string } & ({ order: import("@/features/orders/queries.js").OrderSummary } | { readyOn: string | null }))[]} */
+  const upcoming = orders
+    .filter((o) => o !== current && !FINISHED.has(o.status) && o.delivery_date >= today)
+    .map((order) => ({ id: order.id, date: order.delivery_date, order }));
+  if (toApprove?.status === "awaiting_approval")
+    upcoming.push({
+      id: "to-approve",
+      date: toApprove.delivery_date,
+      readyOn: toApprove.generated_at ? istDate(toApprove.generated_at) : null,
+    });
+  upcoming.sort((a, b) => a.date.localeCompare(b.date));
 
   /** When a stage happened: the time on the delivery day, else the weekday and time. */
   const at = (/** @type {string} */ iso, /** @type {string} */ deliveryDate) => {
     const time = clockTime(istClock(iso), lang);
-    return iso.slice(0, 10) === deliveryDate ? time : `${weekdayName(iso, lang)} ${time}`;
+    return istDate(iso) === deliveryDate ? time : `${weekdayName(istDate(iso), lang)} ${time}`;
   };
   const steps = current
     ? (() => {
-        const reached = STAGES.indexOf(STAGE_OF[current.status] ?? current.status);
-        const issueNow = current.status === "UNDELIVERED";
+        const reached = STAGES.indexOf(
+          STAGE_OF[current.status] ?? /** @type {any} */ (current.status),
+        );
+        const issueNow = current.status === "undelivered";
         return STAGES.map((stage, i) => {
-          const event = current.events.find(
-            (e) => (STAGE_OF[e.to_status] ?? e.to_status) === stage,
+          const event = detail.data?.timeline.find(
+            (e) => (STAGE_OF[e.status] ?? e.status) === stage,
           );
-          const done = i < reached || (i === reached && stage === "DELIVERED");
+          const done = i < reached || (i === reached && stage === "delivered");
           return {
-            label: t(`orders.stage.${stage}`, {
-              hub: current.hub?.name ?? "",
-              captain: current.captain?.name ?? "",
-            }),
+            label:
+              stage === "packed"
+                ? t("track.stage.packed")
+                : stage === "at_society" && !place.captain
+                  ? t("orders.withCaptain")
+                  : t(`orders.stage.${STAGE_KEY[stage]}`, { captain: place.captain ?? "" }),
             time: event
               ? at(event.at, current.delivery_date)
-              : stage === "DELIVERED" && current.eta_by
-                ? t("orders.by", { time: clockTime(current.eta_by, lang) })
+              : stage === "delivered"
+                ? t("orders.by", { time: clockTime(hhmm(current.slot.end), lang) })
                 : undefined,
             state: /** @type {"done" | "current" | "issue" | "todo"} */ (
               done ? "done" : i === reached ? (issueNow ? "issue" : "current") : "todo"
@@ -152,6 +165,10 @@ function Orders() {
         });
       })()
     : [];
+  const where = [place.flat, place.society].filter(Boolean).join(", ");
+  const boxTitle = detail.data
+    ? t("orders.box", { n: detail.data.lines.length })
+    : t("orders.boxPlain");
 
   return (
     <div className="flex flex-col gap-3">
@@ -161,26 +178,25 @@ function Orders() {
           <div className="flex items-center justify-between gap-2">
             <strong>
               {current.kind === "tiffin"
-                ? t("orders.tiffinTitle", { dish: current.dish?.name ?? "" })
-                : t("orders.box", { n: current.items_count ?? 0 })}
+                ? tiffin.data
+                  ? t("orders.tiffinTitle", { dish: tiffin.data.dish.name })
+                  : t("tiffin.title")
+                : boxTitle}
             </strong>
-            <StatusPill status={PILL[current.status] ?? "preparing"}>
-              {t(`orders.status.${current.status}`, { defaultValue: t("orders.status.LOCKED") })}
-            </StatusPill>
+            <StatusPill status={PILL[current.status]}>{t(statusKey(current))}</StatusPill>
           </div>
           <p className="-mt-2 text-sm leading-5 text-fg-secondary">
-            {t(current.paid_from === "upi_autopay" ? "orders.paidUpi" : "orders.paidWallet", {
-              amount: formatPaise(current.total_paise),
-              flat: current.address.flat,
-              society: current.address.society,
-            })}
+            {t("orders.paid", { amount: formatPaise(current.total_paise) })}
+            {where && ` · ${where}`}
           </p>
           <figure className="m-0 h-[88px] overflow-hidden rounded-sm border border-line bg-bg">
-            <MapSketch label={t("orders.mapLabel", { society: current.address.society })} />
+            <MapSketch
+              label={t("orders.mapLabel", { society: place.society ?? t("orders.yourSociety") })}
+            />
           </figure>
           <OrderTimeline
             steps={steps}
-            label={t("orders.box", { n: current.items_count ?? 0 })}
+            label={boxTitle}
             labels={{
               done: t("orders.tl.done"),
               current: t("orders.tl.current"),
@@ -188,11 +204,11 @@ function Orders() {
               todo: t("orders.tl.todo"),
             }}
           />
-          {current.rating && (
+          {rating.data && (
             <p className="text-sm leading-5 text-fg-secondary">{t("orders.rated")}</p>
           )}
           <div className="flex flex-wrap gap-2">
-            {current.status === "DELIVERED" && !current.rating && (
+            {current.status === "delivered" && rating.isSuccess && !rating.data && (
               <Button
                 variant="primary"
                 onPress={() =>
@@ -230,31 +246,24 @@ function Orders() {
             {t("orders.next")}
           </span>
           <ul>
-            {upcoming.map((o) => (
+            {upcoming.map((u) => (
               <li
-                key={o.id}
+                key={u.id}
                 className="flex items-baseline justify-between gap-3 border-b border-line py-2.5 text-sm leading-5"
               >
-                <span>
-                  {o.kind === "tiffin"
-                    ? t("orders.tiffin", {
-                        day: day(o.delivery_date),
-                        cook: o.cook?.name ?? "",
-                        dish: o.dish?.name ?? "",
-                      })
-                    : o.plan_ready_on
-                      ? t("orders.nextBox", {
-                          day: day(o.delivery_date),
-                          ready: day(o.plan_ready_on),
-                        })
-                      : t("orders.boxOn", { day: day(o.delivery_date) })}
-                </span>
-                {o.status === "AWAITING_APPROVAL" ? (
-                  <span className="whitespace-nowrap text-fg-secondary">
-                    {t("orders.toApprove")}
-                  </span>
+                {"order" in u ? (
+                  <OrderRow order={u.order} lang={lang} day={day(u.date)} />
                 ) : (
-                  <MoneyText paise={o.total_paise} />
+                  <>
+                    <span>
+                      {u.readyOn
+                        ? t("orders.nextBox", { day: day(u.date), ready: day(u.readyOn) })
+                        : t("orders.boxOn", { day: day(u.date) })}
+                    </span>
+                    <span className="whitespace-nowrap text-fg-secondary">
+                      {t("orders.toApprove")}
+                    </span>
+                  </>
                 )}
               </li>
             ))}
@@ -263,6 +272,31 @@ function Orders() {
       )}
       <ProblemSheet orderId={current?.id} open={reporting} onOpenChange={setReporting} />
     </div>
+  );
+}
+
+/**
+ * A "coming up" row for an order: what it is on the left, what it costs (or what is wrong) on the
+ * right. @param {{ order: import("@/features/orders/queries.js").OrderSummary, lang: string, day: string }} props
+ */
+function OrderRow({ order, lang, day }) {
+  const { t } = useTranslation();
+  const tiffin = useTiffinInfo(order.kind === "tiffin" ? order.id : undefined, lang);
+  return (
+    <>
+      <span>
+        {order.kind === "tiffin"
+          ? tiffin.data
+            ? t("orders.tiffin", { day, cook: tiffin.data.cook.name, dish: tiffin.data.dish.name })
+            : t("orders.tiffinOn", { day })
+          : t("orders.boxOn", { day })}
+      </span>
+      {order.status === "payment_failed" ? (
+        <span className="whitespace-nowrap text-fg-secondary">{t(statusKey(order))}</span>
+      ) : (
+        <MoneyText paise={order.total_paise} />
+      )}
+    </>
   );
 }
 
