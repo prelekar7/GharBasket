@@ -13,9 +13,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
+import { QtySheet } from "@/features/subscriptions/QtySheet.jsx";
 import {
   useCurrentCycle,
   useCycleAction,
+  useEditLine,
   useSubstitutes,
   useSwapLine,
 } from "@/features/subscriptions/queries.js";
@@ -36,6 +38,8 @@ function Box() {
   const { data: c, isPending, isError, refetch } = useCurrentCycle(lang);
   const approve = useCycleAction("approve");
   const swap = useSwapLine();
+  const edit = useEditLine();
+  const [changing, setChanging] = useState(/** @type {string | null} */ (null));
   const [all, setAll] = useState(false);
   const [swapping, setSwapping] = useState(
     /** @type {{ id: string, name: string, pricePaise: number } | null} */ (null),
@@ -95,6 +99,7 @@ function Box() {
         labels={{
           total: t("box.total", { count: c.lines.length }),
           swap: t("box.swap"),
+          change: t("box.qty.change"),
           swapChip: { up: t("box.up"), saves: t("box.saves") },
         }}
         items={shown.map((l) => ({
@@ -106,6 +111,14 @@ function Box() {
             : undefined,
           swappedFromPaise: l.swapped_from_paise ?? undefined,
         }))}
+        onItemPress={
+          editable
+            ? (item) => {
+                const line = byName.get(item.name);
+                if (line?.step) setChanging(line.product_id);
+              }
+            : undefined
+        }
         onSwap={
           editable
             ? (item) => {
@@ -210,6 +223,48 @@ function Box() {
           }}
         />
       )}
+      <QtySheet
+        line={c.lines.find((l) => l.product_id === changing) ?? null}
+        onClose={() => setChanging(null)}
+        busy={edit.isPending}
+        onSave={(qty) => {
+          const line = c.lines.find((l) => l.product_id === changing);
+          if (!line) return;
+          edit.mutate(
+            { cycle: c, productId: line.product_id, op: "qty", qty },
+            {
+              onSuccess: () => {
+                setChanging(null);
+                toast(t("box.qty.saved", { name: line.name }));
+              },
+              onError,
+            },
+          );
+        }}
+        onRemove={() => {
+          const line = c.lines.find((l) => l.product_id === changing);
+          if (!line) return;
+          edit.mutate(
+            { cycle: c, productId: line.product_id, op: "remove" },
+            {
+              onSuccess: (after) => {
+                setChanging(null);
+                toast(t("box.qty.removed", { name: line.name }), {
+                  action: {
+                    label: t("box.undo"),
+                    onClick: () =>
+                      edit.mutate(
+                        { cycle: after, productId: line.product_id, op: "restore" },
+                        { onError },
+                      ),
+                  },
+                });
+              },
+              onError,
+            },
+          );
+        }}
+      />
     </div>
   );
 }

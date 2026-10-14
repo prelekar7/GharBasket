@@ -463,7 +463,21 @@
     "sheetNote": "{item} is {price} this week. Three good options, best first.",
     "useThis": "Use {name}",
     "swapped": "{from} swapped for {to}",
-    "closed": "Edits are closed for this week"
+    "closed": "Edits are closed for this week",
+    "undo": "Undo",
+    "qty": {
+      "change": "Change {name}",
+      "each": "{price} for {step}",
+      "for": "Planned for {meals}.",
+      "use": "{day}’s {dish}",
+      "label": "How much {name}",
+      "less": "Less",
+      "more": "More",
+      "remove": "Remove from box · {price}",
+      "save": "Save",
+      "saved": "{name} updated",
+      "removed": "{name} removed from your box"
+    }
   },
   "wallet": {
     "title": "Wallet",

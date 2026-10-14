@@ -4,7 +4,7 @@ import { request } from "@/lib/api.js";
 /**
  * @typedef {{ slot: "lunch" | "dinner", name: string, tiffin: boolean, skip?: boolean, reason_code?: string | null, reason_params?: Record<string, string | number> | null }} PlannedMeal
  * @typedef {{ kitchen_id: string, slot: "lunch" | "dinner", cook: { name: string }, dish: { name: string }, price_paise: number, order_by: string }} TiffinOffer
- * @typedef {{ product_id: string, name: string, qty_label: string, price_paise: number, reason_code: string | null, reason_params: Record<string, string | number> | null, swapped_from_paise: number | null }} BoxLine
+ * @typedef {{ product_id: string, name: string, qty_label: string, qty?: number, step?: { label: string, price_paise: number }, used_in?: { date: string, slot: "lunch" | "dinner", dish: string }[], price_paise: number, reason_code: string | null, reason_params: Record<string, string | number> | null, swapped_from_paise: number | null }} BoxLine
  * @typedef {{ code: string, params: Record<string, string | number> }} Highlight
  * @typedef {object} Cycle
  * @property {string} id
@@ -92,6 +92,27 @@ export function useSwapMeal() {
         request(`/v1/cycles/${v.cycle.id}/meals`, {
           method: "PATCH",
           body: { date: v.date, slot: v.slot },
+          headers: { "if-match": String(v.cycle.version) },
+        })
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+  });
+}
+
+/**
+ * Change how much of a line comes, take it out, or put it back (PATCH /v1/cycles/{id}/lines with
+ * op qty | remove | restore, our proposal for M3), with If-Match.
+ */
+export function useEditLine() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (
+      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore", qty?: number }} */ v,
+    ) =>
+      /** @type {Promise<Cycle>} */ (
+        request(`/v1/cycles/${v.cycle.id}/lines`, {
+          method: "PATCH",
+          body: { op: v.op, product_id: v.productId, qty: v.qty },
           headers: { "if-match": String(v.cycle.version) },
         })
       ),
