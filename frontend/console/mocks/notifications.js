@@ -1,11 +1,13 @@
-// Notification mocks. The templates are the real M11 §3.2 contract (docs/modules/M11-notifications.md,
-// backend/api modules/notifications/admin.py):
+// Notification mocks: the real M11 §3.2 contract (docs/modules/M11-notifications.md, backend/api
+// modules/notifications/admin.py).
 //   GET  /v1/admin/notification-templates?kind&channel&locale&history  { kinds, items }       admin
 //   PUT  /v1/admin/notification-templates      { kind, channel, wa_template_name, texts ×3 }  admin
 //        → { items: [Template ×3] }, a new active version; 422 notifications.template_invalid
 //   POST /v1/admin/notification-templates/preview  the PUT body → { items: [{ locale, title, body, params }] }
-// Placeholders are single-brace `{total}`; the text of each kind is checked against its list.
-// The delivery log is still the old proposal, GET /v1/admin/notification-log?phone=&event=.
+//   GET  /v1/admin/notifications?user_id&cursor&limit=20  { items: [LogEntry], next_cursor }  admin, hub_manager
+// Placeholders are single-brace `{total}`; the text of each kind is checked against its list. The log is
+// by user id, not by mobile number: the console finds the id with the proposed GET /v1/admin/users?phone=.
+// A request the real API would not match (the old PUT /{id}, /notification-log) has no handler here.
 import { HttpResponse, http } from "msw";
 import { deny } from "./adminShared.js";
 import { fieldError, mockStore, mockUuid, problem, roleOf } from "./util.js";
@@ -17,6 +19,7 @@ const LANG = /** @type {Record<string, "en" | "hi" | "mr">} */ ({
   "mr-IN": "mr",
 });
 const ADMIN_ID = mockUuid("b600", 1);
+const PRIYA_ID = mockUuid("b600", 8);
 
 /** @typedef {"money" | "weekday" | "time"} PlaceholderType */
 
@@ -296,72 +299,99 @@ function render(text, kind, locale) {
   return { text: out, params };
 }
 
-// The delivery log below is still the old proposal; the next change moves it to GET /v1/admin/notifications.
-/** @typedef {{ id: string, at: string, event: "cycle" | "reminder" | "delivery" | "wallet", message: string, channel: string,
- *   template: string, status: "delivered" | "not_sent" | "failed", note: string }} LogRow */
+// --- the delivery log ------------------------------------------------------------------------------------------
 
-/** @type {Record<string, { name: string, society: string, push: boolean, whatsapp: boolean, whatsapp_note: string, rows: LogRow[] }>} */
-const PEOPLE = {
-  9800001001: {
-    name: "Priya Sharma",
-    society: "Sunrise Towers",
-    push: true,
-    whatsapp: false,
-    whatsapp_note: "no WhatsApp consent",
-    rows: [
-      {
-        id: "m1",
-        at: "2026-10-06T08:20:00+05:30",
-        event: "delivery",
-        message: "Your box is with Meena tai",
-        channel: "Push",
-        template: "at_society v2",
-        status: "delivered",
-        note: "",
-      },
-      {
-        id: "m2",
-        at: "2026-10-05T19:00:00+05:30",
-        event: "reminder",
-        message: "Edits close at 9 PM",
-        channel: "Push",
-        template: "cutoff_reminder v1",
-        status: "delivered",
-        note: "",
-      },
-      {
-        id: "m3",
-        at: "2026-10-05T19:00:00+05:30",
-        event: "reminder",
-        message: "Edits close at 9 PM",
-        channel: "WhatsApp",
-        template: "cutoff_reminder v1",
-        status: "not_sent",
-        note: "No WhatsApp consent",
-      },
-      {
-        id: "m4",
-        at: "2026-10-03T18:30:00+05:30",
-        event: "cycle",
-        message: "Your week is ready to check",
-        channel: "Push",
-        template: "cycle_generated v3",
-        status: "delivered",
-        note: "",
-      },
-      {
-        id: "m5",
-        at: "2026-10-02T10:15:00+05:30",
-        event: "wallet",
-        message: "₹2,000 added to your wallet",
-        channel: "Push",
-        template: "wallet_topped_up v1",
-        status: "failed",
-        note: "Phone token expired; it refreshes at next app open",
-      },
-    ],
-  },
-};
+/** @param {number} hoursAgo */
+const ago = (hoursAgo) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+
+/** @param {string} channel @param {string} status @param {Record<string, unknown>} [extra] */
+const delivery = (channel, status, extra = {}) => ({
+  channel,
+  status,
+  attempts: 1,
+  last_error: null,
+  provider_ref: null,
+  next_attempt_at: null,
+  sent_at: null,
+  ...extra,
+});
+/** @param {number} hours @param {string} kind @param {string} title @param {string} body @param {string | null} link @param {ReturnType<typeof delivery>[]} deliveries */
+const entry = (hours, kind, title, body, link, deliveries) => ({
+  event_type: KINDS[kind].event_type,
+  category: KINDS[kind].category,
+  title,
+  body,
+  link,
+  created_at: ago(hours),
+  read_at: hours > 12 ? ago(hours - 1) : null,
+  kind,
+  deliveries,
+});
+const wamid = (/** @type {string} */ id) => `wamid.${id}`;
+
+function seedLog() {
+  const rows = [
+    entry(
+      2,
+      "orders.at_society",
+      "Your box has reached your society",
+      "Your Society Captain brings it to your door soon.",
+      "/orders",
+      [
+        delivery("push", "delivered", {
+          provider_ref: "projects/gb/messages/0:1",
+          sent_at: ago(2),
+        }),
+        delivery("whatsapp", "skipped", { attempts: 0, last_error: "no whatsapp consent" }),
+      ],
+    ),
+    entry(
+      20,
+      "subscriptions.cutoff_reminder",
+      "Edits close at 9 PM",
+      "Check this week's box and approve it, or skip.",
+      "/week",
+      [
+        delivery("push", "read", { provider_ref: "projects/gb/messages/0:2", sent_at: ago(20) }),
+        delivery("whatsapp", "delivered", { provider_ref: wamid("HBgM1"), sent_at: ago(20) }),
+      ],
+    ),
+    entry(
+      22,
+      "orders.payment_failed",
+      "Top up to get this week's box",
+      "Your wallet is ₹120 short. Add money by 9 PM or the box is cancelled.",
+      "/wallet",
+      [delivery("push", "held", { attempts: 0, next_attempt_at: ago(-8) })],
+    ),
+    entry(
+      44,
+      "subscriptions.box_ready",
+      "Your week is ready to check",
+      "₹690 box for the week. Approve or change it by Monday 9 PM.",
+      "/box",
+      [delivery("push", "sent", { provider_ref: "projects/gb/messages/0:3", sent_at: ago(44) })],
+    ),
+    entry(
+      70,
+      "billing.wallet_topped_up",
+      "₹2,000 added to your wallet",
+      "It's ready for your next box.",
+      "/wallet",
+      [delivery("push", "failed", { attempts: 4, last_error: "UNREGISTERED" })],
+    ),
+  ];
+  return rows.map((r, i) => ({
+    id: mockUuid("b800", i + 1),
+    event_id: mockUuid("b810", i + 1),
+    ...r,
+  }));
+}
+const log = () => mockStore("notifications.log", seedLog);
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** @param {string} where @param {string} message @param {string} type */
+const queryError = (where, message, type) => ({ loc: ["query", where], message, type });
 
 export const notificationsHandlers = [
   http.get("*/v1/admin/notification-templates", ({ request }) => {
@@ -442,21 +472,34 @@ export const notificationsHandlers = [
     });
   }),
 
-  http.get("*/v1/admin/notification-log", ({ request }) => {
-    if (roleOf(request) !== "admin") return problem(403, "auth.forbidden", "Admins only");
+  http.get("*/v1/admin/notifications", ({ request }) => {
+    const refused = deny(request, ["admin", "hub_manager"]);
+    if (refused) return refused;
     const q = new URL(request.url).searchParams;
-    const phone = (q.get("phone") ?? "").replace(/\D/g, "");
-    if (!/^\d{10}$/.test(phone))
-      return problem(422, "request.invalid", "Check the number", {
-        errors: [{ field: "phone", message: "Enter the 10-digit mobile number." }],
-      });
-    const person = PEOPLE[phone];
-    if (!person) return HttpResponse.json({ person: null, items: [] });
-    const event = q.get("event");
-    const { rows, ...who } = person;
-    return HttpResponse.json({
-      person: who,
-      items: rows.filter((r) => !event || event === "all" || r.event === event),
-    });
+    const userId = q.get("user_id");
+    const limit = q.has("limit") ? Number(q.get("limit")) : 20;
+    const errors = [];
+    if (userId === null) errors.push(queryError("user_id", "Field required", "missing"));
+    else if (!UUID.test(userId))
+      errors.push(queryError("user_id", "Input should be a valid UUID", "uuid_parsing"));
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      errors.push(queryError("limit", "Input should be between 1 and 100", "value_error"));
+    if (errors.length)
+      return problem(422, "request.invalid", "Request validation failed", { errors });
+    const cursor = q.get("cursor");
+    const start = cursor === null ? 0 : /^o(\d{1,6})$/.exec(cursor)?.[1];
+    if (start === undefined)
+      return problem(422, "request.invalid_cursor", "The cursor is not valid");
+    // A hub manager sees only the people their hub serves; here that is the seed customer.
+    const known = userId?.toLowerCase() === PRIYA_ID;
+    if (!known && roleOf(request) === "hub_manager")
+      return problem(403, "auth.forbidden", "You don't have permission to do this");
+    const mine = known ? log() : [];
+    const from = Number(start);
+    const items = mine.slice(from, from + limit);
+    return HttpResponse.json(
+      { items, next_cursor: from + limit < mine.length ? `o${from + limit}` : null },
+      { headers: { "cache-control": "no-store" } },
+    );
   }),
 ];
