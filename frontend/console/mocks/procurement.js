@@ -280,7 +280,7 @@ function seed() {
   const eve = addDays(today, -1);
   state.plans.push(
     {
-      id: mockUuid("b300", 1),
+      id: mockUuid("c110", 1),
       hub_id: KHARGHAR_HUB_ID,
       delivery_date: today,
       status: "draft",
@@ -293,7 +293,7 @@ function seed() {
       lines: seedLines(1),
     },
     {
-      id: mockUuid("b300", 2),
+      id: mockUuid("c110", 2),
       hub_id: KHARGHAR_HUB_ID,
       delivery_date: addDays(today, 1),
       status: "draft",
@@ -398,7 +398,7 @@ function generate(plan, now = new Date().toISOString()) {
   }
   /** @type {PurchaseOrder[]} */
   const drafts = [...byVendor.entries()].map(([vendorId, rows]) => ({
-    id: mockUuid("b310", state.nextPo++),
+    id: mockUuid("c120", state.nextPo++),
     number: null,
     plan_id: plan.id,
     hub_id: plan.hub_id,
@@ -508,7 +508,11 @@ export const procurementHandlers = [
     idempotent(request, (body) => {
       const refused = hubGuard(request, params.id, { write: true });
       if (refused) return refused;
-      const day = dateParam(body?.date, { min: 0, max: 2 });
+      if (typeof body?.date !== "string")
+        return problem(422, "request.invalid", "Send { date }", {
+          errors: [fieldError("date", "Field required", "missing")],
+        });
+      const day = dateParam(body.date, { min: 0, max: 2 });
       if ("error" in day) return day.error;
       const existing = planFor(KHARGHAR_HUB_ID, day.date);
       if (existing?.status === "closed")
@@ -520,7 +524,7 @@ export const procurementHandlers = [
       const { plans } = procurementState();
       /** @type {Plan} */
       const plan = {
-        id: mockUuid("b300", plans.length + 1),
+        id: mockUuid("c110", plans.length + 1),
         hub_id: KHARGHAR_HUB_ID,
         delivery_date: day.date,
         status: "draft",

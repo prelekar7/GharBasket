@@ -23,7 +23,7 @@ export const vendorState = () =>
   mockStore("vendors", () => {
     /** @param {number} n @param {Partial<Vendor>} v @returns {Vendor} */
     const vendor = (n, v) => ({
-      id: mockUuid("b200", n),
+      id: mockUuid("c100", n),
       hub_id: KHARGHAR_HUB_ID,
       kind: "apmc_trader",
       phone: null,
@@ -145,7 +145,7 @@ export const vendorsHandlers = [
       const { vendors } = vendorState();
       /** @type {Vendor} */
       const vendor = {
-        id: mockUuid("b200", vendors.length + 1),
+        id: mockUuid("c100", vendors.length + 1),
         hub_id: KHARGHAR_HUB_ID,
         name,
         kind: body.kind,
