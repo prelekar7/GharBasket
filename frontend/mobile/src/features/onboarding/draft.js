@@ -13,7 +13,7 @@ import { fromMembers } from "./members.js";
  * @property {boolean} noOnionSomeDays on every member's `fasting_rules.no_onion_garlic_on_fast_days`
  * @property {string[]} fasting e.g. "shravan_mondays", "ekadashi"; on each adult's and senior's `fasting_rules.fasts`
  * @property {boolean} healthConsent DPDP: health tags are used only when this is true
- * @property {Record<string, string[]>} health tags per member key ("adult-1")
+ * @property {Record<string, string[]>} health tags per member key ("adults-1"; see memberKeys)
  * @property {number} weekdayCookMinutes
  * @property {number} weekendCookMinutes
  * @property {number[]} noCookDays 0 = Monday … 6 = Sunday
@@ -38,6 +38,23 @@ const EMPTY_HOUSEHOLD = {
   budgetLockPaise: 300000,
   whatsappConsent: false,
   insightsConsent: false,
+};
+
+/** @type {(keyof Members)[]} */
+export const MEMBER_GROUPS = ["adults", "seniors", "children", "little"];
+
+/** People in the household as "adults-1", "seniors-1"… from the Family step's counts. @param {Members} members */
+export const memberKeys = (members) =>
+  MEMBER_GROUPS.flatMap((g) => Array.from({ length: members[g] }, (_, i) => `${g}-${i + 1}`));
+
+/**
+ * Health tags only for people still in the household: removing someone in the Family step must
+ * not leave their health data behind (DPDP).
+ * @param {Record<string, string[]>} health @param {Members} members
+ */
+export const pruneHealth = (health, members) => {
+  const keep = new Set(memberKeys(members));
+  return Object.fromEntries(Object.entries(health).filter(([key]) => keep.has(key)));
 };
 
 /** Health tags and consents: never kept past the tab (DPDP), so a resumed draft asks for them again. */
@@ -133,7 +150,12 @@ export const useOnboardingDraft = create(
           if (i > useOnboardingDraft.getState().reached) set({ reached: i });
         },
         update: (patch) => set(patch),
-        updateHousehold: (patch) => set((s) => ({ household: { ...s.household, ...patch } })),
+        updateHousehold: (patch) =>
+          set((s) => {
+            const household = { ...s.household, ...patch };
+            if (patch.members) household.health = pruneHealth(household.health, patch.members);
+            return { household };
+          }),
         reset: () =>
           set({
             societyId: null,

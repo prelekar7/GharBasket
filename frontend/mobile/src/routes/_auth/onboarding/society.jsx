@@ -29,6 +29,9 @@ function SocietyPicker() {
   const unlocks = useSocietyUnlocks(items.map((s) => s.id));
   const selected =
     societyId && items.some((s) => s.id === societyId) ? societyId : (items[0]?.id ?? "");
+  // Another society's towers and flats are different: a new choice clears the old tower and flat.
+  const choose = (/** @type {string} */ id) =>
+    update(id === societyId ? { societyId: id } : { societyId: id, towerId: null, flat: "" });
 
   const locate = () =>
     navigator.geolocation?.getCurrentPosition(
@@ -50,7 +53,7 @@ function SocietyPicker() {
             block
             isDisabled={!selected}
             onPress={() => {
-              update({ societyId: selected });
+              choose(selected);
               navigate({ to: nextStep("/onboarding/society") });
             }}
           >
@@ -94,7 +97,7 @@ function SocietyPicker() {
         <RadioCards
           label={t("onboarding.society.near")}
           value={selected}
-          onChange={(id) => update({ societyId: id })}
+          onChange={choose}
           options={items.map((s) => {
             const unlock = unlocks.get(s.id);
             return {

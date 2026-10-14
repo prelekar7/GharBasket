@@ -63,10 +63,10 @@ function FlatStep() {
           />
           <TextField
             label={t("onboarding.flat.flat")}
-            inputMode="numeric"
+            inputMode="text"
             autoComplete="off"
             value={flat}
-            onChange={(v) => update({ flat: v })}
+            onChange={(v) => update({ flat: v.toUpperCase() })}
           />
           {captain ? (
             <section className="flex items-start gap-3.5 rounded-md bg-surface p-4">

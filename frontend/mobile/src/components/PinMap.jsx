@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Map as MapLibre, Marker } from "@/lib/maplibre.js";
 
 // OpenFreeMap: free OpenStreetMap vector tiles, no API key (TDD §3.2: MapLibre, not Google Maps).
-const STYLE = "https://tiles.openfreemap.org/styles/liberty";
+// VITE_MAP_STYLE_URL can point at another style, e.g. a self-hosted one.
+const STYLE = import.meta.env.VITE_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/liberty";
+/** One arrow-key press moves the pin about 10 m. */
+const STEP_DEG = 0.0001;
 const hasWebGL2 = () => {
   try {
     return !!document.createElement("canvas").getContext("webgl2");
@@ -20,6 +23,9 @@ export default function PinMap({ center, onChange, label, fallback }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const changed = useRef(onChange);
   changed.current = onChange;
+  const pinRef = useRef(/** @type {Marker | null} */ (null));
+  const labelRef = useRef(label);
+  labelRef.current = label;
   const [failed, setFailed] = useState(() => !hasWebGL2());
 
   useEffect(() => {
@@ -38,13 +44,40 @@ export default function PinMap({ center, onChange, label, fallback }) {
     const pin = new Marker({ color: "#2F5D3A", draggable: true })
       .setLngLat([center.lng, center.lat])
       .addTo(map);
-    pin.getElement().setAttribute("aria-label", label);
-    pin.on("dragend", () => {
+    pinRef.current = pin;
+    const el = pin.getElement();
+    el.tabIndex = 0;
+    el.setAttribute("aria-label", labelRef.current);
+    const drop = () => {
       const { lat, lng } = pin.getLngLat();
       changed.current({ lat, lng });
+    };
+    pin.on("dragend", drop);
+    // Arrow keys move the pin, for people who can't drag.
+    el.addEventListener("keydown", (e) => {
+      const move = {
+        ArrowUp: [0, STEP_DEG],
+        ArrowDown: [0, -STEP_DEG],
+        ArrowLeft: [-STEP_DEG, 0],
+        ArrowRight: [STEP_DEG, 0],
+      }[e.key];
+      if (!move) return;
+      e.preventDefault();
+      const { lat, lng } = pin.getLngLat();
+      pin.setLngLat([lng + move[0], lat + move[1]]);
+      map.panTo(pin.getLngLat());
+      drop();
     });
-    return () => map.remove();
-  }, [failed, center.lat, center.lng, label]);
+    return () => {
+      pinRef.current = null;
+      map.remove();
+    };
+  }, [failed, center.lat, center.lng]);
+
+  // The label changes with the language; renaming the pin must not rebuild the map or move it.
+  useEffect(() => {
+    pinRef.current?.getElement().setAttribute("aria-label", label);
+  }, [label]);
 
   if (failed) return <>{fallback}</>;
   return (
@@ -55,7 +88,7 @@ export default function PinMap({ center, onChange, label, fallback }) {
         <a href="https://www.openstreetmap.org/copyright" className="underline">
           OpenStreetMap
         </a>{" "}
-        contributors · OpenFreeMap
+        contributors · © OpenMapTiles · OpenFreeMap
       </small>
     </div>
   );

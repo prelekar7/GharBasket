@@ -3,18 +3,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { MEMBER_GROUPS, useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
 /** Tags shown before "More" (Hf09); a chosen tag always stays visible. */
 const FIRST = 3;
-/** @type {("adults" | "seniors" | "children" | "little")[]} */
-const GROUPS = ["adults", "seniors", "children", "little"];
-
-/** People in the household as "adults-1", "seniors-1"… from the Family step's counts. */
+/** People in the household, keyed as in memberKeys (draft.js), with their group for the label. */
 function people(/** @type {import("@/features/onboarding/draft.js").Members} */ members) {
-  return GROUPS.flatMap((g) =>
+  return MEMBER_GROUPS.flatMap((g) =>
     Array.from({ length: members[g] }, (_, i) => ({ key: `${g}-${i + 1}`, group: g, n: i + 1 })),
   );
 }
