@@ -1,1 +1,7 @@
 @import "@gharbasket/ui/styles.css";
+
+/* Sonner's action button ("Undo") must not wrap inside the toast; @gharbasket/ui's classes leave it shrinkable. */
+[data-sonner-toast] [data-button] {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
