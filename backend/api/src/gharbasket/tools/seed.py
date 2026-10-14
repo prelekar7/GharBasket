@@ -368,7 +368,9 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
             session, SEED_HUB, hub_id=SEED_HUB_ID, data_source="synthetic"
         )
     else:
-        fields = SEED_HUB.model_dump(exclude={"slug", "timings", "procurement_buffer_pct"})
+        fields = SEED_HUB.model_dump(
+            exclude={"slug", "timings", "procurement_buffer_pct", "pre_live_box_fee_paise"}
+        )
         await hub_service.update_hub(session, hub, HubPatch.model_validate(fields))
     vendors = await hub_service.list_vendors(session, hub.id, None)
     if not any(vendor.name.lower() == SEED_VENDOR.name.lower() for vendor in vendors):

@@ -2843,6 +2843,11 @@ export interface components {
              */
             name: string;
             /**
+             * Pre Live Box Fee Paise
+             * @default 3000
+             */
+            pre_live_box_fee_paise: number;
+            /**
              * Procurement Buffer Pct
              * @default 10
              */
@@ -2877,6 +2882,12 @@ export interface components {
              * @example Kharghar hub
              */
             name: string;
+            /**
+             * Pre Live Box Fee Paise
+             * @description Delivery fee per box while a society is not live (M9 §3.6)
+             * @example 3000
+             */
+            pre_live_box_fee_paise: number;
             /**
              * Procurement Buffer Pct
              * @example 10
@@ -2913,6 +2924,8 @@ export interface components {
             location?: components["schemas"]["LatLng"] | null;
             /** Name */
             name?: string | null;
+            /** Pre Live Box Fee Paise */
+            pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
             service_area?: components["schemas"]["GeoPolygon"] | null;

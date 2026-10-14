@@ -2227,6 +2227,13 @@
             "title": "Name",
             "type": "string"
           },
+          "pre_live_box_fee_paise": {
+            "default": 3000,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Pre Live Box Fee Paise",
+            "type": "integer"
+          },
           "procurement_buffer_pct": {
             "default": 10,
             "maximum": 50.0,
@@ -2300,6 +2307,14 @@
             "title": "Name",
             "type": "string"
           },
+          "pre_live_box_fee_paise": {
+            "description": "Delivery fee per box while a society is not live (M9 §3.6)",
+            "examples": [
+              3000
+            ],
+            "title": "Pre Live Box Fee Paise",
+            "type": "integer"
+          },
           "procurement_buffer_pct": {
             "examples": [
               10
@@ -2356,6 +2371,7 @@
           "service_area",
           "timings",
           "procurement_buffer_pct",
+          "pre_live_box_fee_paise",
           "version",
           "created_at",
           "updated_at"
@@ -2402,6 +2418,19 @@
               }
             ],
             "title": "Name"
+          },
+          "pre_live_box_fee_paise": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pre Live Box Fee Paise"
           },
           "procurement_buffer_pct": {
             "anyOf": [

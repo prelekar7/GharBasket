@@ -24,6 +24,7 @@ class HubRef:
     lat: float
     lng: float
     timings: dict[str, str]  # receiving, packing, dispatch, surplus as IST "HH:MM"
+    pre_live_box_fee_paise: int  # per box while the society is not live (M9 §3.6; M4 box_fee)
 
 
 async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
@@ -38,6 +39,7 @@ async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
         lat=hub.lat,
         lng=hub.lng,
         timings=dict(hub.timings),
+        pre_live_box_fee_paise=hub.pre_live_box_fee_paise,
     )
 
 

@@ -5,6 +5,7 @@
 - The cut-off job and M6/M7/M8 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
+- M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
 """
 
 import uuid
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
 from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
+from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     Order,
     OrderEvent,
@@ -50,6 +52,7 @@ __all__ = [
     "OrderSummary",
     "SlotRef",
     "anonymise_for_user",
+    "box_fee",
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
@@ -150,7 +153,7 @@ async def resolve_issue(
     note: str | None = None,
 ) -> OrderIssue:
     """The M12 console's triage of an open issue (§3.2): refund `credit_paise` to the wallet
-    (at most the issue's amount, or the order total for late/other, and never more than is left
+    (at most the issue's amount, or the food total for late/other, and never more than is left
     of what was paid for the order: `orders.issue_credit_invalid` carries `max_paise`) or reject
     it. The caller has checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit`
     is raised as is."""

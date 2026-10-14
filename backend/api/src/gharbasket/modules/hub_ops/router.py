@@ -84,6 +84,7 @@ def _hub_out(hub: Hub) -> HubOut:
         service_area=None if area is None else GeoPolygon.model_validate_json(area),
         timings=Timings.model_validate(hub.timings),
         procurement_buffer_pct=hub.procurement_buffer_pct,
+        pre_live_box_fee_paise=hub.pre_live_box_fee_paise,
         version=hub.version,
         created_at=hub.created_at,
         updated_at=hub.updated_at,
