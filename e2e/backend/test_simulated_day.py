@@ -39,17 +39,10 @@ NOT_IN_THE_DAY = {
     "requested in the day",
     "sweep_uploads": "needs object storage (SeaweedFS, `just up-storage`)",
 }
-# Product bugs this suite found, by the test or invariant that shows them (see the PR's
-# "Bugs found"); each is xfail(strict=True), so fixing one turns the suite red until it is removed.
-BUG_TOOLS_LOSE_CONSUMERS = (
-    "Bug 1: outbox events relayed outside the API process (`just job`, `just seed`, `just sim`) "
-    "only reach the consumers that process happened to import; the rest are marked sent unhandled"
-)
-BUG_JUST_JOB_UNKNOWN = (
-    "Bug 2: `just job <name>` (gharbasket.tools.run_job) knows only the platform's three jobs; "
-    "every module job is refused as unknown"
-)
-BUGS = {"routed_events_have_their_message": BUG_TOOLS_LOSE_CONSUMERS}
+# Open product bugs this suite found, by the invariant that shows them, with the bug as the reason;
+# each is xfail(strict=True), so fixing one turns the suite red until it is removed. (#280's two,
+# tools that lost outbox consumers and `just job` knowing only the platform's jobs, are fixed.)
+BUGS: dict[str, str] = {}
 VIKRAM = "+919800001008"  # the seed hub's manager
 PRIYA = "+919800001001"  # a seed customer, subscribing during the day
 ROLES = (
@@ -285,10 +278,13 @@ def test_box_ready_notices_open_the_boxes_and_push_them(
         return notices, sent
 
     notices, sent = step(loop, when, go())
+    # The day's own box-ready messages: the simulated weeks before it have theirs too.
     messages = loop.run(
         scalar(
             config,
-            "SELECT count(*) FROM notifications.messages WHERE kind = 'subscriptions.box_ready'",
+            "SELECT count(*) FROM notifications.messages WHERE kind = 'subscriptions.box_ready' "
+            "AND event_id > CAST(:watermark AS uuid)",
+            watermark=day.watermark,
         )
     )
     assert notices["delivery_date"] == day.t.isoformat()
@@ -712,10 +708,9 @@ def test_invariant(name: str, config: Config, loop: Runner, app: App) -> None:
     assert violations == [], "\n".join(violations[:50])
 
 
-# --- bugs found: the local job runner ---------------------------------------------------------
+# --- the local tools (M0 §6: `just job`) ------------------------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason=BUG_JUST_JOB_UNKNOWN)
 def test_just_job_runs_a_module_job(config: Config, day: Day, app: App) -> None:
     """`just job remind_unapproved --scheduled-for …` (M0 §6: the local trigger)."""
     at = ist(day.t - timedelta(days=1), 19, 0).isoformat()
@@ -723,7 +718,6 @@ def test_just_job_runs_a_module_job(config: Config, day: Day, app: App) -> None:
     assert '"status": "ok"' in lines[-1]
 
 
-@pytest.mark.xfail(strict=True, reason=BUG_TOOLS_LOSE_CONSUMERS)
 def test_just_job_outbox_sweep_hands_events_to_their_consumers(
     config: Config, day: Day, loop: Runner, app: App
 ) -> None:
