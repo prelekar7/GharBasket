@@ -4,6 +4,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OtpBoxes } from "@/components/OtpBoxes.jsx";
+import { resumeStep } from "@/features/onboarding/draft.js";
 import { exchange, me } from "@/lib/api.js";
 import { OtpError, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
@@ -56,7 +57,7 @@ function Otp() {
       const out = await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
       signIn(await me());
       // A new household sets up its society, flat and family first.
-      navigate({ to: out.is_new_user ? "/onboarding/society" : (next ?? "/") });
+      navigate({ to: out.is_new_user ? resumeStep() : (next ?? "/") });
     } catch (e) {
       setError(t(errorKey(e)));
       setBusy(false);
