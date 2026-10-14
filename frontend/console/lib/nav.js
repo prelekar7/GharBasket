@@ -49,9 +49,9 @@ export const NAV = [
         hidden: true,
         roles: ADMIN_AND_HUB,
       },
-      { href: "/users", label: "Users and roles", key: "u" },
+      { href: "/users", label: "Users and roles", ready: true, key: "u" },
       { href: "/festivals", label: "Festival calendar", ready: true },
-      { href: "/tiffin-menus", label: "Tiffin menus", roles: ADMIN_AND_HUB },
+      { href: "/tiffin-menus", label: "Tiffin menus", ready: true, roles: ADMIN_AND_HUB },
     ],
   },
   {

@@ -3,5 +3,8 @@
 
 /** @typedef {import("../../mocks/adminCommunity.js").Society} Society */
 /** @typedef {import("../../mocks/adminCommunity.js").SocietyRequest} SocietyRequest */
+/** @typedef {import("../../mocks/identity.js").AdminUser} AdminUser */
+/** @typedef {import("../../mocks/identity.js").UserRole} UserRole */
+/** @typedef {import("../../mocks/tiffin.js").TiffinDish} TiffinDish */
 
 export {};
