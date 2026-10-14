@@ -19,6 +19,7 @@ import { RoleFrame } from "@/components/RoleFrame.jsx";
 import { householdQuery } from "@/features/identity/profile.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
+import { useToastAboveTabs } from "@/lib/toastOffset.js";
 
 /** Customer shell: role bar, the five tabs and the floating Ghar Saathi button (FDD §8). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -55,6 +56,7 @@ function CustomerShell() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
+  const tabBarRef = useToastAboveTabs();
   const segment = pathname.split("/")[1] || "week";
   // Wallet, Society, Become a partner, Budget Lock and UPI Autopay open from Profile (HcWallet,
   // HcSociety, HcPartner, HcBudget, HcAutopay).
@@ -81,7 +83,7 @@ function CustomerShell() {
           <ChatCircleTextIcon size={26} />
         </button>
       )}
-      <div className="fixed inset-x-0 bottom-0">
+      <div ref={tabBarRef} className="fixed inset-x-0 bottom-0">
         <TabBar
           label={t("tabs.main")}
           senior={senior}

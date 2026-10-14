@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useSession } from "@/lib/session.js";
+import { useToastAboveTabs } from "@/lib/toastOffset.js";
 import { RoleFrame } from "./RoleFrame.jsx";
 
 /**
@@ -23,6 +24,7 @@ export function FieldFrame({ userRole, tabs }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
+  const tabBarRef = useToastAboveTabs();
   const segment = pathname.split("/")[2] ?? "";
   const current = tabs.some((tab) => tab.value === segment) ? segment : "";
   return (
@@ -30,7 +32,7 @@ export function FieldFrame({ userRole, tabs }) {
       <main className="flex flex-1 flex-col gap-3 px-4 pt-3 pb-28">
         <Outlet />
       </main>
-      <div className="fixed inset-x-0 bottom-0">
+      <div ref={tabBarRef} className="fixed inset-x-0 bottom-0">
         <TabBar
           label={t("tabs.main")}
           role={userRole}
