@@ -225,11 +225,20 @@ function Profile() {
         <RadioCards
           label={t("profile.language")}
           value={lang}
-          onChange={(lng) => {
-            i18n.changeLanguage(lng);
-            update.mutate({ locale: /** @type {typeof lang} */ (lng) });
-            setSheet(null);
-          }}
+          onChange={(lng) =>
+            // The screen changes language only once the server has it; otherwise the app would
+            // show Hindi while the account still says en-IN.
+            update.mutate(
+              { locale: /** @type {typeof lang} */ (lng) },
+              {
+                onSuccess: () => {
+                  i18n.changeLanguage(lng);
+                  setSheet(null);
+                },
+                onError: () => toast(t("profile.saveFailed")),
+              },
+            )
+          }
           options={LOCALES.map((value) => ({ value, title: LANGUAGE_NAMES[value] }))}
         />
       </Sheet>
