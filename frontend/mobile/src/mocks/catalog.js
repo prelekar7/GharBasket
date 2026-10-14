@@ -1,99 +1,462 @@
-// M2 catalog mocks (docs/modules/M2-catalog.md §3): multilingual search for add-ons. The real
-// search runs FTS + trigram + synonyms; the mock matches names and a few Hinglish/Marathi terms.
-// Shapes are our proposal; prices are this hub's list prices in paise per step.
+// M2 catalog mocks (docs/modules/M2-catalog.md §3): product detail and multilingual search for
+// add-ons, in the real ProductOut and SearchItem shapes (ids are UUIDs, a step is {qty, unit,
+// label}, prices are per step at the household's hub). The real search runs FTS + trigram +
+// synonyms; the mock matches names and a few Hinglish/Marathi terms.
 import { HttpResponse, http } from "msw";
 
-/** [id, en, hi, search terms, step amount, en unit, hi unit, price per step] */
-export const PRODUCTS = /** @type {const} */ ([
-  ["eggs", "Eggs", "अंडे", ["anda", "ande", "egg"], 6, "pcs", "नग", 4200],
-  ["milk", "Milk", "दूध", ["doodh", "dudh"], 500, "ml", "मि.ली.", 3200],
-  ["bread", "Bread", "ब्रेड", ["pav", "double roti"], 1, "loaf", "पैकेट", 4500],
-  ["ghee", "Ghee", "घी", ["tup", "desi ghee"], 200, "g", "ग्रा", 13000],
-  ["atta", "Wheat atta", "गेहूँ का आटा", ["atta", "gehu", "kanik"], 1, "kg", "किलो", 5200],
-  ["rice", "Rice", "चावल", ["chawal", "tandul", "basmati"], 1, "kg", "किलो", 7800],
-  ["poha", "Poha", "पोहा", ["pohe", "flattened rice"], 500, "g", "ग्रा", 3800],
-  ["banana", "Banana", "केला", ["kela", "keli"], 6, "pcs", "नग", 3600],
-  ["tomato", "Tomato", "टमाटर", ["tamatar", "tomato"], 500, "g", "ग्रा", 2800],
-]);
+/** Seeded hub of the demo households, same id as the real dev database. */
+const HUB_ID = "0199a000-0000-7000-8000-00000000a001";
+
+/** @typedef {"g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack"} Unit */
+
+/** The unit's short label in each language, as the server writes `step.label` ("500 g", "6 नग"). @type {Record<Unit, [string, string, string]>} */
+const UNIT_LABEL = {
+  g: ["g", "ग्रा", "ग्रॅ"],
+  kg: ["kg", "किलो", "किलो"],
+  ml: ["ml", "मि.ली.", "मि.ली."],
+  l: ["l", "लीटर", "लि."],
+  piece: ["pc", "नग", "नग"],
+  bunch: ["bunch", "गुच्छा", "जुडी"],
+  pack: ["pack", "पैकेट", "पाकीट"],
+};
+
+/** The language of a request, from Accept-Language: "en" | "hi" | "mr". @param {Request} r */
+const langOf = (r) => {
+  const l = (r.headers.get("accept-language") ?? "").slice(0, 2);
+  return l === "hi" || l === "mr" ? l : "en";
+};
+const LANG_INDEX = { en: 0, hi: 1, mr: 2 };
 
 /**
- * What the product sheet shows (M2 `names` jsonb and the hub's list price): [id, en, hi, mr, also
- * called, list price in paise per unit, unit, in season this week]. Box lines and add-ons both.
- * @type {[string, string, string, string, string | null, number, "kg" | "l" | "pc" | "bunch" | "loaf", boolean][]}
+ * One product per row: [slug, en, hi, mr, kind, category [slug, en, hi], step qty, step unit,
+ * price per step in paise, extra search terms, in season this week, shelf life in hours].
+ * @type {[string, string, string, string, string, [string, string, string], number, Unit, number, string[], boolean, number][]}
  */
-const FACTS = [
-  ["methi", "Methi", "मेथी", "मेथी", "Fenugreek leaves", 2000, "bunch", true],
-  ["lauki", "Lauki", "लौकी", "दुधी", "Bottle gourd", 3000, "pc", true],
-  ["bhindi", "Bhindi", "भिंडी", "भेंडी", "Okra", 8000, "kg", true],
-  ["paneer", "Paneer", "पनीर", "पनीर", "Cottage cheese", 45000, "kg", false],
-  ["onion", "Onion", "प्याज़", "कांदा", null, 3800, "kg", false],
-  ["potato", "Potato", "आलू", "बटाटा", null, 3500, "kg", false],
-  ["toor-dal", "Toor dal", "तूर दाल", "तूर डाळ", "Arhar dal", 18000, "kg", false],
-  ["rajma", "Rajma", "राजमा", "राजमा", "Kidney beans", 12000, "kg", false],
-  ["coriander", "Coriander", "धनिया", "कोथिंबीर", null, 1000, "bunch", true],
-  ["chilli", "Green chilli", "हरी मिर्च", "हिरवी मिरची", null, 10000, "kg", false],
-  ["ginger", "Ginger", "अदरक", "आले", null, 15000, "kg", false],
-  ["curd", "Curd", "दही", "दही", "Dahi", 11250, "kg", false],
-  ["lemon", "Lemon", "नींबू", "लिंबू", null, 400, "pc", false],
-  ["cucumber", "Cucumber", "खीरा", "काकडी", null, 4200, "kg", true],
-  ["tomato", "Tomato", "टमाटर", "टोमॅटो", null, 11200, "kg", false],
-  ["eggs", "Eggs", "अंडे", "अंडी", null, 700, "pc", false],
-  ["milk", "Milk", "दूध", "दूध", null, 6400, "l", false],
-  ["bread", "Bread", "ब्रेड", "ब्रेड", "Pav", 4500, "loaf", false],
-  ["ghee", "Ghee", "घी", "तूप", null, 65000, "kg", false],
-  ["atta", "Wheat atta", "गेहूँ का आटा", "गव्हाचे पीठ", null, 5200, "kg", false],
-  ["rice", "Rice", "चावल", "तांदूळ", null, 7800, "kg", false],
-  ["poha", "Poha", "पोहा", "पोहे", "Flattened rice", 7600, "kg", false],
-  ["banana", "Banana", "केला", "केळी", null, 600, "pc", false],
+const ROWS = [
+  [
+    "eggs",
+    "Eggs",
+    "अंडे",
+    "अंडी",
+    "staple",
+    ["dairy-eggs", "Dairy and eggs", "डेयरी और अंडे"],
+    6,
+    "piece",
+    4200,
+    ["anda", "ande", "egg"],
+    false,
+    336,
+  ],
+  [
+    "milk",
+    "Milk",
+    "दूध",
+    "दूध",
+    "staple",
+    ["dairy-eggs", "Dairy and eggs", "डेयरी और अंडे"],
+    500,
+    "ml",
+    3200,
+    ["doodh", "dudh"],
+    false,
+    48,
+  ],
+  [
+    "bread",
+    "Bread",
+    "ब्रेड",
+    "ब्रेड",
+    "staple",
+    ["bakery", "Bakery", "बेकरी"],
+    1,
+    "pack",
+    4500,
+    ["pav", "double roti"],
+    false,
+    72,
+  ],
+  [
+    "ghee",
+    "Ghee",
+    "घी",
+    "तूप",
+    "staple",
+    ["dairy-eggs", "Dairy and eggs", "डेयरी और अंडे"],
+    200,
+    "g",
+    13000,
+    ["tup", "desi ghee"],
+    false,
+    4320,
+  ],
+  [
+    "atta",
+    "Wheat atta",
+    "गेहूँ का आटा",
+    "गव्हाचे पीठ",
+    "staple",
+    ["staples", "Staples", "राशन"],
+    1,
+    "kg",
+    5200,
+    ["gehu", "kanik"],
+    false,
+    2160,
+  ],
+  [
+    "rice",
+    "Rice",
+    "चावल",
+    "तांदूळ",
+    "staple",
+    ["staples", "Staples", "राशन"],
+    1,
+    "kg",
+    7800,
+    ["chawal", "tandul", "basmati"],
+    false,
+    4320,
+  ],
+  [
+    "poha",
+    "Poha",
+    "पोहा",
+    "पोहे",
+    "staple",
+    ["staples", "Staples", "राशन"],
+    500,
+    "g",
+    3800,
+    ["pohe", "flattened rice"],
+    false,
+    2160,
+  ],
+  [
+    "banana",
+    "Banana",
+    "केला",
+    "केळी",
+    "fruit",
+    ["fruit", "Fruit", "फल"],
+    6,
+    "piece",
+    3600,
+    ["kela", "keli"],
+    false,
+    120,
+  ],
+  [
+    "tomato",
+    "Tomato",
+    "टमाटर",
+    "टोमॅटो",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    500,
+    "g",
+    2800,
+    ["tamatar"],
+    false,
+    96,
+  ],
+  [
+    "methi",
+    "Methi",
+    "मेथी",
+    "मेथी",
+    "veg",
+    ["leafy-greens", "Leafy greens", "पत्तेदार सब्ज़ियाँ"],
+    1,
+    "bunch",
+    2000,
+    ["fenugreek leaves"],
+    true,
+    48,
+  ],
+  [
+    "lauki",
+    "Lauki",
+    "लौकी",
+    "दुधी",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    1,
+    "piece",
+    3000,
+    ["bottle gourd", "dudhi"],
+    true,
+    120,
+  ],
+  [
+    "bhindi",
+    "Bhindi",
+    "भिंडी",
+    "भेंडी",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    500,
+    "g",
+    4000,
+    ["okra", "bhendi"],
+    true,
+    72,
+  ],
+  [
+    "paneer",
+    "Paneer",
+    "पनीर",
+    "पनीर",
+    "staple",
+    ["dairy-eggs", "Dairy and eggs", "डेयरी और अंडे"],
+    200,
+    "g",
+    9000,
+    ["cottage cheese"],
+    false,
+    120,
+  ],
+  [
+    "onion",
+    "Onion",
+    "प्याज़",
+    "कांदा",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    1,
+    "kg",
+    3800,
+    ["pyaz", "kanda"],
+    false,
+    720,
+  ],
+  [
+    "potato",
+    "Potato",
+    "आलू",
+    "बटाटा",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    1,
+    "kg",
+    3500,
+    ["aloo", "batata"],
+    false,
+    720,
+  ],
+  [
+    "toor-dal",
+    "Toor dal",
+    "तूर दाल",
+    "तूर डाळ",
+    "staple",
+    ["staples", "Staples", "राशन"],
+    500,
+    "g",
+    9000,
+    ["arhar dal"],
+    false,
+    4320,
+  ],
+  [
+    "rajma",
+    "Rajma",
+    "राजमा",
+    "राजमा",
+    "staple",
+    ["staples", "Staples", "राशन"],
+    500,
+    "g",
+    6000,
+    ["kidney beans"],
+    false,
+    4320,
+  ],
+  [
+    "coriander",
+    "Coriander",
+    "धनिया",
+    "कोथिंबीर",
+    "veg",
+    ["leafy-greens", "Leafy greens", "पत्तेदार सब्ज़ियाँ"],
+    1,
+    "bunch",
+    1000,
+    ["kothimbir", "dhania"],
+    true,
+    48,
+  ],
+  [
+    "chilli",
+    "Green chilli",
+    "हरी मिर्च",
+    "हिरवी मिरची",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    100,
+    "g",
+    1000,
+    ["mirchi", "mirch"],
+    false,
+    96,
+  ],
+  [
+    "ginger",
+    "Ginger",
+    "अदरक",
+    "आले",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    100,
+    "g",
+    1500,
+    ["adrak", "ale"],
+    false,
+    240,
+  ],
+  [
+    "curd",
+    "Curd",
+    "दही",
+    "दही",
+    "staple",
+    ["dairy-eggs", "Dairy and eggs", "डेयरी और अंडे"],
+    400,
+    "g",
+    4500,
+    ["dahi"],
+    false,
+    96,
+  ],
+  [
+    "lemon",
+    "Lemon",
+    "नींबू",
+    "लिंबू",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    1,
+    "piece",
+    400,
+    ["nimbu", "limbu"],
+    false,
+    240,
+  ],
+  [
+    "cucumber",
+    "Cucumber",
+    "खीरा",
+    "काकडी",
+    "veg",
+    ["vegetables", "Vegetables", "सब्ज़ियाँ"],
+    500,
+    "g",
+    2100,
+    ["kheera", "kakdi"],
+    true,
+    96,
+  ],
 ];
 
+const CATEGORIES = [...new Set(ROWS.map((r) => r[5][0]))];
+
+/** A stable UUID for a catalog slug, so ids look like the real ones. @param {string} slug */
+export const productUuid = (slug) => {
+  const n = ROWS.findIndex(([s]) => s === slug) + 1;
+  return `0199a000-0000-7000-8000-${String(n).padStart(12, "0")}`;
+};
+
+/** Finds a product row by its UUID or its slug (box lines in other mocks still carry slugs). @param {string} idOrSlug */
+const find = (idOrSlug) => ROWS.find(([s]) => s === idOrSlug || productUuid(s) === idOrSlug);
+
+/** The unit amounts the add-on search offers, for other mocks: [id, en, hi, terms, step qty, en unit, hi unit, price per step, slug]. */
+export const PRODUCTS = ROWS.map(
+  ([slug, en, hi, , , , qty, unit, price, terms]) =>
+    /** @type {const} */ ([
+      productUuid(slug),
+      en,
+      hi,
+      terms,
+      qty,
+      unit === "piece" ? "pcs" : unit === "pack" ? "loaf" : UNIT_LABEL[unit][0],
+      UNIT_LABEL[unit][1],
+      price,
+      slug,
+    ]),
+);
+
+const step = (
+  /** @type {(typeof ROWS)[number]} */ row,
+  /** @type {"en" | "hi" | "mr"} */ lang,
+) => ({
+  qty: row[6],
+  unit: row[7],
+  label: `${row[6]} ${UNIT_LABEL[row[7]][LANG_INDEX[lang]]}`,
+});
+const nameOf = (/** @type {(typeof ROWS)[number]} */ row, /** @type {"en" | "hi" | "mr"} */ lang) =>
+  row[1 + LANG_INDEX[lang]];
+
 const fold = (/** @type {string} */ s) => s.toLowerCase().normalize("NFKD").replace(/\p{M}/gu, "");
+const notFound = () =>
+  HttpResponse.json(
+    {
+      type: "about:blank",
+      title: "Not Found",
+      status: 404,
+      code: "catalog.product_not_found",
+      detail: "No such product.",
+    },
+    { status: 404, headers: { "content-type": "application/problem+json" } },
+  );
 
 export const catalogHandlers = [
-  // GET /v1/products/{id} → names in every language, the list price per unit and the season tag.
+  // GET /v1/products/{id} → ProductOut: names in every language, the step and its hub price.
   http.get("*/v1/products/:id", ({ request, params }) => {
-    const p = FACTS.find(([id]) => id === params.id);
-    if (!p)
-      return HttpResponse.json(
-        { type: "about:blank", title: "No such product", status: 404, code: "catalog.not_found" },
-        { status: 404, headers: { "content-type": "application/problem+json" } },
-      );
-    const [id, en, hin, mr, aka, paise, unit, season] = p;
-    const hi = (request.headers.get("accept-language") ?? "").startsWith("hi");
+    const row = find(String(params.id));
+    if (!row) return notFound();
+    const lang = langOf(request);
+    const [slug, en, hi, mr, kind, [catSlug, catEn, catHi], , , price, , season, shelf] = row;
     return HttpResponse.json({
-      product_id: id,
-      name: hi ? hin : en,
-      names: { en, hi: hin, mr },
-      also_called: aka ? [aka] : [],
-      unit_price: { price_paise: paise, unit },
+      id: productUuid(slug),
+      slug,
+      kind,
+      category: {
+        id: `0199a000-0000-7000-8000-${String(900 + CATEGORIES.indexOf(catSlug)).padStart(12, "0")}`,
+        slug: catSlug,
+        name: lang === "en" ? catEn : catHi,
+      },
+      name: nameOf(row, lang),
+      names: { en, hi, mr },
+      step: step(row, lang),
       tags: season ? ["in_season"] : [],
+      shelf_life_h: shelf,
+      image_url: null,
+      price: { price_paise: price, mrp_paise: null, hub_id: HUB_ID, valid_from: "2026-10-01" },
     });
   }),
 
-  // GET /v1/search?q= → items in the caller's language, best match first.
+  // GET /v1/search?q= → SearchResults in the caller's language, best match first.
   http.get("*/v1/search", ({ request }) => {
-    const url = new URL(request.url);
-    const q = fold(url.searchParams.get("q") ?? "").trim();
-    const hi = (request.headers.get("accept-language") ?? "").startsWith("hi");
-    if (q.length < 2) return HttpResponse.json({ items: [] });
-    const items = PRODUCTS.map(([id, en, hin, terms, amount, uen, uhi, price]) => {
-      const names = [en, hin, ...terms].map(fold);
-      const rank = names.some((n) => n.startsWith(q))
-        ? 0
-        : names.some((n) => n.includes(q))
-          ? 1
-          : -1;
-      return {
-        rank,
-        id,
-        name: hi ? hin : en,
-        step: `${amount} ${hi ? uhi : uen}`,
-        price_paise: price,
-      };
+    const q = fold(new URL(request.url).searchParams.get("q") ?? "").trim();
+    if (q.length < 1) return HttpResponse.json({ items: [] });
+    const lang = langOf(request);
+    const items = ROWS.map((row) => {
+      const spellings = [row[1], row[2], row[3], ...row[9]];
+      const hit = (/** @type {(s: string) => boolean} */ ok) => spellings.find((s) => ok(fold(s)));
+      const starts = hit((s) => s.startsWith(q));
+      const matched = starts ?? hit((s) => s.includes(q));
+      return { row, matched, rank: starts ? 0 : matched ? 1 : -1 };
     })
-      .filter((p) => p.rank >= 0)
+      .filter((m) => m.rank >= 0)
       .sort((a, b) => a.rank - b.rank)
-      .map(({ rank, id, ...p }) => ({ product_id: id, ...p }));
+      .slice(0, 10)
+      .map(({ row, matched }) => ({
+        product_id: productUuid(row[0]),
+        slug: row[0],
+        name: nameOf(row, lang),
+        matched,
+        step: step(row, lang),
+        price_paise: row[8],
+      }));
     return HttpResponse.json({ items });
   }),
 ];

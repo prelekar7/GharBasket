@@ -3,10 +3,10 @@ import { toast } from "@gharbasket/ui";
 /**
  * Invite neighbours to a society: the phone's share sheet (Web Share), or the link copied with a
  * toast where sharing is not available. Closing the share sheet is not an error.
- * @param {{ societyId: string, text: string, copied: string }} invite
+ * @param {{ societyId: string, slug?: string, text: string, copied: string }} invite `slug` is the society's slug for a prettier link; the id works too
  */
-export async function shareInvite({ societyId, text, copied }) {
-  const url = inviteLink(societyId);
+export async function shareInvite({ societyId, slug, text, copied }) {
+  const url = inviteLink(slug ?? societyId);
   try {
     if (navigator.share) await navigator.share({ title: "GharBasket", text, url });
     else {
@@ -18,8 +18,8 @@ export async function shareInvite({ societyId, text, copied }) {
   }
 }
 
-/** The society's landing page that an invite points to (M9 `/s/<society>`). @param {string} societyId */
-export const inviteLink = (societyId) => `${location.origin}/s/${societyId}`;
+/** The society's landing page that an invite points to (M9 `/s/<society>`, by slug). @param {string} societySlug */
+export const inviteLink = (societySlug) => `${location.origin}/s/${societySlug}`;
 
 /** WhatsApp with the message ready to send (wa.me works in the app and on the web). @param {string} text */
 export const whatsappShare = (text) =>

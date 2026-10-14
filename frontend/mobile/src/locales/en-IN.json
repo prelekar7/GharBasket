@@ -200,7 +200,8 @@
       "areaPh": "e.g. Sector 35, Kharghar",
       "note": "The more neighbours who join from one society, the sooner delivery starts there.",
       "cta": "Send request",
-      "sent": "Request sent. We’ll let you know."
+      "sent": "Request sent. We’ll let you know.",
+      "limited": "You’ve sent a few requests today. Try again tomorrow."
     },
     "household": "Household",
     "stepOf": "Step {step} of {total}",
@@ -636,7 +637,7 @@
     "progress": "Homes joined",
     "free": "Free delivery",
     "delivery": "{area} · Delivery on {days}",
-    "captainDoes": "{flat}. Receives the drop and brings your box to your door.",
+    "captainDoes": "Receives the drop and brings your box to your door.",
     "whatsapp": "Message on WhatsApp",
     "share": {
       "title": "Invite to {society}",
@@ -647,7 +648,8 @@
       "whatsapp": "Share on WhatsApp",
       "copy": "Copy link",
       "copyShort": "Copy",
-      "copyFailed": "Couldn’t copy. Long-press the link to copy it."
+      "copyFailed": "Couldn’t copy. Long-press the link to copy it.",
+      "messageGeneric": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan. {society} mein delivery shuru karwane ke liye join karo: {link}"
     },
     "impact": {
       "title": "This month in {society}",

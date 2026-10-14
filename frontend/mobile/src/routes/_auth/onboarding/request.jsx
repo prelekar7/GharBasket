@@ -1,14 +1,15 @@
 import { Button, TextField, toast } from "@gharbasket/ui";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 
 // MapLibre is large, so it loads only on this screen.
 const PinMap = lazy(() => import("@/components/PinMap.jsx"));
 const KHARGHAR = { lat: 19.033, lng: 73.071 };
+const MIN_NAME = 2; // the API takes 2 to 120 characters
 
 /** The design's map illustration: shown while the map loads, and on phones without WebGL2. */
 function MapSketch() {
@@ -37,7 +38,7 @@ function MapSketch() {
         [260, 120, 70, 70],
         [44, 76, 56, 48],
       ].map(([x, y, w, h]) => (
-        <rect key={x} x={x} y={y} width={w} height={h} rx="6" className="fill-line" />
+        <rect key={`${x}-${y}`} x={x} y={y} width={w} height={h} rx="6" className="fill-line" />
       ))}
       <path
         d="M188 58c-12 0-21 9-21 20.5 0 15 21 34.5 21 34.5s21-19.5 21-34.5C209 67 200 58 188 58z"
@@ -57,13 +58,25 @@ function RequestSociety() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [area, setArea] = useState("");
-  const [point, setPoint] = useState(KHARGHAR);
+  // The map opens on Kharghar, but that is only where the map starts: no pin moved, no location.
+  const [point, setPoint] = useState(/** @type {{ lat: number, lng: number } | null} */ (null));
+  // One key per request: a retry of the same request reuses it, an edited one gets its own.
+  const attempt = useRef({ key: crypto.randomUUID(), body: "" });
   const send = useMutation({
-    mutationFn: () =>
-      request("/v1/society-requests", {
+    mutationFn: () => {
+      const body = {
+        name: name.trim(),
+        area: area.trim() || null,
+        location: point && { lat: point.lat, lng: point.lng },
+      };
+      const text = JSON.stringify(body);
+      if (attempt.current.body !== text) attempt.current = { key: crypto.randomUUID(), body: text };
+      return request("/v1/society-requests", {
         method: "POST",
-        body: { name: name.trim(), area: area.trim(), location: point },
-      }),
+        headers: { "idempotency-key": attempt.current.key },
+        body,
+      });
+    },
     onSuccess: () => {
       toast(t("onboarding.request.sent"));
       navigate({ to: "/onboarding/society" });
@@ -77,14 +90,17 @@ function RequestSociety() {
           <p className="text-sm leading-5 text-fg-secondary">{t("onboarding.request.note")}</p>
           {send.isError && (
             <p role="alert" className="text-sm font-semibold text-danger">
-              {t("onboarding.error")}
+              {send.error instanceof ApiError &&
+              send.error.code === "community.request_rate_limited"
+                ? t("onboarding.request.limited")
+                : t("onboarding.error")}
             </p>
           )}
           <Button
             variant="primary"
             size="lg"
             block
-            isDisabled={!name.trim()}
+            isDisabled={name.trim().length < MIN_NAME}
             isPending={send.isPending}
             onPress={() => send.mutate()}
           >
@@ -117,12 +133,14 @@ function RequestSociety() {
         placeholder={t("onboarding.request.namePh")}
         value={name}
         onChange={setName}
+        maxLength={120}
       />
       <TextField
         label={t("onboarding.request.area")}
         placeholder={t("onboarding.request.areaPh")}
         value={area}
         onChange={setArea}
+        maxLength={120}
       />
     </OnboardingFrame>
   );

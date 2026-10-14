@@ -44,7 +44,13 @@ export function AddItemSheet({ open, onClose, inBox, onAdd, busyId }) {
               <span className="flex flex-col">
                 <span className="font-semibold">{p.name}</span>
                 <span className="text-sm text-fg-secondary">
-                  {p.step} · <MoneyText paise={p.price_paise} />
+                  {p.step.label}
+                  {p.price_paise !== null && (
+                    <>
+                      {" · "}
+                      <MoneyText paise={p.price_paise} />
+                    </>
+                  )}
                 </span>
               </span>
               {inBox.has(p.product_id) ? (
@@ -53,6 +59,7 @@ export function AddItemSheet({ open, onClose, inBox, onAdd, busyId }) {
                 <Button
                   variant="secondary"
                   isPending={busyId === p.product_id}
+                  isDisabled={p.price_paise === null}
                   onPress={() => onAdd(p.product_id, p.name)}
                 >
                   {t("box.add.add")}
