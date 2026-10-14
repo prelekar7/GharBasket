@@ -494,5 +494,55 @@
     "nothingBody": "Your next delivery shows here on the morning it comes.",
     "emptyTitle": "No orders yet",
     "emptyBody": "Your first box shows here once your society unlocks and you approve the week."
+  },
+  "kindness": {
+    "title": "Your gullak",
+    "pointsNote": "Points, not money. {points} expire on {date}. Use them as a discount on a box.",
+    "pointsNoteNoExpiry": "Points, not money. Use them as a discount on a box.",
+    "give": "Give something away",
+    "drive": "{name} drive · {x}× points",
+    "drives": {
+      "diwali": "Diwali"
+    },
+    "how": "The van collects it on the way back after your Tuesday delivery. The hub checks the items, then points are added.",
+    "what": "What are you giving?",
+    "items": {
+      "clothes": "Clothes",
+      "books": "Books",
+      "toys": "Toys",
+      "school_bags": "School bags",
+      "utensils": "Utensils"
+    },
+    "of": {
+      "clothes": "clothes",
+      "books": "books",
+      "toys": "toys",
+      "school_bags": "school bags",
+      "utensils": "utensils"
+    },
+    "count": {
+      "clothes": "clothes",
+      "books": "{count, plural, one {a book} other {books}}",
+      "toys": "{count, plural, one {a toy} other {toys}}",
+      "school_bags": "{count, plural, one {school bag} other {# school bags}}",
+      "utensils": "utensils"
+    },
+    "kg": "{kg} kg {item}",
+    "photos": "Add photos",
+    "photosAdded": "{count, plural, one {# photo added} other {# photos added}}",
+    "cta": "Schedule pickup · {day}",
+    "booked": "Pickup booked for {day}. Keep the bag by the door.",
+    "failed": "We couldn’t book the pickup. Check your internet and try again.",
+    "history": "What you gave",
+    "status": {
+      "SCHEDULED": "pickup {day}",
+      "PICKUP_ASSIGNED": "pickup {day}",
+      "PICKED_UP": "picked up",
+      "AT_HUB": "being checked at the hub",
+      "VERIFIED": "verified",
+      "HANDED_TO_NGO": "given to the NGO",
+      "REJECTED": "not accepted",
+      "CANCELLED": "cancelled"
+    }
   }
 }
