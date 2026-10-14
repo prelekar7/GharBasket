@@ -530,7 +530,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 - **Access.** The own endpoints need the `kitchen_partner` role of her hub (`kitchens:write`), so a suspended kitchen (role suspended by M1) gets 403. No kitchen record: 404 `partners.kitchen_not_found`.
 - **PATCH.** `display_name` changes the partner record's name. `default_portions` must have both meals with 7 values of 0 to 100, else 422 `partners.capacity_invalid`. Skills are de-duplicated and kept in the list's order. `location: null` clears the pin.
 - **Inspection** sets the grade and today's IST date as `inspected_on`, audit-logged (`partners.kitchen_inspected`) with the note.
-- **Capacity.** `GET` shows her own values (a paused kitchen counts as 0 only in the assignment rounds). `PUT` is accepted from today to today + 13, and is naturally idempotent (no Idempotency-Key). `assigned_portions` is 0 until assignments ship.
+- **Capacity.** `GET` shows her own values (a paused kitchen counts as 0 only in the assignment rounds). `PUT` is accepted from today to today + 13, and is naturally idempotent (no Idempotency-Key). `assigned_portions` sums her live (offered, accepted, preparing, ready) assignments.
 
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
