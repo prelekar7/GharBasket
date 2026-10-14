@@ -219,6 +219,7 @@ function line(
 const cycleWith = (st) => cycle("en", false, st);
 
 const MONTH = "2026-10";
+const NEXT_MONTH = "2026-11";
 const BUDGET_KEY = "gb-mock-budget-lock"; // month → limit in paise, null when switched off
 const WHEN_OVER_KEY = "gb-mock-budget-when-over";
 const EARLIER_SPEND = 118000; // what October's earlier boxes spent (the designs' ₹1,180)
@@ -729,21 +730,20 @@ export const subscriptionHandlers = [
         })),
       });
     const { month, budget_paise: budget } = body;
-    if (!month || !/^\d{4}-\d{2}$/.test(month) || budget === undefined)
+    if (typeof month !== "string" || budget === undefined)
       return problem(422, "request.invalid", "Send a month and a budget");
-    if (budget !== null && (!Number.isInteger(budget) || budget < BUDGET_MIN))
-      return problem(422, "request.invalid", "The budget is at least ₹500");
+    // This month or next, at least ₹500 (M3 §3.1); anything else is subscriptions.budget_invalid.
+    if (
+      ![MONTH, NEXT_MONTH].includes(month) ||
+      (budget !== null && (!Number.isInteger(budget) || budget < BUDGET_MIN))
+    )
+      return problem(422, "subscriptions.budget_invalid", "Pick this month or next, at least ₹500");
     localStorage.setItem(BUDGET_KEY, JSON.stringify({ ...budgets(), [month]: budget }));
+    // null switches it off: 204, nothing to show.
+    if (budget === null) return new HttpResponse(null, { status: 204 });
     const state = loadState();
     const spent = EARLIER_SPEND + (state.status === "skipped" ? 0 : cycle("en").total_paise);
-    return HttpResponse.json(
-      budgetLock(month, spent) ?? {
-        month,
-        budget_paise: 0,
-        spent_paise: spent,
-        remaining_paise: 0,
-      },
-    );
+    return HttpResponse.json(budgetLock(month, spent));
   }),
 
   // @proposal (not in the contract yet) GET/PUT /v1/budget-lock/preferences: what Autopilot does

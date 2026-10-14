@@ -1007,6 +1007,15 @@ describe("Budget Lock (M3)", () => {
       { "idempotency-key": "b2" },
     );
     expect(low.status).toBe(422);
+    expect((await low.json()).code).toBe("subscriptions.budget_invalid");
+    // Only this month or next.
+    const later = await call(
+      "PUT",
+      "/v1/budget-lock",
+      { month: "2027-03", budget_paise: 350000 },
+      { "idempotency-key": "b5" },
+    );
+    expect((await later.json()).code).toBe("subscriptions.budget_invalid");
     // The spec's body has a month and a budget only: anything else is refused, never ignored.
     const extra = await call(
       "PUT",
@@ -1022,7 +1031,7 @@ describe("Budget Lock (M3)", () => {
       { month: "2026-10", budget_paise: null },
       { "idempotency-key": "b3" },
     );
-    expect(off.status).toBe(200);
+    expect(off.status).toBe(204);
     const gone = await get("2026-10");
     expect(gone.status).toBe(404);
     expect((await gone.json()).code).toBe("subscriptions.no_budget_lock");
