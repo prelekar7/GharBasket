@@ -1,16 +1,35 @@
 "use client";
 
-import { Badge, Button, Checkbox, Dialog, EmptyState, TextField, toast } from "@gharbasket/ui";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  EmptyState,
+  Select,
+  TextField,
+  toast,
+} from "@gharbasket/ui";
 import { DataTable } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
 import { useRef, useState, useTransition } from "react";
 import { PageHeader, Panel } from "@/components/PageHeader.jsx";
 import { Toasts } from "@/components/Toasts.jsx";
-import { verifyDonation } from "./actions.js";
+import { countProblem, donationPoints } from "@/lib/kindness.js";
+import { rejectDonation, verifyDonation } from "./actions.js";
 
-/** @typedef {import("@/mocks/community.js").Donation} Donation */
-/** @typedef {import("@/mocks/community.js").DonationLine} DonationLine */
-/** @typedef {import("@/lib/types.js").Column} Column */
+/**
+ * GET /v1/admin/donations (M9 section 3.4), as the hub sees it: the donor's tower and flat, never a name or
+ * phone. `qty` is what the family said, `counted` what the hub counted once verified.
+ * @typedef {import("@/lib/kindness.js").PointRate} PointRate
+ * @typedef {{ code: string, unit: "kg" | "each", qty: number, counted: number | null, points: number | null }} Item
+ * @typedef {{ id: string, status: "picked_up" | "verified" | "rejected" | string, items: Item[], photos: number,
+ *   photo_urls: { url: string, expires_at: string }[], drive: { id: string, name: string, multiplier: number } | null,
+ *   pickup_on: string, picked_up_on: string | null, picked_up_by: { name: string } | null,
+ *   points_awarded: number | null, society: { id: string, name: string }, tower: string, flat: string }} Donation
+ * @typedef {{ id: string, multiplier: number, codes: string[] }} Drive
+ * @typedef {import("@/lib/types.js").Column} Column
+ */
 
 /** @type {Column[]} */
 const COLUMNS = [
@@ -18,6 +37,13 @@ const COLUMNS = [
   { key: "items", label: "Declared" },
   { key: "picked", label: "Picked up" },
   { key: "state", label: "State" },
+];
+
+const REASONS = [
+  { value: "unusable", label: "Not usable (torn, broken, dirty)" },
+  { value: "not_accepted", label: "Not something we accept" },
+  { value: "unsafe", label: "Not safe" },
+  { value: "other", label: "Something else" },
 ];
 
 const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
@@ -28,12 +54,6 @@ const dayFmt = new Intl.DateTimeFormat("en-IN", {
   month: "short",
   timeZone: "Asia/Kolkata",
 });
-const timeFmt = new Intl.DateTimeFormat("en-IN", {
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-  timeZone: "Asia/Kolkata",
-});
 
 /** "Tue 6 Oct" from an ISO date or time. @param {string} iso */
 const day = (iso) =>
@@ -42,47 +62,62 @@ const day = (iso) =>
     .replace(",", "")
     .replace("Sept", "Sep");
 
-/** "Toys ×4 · books ×6", "School bag ×1 · clothes 3 kg". @param {DonationLine[]} lines @param {"said" | "counted"} which */
-function describe(lines, which) {
-  return lines
+/** The donor's place as the bag label has it: "Wing C 807". @param {Donation} d */
+const place = (d) => (d.tower ? `${d.tower} ${d.flat}` : d.flat);
+
+/** @param {PointRate[]} rates @param {string} code */
+const labelOf = (rates, code) => rates.find((r) => r.code === code)?.label ?? code;
+
+/** "Toys ×4 · books ×6", "School bag ×1 · clothes 3 kg". @param {Item[]} items @param {PointRate[]} rates @param {"said" | "counted"} which */
+function describe(items, rates, which) {
+  return items
     .map((l, i) => {
-      const n = which === "said" ? l.said : (l.counted ?? 0);
-      const label = i === 0 ? l.label : l.label.toLowerCase();
+      const n = which === "said" ? l.qty : (l.counted ?? 0);
+      const name = labelOf(rates, l.code);
+      const label = i === 0 ? name : name.toLowerCase();
       return l.unit === "kg" ? `${label} ${n} kg` : `${label} ×${n}`;
     })
     .join(" · ");
 }
 
-/** "toys" style for the sentence "4 toys and 6 books". @param {DonationLine[]} lines */
-function said(lines) {
-  const parts = lines.map((l) =>
+/** "4 toys and 6 books" for the sentence about what the family said. @param {Item[]} items @param {PointRate[]} rates */
+function said(items, rates) {
+  const parts = items.map((l) =>
     l.unit === "kg"
-      ? `${l.said} kg of ${l.label.toLowerCase()}`
-      : `${l.said} ${l.label.toLowerCase()}`,
+      ? `${l.qty} kg of ${labelOf(rates, l.code).toLowerCase()}`
+      : `${l.qty} ${labelOf(rates, l.code).toLowerCase()}`,
   );
   return parts.length > 1
     ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
     : (parts[0] ?? "");
 }
 
-/** Base points of the counted quantities, rounded per line like the server does. @param {DonationLine[]} lines @param {Record<string, number>} counted */
-const basePoints = (lines, counted) =>
-  lines.reduce((sum, l) => sum + Math.round((counted[l.key] ?? 0) * l.rate), 0);
+/**
+ * The drive's rule for the preview: its multiplier and the categories it multiplies. A drive that is no longer
+ * running is not in the list, so its multiplier is applied to every line (the server has the last word).
+ * @param {Donation} d @param {Drive[]} drives
+ */
+function ruleOf(d, drives) {
+  if (!d.drive) return null;
+  const drive = drives.find((x) => x.id === d.drive?.id);
+  return drive ?? { multiplier: d.drive.multiplier, codes: d.items.map((i) => i.code) };
+}
 
-/** @param {{ donations: Donation[], asOf: string }} props */
-export function DonationsView({ donations, asOf }) {
+/** @param {{ donations: Donation[], rates: PointRate[], drives: Drive[] }} props */
+export function DonationsView({ donations, rates, drives }) {
   const [id, setId] = useQueryState("id", parseAsString);
-  const queue = donations.filter((d) => d.status === "to_verify");
+  const queue = donations.filter((d) => d.status === "picked_up");
   const selected = donations.find((d) => d.id === id) ?? queue[0] ?? donations[0];
-  const riders = [...new Set(queue.map((d) => d.picked_up_by.split(" ")[0]))];
+  const riders = [
+    ...new Set(queue.flatMap((d) => (d.picked_up_by ? [d.picked_up_by.name.split(" ")[0]] : []))),
+  ];
   const n = queue.length;
 
   return (
     <>
       <PageHeader title="Donation verification">
-        {day(asOf)}, {timeFmt.format(new Date(asOf)).toUpperCase()}.{" "}
         {n > 0
-          ? `${riders.join(" and ")} brought ${NUMBER_WORDS[n] ?? n} ${n === 1 ? "donation" : "donations"} back on the return leg. `
+          ? `${riders.join(" and ") || "The van"} brought ${NUMBER_WORDS[n] ?? n} ${n === 1 ? "donation" : "donations"} back on the return leg. `
           : "Nothing is waiting to be verified. "}
         Count what actually came, and the family gets points for that. Nobody is penalised for an
         honest estimate.
@@ -112,19 +147,27 @@ export function DonationsView({ donations, asOf }) {
               columns={COLUMNS}
               rows={donations.map((d) => ({
                 id: d.id,
-                from: { text: d.flat, sub: d.society, strong: true, href: `?id=${d.id}` },
-                items: describe(d.lines, d.status === "verified" ? "counted" : "said"),
-                picked: `${day(d.picked_up_on)} · ${d.picked_up_by.split(" ")[0]}`,
+                from: { text: place(d), sub: d.society.name, strong: true, href: `?id=${d.id}` },
+                items: describe(d.items, rates, d.status === "verified" ? "counted" : "said"),
+                picked: `${day(d.picked_up_on ?? d.pickup_on)} · ${d.picked_up_by?.name.split(" ")[0] ?? "—"}`,
                 state:
                   d.status === "verified"
                     ? { badge: { tone: "primary", label: `Verified · ${d.points_awarded} points` } }
-                    : { badge: { tone: "accent", label: "To verify" } },
+                    : d.status === "rejected"
+                      ? { badge: { tone: "outline", label: "Rejected" } }
+                      : { badge: { tone: "accent", label: "To verify" } },
               }))}
               footer="Flats only; staff never see the donor’s name or phone here."
             />
           </div>
           {selected && (
-            <VerifyPanel key={selected.id} donation={selected} onDone={() => setId(null)} />
+            <VerifyPanel
+              key={selected.id}
+              donation={selected}
+              rates={rates}
+              rule={ruleOf(selected, drives)}
+              onDone={() => setId(null)}
+            />
           )}
         </div>
       )}
@@ -132,26 +175,49 @@ export function DonationsView({ donations, asOf }) {
   );
 }
 
-/** @param {{ donation: Donation, onDone: () => void }} props */
-function VerifyPanel({ donation: d, onDone }) {
-  const verified = d.status === "verified";
+/** @param {{ donation: Donation, rates: PointRate[], rule: ReturnType<typeof ruleOf>, onDone: () => void }} props */
+function VerifyPanel({ donation: d, rates, rule, onDone }) {
+  const open = d.status === "picked_up";
   const [counted, setCounted] = useState(
     /** @type {Record<string, string>} */ (
-      Object.fromEntries(d.lines.map((l) => [l.key, String(l.counted ?? l.said)]))
+      Object.fromEntries(d.items.map((l) => [l.code, String(l.counted ?? l.qty)]))
     ),
   );
-  const [unsuitable, setUnsuitable] = useState(d.has_unsuitable);
+  const [unsuitable, setUnsuitable] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("unusable");
   const [pending, start] = useTransition();
   const attempt = useRef(crypto.randomUUID());
+  const rejectAttempt = useRef(crypto.randomUUID());
 
-  const numbers = Object.fromEntries(d.lines.map((l) => [l.key, Number(counted[l.key])]));
-  const invalid = d.lines.filter((l) => !(counted[l.key]?.trim() !== "" && numbers[l.key] >= 0));
-  const base = basePoints(d.lines, numbers);
-  const total = Math.round(base * d.drive.multiplier);
-  const mult = `${d.drive.multiplier}×`;
+  const numbers = Object.fromEntries(
+    d.items.map((l) => [
+      l.code,
+      counted[l.code]?.trim() === "" ? Number.NaN : Number(counted[l.code]),
+    ]),
+  );
+  /** @param {string} code */
+  const problemOf = (code) => {
+    const rate = rates.find((r) => r.code === code);
+    return rate ? countProblem(rate, numbers[code]) : null;
+  };
+  const invalid = d.items.filter((l) => problemOf(l.code));
+  const preview = donationPoints(
+    Object.fromEntries(Object.entries(numbers).map(([k, v]) => [k, Number.isNaN(v) ? 0 : v])),
+    rates,
+    rule,
+  );
+  const base = donationPoints(
+    Object.fromEntries(Object.entries(numbers).map(([k, v]) => [k, Number.isNaN(v) ? 0 : v])),
+    rates,
+    null,
+  ).total;
+  const total = preview.total;
+  const nothing = !Object.values(numbers).some((n) => n > 0);
   const counts = describe(
-    d.lines.map((l) => ({ ...l, counted: numbers[l.key] })),
+    d.items.map((l) => ({ ...l, counted: numbers[l.code] })),
+    rates,
     "counted",
   ).toLowerCase();
 
@@ -167,40 +233,76 @@ function VerifyPanel({ donation: d, onDone }) {
         return;
       }
       attempt.current = crypto.randomUUID();
-      toast(`${d.flat} verified: ${res.points} points given`);
+      toast(`${place(d)} verified: ${res.points} points given`);
+      onDone();
+    });
+  }
+
+  function reject() {
+    start(async () => {
+      const res = await rejectDonation(
+        d.id,
+        /** @type {"unusable" | "not_accepted" | "unsafe" | "other"} */ (reason),
+        rejectAttempt.current,
+      );
+      if (!res.ok) {
+        toast(res.message);
+        return;
+      }
+      rejectAttempt.current = crypto.randomUUID();
+      toast(`${place(d)} rejected. The family earns no points for it.`);
       onDone();
     });
   }
 
   return (
     <Panel
-      title={`${d.society} · ${d.flat}`}
+      title={`${d.society.name} · ${place(d)}`}
       label="Verify donation"
-      aside={<Badge tone="accent">{`${d.drive.name} · ${mult}`}</Badge>}
+      aside={
+        d.drive ? (
+          <Badge tone="accent">{`${d.drive.name} · ${d.drive.multiplier}×`}</Badge>
+        ) : undefined
+      }
     >
       <p className="text-sm leading-5 text-fg-secondary">
-        The family said: {said(d.lines)}. {d.photos} {d.photos === 1 ? "photo" : "photos"}.
+        The family said: {said(d.items, rates)}. {d.photos} {d.photos === 1 ? "photo" : "photos"}
+        {d.photo_urls.length > 0 && (
+          <>
+            {" ("}
+            {d.photo_urls.map((p, i) => (
+              <span key={p.url + String(i)}>
+                {i > 0 && ", "}
+                <a href={p.url} target="_blank" rel="noreferrer" className="underline">
+                  open {i + 1}
+                </a>
+              </span>
+            ))}
+            {")"}
+          </>
+        )}
+        .
       </p>
-      {d.lines.map((l) => {
+      {d.items.map((l) => {
         const bad = invalid.includes(l);
-        const pts = bad ? 0 : Math.round(numbers[l.key] * l.rate);
+        const pts = bad ? 0 : (l.points ?? preview.lines[l.code] ?? 0);
         return (
-          <div key={l.key} className="grid grid-cols-[minmax(0,1fr)_96px_56px] items-start gap-3">
+          <div key={l.code} className="grid grid-cols-[minmax(0,1fr)_96px_56px] items-start gap-3">
             <span className="pt-6">
-              <strong>{l.label}</strong>
+              <strong>{labelOf(rates, l.code)}</strong>
               <span className="block text-sm text-fg-secondary">
-                said {l.said}
+                said {l.qty}
                 {l.unit === "kg" ? " kg" : ""}
               </span>
             </span>
             <TextField
               label={l.unit === "kg" ? "Counted (kg)" : "Counted"}
               inputMode="decimal"
-              value={counted[l.key]}
-              isReadOnly={verified}
+              value={counted[l.code]}
+              isReadOnly={!open}
               isInvalid={bad}
-              errorMessage="0 or more"
-              onChange={(v) => setCounted((c) => ({ ...c, [l.key]: v }))}
+              errorMessage={problemOf(l.code) ?? undefined}
+              onChange={(v) => setCounted((c) => ({ ...c, [l.code]: v }))}
               className="min-w-0"
             />
             <strong className="pt-[30px] text-right tabular-nums">{pts}</strong>
@@ -209,15 +311,23 @@ function VerifyPanel({ donation: d, onDone }) {
       })}
       <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
         <span className="text-sm text-fg-secondary">
-          {verified ? "Awarded" : `Base ${base} × ${d.drive.multiplier} for the ${d.drive.name}`}
+          {!open
+            ? d.status === "verified"
+              ? "Awarded"
+              : "Earned"
+            : d.drive
+              ? `Base ${base}, then the ${d.drive.name}’s ${d.drive.multiplier}×`
+              : `Base ${base}`}
         </span>
         <strong className="text-xl tabular-nums">
-          {verified ? d.points_awarded : total} points
+          {open ? total : (d.points_awarded ?? 0)} points
         </strong>
       </div>
-      {verified ? (
+      {!open ? (
         <p className="text-sm leading-5 text-fg-secondary">
-          Verified. The family has these points in their gullak.
+          {d.status === "verified"
+            ? "Verified. The family has these points in their gullak."
+            : "Rejected. The family earned no points for this one."}
         </p>
       ) : (
         <>
@@ -230,10 +340,13 @@ function VerifyPanel({ donation: d, onDone }) {
           <Button
             variant="primary"
             block
-            isDisabled={pending || invalid.length > 0}
+            isDisabled={pending || invalid.length > 0 || nothing}
             onPress={() => setConfirm(true)}
           >
             {`Verify and give ${total} points`}
+          </Button>
+          <Button variant="quiet" block isDisabled={pending} onPress={() => setRejecting(true)}>
+            Reject this donation
           </Button>
         </>
       )}
@@ -245,7 +358,18 @@ function VerifyPanel({ donation: d, onDone }) {
         onOpenChange={setConfirm}
         onConfirm={verify}
       >
-        {d.flat} gets {total} points for {counts}. Points can’t be taken back once given.
+        {place(d)} gets {total} points for {counts}. Points can’t be taken back once given.
+      </Dialog>
+      <Dialog
+        title="Reject this donation?"
+        confirmLabel="Reject"
+        cancelLabel="Not yet"
+        isOpen={rejecting}
+        onOpenChange={setRejecting}
+        onConfirm={reject}
+      >
+        <p>It earns no points and the items are not returned; unusable things go to a recycler.</p>
+        <Select label="Why" options={REASONS} value={reason} onChange={setReason} />
       </Dialog>
     </Panel>
   );
