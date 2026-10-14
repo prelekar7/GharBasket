@@ -95,6 +95,12 @@ function simulatorCohorts(weeks) {
   });
 }
 
+/**
+ * Weekly Gini of what partners earn, in basis points, oldest first: the kitchens' spread tightened as the
+ * fairness weight was raised (the fairness dashboard's story: 0.24 to 0.14).
+ */
+const GINI_BP = [2800, 2600, 2400, 2100, 1900, 1400];
+
 /** The KPI keys this mock carries (the five tiles); every one is null for the pilot. */
 const KEYS = /** @type {const} */ ([
   "active_households",
@@ -208,6 +214,51 @@ export const analyticsHandlers = [
       hub_id: s.hubId,
       as_of: AS_OF,
       items: s.source === "real" || s.hubId !== KHARGHAR_HUB_ID ? [] : SOCIETIES,
+    });
+  }),
+
+  // GET /v1/analytics/partner-earnings?hub_id=&kind=&from=&to=&data_source= : the distribution, never a person
+  http.get("*/v1/analytics/partner-earnings", ({ request }) => {
+    const s = scope(request);
+    if ("denied" in s) return s.denied;
+    if (s.hubId === null) return problem(403, "auth.forbidden", "Choose a hub");
+    const kind = s.q.get("kind") ?? "kitchen";
+    if (!["kitchen", "captain", "rider", "packer"].includes(kind)) {
+      return problem(422, "request.invalid", "kind is kitchen, captain, rider or packer", {
+        errors: [
+          {
+            loc: ["query", "kind"],
+            message: "Input should be kitchen, captain, rider or packer",
+            type: "enum",
+          },
+        ],
+      });
+    }
+    const from = dayOf(s.q.get("from"));
+    const to = dayOf(s.q.get("to"));
+    const count =
+      from !== null && to !== null
+        ? Math.min(GINI_BP.length, Math.max(1, Math.round((to - from) / 604_800_000)))
+        : GINI_BP.length;
+    const weeks = WEEKS.slice(-count).map((week, i) => {
+      const gini = GINI_BP.slice(-count)[i];
+      const partners = 5;
+      const total = partners * 300_000 + i * 20_000;
+      return {
+        week,
+        partners,
+        total_paise: total,
+        p10_paise: 180_000 + i * 8000,
+        median_paise: 300_000 + i * 4000,
+        p90_paise: 460_000 + i * 12_000,
+        gini_bp: gini,
+      };
+    });
+    return HttpResponse.json({
+      hub_id: s.hubId,
+      kind,
+      as_of: AS_OF,
+      weeks: s.source === "real" ? [] : weeks,
     });
   }),
 

@@ -3,6 +3,7 @@
 import { Button, Dialog, TextField, toast } from "@gharbasket/ui";
 import { ChartCard, DataTable, KpiTile } from "@gharbasket/ui/console";
 import { useMemo, useState, useTransition } from "react";
+import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { formatDate } from "@/lib/fleet.js";
 import { Toasts } from "../_fleet/Toasts.jsx";
 import { saveFairnessWeight } from "./actions.js";
@@ -43,14 +44,17 @@ export function FairnessView({ fairness: f, canEdit }) {
 
   return (
     <>
-      <div className="flex flex-col gap-0.5">
-        <h1 className="font-display text-[28px] leading-[34px] font-semibold">
-          Fairness · kitchen tiffins
-        </h1>
-        <p className="text-sm leading-5 text-fg-secondary">
-          Each night at 9:30 the assignment spreads tiffins across kitchens within their capacity,
-          so income isn’t concentrated in a few. Week of {dateText}.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h1 className="font-display text-[28px] leading-[34px] font-semibold">
+            Fairness · kitchen tiffins
+          </h1>
+          <p className="text-sm leading-5 text-fg-secondary">
+            Each night at 9:30 the assignment spreads tiffins across kitchens within their capacity,
+            so income isn’t concentrated in a few. Week of {dateText}.
+          </p>
+        </div>
+        <DataSourceControl />
       </div>
       {f.fallback_active && (
         <p
@@ -65,15 +69,23 @@ export function FairnessView({ fairness: f, canEdit }) {
       <div className="grid gap-3 min-[600px]:grid-cols-3">
         <KpiTile
           label="Earnings Gini"
-          value={f.gini.toFixed(2)}
-          delta={{
-            value: signed(f.gini_change, 2),
-            direction: f.gini_change < 0 ? "down" : f.gini_change > 0 ? "up" : "flat",
-            good: f.gini_change <= 0,
-            note: f.gini_change_note,
-          }}
+          value={f.gini == null ? "—" : f.gini.toFixed(2)}
+          delta={
+            f.gini_change == null
+              ? undefined
+              : {
+                  value: signed(f.gini_change, 2),
+                  direction: f.gini_change < 0 ? "down" : f.gini_change > 0 ? "up" : "flat",
+                  good: f.gini_change <= 0,
+                  note: f.gini_change_note,
+                }
+          }
           spark={f.gini_trend}
-          hint="0 is perfectly even; lower is fairer"
+          hint={
+            f.gini == null
+              ? "Shown once 5 kitchens are paid"
+              : "0 is perfectly even; lower is fairer"
+          }
         />
         <KpiTile
           label="Biggest kitchen’s share"
