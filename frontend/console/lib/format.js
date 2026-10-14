@@ -54,3 +54,29 @@ const SHORT = new Intl.DateTimeFormat("en-IN", {
  */
 export const formatShortDate = (iso) =>
   SHORT.format(new Date(`${iso}T12:00:00+05:30`)).replace("Sept", "Sep");
+
+const WEEKDAY_DAY = new Intl.DateTimeFormat("en-IN", {
+  weekday: "short",
+  day: "numeric",
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * "Tue 29" for an ISO date, the label of a delivery day on a chart.
+ * @param {string} iso
+ */
+export const formatWeekdayDay = (iso) =>
+  WEEKDAY_DAY.format(new Date(`${iso}T12:00:00+05:30`)).replace(",", "");
+
+const CLOCK = new Intl.DateTimeFormat("en-IN", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * "12:31" (24 hour) for an ISO timestamp, as logs are listed.
+ * @param {string} iso
+ */
+export const formatClock = (iso) => CLOCK.format(new Date(iso));

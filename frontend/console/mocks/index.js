@@ -24,6 +24,7 @@ import { receivingHandlers } from "./receiving.js";
 import { settingsHandlers } from "./settings.js";
 import { teamHandlers } from "./team.js";
 import { vendorsHandlers } from "./vendors.js";
+import { wasteHandlers } from "./waste.js";
 
 export const handlers = [
   ...hubsHandlers,
@@ -51,4 +52,5 @@ export const handlers = [
   ...procurementHandlers,
   ...receivingHandlers,
   ...vendorsHandlers,
+  ...wasteHandlers,
 ];
