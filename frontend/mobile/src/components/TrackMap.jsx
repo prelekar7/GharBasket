@@ -14,14 +14,16 @@ const VAN =
   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.75"/><circle cx="17" cy="17.5" r="1.75"/></svg>';
 
 /**
- * Live map of today's van and your society: the van marker moves as `van` changes. Without
- * WebGL2 (old phones) it shows `fallback` instead.
- * @param {{ van: { lat: number, lng: number }, society: { lat: number, lng: number }, labels: { van: string, society: string }, fallback: import("react").ReactNode }} props
+ * Live map of today's van (and your society, when its place is known): the van marker moves as
+ * `van` changes. Without WebGL2 (old phones) it shows `fallback` instead.
+ * @param {{ van: { lat: number, lng: number }, society?: { lat: number, lng: number }, labels: { van: string, society: string }, fallback: import("react").ReactNode }} props
  */
 export default function TrackMap({ van, society, labels, fallback }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const vanMarker = useRef(/** @type {Marker | null} */ (null));
   const first = useRef(van);
+  const homeLat = society?.lat;
+  const homeLng = society?.lng;
   const [failed, setFailed] = useState(() => !hasWebGL2());
 
   useEffect(() => {
@@ -30,21 +32,25 @@ export default function TrackMap({ van, society, labels, fallback }) {
     const map = new MapLibre({
       container: box.current,
       style: STYLE,
-      bounds: new LngLatBounds([start.lng, start.lat], [start.lng, start.lat]).extend([
-        society.lng,
-        society.lat,
-      ]),
-      fitBoundsOptions: { padding: 48, maxZoom: 16 },
+      bounds: new LngLatBounds([start.lng, start.lat], [start.lng, start.lat]).extend(
+        homeLat !== undefined && homeLng !== undefined
+          ? [homeLng, homeLat]
+          : [start.lng, start.lat],
+      ),
+      fitBoundsOptions: { padding: 48, maxZoom: 15 },
       attributionControl: false, // credited in a line under the map, as in PinMap
     });
     map.on("error", (e) => {
       if (!map.loaded() && /webgl/i.test(String(e.error?.message))) setFailed(true);
     });
     const primary = getComputedStyle(box.current).getPropertyValue("--color-primary").trim();
-    const home = new Marker({ color: primary || undefined })
-      .setLngLat([society.lng, society.lat])
-      .addTo(map);
-    home.getElement().setAttribute("aria-label", labels.society);
+    if (homeLat !== undefined && homeLng !== undefined) {
+      new Marker({ color: primary || undefined })
+        .setLngLat([homeLng, homeLat])
+        .addTo(map)
+        .getElement()
+        .setAttribute("aria-label", labels.society);
+    }
     const el = document.createElement("div");
     el.className =
       "grid size-9 place-items-center rounded-full border-2 border-surface bg-info text-on-info shadow-sheet";
@@ -56,7 +62,7 @@ export default function TrackMap({ van, society, labels, fallback }) {
       vanMarker.current = null;
       map.remove();
     };
-  }, [failed, society.lat, society.lng, labels.society, labels.van]);
+  }, [failed, homeLat, homeLng, labels.society, labels.van]);
 
   useEffect(() => {
     vanMarker.current?.setLngLat([van.lng, van.lat]);

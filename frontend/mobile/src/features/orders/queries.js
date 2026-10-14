@@ -127,27 +127,6 @@ export function useRating(id) {
 }
 
 /**
- * @typedef {{ lat: number, lng: number }} Point
- * @typedef {{ order_id: string, rider: { name: string }, hub: Point & { name: string },
- *   society: Point, van: Point, eta_at: string, updated_at: string }} Tracking
- */
-
-/**
- * Where today's van is (GET /v1/orders/{id}/tracking, our proposal for M7: its stream is not
- * shipped). The order's own status and times come from the order; this adds the van, the rider
- * and the map's two ends. Polled while `live`. @proposal (not in the contract yet)
- * @param {string} id @param {string} lang @param {boolean} live
- */
-export function useTracking(id, lang, live) {
-  return useQuery({
-    queryKey: ["tracking", id, lang],
-    queryFn: () => /** @type {Promise<Tracking>} */ (request(`/v1/orders/${id}/tracking`)),
-    refetchInterval: live ? LIVE_MS : false,
-    retry: false,
-  });
-}
-
-/**
  * Tell the hub something went wrong with a delivery (POST /v1/orders/{id}/issues).
  * @proposal (not in the contract yet)
  * One Idempotency-Key per order and problem, so a retry never files it twice.

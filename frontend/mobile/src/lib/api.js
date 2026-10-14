@@ -70,7 +70,7 @@ export function fieldError(problem, name) {
   return problem.errors.find((e) => e.loc.at(-1) === name)?.message;
 }
 
-/** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string> }} RequestOptions */
+/** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string>, signal?: AbortSignal }} RequestOptions */
 
 /** @type {string | null} */
 let activeRole = null;
@@ -89,7 +89,7 @@ export function onSessionExpired(/** @type {() => void} */ fn) {
  * @param {string} path
  * @param {RequestOptions} [init]
  */
-async function send(path, { method = "GET", body, headers: extra } = {}) {
+async function send(path, { method = "GET", body, headers: extra, signal } = {}) {
   /** @type {Record<string, string>} */
   const headers = { accept: "application/json", "accept-language": i18n.language, ...extra };
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -104,6 +104,7 @@ async function send(path, { method = "GET", body, headers: extra } = {}) {
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: NATIVE ? "omit" : "same-origin",
+    signal,
   });
   if (MOCK) {
     const { mockFetch } = await import("@/mocks/index.js");
@@ -162,6 +163,21 @@ export async function request(path, init) {
   }
   if (!res.ok) throw await ApiError.from(res);
   return res.status === 204 ? null : res.json();
+}
+
+/**
+ * Opens a server-sent-events stream (`EventSource` cannot send Authorization, so the app reads the
+ * response body itself; M7 §3.3). Same sign-in handling as `request`; the caller reads `res.body`
+ * and aborts with `signal`.
+ * @param {string} path @param {AbortSignal} signal
+ */
+export async function openStream(path, signal) {
+  const init = { headers: { accept: "text/event-stream" }, signal };
+  let res = await send(path, init);
+  if (res.status === 401 && (await refresh())) res = await send(path, init);
+  if (res.status === 401) onExpired();
+  if (!res.ok) throw await ApiError.from(res);
+  return res;
 }
 
 /**
