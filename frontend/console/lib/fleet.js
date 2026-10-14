@@ -74,3 +74,11 @@ export function formatDate(iso) {
   const [, month, day] = new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ }).split("-");
   return `${Number(day)} ${MONTHS[Number(month) - 1]}`;
 }
+
+/**
+ * "₹3,290" for integer paise, for server code that cannot import `@gharbasket/ui` (Client Components use `MoneyText`).
+ * @param {number} paise
+ */
+export function rupees(paise) {
+  return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
