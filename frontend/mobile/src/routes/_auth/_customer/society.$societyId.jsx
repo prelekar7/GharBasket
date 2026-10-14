@@ -1,13 +1,6 @@
-import {
-  Button,
-  ErrorState,
-  IconButton,
-  Skeleton,
-  SocietyUnlockBar,
-  StatusPill,
-} from "@gharbasket/ui";
+import { ErrorState, IconButton, Skeleton, SocietyUnlockBar, StatusPill } from "@gharbasket/ui";
 import { ArrowLeftIcon, MedalIcon } from "@phosphor-icons/react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { shareInvite } from "@/features/community/invite.js";
 import { useSociety } from "@/features/community/queries.js";
@@ -19,7 +12,6 @@ export const Route = createFileRoute("/_auth/_customer/society/$societyId")({ co
 function Society() {
   const { t } = useTranslation();
   const router = useRouter();
-  const navigate = useNavigate();
   const { societyId } = Route.useParams();
   const { data: s, isPending, isError, refetch } = useSociety(societyId);
 
@@ -91,17 +83,6 @@ function Society() {
               ? t("onboarding.flat.capBody", { flat: s.captain.flat })
               : t("society.captainBody", { society: s.name })}
           </p>
-          {!s.captain && (
-            <div>
-              <Button
-                variant="quiet"
-                className="-ml-4"
-                onPress={() => navigate({ to: "/partner", search: { role: "captain" } })}
-              >
-                {t("society.becomeCaptain")}
-              </Button>
-            </div>
-          )}
         </div>
       </section>
       {!live && (
