@@ -602,4 +602,38 @@ describe("partner documents (M8 US-2)", () => {
     const app = await (await call("GET", "/v1/partner-applications/me")).json();
     expect(app.status).toBe("KYC_PENDING");
   });
+
+  it("opens training once the documents are in, and scores a module on the server", async () => {
+    await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+    await call("POST", "/v1/partner-applications", { kind: "captain" }, key());
+    const { modules } = await (await call("GET", "/v1/trainings")).json();
+    expect(modules[1]).toMatchObject({ code: "storage", title: "Safe storage", result: null });
+    expect(modules[1].questions[2].answer).toBe("b");
+    const all = Object.fromEntries(
+      modules[0].questions.map((/** @type {{ id: string, answer: string }} */ q) => [
+        q.id,
+        q.answer,
+      ]),
+    );
+    const locked = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
+    expect(locked.status).toBe(409);
+    const presign = await (await call("POST", "/v1/files/presign", { purpose: "kyc" })).json();
+    await call(
+      "POST",
+      "/v1/kyc-documents",
+      { doc_type: "photo_id", id_kind: "voter_id", number: "XYZ1234567", file_keys: [presign.key] },
+      key(),
+    );
+    await call(
+      "POST",
+      "/v1/kyc-documents",
+      { doc_type: "bank", number: "123456789012", ifsc: "SBIN0001234" },
+      key(),
+    );
+    expect((await (await call("GET", "/v1/partner-applications/me")).json()).status).toBe(
+      "TRAINING",
+    );
+    const res = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
+    expect(await res.json()).toMatchObject({ score: 3, total: 3, passed: true });
+  });
 });

@@ -22,6 +22,7 @@ import { Route as AuthCaptainRouteImport } from "./routes/_auth/captain"
 import { Route as AuthKitchenRouteImport } from "./routes/_auth/kitchen"
 import { Route as AuthPackerRouteImport } from "./routes/_auth/packer"
 import { Route as AuthRiderRouteImport } from "./routes/_auth/rider"
+import { Route as AuthTrainingRouteImport } from "./routes/_auth/training"
 import { Route as LegalDocRouteImport } from "./routes/legal.$doc"
 import { Route as AuthCustomerAutopayRouteImport } from "./routes/_auth/_customer/autopay"
 import { Route as AuthCustomerBoxRouteImport } from "./routes/_auth/_customer/box"
@@ -131,6 +132,11 @@ const AuthPackerRoute = AuthPackerRouteImport.update({
 const AuthRiderRoute = AuthRiderRouteImport.update({
   id: "/rider",
   path: "/rider",
+  getParentRoute: () => AuthRoute,
+})
+const AuthTrainingRoute = AuthTrainingRouteImport.update({
+  id: "/training",
+  path: "/training",
   getParentRoute: () => AuthRoute,
 })
 const LegalDocRoute = LegalDocRouteImport.update({
@@ -453,6 +459,7 @@ const AuthRouteChildren = {
   AuthKitchenRoute: AuthKitchenRouteWithChildren,
   AuthPackerRoute: AuthPackerRouteWithChildren,
   AuthRiderRoute: AuthRiderRouteWithChildren,
+  AuthTrainingRoute: AuthTrainingRoute,
   AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,
   AuthOnboardingConsentRoute: AuthOnboardingConsentRoute,
   AuthOnboardingCookingRoute: AuthOnboardingCookingRoute,

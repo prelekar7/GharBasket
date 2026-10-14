@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { ApiError, request } from "@/lib/api.js";
 import { uploadFile } from "@/lib/upload.js";
 
@@ -105,5 +106,37 @@ export function useAddKycDocument() {
       client.invalidateQueries({ queryKey: ["kyc-documents"] });
       client.invalidateQueries({ queryKey: ["partner-application"] });
     },
+  });
+}
+
+/**
+ * @typedef {{ id: string, text: string, options: { value: string, title: string }[], answer: string, why: string }} QuizQuestion
+ * @typedef {{ score: number, total: number, passed: boolean, completed_at: string }} TrainingResult
+ * @typedef {{ code: string, title: string, result: TrainingResult | null, questions: QuizQuestion[] }} TrainingModule
+ */
+
+/** Training modules in order, each with its quiz, in your language (GET /v1/trainings, M8 US-3). */
+export function useTrainings() {
+  const { i18n } = useTranslation();
+  return useQuery({
+    queryKey: ["trainings", i18n.resolvedLanguage],
+    queryFn: async () =>
+      /** @type {{ modules: TrainingModule[] }} */ (await request("/v1/trainings")).modules,
+  });
+}
+
+/** Send a module's answers; the server scores them (POST /v1/trainings/{code}/complete, M8). */
+export function useCompleteTraining() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {{ code: string, answers: Record<string, string>, key: string }} */ v) =>
+      /** @type {Promise<TrainingResult & { code: string }>} */ (
+        request(`/v1/trainings/${v.code}/complete`, {
+          method: "POST",
+          body: { answers: v.answers },
+          headers: { "idempotency-key": v.key },
+        })
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["trainings"] }),
   });
 }

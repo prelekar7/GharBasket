@@ -765,7 +765,8 @@
     "failed": "We couldn’t send your application. Check your internet and try again.",
     "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
     "rejected": "Your application as {role} needs another look. The hub will call you about what to send again.",
-    "docsCta": "Add your documents"
+    "docsCta": "Add your documents",
+    "trainingCta": "Start training"
   },
   "ghar": {
     "title": "Ghar Saathi",
@@ -1568,7 +1569,7 @@
     "todo": "To do",
     "safe": "Documents go to private storage that only the hub’s verifier can open. We show only the last digits, and we never ask for Aadhaar.",
     "cta": "Upload the next document",
-    "done": "All added. Back to your application",
+    "done": "Next: training",
     "docs": {
       "photo_id": {
         "name": "Photo ID",
@@ -1621,5 +1622,22 @@
       "failed": "Couldn’t add the document. Check your internet and try again.",
       "leadBank": "We send ₹1 to this account to check the name. Nothing else is taken."
     }
+  },
+  "training": {
+    "close": "Close quiz",
+    "eyebrow": "Training · module {n} of {total}",
+    "q": "Question",
+    "qValue": "{n} of {total}",
+    "right": "Right. {answer}.",
+    "wrong": "Not quite. The safe answer: {answer}.",
+    "next": "Next question",
+    "finish": "Finish module",
+    "passed": "Module done: {score} of {total} right.",
+    "failed": "{score} of {total} right. Go through the module again to pass; one wrong answer is fine.",
+    "retry": "Try the module again",
+    "saveFailed": "Couldn’t save your answers. Check your internet and try again.",
+    "doneTitle": "Training done",
+    "doneBody": "The hub will check your documents and call you before your first day.",
+    "back": "Back to your application"
   }
 }

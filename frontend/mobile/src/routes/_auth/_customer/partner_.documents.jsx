@@ -142,7 +142,7 @@ function PartnerDocuments() {
             {t("partnerDocs.cta")}
           </Button>
         ) : (
-          <Button variant="primary" size="lg" block onPress={() => navigate({ to: "/partner" })}>
+          <Button variant="primary" size="lg" block onPress={() => navigate({ to: "/training" })}>
             {t("partnerDocs.done")}
           </Button>
         )}

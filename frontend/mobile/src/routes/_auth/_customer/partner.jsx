@@ -136,6 +136,13 @@ function Partner() {
           </Button>
         </div>
       )}
+      {app && at === 2 && (
+        <div className="mt-auto">
+          <Button variant="primary" size="lg" block onPress={() => navigate({ to: "/training" })}>
+            {t("partner.trainingCta")}
+          </Button>
+        </div>
+      )}
       {!app && (
         <div className="mt-auto">
           <Button
