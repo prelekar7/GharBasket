@@ -46,6 +46,7 @@ import { Route as AuthOnboardingSocietyRouteImport } from "./routes/_auth/onboar
 import { Route as AuthPackerIndexRouteImport } from "./routes/_auth/packer/index"
 import { Route as AuthPackerPickRouteImport } from "./routes/_auth/packer/pick"
 import { Route as AuthPackerShortRouteImport } from "./routes/_auth/packer/short"
+import { Route as AuthRiderIndexRouteImport } from "./routes/_auth/rider/index"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
 
@@ -233,6 +234,11 @@ const AuthPackerShortRoute = AuthPackerShortRouteImport.update({
   path: "/short",
   getParentRoute: () => AuthPackerRoute,
 })
+const AuthRiderIndexRoute = AuthRiderIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => AuthRiderRoute,
+})
 const AuthCustomerSocietySocietyIdRoute =
   AuthCustomerSocietySocietyIdRouteImport.update({
     id: "/society/$societyId",
@@ -273,13 +279,21 @@ const AuthPackerRouteWithChildren = AuthPackerRoute._addFileChildren(
   AuthPackerRouteChildren,
 )
 
+const AuthRiderRouteChildren = {
+  AuthRiderIndexRoute: AuthRiderIndexRoute,
+}
+
+const AuthRiderRouteWithChildren = AuthRiderRoute._addFileChildren(
+  AuthRiderRouteChildren,
+)
+
 const AuthRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthAssistantRoute: AuthAssistantRoute,
   AuthCaptainRoute: AuthCaptainRoute,
   AuthKitchenRoute: AuthKitchenRoute,
   AuthPackerRoute: AuthPackerRouteWithChildren,
-  AuthRiderRoute: AuthRiderRoute,
+  AuthRiderRoute: AuthRiderRouteWithChildren,
   AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,
   AuthOnboardingConsentRoute: AuthOnboardingConsentRoute,
   AuthOnboardingCookingRoute: AuthOnboardingCookingRoute,
