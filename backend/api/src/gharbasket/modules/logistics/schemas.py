@@ -8,9 +8,16 @@ a PR reviewed by both app owners. Whether a vehicle can carry its kind's load
 
 import uuid
 from datetime import date, datetime
-from typing import ClassVar, Literal, Self
+from typing import Annotated, ClassVar, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 VehicleKind = Literal["cargo_3w", "two_wheeler"]
 REGISTRATION = r"^[A-Z0-9]{4,16}$"
@@ -352,3 +359,35 @@ class LocationIn(BaseModel):
 class LocationOut(BaseModel):
     accepted: int = Field(examples=[4])
     dropped: int = Field(examples=[1])
+
+
+# --- handover (§3.4) ----------------------------------------------------------------------------
+
+BAG_QR = r"^GB1:[0-9a-f]{32}$"
+
+
+class StopPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rider_mode: bool = Field(description="True: the rider hands over and does the doors today")
+
+
+class HandoverIn(FieldTap):
+    crates: int = Field(ge=0, le=500, examples=[5], description="Counted by the captain")
+    bags: int = Field(ge=0, le=2000, examples=[14])
+    scanned_bags: list[Annotated[str, StringConstraints(pattern=BAG_QR)]] | None = Field(
+        default=None, max_length=2000, description="Needed only when the counts do not match"
+    )
+    handover_code: str | None = Field(default=None, pattern=r"^\d{4}$", examples=["4821"])
+    photo_key: str | None = Field(
+        default=None, max_length=200, examples=["delivery_photo/<user_id>/<uuid>.jpg"]
+    )
+    note: str | None = Field(default=None, max_length=300)
+
+
+class HandoverOut(BaseModel):
+    handover_id: uuid.UUID
+    stop: StopOut
+    at_society: list[uuid.UUID]
+    still_dispatched: list[uuid.UUID]
+    mismatch: bool

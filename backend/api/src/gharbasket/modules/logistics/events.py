@@ -14,3 +14,6 @@ STOP_ARRIVED = "logistics.stop_arrived"
 # route_id, hub_id, delivery_date, rider_user_id, vehicle_id, stops_done, stops_skipped, km,
 # started_at, completed_at — M12
 ROUTE_COMPLETED = "logistics.route_completed"
+# handover_id, stop_id, route_id, hub_id, society_id, by_actor, user_id, partner_id, crates, bags,
+# order_ids, mismatch — M12 (captains are paid at orders.delivered, not here)
+HANDOVER_COMPLETED = "logistics.handover_completed"

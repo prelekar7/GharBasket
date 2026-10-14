@@ -11,13 +11,24 @@ from fastapi.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import execution, jobs, live, plans, service, tracking, views
+from gharbasket.modules.logistics import (
+    execution,
+    handover,
+    jobs,
+    live,
+    plans,
+    service,
+    tracking,
+    views,
+)
 from gharbasket.modules.logistics import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.logistics import routes as route_ops
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.schemas import (
     CompleteIn,
     FieldTap,
+    HandoverIn,
+    HandoverOut,
     LocationIn,
     LocationOut,
     PlanKind,
@@ -34,6 +45,7 @@ from gharbasket.modules.logistics.schemas import (
     SolveIn,
     StartIn,
     StopOut,
+    StopPatch,
     UserRef,
     VehicleIn,
     VehicleKind,
@@ -670,3 +682,89 @@ async def live_route(
     return EventSourceResponse(
         body, headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
     )
+
+
+# --- handover (§3.4) ----------------------------------------------------------------------------
+
+CanHandOver = Annotated[Permit, require("handover:write")]
+STOP_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.stop_not_found")}
+
+
+@router.patch(
+    "/stops/{stop_id}",
+    summary="Switch a stop to rider mode for the day (If-Match: the route's version)",
+    description="For an absent captain: the route's rider then hands over and does the doors. "
+    "Audited.",
+    responses={
+        **EDITS,
+        **STOP_404,
+        409: _problem("logistics.route_closed, logistics.already_handed_over"),
+    },
+)
+async def patch_stop(
+    stop_id: uuid.UUID,
+    body: StopPatch,
+    permit: CanSolve,
+    session: DbSession,
+    expected: IfMatch,
+    response: Response,
+) -> StopOut:
+    stop, route, who = await execution.get_stop(session, stop_id, permit)
+    if not who.manager:
+        raise execution.stop_not_found()
+    await handover.set_rider_mode(session, route, stop, who, body.rider_mode, expected)
+    [out] = await views.stop_views(session, route, [stop])
+    await session.commit()
+    set_etag(response, route.version)
+    return out
+
+
+@router.post(
+    "/stops/{stop_id}/handover",
+    summary="Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)",
+    description="Matching counts move every dispatched order of the stop to at_society; otherwise "
+    "only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five "
+    "wrong codes for a stop allow only a photo.",
+    responses={
+        **CREATES,
+        **STOP_404,
+        403: _problem("auth.forbidden, logistics.not_society_captain, logistics.not_your_route"),
+        409: _problem(
+            "logistics.count_mismatch, logistics.already_handed_over, "
+            "logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
+        ),
+        422: _problem(
+            "logistics.code_invalid, logistics.photo_key_invalid, request.invalid, "
+            "request.idempotency_mismatch"
+        ),
+        429: _problem("logistics.code_attempts_exceeded"),
+    },
+)
+async def hand_over(
+    stop_id: uuid.UUID,
+    body: HandoverIn,
+    permit: CanHandOver,
+    session: DbSession,
+    idem: Idempotent,
+    valkey: Valkey,
+) -> HandoverOut:
+    stop, route, actor = await handover.stop_actor(session, permit, stop_id)
+    try:
+        proof = handover.check_proof(route, stop, actor, body)
+    except handover.CodeInvalid as wrong:
+        # The wrong try counts, and a replay of this key answers the same.
+        await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
+        await session.commit()
+        raise
+    made, moved, still = await handover.hand_over(session, valkey, route, stop, actor, body, proof)
+    [view] = await views.stop_views(session, route, [stop])
+    out = HandoverOut(
+        handover_id=made.id,
+        stop=view,
+        at_society=moved,
+        still_dispatched=still,
+        mismatch=made.mismatch,
+    )
+    await idem.save(200, out)
+    await session.commit()
+    return out

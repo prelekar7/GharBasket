@@ -150,7 +150,7 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
                 handover_code=stop.handover_code if route.status == "in_progress" else None,
                 navigate_url=None if point is None else MAPS.format(lat=point[0], lng=point[1]),
                 arrived_at=stop.arrived_at,
-                handed_over_at=None,
+                handed_over_at=stop.handed_over_at,
             )
         )
     return out

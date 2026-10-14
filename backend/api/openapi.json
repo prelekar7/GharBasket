@@ -1674,6 +1674,149 @@
         "title": "GeoPolygon",
         "type": "object"
       },
+      "HandoverIn": {
+        "additionalProperties": false,
+        "properties": {
+          "bags": {
+            "examples": [
+              14
+            ],
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Bags",
+            "type": "integer"
+          },
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the tap happened on the phone (stored for audit)",
+            "title": "Client At"
+          },
+          "crates": {
+            "description": "Counted by the captain",
+            "examples": [
+              5
+            ],
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Crates",
+            "type": "integer"
+          },
+          "handover_code": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "4821"
+            ],
+            "title": "Handover Code"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "photo_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "delivery_photo/<user_id>/<uuid>.jpg"
+            ],
+            "title": "Photo Key"
+          },
+          "scanned_bags": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^GB1:[0-9a-f]{32}$",
+                  "type": "string"
+                },
+                "maxItems": 2000,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Needed only when the counts do not match",
+            "title": "Scanned Bags"
+          }
+        },
+        "required": [
+          "crates",
+          "bags"
+        ],
+        "title": "HandoverIn",
+        "type": "object"
+      },
+      "HandoverOut": {
+        "properties": {
+          "at_society": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "At Society",
+            "type": "array"
+          },
+          "handover_id": {
+            "format": "uuid",
+            "title": "Handover Id",
+            "type": "string"
+          },
+          "mismatch": {
+            "title": "Mismatch",
+            "type": "boolean"
+          },
+          "still_dispatched": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Still Dispatched",
+            "type": "array"
+          },
+          "stop": {
+            "$ref": "#/components/schemas/StopOut"
+          }
+        },
+        "required": [
+          "handover_id",
+          "stop",
+          "at_society",
+          "still_dispatched",
+          "mismatch"
+        ],
+        "title": "HandoverOut",
+        "type": "object"
+      },
       "Health": {
         "properties": {
           "commit": {
@@ -9639,6 +9782,21 @@
           "handed_over_at"
         ],
         "title": "StopOut",
+        "type": "object"
+      },
+      "StopPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "rider_mode": {
+            "description": "True: the rider hands over and does the doors today",
+            "title": "Rider Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "rider_mode"
+        ],
+        "title": "StopPatch",
         "type": "object"
       },
       "StopSlot": {
@@ -25471,6 +25629,169 @@
         ]
       }
     },
+    "/v1/stops/{stop_id}": {
+      "patch": {
+        "description": "For an absent captain: the route's rider then hands over and does the doors. Audited.",
+        "operationId": "patch_stop_v1_stops__stop_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.route_closed, logistics.already_handed_over"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch: reload and try again"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Switch a stop to rider mode for the day (If-Match: the route's version)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/stops/{stop_id}/arrive": {
       "post": {
         "operationId": "arrive_at_stop_v1_stops__stop_id__arrive_post",
@@ -25614,6 +25935,158 @@
           }
         ],
         "summary": "Record the arrival at a stop and tell the captain (Idempotency-Key)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/stops/{stop_id}/handover": {
+      "post": {
+        "description": "Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo.",
+        "operationId": "hand_over_v1_stops__stop_id__handover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoverIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoverOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_society_captain, logistics.not_your_route"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.count_mismatch, logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.code_invalid, logistics.photo_key_invalid, request.invalid, request.idempotency_mismatch"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.code_attempts_exceeded"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)",
         "tags": [
           "logistics"
         ]
