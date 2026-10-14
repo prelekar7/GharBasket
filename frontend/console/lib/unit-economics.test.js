@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   formatPaiseExact,
+  formatRupees,
   mulDivRound,
   parseDecimal,
   toDecimalText,
@@ -78,6 +79,11 @@ describe("money helpers", () => {
     assert.equal(formatPaiseExact(4000), "₹40.00");
     assert.equal(formatPaiseExact(-700), "−₹7.00");
     assert.equal(formatPaiseExact(123_456_705), "₹12,34,567.05");
+  });
+  test("formatRupees drops .00 and keeps real paise", () => {
+    assert.equal(formatRupees(845_000), "₹8,450");
+    assert.equal(formatRupees(4836), "₹48.36");
+    assert.equal(formatRupees(-112_000), "−₹1,120");
   });
   test("toDecimalText is the inverse", () => {
     assert.equal(toDecimalText(62_000), "620");

@@ -4,6 +4,7 @@ import { Button, TextField, toast } from "@gharbasket/ui";
 import { DataTable } from "@gharbasket/ui/console";
 import { useState, useTransition } from "react";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
+import { dayAndTime } from "@/lib/dates.js";
 import { formatPaiseExact, parseDecimal, toDecimalText } from "@/lib/money.js";
 import { boxEconomics, sensitivities } from "@/lib/unit-economics.js";
 import { saveAssumptions } from "./actions.js";
@@ -64,14 +65,6 @@ const MOVE_FIELDS = {
   delivery: "delivery_paise",
   cac: "cac_paise",
 };
-
-const dateTime = new Intl.DateTimeFormat("en-IN", {
-  day: "numeric",
-  month: "short",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "Asia/Kolkata",
-});
 
 /**
  * The unit-economics calculator: change an assumption and the box's arithmetic updates as you type.
@@ -254,7 +247,7 @@ export function UnitEconomicsView({ data }) {
           ]}
           rows={data.history.map((h, i) => ({
             id: String(i),
-            at: dateTime.format(new Date(h.at)),
+            at: dayAndTime(h.at),
             by: h.by,
             change: h.change,
           }))}
