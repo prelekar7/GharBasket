@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { sectionOf } from "./lib/nav.js";
+import { canAccess, itemFor } from "./lib/nav.js";
 import { parseSession, ROLES, SESSION_COOKIE } from "./lib/session.js";
 
 /**
- * Auth gate stub (TDD §9.2): no session → /login; signed in → away from /login and out of sections
- * the role does not see. Token refresh joins here with M1.
+ * Auth gate stub (TDD §9.2): no session → /login; signed in → away from /login and out of pages
+ * the role does not see (lib/nav.js). Token refresh joins here with M1.
  * @param {import("next/server").NextRequest} request
  */
 export function proxy(request) {
@@ -18,9 +18,9 @@ export function proxy(request) {
     return NextResponse.redirect(login);
   }
 
-  const section = sectionOf(pathname);
-  const allowed = section !== null && ROLES[role].sections.includes(section);
-  if (pathname === "/login" || pathname === "/" || (section !== null && !allowed)) {
+  const item = itemFor(pathname);
+  const allowed = item !== null && canAccess(role, item);
+  if (pathname === "/login" || pathname === "/" || (item !== null && !allowed)) {
     return NextResponse.redirect(new URL(ROLES[role].home, request.url));
   }
   return NextResponse.next();
