@@ -378,7 +378,8 @@
       "ready": "Ready to check",
       "approved": "Approved",
       "skipped": "Skipped",
-      "locked": "Being packed"
+      "locked": "Being packed",
+      "payment_failed": "Payment needed"
     },
     "lead": {
       "ready": "Aapka hafte ka khana ready hai. Edits close {when}.",
@@ -398,7 +399,20 @@
     "skipConfirm": "Skip this week",
     "skipCancel": "Keep my box",
     "skippedToast": "This week is skipped",
-    "changed": "Your box changed. Check it again."
+    "changed": "Your box changed. Check it again.",
+    "approvedTitle": "Week approved",
+    "approvedBody": "{amount} will be paid from your wallet at the {when} cut-off. You can still change or skip until then.",
+    "boxTimeline": "{day}’s box",
+    "editBox": "Edit box",
+    "failedTitle": "Payment didn’t go through",
+    "failedBody": "Your wallet has {wallet} and this box is {total}. Top up {short} by {time} tonight to keep {day}’s delivery. If there’s no payment by then, this week’s box is cancelled and nothing is charged.",
+    "topUpShort": "Top up {short}",
+    "skipInstead": "Skip this week instead",
+    "paidToast": "Paid. Your box is on its way to being packed.",
+    "skippedTitle": "No box this week",
+    "skippedBody": "You skipped {range}. Nothing will be charged. Your next box is planned for {next}.",
+    "undoSkip": "Undo skip",
+    "unskippedToast": "Your box is back for this week. Check and approve it."
   },
   "reasons": {
     "in_season": "{item} is in season",

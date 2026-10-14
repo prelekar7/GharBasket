@@ -11,8 +11,11 @@ import { request } from "@/lib/api.js";
  * @property {string} delivery_date ISO date
  * @property {{ from: string, to: string }} delivery_window
  * @property {string} cutoff_at
- * @property {"ready" | "approved" | "skipped" | "locked"} status
+ * @property {"ready" | "approved" | "skipped" | "locked" | "payment_failed"} status
  * @property {number} version
+ * @property {string | null} approved_at
+ * @property {{ name: string }} hub
+ * @property {{ wallet_paise: number, shortfall_paise: number, due_at: string } | null} payment_due
  * @property {{ days: { date: string, meals: PlannedMeal[] }[] }} meal_plan
  * @property {BoxLine[]} lines
  * @property {number} total_paise
@@ -30,9 +33,9 @@ export function useCurrentCycle(lang) {
 }
 
 /**
- * Approve or skip this week (POST /v1/cycles/{id}/approve|skip). Each attempt has its own
- * Idempotency-Key and sends If-Match with the version the person saw.
- * @param {"approve" | "skip"} action
+ * Approve, skip, undo a skip, or pay after a short wallet (POST /v1/cycles/{id}/approve|skip|unskip|pay).
+ * Each attempt has its own Idempotency-Key and sends If-Match with the version the person saw.
+ * @param {"approve" | "skip" | "unskip" | "pay"} action
  */
 export function useCycleAction(action) {
   const client = useQueryClient();

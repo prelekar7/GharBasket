@@ -52,7 +52,8 @@ function Box() {
       />
     );
 
-  const editable = c.status === "ready";
+  // Swaps stay open after approving, until the cut-off (Core-W3).
+  const editable = c.status === "ready" || c.status === "approved";
   const day = `${t(`days.short.d${weekdayOf(c.delivery_date)}`)} ${shortDate(c.delivery_date, lang)}`;
   const shown = all ? c.lines : c.lines.slice(0, FIRST_LINES);
   const byName = new Map(c.lines.map((l) => [l.name, l]));
@@ -135,7 +136,7 @@ function Box() {
           </p>
         )}
       </div>
-      {editable && (
+      {c.status === "ready" && (
         <Button
           variant="primary"
           size="lg"

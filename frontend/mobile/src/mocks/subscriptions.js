@@ -3,6 +3,7 @@
 // M3 tables. Names are localised from Accept-Language, as the API should do; reasons and
 // highlights are codes with params, which the app turns into sentences.
 import { HttpResponse, http } from "msw";
+import { chargeBox, walletBalance } from "./billing.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
 const DISHES = {
@@ -88,7 +89,7 @@ const loadState = () => {
   }
 };
 const saveState = (
-  /** @type {{ status: string, version: number, swaps?: Record<string, any> }} */ s,
+  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string }} */ s,
 ) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
@@ -96,7 +97,7 @@ const pick = (/** @type {any} */ v, /** @type {"en" | "hi"} */ lang) =>
   Array.isArray(v) ? v[lang === "hi" ? 1 : 0] : v;
 
 function cycle(/** @type {"en" | "hi"} */ lang) {
-  const { status, version, swaps = {} } = loadState();
+  const { status, version, swaps = {}, approved_at = null } = loadState();
   const base = LINES.map(([id, en, hi, qen, qhi, price, code, params, from]) => ({
     product_id: id,
     name: lang === "hi" ? hi : en,
@@ -129,8 +130,11 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
     delivery_date: "2026-10-06",
     delivery_window: { from: "08:00", to: "10:00" },
     cutoff_at: "2026-10-05T21:00:00+05:30",
-    status, // ready → approved | skipped; locked after the cut-off
+    // ready → approved | skipped; at the cut-off approved → locked, or payment_failed when the
+    // wallet is short (2 h grace until 23:00, then cancelled). Edits stay open until the cut-off.
+    status,
     version,
+    approved_at,
     meal_plan: {
       days: DISHES[lang].map(([lunch, dinner], i) => ({
         date: `2026-10-${String(5 + i).padStart(2, "0")}`,
@@ -156,8 +160,29 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       spent_paise: status === "skipped" ? 0 : lines.reduce((t, l) => t + l.price_paise, 0),
     },
     captain: { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
+    hub: { name: lang === "hi" ? "खारघर" : "Kharghar" },
+    payment_due:
+      status === "payment_failed"
+        ? {
+            wallet_paise: walletBalance(),
+            shortfall_paise: Math.max(
+              0,
+              lines.reduce((t, l) => t + l.price_paise, 0) - walletBalance(),
+            ),
+            due_at: "2026-10-05T23:00:00+05:30",
+          }
+        : null,
   };
 }
+
+/** Demo scenario for 98000 00004: the cut-off found the wallet short (design Core-D4). */
+export const seedPaymentFailed = () =>
+  saveState({
+    status: "payment_failed",
+    version: 1,
+    swaps: {},
+    approved_at: "2026-10-01T19:12:00+05:30",
+  });
 
 const langOf = (/** @type {Request} */ r) =>
   (r.headers.get("accept-language") ?? "").startsWith("hi") ? "hi" : "en";
@@ -171,9 +196,17 @@ const problem = (
     { status, headers: { "content-type": "application/problem+json" } },
   );
 
-/** POST approve/skip: needs an Idempotency-Key, and If-Match with the current version. */
-const transition = (/** @type {"approved" | "skipped"} */ to) =>
-  http.post(`*/v1/cycles/:id/${to === "approved" ? "approve" : "skip"}`, ({ request }) => {
+/** Which status each action may start from (M3 cycle lifecycle; edits close at the cut-off). */
+const FROM = /** @type {Record<string, string[]>} */ ({
+  approve: ["ready", "approved"],
+  skip: ["ready", "approved", "payment_failed"],
+  unskip: ["skipped"],
+  pay: ["payment_failed"],
+});
+
+/** POST approve/skip/unskip/pay: needs an Idempotency-Key, and If-Match with the current version. */
+const transition = (/** @type {keyof typeof FROM} */ action) =>
+  http.post(`*/v1/cycles/:id/${action}`, ({ request }) => {
     if (!request.headers.get("idempotency-key"))
       return problem(
         400,
@@ -184,7 +217,22 @@ const transition = (/** @type {"approved" | "skipped"} */ to) =>
     const ifMatch = request.headers.get("if-match");
     if (ifMatch && Number(ifMatch) !== state.version)
       return problem(412, "subscriptions.version_conflict", "The box changed; reload it");
-    saveState({ ...state, status: to, version: state.version + 1 });
+    if (!FROM[action].includes(state.status))
+      return problem(409, "orders.invalid_transition", `Can't ${action} a ${state.status} week`);
+    /** @type {Partial<ReturnType<typeof loadState>>} */
+    let next = {};
+    if (action === "approve")
+      next = { status: "approved", approved_at: state.approved_at ?? new Date().toISOString() };
+    if (action === "skip") next = { status: "skipped" };
+    if (action === "unskip") next = { status: "ready", approved_at: undefined };
+    if (action === "pay") {
+      // The retry after a top-up: charge the wallet now, inside the 2 h grace.
+      const total = cycle(langOf(request)).total_paise;
+      if (!chargeBox(total, "2026-10-06"))
+        return problem(402, "billing.insufficient_balance", "The wallet is still short");
+      next = { status: "locked" };
+    }
+    saveState({ ...state, ...next, version: state.version + 1 });
     return HttpResponse.json(cycle(langOf(request)));
   });
 
@@ -213,7 +261,7 @@ export const subscriptionHandlers = [
     if (Number(request.headers.get("if-match")) !== state.version) {
       return problem(412, "subscriptions.version_conflict", "The box changed; reload it");
     }
-    if (state.status !== "ready")
+    if (state.status !== "ready" && state.status !== "approved")
       return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
     const body = /** @type {any} */ (await request.json());
     const sub = (SUBSTITUTES[body.product_id] ?? DEFAULT_SUBS).find(
@@ -231,8 +279,10 @@ export const subscriptionHandlers = [
   }),
 
   http.get("*/v1/cycles/current", ({ request }) => HttpResponse.json(cycle(langOf(request)))),
-  transition("approved"),
-  transition("skipped"),
+  transition("approve"),
+  transition("skip"),
+  transition("unskip"),
+  transition("pay"),
 ];
 
 /** Dev helper: put the mock cycle back to "ready". */

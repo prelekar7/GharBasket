@@ -52,3 +52,40 @@ describe("who is a new household", () => {
     expect(isNewUser("+919800000005")).toBe(true);
   });
 });
+
+describe("weekly cycle lifecycle", () => {
+  const act = async (/** @type {string} */ action, /** @type {number} */ version) =>
+    mockFetch(
+      new Request(`http://localhost/v1/cycles/cyc-2026-10-05/${action}`, {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID(), "if-match": String(version) },
+      }),
+    );
+
+  it("approves, still allows a skip before the cut-off, and undoes the skip", async () => {
+    let r = await act("approve", 1);
+    expect((await r.json()).status).toBe("approved");
+    r = await act("skip", 2);
+    expect((await r.json()).status).toBe("skipped");
+    r = await act("unskip", 3);
+    expect((await r.json()).status).toBe("ready");
+  });
+
+  it("refuses a step the week can't take, and a stale version", async () => {
+    expect((await act("unskip", 1)).status).toBe(409);
+    expect((await act("approve", 7)).status).toBe(412);
+  });
+
+  it("charges the wallet after a top-up when the cut-off found it short", async () => {
+    const { seedShortWallet } = await import("./billing.js");
+    const { seedPaymentFailed } = await import("./subscriptions.js");
+    seedShortWallet();
+    seedPaymentFailed();
+    expect((await act("pay", 1)).status).toBe(402);
+    const s = JSON.parse(localStorage.getItem("gb-mock-billing") ?? "{}");
+    localStorage.setItem("gb-mock-billing", JSON.stringify({ ...s, balance_paise: 69000 }));
+    const paid = await act("pay", 1);
+    expect((await paid.json()).status).toBe("locked");
+    expect(JSON.parse(localStorage.getItem("gb-mock-billing") ?? "{}").balance_paise).toBe(0);
+  });
+});
