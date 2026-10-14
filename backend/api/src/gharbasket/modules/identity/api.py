@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity import households, service
+from gharbasket.modules.identity import events, households, service
 from gharbasket.modules.identity.models import (
     Address,
     Consent,
@@ -18,6 +18,11 @@ from gharbasket.modules.identity.models import (
     User,
     UserRole,
 )
+
+# Events other modules consume (spec §3.5): the deletion request, its cancelling, the purge.
+DELETION_REQUESTED = events.DELETION_REQUESTED
+DELETION_CANCELLED = events.DELETION_CANCELLED
+USER_DELETED = events.USER_DELETED
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
@@ -305,3 +310,9 @@ async def holds_role(
         )
     )
     return (await session.execute(query.limit(1))).first() is not None
+
+
+async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
+    """False while the account's deletion is scheduled, once it is purged, and for a blocked
+    account (spec §3.5): M11 checks it before sending anything."""
+    return await session.scalar(select(User.status).where(User.id == user_id)) == "active"

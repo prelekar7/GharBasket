@@ -68,9 +68,11 @@ def test_models_and_ai_health_list_the_built_in_solvers(client: TestClient, tmp_
     assert [(m["name"], m["version"], m["source"]) for m in models] == [
         ("planner", "cpsat-v0", "builtin"),
         ("routing", "cvrptw-waves-v0", "builtin"),
+        ("pantry", "pantry-gamma-poisson-v0", "builtin"),
+        ("assignment", "assignment-cpsat-v0", "builtin"),
     ]
     assert health["status"] == "ok" and health["osrm"] == "not_configured"
-    assert [m["name"] for m in health["models"]] == ["planner", "routing"]
+    assert [m["name"] for m in health["models"]] == ["planner", "routing", "pantry", "assignment"]
 
     manifest = tmp_path / "latest.json"
     manifest.write_text('{"models": [{"name": "pantry", "version": "2026.10.04-1"}]}')

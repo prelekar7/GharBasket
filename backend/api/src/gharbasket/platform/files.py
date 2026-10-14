@@ -25,7 +25,7 @@ from typing import Annotated, Any, Literal
 import structlog
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.platform import rate_limit
@@ -250,6 +250,21 @@ async def set_delete_after(session: AsyncSession, key: str, at: datetime | None)
     upload.delete_after = at
     await session.flush()
     return True
+
+
+async def expire_for_user(session: AsyncSession, user_id: uuid.UUID, at: datetime) -> int:
+    """Make every upload of `user_id` (keys `*/<user_id>/…`) due at `at`, so the next
+    sweep_uploads deletes the objects and their rows: a purged account (M1 §3.5)."""
+    expired = await session.execute(
+        update(Upload)
+        .where(Upload.user_id == user_id)
+        .values(
+            claimed_by=func.coalesce(Upload.claimed_by, "platform"),
+            claimed_at=func.coalesce(Upload.claimed_at, at),
+            delete_after=at,
+        )
+    )
+    return expired.rowcount  # pyright: ignore[reportAttributeAccessIssue]
 
 
 async def sweep(
