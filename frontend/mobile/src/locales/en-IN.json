@@ -1122,7 +1122,7 @@
     "finished": "Route finished. Thank you!",
     "none": {
       "title": "No route for you today",
-      "body": "Your next route is {day}, {slot}. We’ll remind you the evening before.",
+      "body": "Your next route is {day}, leaving at {time}. We’ll remind you the evening before.",
       "bodyLater": "No route is planned for you yet. We’ll remind you the evening before.",
       "earnings": "See this week’s earnings"
     },
@@ -1131,7 +1131,6 @@
       "body": "There’s no signal right now. Move near the hub gate or switch on mobile data, then try again.",
       "retry": "Try again",
       "support": "Still stuck? Call your hub manager.",
-      "supportCall": "Still stuck? Call {name}, hub manager.",
       "tip": "Load the route once at the hub. After that, stops, crates and handover codes work without signal."
     },
     "stop": {
@@ -1140,20 +1139,26 @@
       "navigate": "Open in Maps",
       "call": "Call {name}",
       "crates": "Crates for this society",
-      "crateLabels": {
-        "label": "Crates",
-        "scanned": "Scanned",
-        "waiting": "Waiting",
-        "missing": "Missing",
-        "bag": "{n} bag",
-        "bags": "{n} bags",
-        "summary": "{done} of {total} crates · {bags} bags"
+      "captainCounts": "{name} counts the crates and {bags, plural, one {# bag} other {# bags}}, then types the code below in her app.",
+      "code": "Handover code",
+      "codeHelp": "{name} types this 4-digit code in her app to take the crates. Don’t send it in a message.",
+      "codeWaiting": "The code shows once the route has started and the phone has signal.",
+      "count": "What you counted",
+      "cratesCounted": "Crates",
+      "bagsCounted": "Bags",
+      "arrived": "I’m at the gate",
+      "waiting": "Waiting for {name} to take the crates…",
+      "skip": "Skip this stop",
+      "skipTitle": "Why are you skipping?",
+      "skipped": "Skipped",
+      "skipReasons": {
+        "captain_absent": "Captain isn’t here",
+        "no_access": "Can’t get in",
+        "vehicle_issue": "Problem with the van",
+        "other": "Other reason"
       },
-      "captainScans": "{name} scans each crate and counts {bags, plural, one {# bag} other {# bags}}.",
-      "noCaptain": "No captain here yet: leave the crates at the security cabin and take a photo.",
+      "noCaptain": "No captain here yet: you hand over the crates yourself, then deliver to each door.",
       "proof": "Handover proof",
-      "otp": "{name}’s handover code",
-      "otpHelp": "She sees the 4-digit code in her app. No signal? Take a photo instead.",
       "photo": "Take a photo of the crates",
       "photoAgain": "Take the photo again",
       "photoAdded": "Photo added",
@@ -1167,19 +1172,19 @@
       "toPickups": "Go to pickups"
     },
     "pickups": {
-      "when": "Return leg · {window}",
+      "when": "Return leg · back by {time}",
       "title": "Pickups",
       "crates": "{n, plural, one {# empty crate} other {# empty crates}}",
       "donation": "Donation · {ref}",
-      "scan": "Scan a crate or donation bag",
+      "scan": "Scan a donation bag",
       "manual": "Type the code instead",
       "scanned": "Picked up",
       "unknown": "Not on today’s pickups. Check the code.",
       "why": "Pickups ride on the way back, so there’s no extra trip. Donations go to the hub for checking; the family gets Kindness points after.",
       "none": "No pickups on this route.",
       "typeTitle": "Type the code",
-      "codeLabel": "Crate or bag code",
-      "codeHelp": "It’s printed on the crate or the bag, like S-1 or B-402.",
+      "codeLabel": "Donation bag code",
+      "codeHelp": "It’s printed on the bag, like B-402.",
       "collect": "Mark as picked up"
     },
     "earnings": {

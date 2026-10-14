@@ -2,6 +2,7 @@ import { CheckIcon, TruckIcon, WarehouseIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LngLatBounds, Map as MapLibre, Marker } from "@/lib/maplibre.js";
+import { stopDone } from "./format.js";
 
 // OpenFreeMap: free OpenStreetMap vector tiles, no API key (TDD §3.2), as in PinMap.
 const STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -17,18 +18,21 @@ const token = (/** @type {string} */ name) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "#4a6aa5";
 
 /** @typedef {import("./queries.js").Route} Route */
+/** @typedef {{ lat: number, lng: number }} Point */
 
 /**
  * The rider's route on a map: the van, each society in order and the way back to the hub (dashed).
  * Without WebGL2 or without signal at the start it shows `fallback` instead; the stops are listed
  * under the map anyway.
- * @param {{ route: Route, label: string, fallback: import("react").ReactNode }} props
+ * @param {{ route: Route, hub: Point, label: string, fallback: import("react").ReactNode }} props
  */
-export default function RouteMap({ route, label, fallback }) {
+export default function RouteMap({ route, hub, label, fallback }) {
   const box = useRef(/** @type {HTMLDivElement | null} */ (null));
   const van = useRef(/** @type {Marker | null} */ (null));
   const [failed, setFailed] = useState(() => !hasWebGL2() || !navigator.onLine);
-  const count = route.stops.length;
+  // Bank and kitchen stops have no society; every drop does.
+  const stops = route.stops.flatMap((s) => (s.society ? [{ ...s, at: s.society.location }] : []));
+  const count = stops.length;
   // Marker elements live outside React's tree; their content is rendered into them with portals.
   const els = useMemo(
     () => ({
@@ -38,14 +42,13 @@ export default function RouteMap({ route, label, fallback }) {
     }),
     [count],
   );
-  const lastDone = route.stops.findLast((s) => s.status === "done");
-  const vanAt = route.status === "started" && lastDone ? lastDone.society : route.hub;
+  const lastDone = stops.findLast(stopDone);
+  const vanAt = route.status === "in_progress" && lastDone ? lastDone.at : hub;
 
   // Drawn once per route: a published route's stops do not change, only their status (below).
   // biome-ignore lint/correctness/useExhaustiveDependencies: redrawing on every status change would reload the map
   useEffect(() => {
     if (failed || !box.current) return;
-    const { hub, stops } = route;
     const map = new MapLibre({
       container: box.current,
       style: STYLE,
@@ -57,7 +60,7 @@ export default function RouteMap({ route, label, fallback }) {
     map.on("error", (e) => {
       if (!map.loaded() && /webgl/i.test(String(e.error?.message))) setFailed(true);
     });
-    const out = [hub, ...stops.map((s) => s.society)].map((p) => [p.lng, p.lat]);
+    const out = [hub, ...stops.map((s) => s.at)].map((p) => [p.lng, p.lat]);
     const back = [out[out.length - 1], [hub.lng, hub.lat]];
     const bounds = out.reduce(
       (b, p) => b.extend(/** @type {[number, number]} */ (p)),
@@ -92,7 +95,7 @@ export default function RouteMap({ route, label, fallback }) {
     });
     new Marker({ element: els.hub }).setLngLat([hub.lng, hub.lat]).addTo(map);
     stops.forEach((s, i) => {
-      new Marker({ element: els.stops[i] }).setLngLat([s.society.lng, s.society.lat]).addTo(map);
+      new Marker({ element: els.stops[i] }).setLngLat([s.at.lng, s.at.lat]).addTo(map);
     });
     van.current = new Marker({ element: els.van, offset: [14, -14] })
       .setLngLat([hub.lng, hub.lat])
@@ -101,7 +104,7 @@ export default function RouteMap({ route, label, fallback }) {
       van.current = null;
       map.remove();
     };
-  }, [failed, route.id, els]);
+  }, [failed, route.id, els, hub.lat, hub.lng]);
 
   useEffect(() => {
     van.current?.setLngLat([vanAt.lng, vanAt.lat]);
@@ -136,13 +139,13 @@ export default function RouteMap({ route, label, fallback }) {
         </span>,
         els.van,
       )}
-      {route.stops.map((s, i) =>
+      {stops.map((s, i) =>
         createPortal(
           <span
             aria-hidden
-            className={`${pin} ${s.status === "done" ? "border-primary bg-primary text-on-primary" : "border-info bg-bg text-fg"}`}
+            className={`${pin} ${stopDone(s) ? "border-primary bg-primary text-on-primary" : "border-info bg-bg text-fg"}`}
           >
-            {s.status === "done" ? <CheckIcon size={18} weight="bold" /> : s.seq}
+            {stopDone(s) ? <CheckIcon size={18} weight="bold" /> : s.seq}
           </span>,
           els.stops[i],
           s.id,
