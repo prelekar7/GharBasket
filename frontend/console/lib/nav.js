@@ -80,7 +80,7 @@ export const NAV = [
       { href: "/today", label: "Ops board", ready: true, key: "t" },
       { href: "/orders", label: "Orders", ready: true, key: "o" },
       { href: "/packing", label: "Packing" },
-      { href: "/routes", label: "Routes", key: "r" },
+      { href: "/routes", label: "Routes", ready: true, key: "r" },
       { href: "/deliveries", label: "Deliveries", key: "d" },
     ],
   },
