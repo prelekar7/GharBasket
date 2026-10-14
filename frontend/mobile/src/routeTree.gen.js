@@ -31,6 +31,10 @@ import { Route as AuthCustomerPartnerRouteImport } from "./routes/_auth/_custome
 import { Route as AuthCustomerProfileRouteImport } from "./routes/_auth/_customer/profile"
 import { Route as AuthCustomerWalletRouteImport } from "./routes/_auth/_customer/wallet"
 import { Route as AuthCustomerWeekRouteImport } from "./routes/_auth/_customer/week"
+import { Route as AuthCaptainIndexRouteImport } from "./routes/_auth/captain/index"
+import { Route as AuthCaptainEarningsRouteImport } from "./routes/_auth/captain/earnings"
+import { Route as AuthCaptainFlatsRouteImport } from "./routes/_auth/captain/flats"
+import { Route as AuthCaptainScanRouteImport } from "./routes/_auth/captain/scan"
 import { Route as AuthOnboardingBudgetRouteImport } from "./routes/_auth/onboarding/budget"
 import { Route as AuthOnboardingConsentRouteImport } from "./routes/_auth/onboarding/consent"
 import { Route as AuthOnboardingCookingRouteImport } from "./routes/_auth/onboarding/cooking"
@@ -162,6 +166,26 @@ const AuthCustomerWeekRoute = AuthCustomerWeekRouteImport.update({
   path: "/week",
   getParentRoute: () => AuthCustomerRoute,
 })
+const AuthCaptainIndexRoute = AuthCaptainIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => AuthCaptainRoute,
+})
+const AuthCaptainEarningsRoute = AuthCaptainEarningsRouteImport.update({
+  id: "/earnings",
+  path: "/earnings",
+  getParentRoute: () => AuthCaptainRoute,
+})
+const AuthCaptainFlatsRoute = AuthCaptainFlatsRouteImport.update({
+  id: "/flats",
+  path: "/flats",
+  getParentRoute: () => AuthCaptainRoute,
+})
+const AuthCaptainScanRoute = AuthCaptainScanRouteImport.update({
+  id: "/scan",
+  path: "/scan",
+  getParentRoute: () => AuthCaptainRoute,
+})
 const AuthOnboardingBudgetRoute = AuthOnboardingBudgetRouteImport.update({
   id: "/onboarding/budget",
   path: "/onboarding/budget",
@@ -287,6 +311,17 @@ const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
   AuthCustomerRouteChildren,
 )
 
+const AuthCaptainRouteChildren = {
+  AuthCaptainEarningsRoute: AuthCaptainEarningsRoute,
+  AuthCaptainFlatsRoute: AuthCaptainFlatsRoute,
+  AuthCaptainScanRoute: AuthCaptainScanRoute,
+  AuthCaptainIndexRoute: AuthCaptainIndexRoute,
+}
+
+const AuthCaptainRouteWithChildren = AuthCaptainRoute._addFileChildren(
+  AuthCaptainRouteChildren,
+)
+
 const AuthPackerRouteChildren = {
   AuthPackerPickRoute: AuthPackerPickRoute,
   AuthPackerShortRoute: AuthPackerShortRoute,
@@ -311,7 +346,7 @@ const AuthRiderRouteWithChildren = AuthRiderRoute._addFileChildren(
 const AuthRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthAssistantRoute: AuthAssistantRoute,
-  AuthCaptainRoute: AuthCaptainRoute,
+  AuthCaptainRoute: AuthCaptainRouteWithChildren,
   AuthKitchenRoute: AuthKitchenRoute,
   AuthPackerRoute: AuthPackerRouteWithChildren,
   AuthRiderRoute: AuthRiderRouteWithChildren,

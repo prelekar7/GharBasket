@@ -1,6 +1,7 @@
 import { getResponse } from "msw";
 import { assistantHandlers } from "./assistant.js";
 import { billingHandlers } from "./billing.js";
+import { captainHandlers } from "./captain.js";
 import { catalogHandlers } from "./catalog.js";
 import { communityHandlers } from "./community.js";
 import { handlers } from "./handlers.js";
@@ -29,6 +30,7 @@ const all = [
   ...notificationHandlers,
   ...packerHandlers,
   ...logisticsHandlers,
+  ...captainHandlers,
 ];
 
 /**

@@ -5,8 +5,11 @@
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
 
-const isRider = (/** @type {Request} */ request) =>
-  !!request.headers.get("x-active-role")?.startsWith("rider");
+// Endpoints shared with other roles (handover, earnings) answer here unless another role is acting.
+const otherRole = (/** @type {Request} */ request) => {
+  const role = request.headers.get("x-active-role");
+  return !!role && !role.startsWith("rider");
+};
 
 const KEY = "gb-mock-logistics";
 /** Mock-only switch for the "route didn't load" state: localStorage[FAIL_KEY] = "1". */
@@ -210,23 +213,32 @@ export const logisticsHandlers = [
 
   // Handover at a society: crates, bag count and the captain's 4-digit code or a photo. The
   // real server checks the code against the captain's app; the mock only checks its shape.
+  // Captains post to the same endpoint (M7 §3); their calls go on to mocks/captain.js.
   http.post("*/v1/stops/:id/handover", ({ request, params }) =>
-    once(request, (s, body) => {
-      const route = findRoute(s, (r) => r.stops.some((/** @type {any} */ x) => x.id === params.id));
-      const stop = route?.stops.find((/** @type {any} */ x) => x.id === params.id);
-      if (!route || !stop) return problem(404, "logistics.stop_not_found", "Stop not found");
-      if (route.status !== "started") return notStarted();
-      if (stop.status === "done")
-        return problem(409, "logistics.stop_handed_over", "This stop is already handed over");
-      const otp = typeof body.otp === "string" && /^\d{4}$/.test(body.otp);
-      const photo =
-        typeof body.photo_jpeg === "string" && body.photo_jpeg.startsWith("data:image/");
-      if (!otp && !photo)
-        return problem(422, "logistics.proof_required", "A handover code or a photo is required");
-      stop.status = "done";
-      stop.handover = { proof: otp ? "otp" : "photo", bags_count: body.bags_count ?? null };
-      return [201, { stop_id: stop.id, status: "done", proof: stop.handover.proof }];
-    }),
+    otherRole(request)
+      ? undefined
+      : once(request, (s, body) => {
+          const route = findRoute(s, (r) =>
+            r.stops.some((/** @type {any} */ x) => x.id === params.id),
+          );
+          const stop = route?.stops.find((/** @type {any} */ x) => x.id === params.id);
+          if (!route || !stop) return problem(404, "logistics.stop_not_found", "Stop not found");
+          if (route.status !== "started") return notStarted();
+          if (stop.status === "done")
+            return problem(409, "logistics.stop_handed_over", "This stop is already handed over");
+          const otp = typeof body.otp === "string" && /^\d{4}$/.test(body.otp);
+          const photo =
+            typeof body.photo_jpeg === "string" && body.photo_jpeg.startsWith("data:image/");
+          if (!otp && !photo)
+            return problem(
+              422,
+              "logistics.proof_required",
+              "A handover code or a photo is required",
+            );
+          stop.status = "done";
+          stop.handover = { proof: otp ? "otp" : "photo", bags_count: body.bags_count ?? null };
+          return [201, { stop_id: stop.id, status: "done", proof: stop.handover.proof }];
+        }),
   ),
 
   // A return-leg pickup is collected, by ticking it or scanning one of its codes.
@@ -247,7 +259,7 @@ export const logisticsHandlers = [
   // Recent earnings from the ledger (M8 §3: GET /v1/earnings?week=; no week = the latest routes).
   // Every partner role has earnings; these answer only a rider and pass anyone else on.
   http.get("*/v1/earnings", ({ request }) =>
-    !isRider(request)
+    otherRole(request)
       ? undefined
       : HttpResponse.json({
           total_paise: 178000,
@@ -264,7 +276,7 @@ export const logisticsHandlers = [
 
   // Income certificate (M8 US-7, a PDF). Real: a short-lived signed URL; mock: a tiny local PDF.
   http.get("*/v1/earnings/certificate", ({ request }) => {
-    if (!isRider(request)) return undefined;
+    if (otherRole(request)) return undefined;
     const pdf = [
       "%PDF-1.4",
       "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj",

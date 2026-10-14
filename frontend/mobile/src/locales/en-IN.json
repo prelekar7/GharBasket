@@ -1126,5 +1126,13 @@
       "certFailed": "The certificate didn’t download. Try again.",
       "none": "Your earnings show here after your first route."
     }
+  },
+  "captain": {
+    "tabs": {
+      "today": "Today",
+      "scan": "Scan",
+      "flats": "Flats",
+      "earnings": "Earnings"
+    }
   }
 }
