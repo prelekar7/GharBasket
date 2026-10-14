@@ -10,6 +10,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gharbasket.platform.geo import LatLng
+
 PartnerKind = Literal["kitchen", "captain", "rider", "packer"]
 PartnerStatus = Literal["active", "paused", "suspended", "left"]
 SuspendReason = Literal["rating", "hygiene", "compliance", "conduct", "other"]
@@ -348,3 +350,95 @@ class TrainingResultOut(BaseModel):
     passed: bool = Field(description="This attempt")
     status: Literal["passed", "failed"] = Field(description="The module: a pass is kept for good")
     application: ApplicationStepOut | None = Field(description="Your open application, if any")
+
+
+# --- kitchens and capacity (§3.4) ---------------------------------------------------------------
+
+Meal = Literal["lunch", "dinner"]
+SKILLS_DESCRIPTION = (
+    "From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)"
+)
+
+
+class WeekPortions(BaseModel):
+    lunch: list[int] = Field(description="Monday … Sunday, 0 to 100 each", examples=[[10] * 7])
+    dinner: list[int] = Field(description="Monday … Sunday, 0 to 100 each", examples=[[0] * 7])
+
+
+class HygieneOut(BaseModel):
+    grade: Literal["A", "B", "C"]
+    inspected_on: date
+
+
+class KitchenOut(BaseModel):
+    """A kitchen as she and hub staff see it: `address` and `location` are private."""
+
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Lata tai"])
+    status: PartnerStatus
+    area: str | None = Field(description="Public (the card)", examples=["Sector 20, Kharghar"])
+    address: str | None = Field(description="Private: the kitchen, hub staff, the rider")
+    location: LatLng | None = Field(description="Private; null until set (no offers before)")
+    fssai_reg_no: str | None = Field(examples=["11521999000123"])
+    fssai_valid_until: date | None
+    skills: list[str] = Field(examples=[["veg", "jain"]])
+    default_portions: WeekPortions
+    hygiene: HygieneOut | None
+    version: int
+
+
+class KitchenPatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = Field(default=None, min_length=2, max_length=40)
+    area: str | None = Field(default=None, max_length=80)
+    address: str | None = Field(default=None, max_length=300)
+    location: LatLng | None = None
+    skills: list[Annotated[str, Field(max_length=32)]] | None = Field(
+        default=None, max_length=12, description=SKILLS_DESCRIPTION
+    )
+    default_portions: dict[str, list[int]] | None = Field(
+        default=None,
+        description="lunch and dinner, Monday … Sunday, 0 to 100 each "
+        "(else 422 partners.capacity_invalid)",
+    )
+
+    @field_validator("area", "address")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class InspectionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grade: Literal["A", "B", "C"]
+    note: str | None = Field(default=None, max_length=300, description="Staff-only; audit log")
+
+    @field_validator("note")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class CapacityOut(BaseModel):
+    date: date
+    meal: Meal
+    max_portions: int = Field(examples=[12])
+    source: Literal["default", "set"]
+    assigned_portions: int = Field(description="In offered, accepted, preparing, ready offers")
+    locked: bool = Field(description="From 21:00 IST the day before")
+
+
+class CapacitiesOut(BaseModel):
+    items: list[CapacityOut]
+
+
+class CapacityIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    meal: str = Field(max_length=16, description="lunch or dinner", examples=["lunch"])
+    max_portions: int = Field(
+        description="0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins", examples=[12]
+    )
