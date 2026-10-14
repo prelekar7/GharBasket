@@ -37,7 +37,7 @@ describe("packing queue (M6)", () => {
   it("refuses a packing write without an Idempotency-Key", async () => {
     const res = await call("POST", "/v1/packing-tasks/pt-B-215/start", {}, {});
     expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe("platform.idempotency_key_required");
+    expect((await res.json()).code).toBe("request.idempotency_key_required");
   });
 
   it("replays the same key without picking twice", async () => {

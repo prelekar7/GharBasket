@@ -184,7 +184,7 @@ const problem = (
 const needsKey = (/** @type {Request} */ r) =>
   r.headers.get("idempotency-key")
     ? null
-    : problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
+    : problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
 
 const L = (/** @type {Lang} */ lang) => ({ en: 0, hi: 1, mr: 2 })[lang];
 

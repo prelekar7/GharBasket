@@ -95,11 +95,7 @@ export const partnerHandlers = [
     if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const s = load();
     s.keys ??= {};
     if (s.keys[key]) return HttpResponse.json(s[s.keys[key]], { status: 201 });
@@ -140,11 +136,7 @@ export const partnerHandlers = [
     if (!phone || !app) return problem(404, "partners.no_application", "Apply first");
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const docs = loadDocs();
     docs.keys ??= {};
     if (docs.keys[key]) return HttpResponse.json(docs[phone][docs.keys[key]], { status: 201 });

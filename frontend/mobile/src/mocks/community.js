@@ -108,7 +108,7 @@ export const communityHandlers = [
           type: "about:blank",
           title: "Idempotency-Key header is required",
           status: 400,
-          code: "platform.idempotency_key_required",
+          code: "request.idempotency_key_required",
         },
         { status: 400, headers: { "content-type": "application/problem+json" } },
       );

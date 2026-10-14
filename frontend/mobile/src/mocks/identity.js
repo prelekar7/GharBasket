@@ -38,11 +38,7 @@ export const identityHandlers = [
   http.post("*/v1/households", async ({ request }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     // The same key returns the same household, so a retry never creates a second one.
     if (identityStore.byIdempotencyKey[key])
       return HttpResponse.json(identityStore.byIdempotencyKey[key], { status: 201 });

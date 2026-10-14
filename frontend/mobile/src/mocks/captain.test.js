@@ -106,7 +106,7 @@ describe("captain day (M7 mocks)", () => {
     expect(e.total_paise).toBe(131000);
     expect(e.items.every((/** @type {any} */ d) => Number.isInteger(d.amount_paise))).toBe(true);
     // A kitchen partner's call is answered by mocks/kitchen.js, not with the captain's numbers.
-    const k = await (await get({ "x-active-role": "kitchen:hub-kharghar" })).json();
+    const k = await (await get({ "x-active-role": "kitchen_partner:hub-kharghar" })).json();
     expect(k.total_paise).not.toBe(e.total_paise);
   });
 });

@@ -100,11 +100,7 @@ export const trainingHandlers = [
     const me = person(request);
     if (me instanceof Response) return me;
     if (!request.headers.get("idempotency-key"))
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const status = applicationOf(me.phone)?.status;
     if (status === "APPLIED" || status === "KYC_PENDING")
       return problem(409, "partners.training_locked", "Add your documents first");

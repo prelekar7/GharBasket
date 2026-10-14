@@ -4,8 +4,10 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OtpBoxes } from "@/components/OtpBoxes.jsx";
+import { householdQuery } from "@/features/identity/profile.js";
 import { exchange, me } from "@/lib/api.js";
 import { OtpError, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
+import { queryClient } from "@/lib/queryClient.js";
 import { nextSearch } from "@/lib/search.js";
 import { useSession } from "@/lib/session.js";
 
@@ -53,10 +55,12 @@ function Otp() {
     setError(null);
     try {
       const { phone: verified, idToken } = await verifyCode(code);
-      const out = await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
+      await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
       signIn(await me());
-      // A new household sets up its society, flat and family first.
-      navigate({ to: out.is_new_user ? "/onboarding/society" : (next ?? "/") });
+      // `is_new_user` only says the user row was just created. Whether a customer still has to set
+      // up a household is the customer shell's call (GET /v1/households/me is 404: onboarding).
+      queryClient.removeQueries({ queryKey: householdQuery.queryKey });
+      navigate({ to: next ?? "/" });
     } catch (e) {
       setError(t(errorKey(e)));
       setBusy(false);

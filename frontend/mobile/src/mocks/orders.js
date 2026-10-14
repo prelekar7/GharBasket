@@ -166,11 +166,7 @@ export const orderHandlers = [
   http.post("*/v1/orders", async ({ request }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const list = bookedTiffins();
     const replay = list.find((b) => b.key === key);
     if (replay) return HttpResponse.json(replay, { status: 201 });
@@ -212,11 +208,7 @@ export const orderHandlers = [
   http.post("*/v1/orders/:id/rating", async ({ request, params }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const id = String(params.id);
     const rated = ratings();
     if (rated[id]?.key === key)
@@ -251,11 +243,7 @@ export const orderHandlers = [
   http.post("*/v1/orders/:id/issues", async ({ request, params }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     if (issuesByKey[key]) return HttpResponse.json(issuesByKey[key], { status: 201 });
     const body = /** @type {{ kind?: string, note?: string }} */ (await request.json());
     if (!ISSUE_KINDS.includes(body.kind ?? ""))

@@ -91,11 +91,7 @@ export const assistantHandlers = [
   http.post("*/v1/assistant/confirm/:id", ({ request, params }) => {
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     if (confirmedByKey[key]) return HttpResponse.json(confirmedByKey[key]);
     const p = proposals[String(params.id)];
     if (!p) return problem(404, "assistant.proposal_not_found", "No such proposal");

@@ -17,7 +17,7 @@ const call = async (
         "x-gb-client": "web",
         "accept-language": lang,
         // As the app sends it: shared endpoints (earnings, trainings) answer by the acting role.
-        "x-active-role": "kitchen:hub-kharghar",
+        "x-active-role": "kitchen_partner:hub-kharghar",
         ...(key ? { "idempotency-key": key } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,

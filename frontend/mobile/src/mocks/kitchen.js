@@ -122,11 +122,7 @@ const write =
     if (!caller(request)) return problem(401, "auth.invalid_token", "Sign in again");
     const key = request.headers.get("idempotency-key");
     if (!key)
-      return problem(
-        400,
-        "platform.idempotency_key_required",
-        "Idempotency-Key header is required",
-      );
+      return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
     const s = load();
     if (key in s.keys) return HttpResponse.json(s.keys[key]);
     const res = await fn(s, request, params);

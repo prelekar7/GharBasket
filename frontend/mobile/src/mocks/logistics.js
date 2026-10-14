@@ -172,7 +172,7 @@ const findRoute = (
 async function once(request, act) {
   const key = request.headers.get("idempotency-key");
   if (!key)
-    return problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
+    return problem(400, "request.idempotency_key_required", "Idempotency-Key header is required");
   const s = load();
   const seen = s.replies[key];
   if (seen) return HttpResponse.json(seen.body, { status: seen.status });
