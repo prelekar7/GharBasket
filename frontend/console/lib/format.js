@@ -22,3 +22,22 @@ export function formatDay(iso) {
  * @param {number} n @param {string} word
  */
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const TIME = new Intl.DateTimeFormat("en-IN", {
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * "9:15 PM" for an ISO timestamp.
+ * @param {string} iso
+ */
+export const formatTime = (iso) => TIME.format(new Date(iso)).toUpperCase();
+
+/**
+ * "Mon 5 Oct at 9:15 PM" for an ISO timestamp.
+ * @param {string} iso
+ */
+export const formatWhen = (iso) => `${formatDay(iso)} at ${formatTime(iso)}`;
