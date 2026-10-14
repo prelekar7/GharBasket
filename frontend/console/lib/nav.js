@@ -78,7 +78,7 @@ export const NAV = [
     label: "Hub today",
     items: [
       { href: "/today", label: "Ops board", ready: true, key: "t" },
-      { href: "/orders", label: "Orders", key: "o" },
+      { href: "/orders", label: "Orders", ready: true, key: "o" },
       { href: "/packing", label: "Packing" },
       { href: "/routes", label: "Routes", key: "r" },
       { href: "/deliveries", label: "Deliveries", key: "d" },
@@ -89,8 +89,8 @@ export const NAV = [
     section: "hub",
     label: "Orders and slots",
     items: [
-      { href: "/cutoff", label: "Cut-off" },
-      { href: "/slots", label: "Slots" },
+      { href: "/cutoff", label: "Cut-off", ready: true },
+      { href: "/slots", label: "Slots", ready: true },
       { href: "/cycles", label: "Cycles" },
       { href: "/delivery-days", label: "Delivery days" },
     ],
