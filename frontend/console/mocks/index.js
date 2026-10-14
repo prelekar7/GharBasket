@@ -4,6 +4,7 @@ import { communityHandlers } from "./community.js";
 import { hubsHandlers } from "./hubs.js";
 import { impactHandlers } from "./impact.js";
 import { intelHandlers } from "./intel.js";
+import { pricesHandlers } from "./prices.js";
 import { publicHandlers } from "./public.js";
 
 export const handlers = [
@@ -12,5 +13,6 @@ export const handlers = [
   ...communityHandlers,
   ...impactHandlers,
   ...intelHandlers,
+  ...pricesHandlers,
   ...publicHandlers,
 ];
