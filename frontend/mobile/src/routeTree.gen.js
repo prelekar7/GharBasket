@@ -38,6 +38,7 @@ import { Route as AuthOnboardingPaymentRouteImport } from "./routes/_auth/onboar
 import { Route as AuthOnboardingPreviewRouteImport } from "./routes/_auth/onboarding/preview"
 import { Route as AuthOnboardingRequestRouteImport } from "./routes/_auth/onboarding/request"
 import { Route as AuthOnboardingSocietyRouteImport } from "./routes/_auth/onboarding/society"
+import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -182,6 +183,12 @@ const AuthOnboardingSocietyRoute = AuthOnboardingSocietyRouteImport.update({
   path: "/onboarding/society",
   getParentRoute: () => AuthRoute,
 })
+const AuthCustomerSocietySocietyIdRoute =
+  AuthCustomerSocietySocietyIdRouteImport.update({
+    id: "/society/$societyId",
+    path: "/society/$societyId",
+    getParentRoute: () => AuthCustomerRoute,
+  })
 
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
@@ -190,6 +197,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerProfileRoute: AuthCustomerProfileRoute,
   AuthCustomerWalletRoute: AuthCustomerWalletRoute,
   AuthCustomerWeekRoute: AuthCustomerWeekRoute,
+  AuthCustomerSocietySocietyIdRoute: AuthCustomerSocietySocietyIdRoute,
 }
 
 const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
