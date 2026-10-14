@@ -1154,6 +1154,33 @@
       "title": "Crates received at {time}",
       "body": "Take the bags to the flats and scan each one at the door. Lobby-pickup bags stay in the lobby.",
       "toFlats": "Take bags to the flats"
+    },
+    "handover": {
+      "when": "Gate {gate} · {time}",
+      "title": "Receive crates",
+      "scan": "Scan the next crate",
+      "scanned": "Crate {crate} · {count, plural, one {# bag} other {# bags}}",
+      "notOurs": "{crate} isn’t waiting to be received. Check the code.",
+      "crates": "Crates",
+      "received": "Received",
+      "waiting": "Waiting",
+      "missing": "Missing",
+      "bagOne": "{n} bag",
+      "bagMany": "{n} bags",
+      "summary": "{done} of {total} crates · {bags} bags",
+      "bags": "Bags counted",
+      "codeTitle": "Show {rider} this code",
+      "codeHelp": "They type it to confirm the handover. No signal? They take a photo instead.",
+      "done": "{count, plural, one {# crate received} other {All # crates received}}",
+      "problem": "A crate or bag is missing",
+      "sent": "Handover saved",
+      "typeTitle": "Type the crate code",
+      "typeLabel": "Crate code",
+      "typeConfirm": "Received",
+      "missingTitle": "{count, plural, one {Report crate {crates} as missing?} other {Report crates {crates} as missing?}}",
+      "missingBody": "{rider} and the hub are told. Those families get their box in the next slot or their money back.",
+      "missingConfirm": "Report and continue",
+      "missingCancel": "Keep scanning"
     }
   }
 }
