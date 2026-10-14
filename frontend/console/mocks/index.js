@@ -23,6 +23,7 @@ import { publicHandlers } from "./public.js";
 import { receivingHandlers } from "./receiving.js";
 import { settingsHandlers } from "./settings.js";
 import { teamHandlers } from "./team.js";
+import { vendorsHandlers } from "./vendors.js";
 
 export const handlers = [
   ...hubsHandlers,
@@ -49,4 +50,5 @@ export const handlers = [
   ...packingHandlers,
   ...procurementHandlers,
   ...receivingHandlers,
+  ...vendorsHandlers,
 ];

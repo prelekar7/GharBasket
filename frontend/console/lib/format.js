@@ -14,7 +14,7 @@ const DAY = new Intl.DateTimeFormat("en-IN", {
  */
 export function formatDay(iso) {
   const d = new Date(iso.length === 10 ? `${iso}T12:00:00+05:30` : iso);
-  return DAY.format(d).replace(",", "");
+  return DAY.format(d).replace(",", "").replace("Sept", "Sep");
 }
 
 /**
@@ -41,3 +41,16 @@ export const formatTime = (iso) => TIME.format(new Date(iso)).toUpperCase();
  * @param {string} iso
  */
 export const formatWhen = (iso) => `${formatDay(iso)} at ${formatTime(iso)}`;
+
+const SHORT = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  timeZone: "Asia/Kolkata",
+});
+
+/**
+ * "7 Sep" for an ISO date.
+ * @param {string} iso
+ */
+export const formatShortDate = (iso) =>
+  SHORT.format(new Date(`${iso}T12:00:00+05:30`)).replace("Sept", "Sep");
