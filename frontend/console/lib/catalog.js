@@ -1,22 +1,42 @@
 // Helpers and typedefs for the catalog, price and plan pages (M2, M3). Plain JS, no React, so server
 // and client components can both import it. Money is integer paise; every number here is arithmetic
 // on what the API sent, never a guess.
+
 import { fieldMessages } from "./problem-fields.js";
+import { isNotShipped, NOT_SHIPPED_MESSAGE } from "./proposal.js";
 
 /**
  * @typedef {{ en: string, hi: string, mr: string }} Names
  * @typedef {{ qty: number, unit: string }} Step
  * @typedef {{ price_paise: number, mrp_paise: number | null, hub_id: string, valid_from: string }} HubPrice
- * One row of GET /v1/products (contract ProductOut, plus mock-only `active`).
+ * One row of GET /v1/products (contract ProductOut). The real row has no `active`: the list holds
+ * active products only, so a missing `active` means active; `GET /v1/admin/products?active=false`
+ * (@proposal, not in the contract yet) rows carry `active: false`.
  * @typedef {{ id: string, slug: string, kind: string, category: { id: string, slug: string, name: string },
- *   name: string, names: Names, step: Step & { label: string }, tags: string[], shelf_life_h: number,
- *   active: boolean, price: HubPrice | null }} ProductRow
- * GET /v1/categories (mock-only until the contract has a list).
- * @typedef {{ id: string, slug: string, name: string, names: Names, product_count: number }} CategoryRow
- * GET /v1/admin/products/{id}: the editable record (proposal).
+ *   name: string, names: Names, step: Step & { label: string }, tags: string[], shelf_life_h: number | null,
+ *   image_url: string | null, price: HubPrice | null, active?: boolean }} ProductRow
+ * A category, derived from the products' `category` (there is no category list in the contract).
+ * @typedef {{ id: string, slug: string, name: string, product_count: number }} CategoryRow
+ * GET /v1/admin/products/{id}: the editable record (@proposal, not in the contract yet).
  * @typedef {{ id: string, slug: string, kind: string, category: string, names: Names, synonyms: string[],
  *   step: Step, shelf_life_h: number, tags: string[], active: boolean, price: HubPrice | null }} ProductRecord
  */
+
+/**
+ * The categories of a list of products, A to Z by name, with how many products each holds.
+ * @param {ProductRow[]} products
+ * @returns {CategoryRow[]}
+ */
+export function categoriesOf(products) {
+  /** @type {Map<string, CategoryRow>} */
+  const found = new Map();
+  for (const { category } of products) {
+    const row = found.get(category.slug) ?? { ...category, product_count: 0 };
+    row.product_count++;
+    found.set(category.slug, row);
+  }
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export const KINDS = [
   { value: "veg", label: "Veg" },
@@ -131,6 +151,7 @@ export function describeProblem(error, byCode = {}) {
   const fields = fieldMessages(e?.errors);
   const message =
     (e?.code && byCode[e.code]) ||
+    (isNotShipped(e) ? NOT_SHIPPED_MESSAGE : null) ||
     (Object.keys(fields).length ? "Check the highlighted fields and try again." : null) ||
     "That did not go through. Check your connection and try again.";
   return { message, fields };

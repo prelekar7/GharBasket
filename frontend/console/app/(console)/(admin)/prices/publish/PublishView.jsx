@@ -7,7 +7,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { UploadIcon, WarnIcon } from "@/components/icons.jsx";
 import { LinkButton } from "@/components/LinkButton.jsx";
 import { formatDay } from "@/lib/catalog.js";
-import { compare, formatPct, parseCsv } from "@/lib/priceList.js";
+import { buildItems, compare, formatPct, parseCsv } from "@/lib/priceList.js";
 import { publishPriceList } from "./actions.js";
 
 const COLUMNS = [
@@ -38,7 +38,7 @@ function Stat({ label, value, tone }) {
 /**
  * Publish a new price list (M2 US-3): pick the start date, upload the CSV, read what changes, then
  * publish after a confirm Dialog. Nothing here sets a price; the person's file does.
- * @param {{ hubName: string, known: import("@/lib/priceList.js").Known[], inUseSince: string, today: string }} props
+ * @param {{ hubName: string, known: import("@/lib/priceList.js").Known[], inUseSince: string | null, today: string }} props
  */
 export function PublishView({ hubName, known, inUseSince, today }) {
   const router = useRouter();
@@ -47,7 +47,7 @@ export function PublishView({ hubName, known, inUseSince, today }) {
   const [file, setFile] = useState(/** @type {{ name: string, text: string } | null} */ (null));
   const [confirming, setConfirming] = useState(false);
   const [failure, setFailure] = useState(
-    /** @type {{ message: string, details: string[] } | null} */ (null),
+    /** @type {{ message: string, details: string[], productIds?: string[] } | null} */ (null),
   );
   const [publishing, startPublishing] = useTransition();
   /** One Idempotency-Key per confirmed publish; dropped when the date or file changes. */
@@ -76,16 +76,14 @@ export function PublishView({ hubName, known, inUseSince, today }) {
     if (!parsed) return;
     key.current ??= crypto.randomUUID();
     const idempotencyKey = key.current;
-    const lines = parsed.lines.map((l) => ({
-      product_id: l.id,
-      price_paise: /** @type {number} */ (l.pricePaise),
-      ...(parsed.hasMrp ? { mrp_paise: l.mrpPaise ?? null } : {}),
-    }));
+    // The whole list: products the file does not name keep the price they have now.
+    const items = buildItems(parsed.lines, known, parsed.hasMrp);
     startPublishing(async () => {
-      const r = await publishPriceList(date, lines, idempotencyKey).catch(() => ({
+      const r = await publishPriceList(date, items, idempotencyKey).catch(() => ({
         ok: /** @type {const} */ (false),
         message: "That did not go through. Check your connection and try again.",
         details: [],
+        productIds: [],
       }));
       if (!r.ok) {
         setFailure(r);
@@ -120,7 +118,10 @@ export function PublishView({ hubName, known, inUseSince, today }) {
         </h1>
         <p className="text-sm leading-5 text-fg-secondary">
           Upload the APMC morning rates as a CSV, check the changes, then publish for a date. Prices
-          are per step, in rupees. The list in use at {hubName} started {formatDay(inUseSince)}.
+          are per step, in rupees.{" "}
+          {inUseSince
+            ? `The list in use at ${hubName} started ${formatDay(inUseSince)}.`
+            : `${hubName} has no price list yet.`}
         </p>
       </div>
 
@@ -233,6 +234,13 @@ export function PublishView({ hubName, known, inUseSince, today }) {
           className="flex flex-col gap-1 rounded-md border border-danger bg-danger-soft px-3.5 py-3"
         >
           <p className="font-semibold">{failure.message}</p>
+          {failure.productIds?.length ? (
+            <p>
+              {failure.productIds
+                .map((id) => known.find((k) => k.id === id)?.name ?? id)
+                .join(", ")}
+            </p>
+          ) : null}
           {failure.details.map((d) => (
             <p key={d}>{d}</p>
           ))}

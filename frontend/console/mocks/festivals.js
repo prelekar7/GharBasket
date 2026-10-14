@@ -1,186 +1,152 @@
-// Festival and fasting calendar mocks (M2 §3 GET /v1/festivals?from=&to=&region=, POST/PATCH
-// /v1/admin/festivals, table catalog.festival_calendar: date, region, code, rules jsonb). The spec's table
-// has one row per date; the mock groups a run of days into one row (`starts_on` to `ends_on`) and
-// recurring days (`repeat`), which is a PROPOSAL, as are `name`, `summary` and `households`. The dates
-// are placeholders to be checked against the panchang before the real calendar is saved.
+// Festival and fasting calendar mocks (M2 §3 GET /v1/festivals?from=&to=&region=, table
+// catalog.festival_calendar: date, region, code, rules jsonb). The read returns the contract's FestivalOut,
+// one row per date; a run of days (Navratri) is kept as one record here and expanded on read. The admin
+// writes (POST /v1/admin/festivals, PATCH /v1/admin/festivals/{id}) are listed in the spec but not shipped,
+// their shapes are a @proposal (not in the contract yet). The dates are placeholders to be checked against
+// the panchang, which is what `verified` says.
 import { HttpResponse, http } from "msw";
-import { idempotent, mockStore, problem, roleOf } from "./util.js";
-
-export const FASTING_CODES = ["navratri", "ekadashi", "shravan_mondays", "tuesdays"];
-export const RULE_KEYS = [
-  "no_grains",
-  "no_onion_garlic",
-  "suggest_upvas_staples",
-  "notify_evening_before",
-];
+import { fieldError, idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /**
- * @typedef {{ no_grains: boolean, no_onion_garlic: boolean, suggest_upvas_staples: boolean, notify_evening_before: boolean }} Rules
- * @typedef {{ id: string, name: string, region: string, starts_on: string | null, ends_on: string | null,
- *   repeat: string | null, code: string | null, rules: Rules, summary: string, households: number | null }} Festival
+ * A run of days of one festival. Its id is `code:region:starts_on`, the way lib/festivals.js derives it.
+ * @typedef {{ code: string, name: string, region: string, starts_on: string, ends_on: string,
+ *   rules: { fasting: boolean, no_onion_garlic: boolean }, verified: boolean }} Run
  */
 
-/** @param {boolean[]} r @returns {Rules} */
-const rules = ([a, b, c, d]) => ({
-  no_grains: a,
-  no_onion_garlic: b,
-  suggest_upvas_staples: c,
-  notify_evening_before: d,
+/** @param {string} code @param {string} region @param {string} from @param {string} to @param {string} name @param {boolean} fasting @param {boolean} noOnionGarlic @param {boolean} verified @returns {Run} */
+const run = (code, region, from, to, name, fasting, noOnionGarlic, verified) => ({
+  code,
+  name,
+  region,
+  starts_on: from,
+  ends_on: to,
+  rules: { fasting, no_onion_garlic: noOnionGarlic },
+  verified,
 });
 
-function festivals() {
+function runs() {
   return mockStore(
     "festivals",
-    /** @returns {Festival[]} */ () => [
-      {
-        id: "navratri-2026",
-        name: "Navratri",
-        region: "maharashtra",
-        starts_on: "2026-10-11",
-        ends_on: "2026-10-19",
-        repeat: null,
-        code: "navratri",
-        rules: rules([true, true, true, false]),
-        summary: "Upvas food: sabudana, kuttu, singhara; no grains, onion or garlic",
-        households: 14,
-      },
-      {
-        id: "ekadashi-2026-10",
-        name: "Ekadashi",
-        region: "maharashtra",
-        starts_on: "2026-10-22",
-        ends_on: "2026-10-22",
-        repeat: null,
-        code: "ekadashi",
-        rules: rules([true, false, true, true]),
-        summary: "No grains or rice; sabudana khichdi, fruit",
-        households: 21,
-      },
-      {
-        id: "tuesdays",
-        name: "Tuesday fast",
-        region: "maharashtra",
-        starts_on: null,
-        ends_on: null,
-        repeat: "Every Tuesday",
-        code: "tuesdays",
-        rules: rules([false, true, false, false]),
-        summary: "One meal; no onion or garlic",
-        households: 9,
-      },
-      {
-        id: "ekadashi-2026-11",
-        name: "Ekadashi",
-        region: "maharashtra",
-        starts_on: "2026-11-05",
-        ends_on: "2026-11-05",
-        repeat: null,
-        code: "ekadashi",
-        rules: rules([true, false, true, true]),
-        summary: "No grains or rice; sabudana khichdi, fruit",
-        households: 21,
-      },
-      {
-        id: "diwali-2026",
-        name: "Diwali",
-        region: "maharashtra",
-        starts_on: "2026-11-08",
-        ends_on: "2026-11-12",
-        repeat: null,
-        code: null,
-        rules: rules([false, false, false, false]),
-        summary: "Festival, not a fast: add-on suggestions for sweets and dry fruit",
-        households: null,
-      },
+    /** @returns {Run[]} */ () => [
+      run("navratri", "all", "2026-10-11", "2026-10-19", "Navratri", true, true, false),
+      run("ekadashi", "maharashtra", "2026-10-22", "2026-10-22", "Ekadashi", true, false, true),
+      run("ekadashi", "maharashtra", "2026-11-05", "2026-11-05", "Ekadashi", true, false, true),
+      run("diwali", "maharashtra", "2026-11-08", "2026-11-12", "Diwali", false, false, false),
     ],
   );
 }
 
+/** @param {string} iso @param {number} days */
+function addDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** FestivalOut rows of a run, one per date. @param {Run} r */
+function days(r) {
+  const out = [];
+  for (let d = r.starts_on; d <= r.ends_on; d = addDays(d, 1))
+    out.push({
+      date: d,
+      code: r.code,
+      name: r.name,
+      region: r.region,
+      rules: { ...r.rules },
+      verified: r.verified,
+    });
+  return out;
+}
+
+/** @param {Run} r */
+const idOf = (r) => `${r.code}:${r.region}:${r.starts_on}`;
+
 /**
- * Checks an editable festival (what a PATCH leaves behind, or a POST body).
+ * Checks the editable fields of a run (what a PATCH leaves behind, or a POST body).
  * @param {any} v
- * @returns {{ errors: { field: string, message: string }[], value?: Omit<Festival, "id" | "households"> }}
+ * @returns {{ errors: ReturnType<typeof fieldError>[], value?: Run }}
  */
 function validate(v) {
-  /** @type {{ field: string, message: string }[]} */
+  /** @type {ReturnType<typeof fieldError>[]} */
   const errors = [];
   const name = typeof v?.name === "string" ? v.name.trim() : "";
-  if (!name) errors.push({ field: "name", message: "Give the day a name" });
+  if (!name) errors.push(fieldError("name", "Give the day a name", "missing"));
+  const code = typeof v?.code === "string" ? v.code.trim() : "";
+  if (!/^[a-z][a-z0-9_]{1,39}$/.test(code))
+    errors.push(fieldError("code", "Use 2 to 40 lower-case letters, digits or _"));
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  const recurring = typeof v?.repeat === "string" && v.repeat !== "";
-  if (!recurring) {
-    if (!iso.test(v?.starts_on ?? ""))
-      errors.push({ field: "starts_on", message: "Pick the first day" });
-    if (!iso.test(v?.ends_on ?? ""))
-      errors.push({ field: "ends_on", message: "Pick the last day" });
-    else if (iso.test(v?.starts_on ?? "") && v.ends_on < v.starts_on)
-      errors.push({ field: "ends_on", message: "The last day cannot be before the first" });
-  }
-  const code = v?.code ? v.code : null;
-  if (code !== null && !FASTING_CODES.includes(code))
-    errors.push({ field: "code", message: "Pick a fasting code" });
+  if (!iso.test(v?.starts_on ?? "")) errors.push(fieldError("starts_on", "Pick the first day"));
+  if (!iso.test(v?.ends_on ?? "")) errors.push(fieldError("ends_on", "Pick the last day"));
+  else if (iso.test(v?.starts_on ?? "") && v.ends_on < v.starts_on)
+    errors.push(fieldError("ends_on", "The last day cannot be before the first"));
+  else if (iso.test(v?.starts_on ?? "") && addDays(v.starts_on, 60) < v.ends_on)
+    errors.push(fieldError("ends_on", "A day or run is at most 60 days"));
+  if (typeof v?.rules?.fasting !== "boolean" || typeof v?.rules?.no_onion_garlic !== "boolean")
+    errors.push(
+      fieldError("rules", "Say whether it is a fast and whether it leaves out onion and garlic"),
+    );
   if (errors.length) return { errors };
   return {
     errors,
-    value: {
-      name,
-      region: typeof v?.region === "string" && v.region ? v.region : "maharashtra",
-      starts_on: recurring ? null : v.starts_on,
-      ends_on: recurring ? null : v.ends_on,
-      repeat: recurring ? v.repeat : null,
+    value: run(
       code,
-      rules: rules(RULE_KEYS.map((k) => v?.rules?.[k] === true)),
-      summary: typeof v?.summary === "string" ? v.summary.trim() : "",
-    },
+      typeof v.region === "string" && v.region ? v.region : "all",
+      v.starts_on,
+      v.ends_on,
+      name,
+      v.rules.fasting,
+      v.rules.no_onion_garlic,
+      v.verified === true,
+    ),
   };
 }
 
 const forbidden = () => problem(403, "auth.forbidden", "Only an admin can change the calendar");
-const invalid = (/** @type {{ field: string, message: string }[]} */ errors) =>
+const invalid = (/** @type {ReturnType<typeof fieldError>[]} */ errors) =>
   problem(422, "request.invalid", "Check the highlighted fields", { errors });
 
 export const festivalsHandlers = [
-  // GET /v1/festivals?from=&to=&region= (M2 §3) → days overlapping the range, recurring days always.
+  // GET /v1/festivals?from=&to=&region= (M2 §3.2) → { items: FestivalOut[] }, one row per date in the range;
+  // `region` gives that region's days and the ones for every region ("all").
   http.get("*/v1/festivals", ({ request }) => {
     const q = new URL(request.url).searchParams;
     const from = q.get("from") ?? "0000-01-01";
     const to = q.get("to") ?? "9999-12-31";
     const region = q.get("region");
-    const items = festivals().filter(
-      (f) =>
-        (!region || region === "all" || f.region === region) &&
-        (f.repeat || (f.starts_on && f.ends_on && f.starts_on <= to && f.ends_on >= from)),
-    );
-    return HttpResponse.json({ items, next_cursor: null });
+    const items = runs()
+      .filter((r) => !region || r.region === "all" || r.region === region)
+      .flatMap(days)
+      .filter((d) => d.date >= from && d.date <= to)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return HttpResponse.json({ items });
   }),
 
-  // PATCH /v1/admin/festivals/{id} (M2 §3, admin).
+  // PATCH /v1/admin/festivals/{id} → @proposal (not in the contract yet): edit a run of days (`id` is
+  // `code:region:starts_on`). Body: any of { name, region, starts_on, ends_on, rules, verified }.
+  // → { items: FestivalOut[] } the run's days after the edit.
   http.patch("*/v1/admin/festivals/:id", ({ request, params }) =>
     idempotent(request, (body) => {
       if (roleOf(request) !== "admin") return forbidden();
-      const f = festivals().find((x) => x.id === params.id);
+      const f = runs().find((x) => idOf(x) === decodeURIComponent(String(params.id)));
       if (!f) return problem(404, "catalog.festival_not_found", "No such day");
-      const { errors, value } = validate({ ...f, ...body });
+      const { errors, value } = validate({ ...f, ...body, code: f.code });
       if (!value) return invalid(errors);
       Object.assign(f, value);
-      return HttpResponse.json(f);
+      return HttpResponse.json({ items: days(f) });
     }),
   ),
 
-  // POST /v1/admin/festivals (M2 §3, admin, Idempotency-Key required).
+  // POST /v1/admin/festivals → @proposal (not in the contract yet) (admin, Idempotency-Key required): add a
+  // run of days. Body { code, name, region, starts_on, ends_on, rules, verified } → 201 { items: FestivalOut[] }.
   http.post("*/v1/admin/festivals", ({ request }) =>
     idempotent(request, (body) => {
       if (roleOf(request) !== "admin") return forbidden();
       const { errors, value } = validate(body);
       if (!value) return invalid(errors);
-      /** @type {Festival} */
-      const f = {
-        id: `${value.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${value.starts_on ?? "weekly"}`,
-        households: value.code ? 0 : null,
-        ...value,
-      };
-      festivals().push(f);
-      return HttpResponse.json(f, { status: 201 });
+      if (runs().some((x) => idOf(x) === idOf(value)))
+        return problem(409, "catalog.festival_exists", "This day is already in the calendar");
+      runs().push(value);
+      return HttpResponse.json({ items: days(value) }, { status: 201 });
     }),
   ),
 ];

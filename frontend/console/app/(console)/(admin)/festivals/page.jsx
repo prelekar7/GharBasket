@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { apiGet } from "@/lib/api.js";
 import { todayIso } from "@/lib/catalog.js";
+import { groupDays } from "@/lib/festivals.js";
 import { FestivalsView } from "./FestivalsView.jsx";
 
 export const metadata = { title: "Festival calendar" };
@@ -26,6 +27,7 @@ function calendarWindow() {
 export default async function Page() {
   await connection(); // the window depends on today
   const { from, to, months } = calendarWindow();
-  const { items } = await apiGet("/v1/festivals", { searchParams: { from, to, region: "all" } });
-  return <FestivalsView festivals={items} months={months} />;
+  // One row per date; no region asks for every region.
+  const { items } = await apiGet("/v1/festivals", { searchParams: { from, to } });
+  return <FestivalsView festivals={groupDays(items)} months={months} />;
 }

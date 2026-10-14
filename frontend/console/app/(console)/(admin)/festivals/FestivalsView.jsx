@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Checkbox, EmptyState, Select, TextField, toast } from "@gharbasket/ui";
+import { Button, Checkbox, EmptyState, TextField, toast } from "@gharbasket/ui";
 import { DataTable, FilterBar } from "@gharbasket/ui/console";
 import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
@@ -8,45 +8,34 @@ import { useRef, useState, useTransition } from "react";
 import { PlusIcon } from "@/components/icons.jsx";
 import { LinkScope } from "@/components/LinkScope.jsx";
 import { formatDay, todayIso } from "@/lib/catalog.js";
+import { regionLabel, ruleSummary } from "@/lib/festivals.js";
 import { saveFestival } from "./actions.js";
 
-/** @typedef {import("@/mocks/festivals.js").Festival} Festival */
+/** @typedef {import("@/lib/festivals.js").Festival} Festival */
 /** @typedef {import("./actions.js").FestivalInput} FestivalInput */
 
 const COLUMNS = [
   { key: "dates", label: "Dates", sortable: true },
   { key: "name", label: "Day", sortable: true },
   { key: "code", label: "Code" },
+  { key: "region", label: "Region" },
   { key: "rule", label: "What the planner does" },
-  { key: "who", label: "Families who chose it", align: /** @type {const} */ ("end") },
+  { key: "verified", label: "Dates checked" },
 ];
 
 const RULES = /** @type {const} */ ([
-  ["no_grains", "No grains or rice", "Wheat, rice, jowar and dal are left out"],
+  ["fasting", "A fasting day", "Families who chose this fast get upvas food and no grains"],
   ["no_onion_garlic", "No onion or garlic", "Also left out of tiffins for these families"],
-  ["suggest_upvas_staples", "Suggest upvas staples", "Sabudana, groundnuts, sweet potato"],
-  ["notify_evening_before", "Tell families the evening before", "With their week’s reminder"],
 ]);
-
-const CODE_OPTIONS = [
-  { value: "", label: "None (a festival, not a fast)" },
-  ...["navratri", "ekadashi", "shravan_mondays", "tuesdays"].map((c) => ({ value: c, label: c })),
-];
 
 /** "Sun 11 Oct to Mon 19 Oct", one day as "Thu 22 Oct". @param {Festival} f */
 function datesText(f) {
-  if (f.repeat) return f.repeat;
-  const start = formatDay(/** @type {string} */ (f.starts_on));
-  return f.ends_on && f.ends_on !== f.starts_on ? `${start} to ${formatDay(f.ends_on)}` : start;
+  const start = formatDay(f.starts_on);
+  return f.ends_on !== f.starts_on ? `${start} to ${formatDay(f.ends_on)}` : start;
 }
 
 /** Whether a day or run falls in the month "2026-10". @param {Festival} f @param {string} month */
-const inMonth = (f, month) =>
-  !!f.repeat ||
-  (!!f.starts_on &&
-    !!f.ends_on &&
-    f.starts_on.slice(0, 7) <= month &&
-    f.ends_on.slice(0, 7) >= month);
+const inMonth = (f, month) => f.starts_on.slice(0, 7) <= month && f.ends_on.slice(0, 7) >= month;
 
 /**
  * Festival and fasting calendar (M2 US-5): the days the meal planner reads, for families who chose
@@ -60,19 +49,22 @@ export function FestivalsView({ festivals, months }) {
   const [edit, setEdit] = useQueryState("edit", parseAsString.withDefault(""));
 
   const shown = festivals
-    .filter((f) => region === "all" || f.region === region)
+    .filter((f) => region === "all" || f.region === "all" || f.region === region)
     .filter((f) => !month || inMonth(f, month))
-    .filter((f) => show !== "fasting" || f.code !== null);
+    .filter((f) => show !== "fasting" || f.rules.fasting);
   const selected = edit === "new" ? null : (shown.find((f) => f.id === edit) ?? shown[0] ?? null);
   const adding = edit === "new";
 
   const rows = shown.map((f) => ({
     id: f.id,
-    dates: { text: datesText(f), sort: f.starts_on ?? "9999" },
-    name: { text: f.name, strong: true, href: `?edit=${f.id}` },
-    code: f.code ?? "—",
-    rule: f.summary,
-    who: f.households === null ? "All" : String(f.households),
+    dates: { text: datesText(f), sort: f.starts_on },
+    name: { text: f.name, strong: true, href: `?edit=${encodeURIComponent(f.id)}` },
+    code: f.code,
+    region: regionLabel(f.region),
+    rule: ruleSummary(f.rules),
+    verified: f.verified
+      ? { badge: { tone: "primary", label: "Checked" } }
+      : { badge: { tone: "outline", label: "Not checked yet" } },
   }));
   const rangeLabel =
     months.length === 2 && !month
@@ -151,7 +143,7 @@ export function FestivalsView({ festivals, months }) {
               columns={COLUMNS}
               rows={rows}
               defaultSort={{ key: "dates", dir: "asc" }}
-              footer="Dates are placeholders to be checked against the panchang before they’re saved."
+              footer="Days not checked yet are placeholders to verify against the panchang."
             />
           </LinkScope>
         )}
@@ -169,24 +161,19 @@ export function FestivalsView({ festivals, months }) {
 
 /** @param {Festival | null} f @returns {FestivalInput} */
 const toInput = (f) => ({
+  code: f?.code ?? "",
   name: f?.name ?? "",
-  region: f?.region ?? "maharashtra",
+  region: f?.region ?? "all",
   starts_on: f ? f.starts_on : todayIso(),
   ends_on: f ? f.ends_on : todayIso(),
-  repeat: f?.repeat ?? null,
-  code: f?.code ?? null,
-  rules: f?.rules ?? {
-    no_grains: false,
-    no_onion_garlic: false,
-    suggest_upvas_staples: false,
-    notify_evening_before: false,
-  },
-  summary: f?.summary ?? "",
+  rules: f?.rules ?? { fasting: false, no_onion_garlic: false },
+  verified: f?.verified ?? false,
 });
 
 /**
- * The edit panel of one day (or a new one). Saving sends an Idempotency-Key made for this save and
- * offers Undo; what you typed stays if the save fails.
+ * The edit panel of one day or run (or a new one). Saving sends an Idempotency-Key made for this save
+ * and offers Undo; what you typed stays if the save fails. The calendar's admin endpoints have not
+ * shipped (they are a @proposal), so against the real API a save says "not available yet".
  * @param {{ festival: Festival | null, onSaved: (f: Festival) => void }} props
  */
 function FestivalPanel({ festival, onSaved }) {
@@ -207,12 +194,12 @@ function FestivalPanel({ festival, onSaved }) {
     /** @type {Record<string, string>} */
     const e = {};
     if (!form.name.trim()) e.name = "Give the day a name";
-    if (!form.repeat) {
-      if (!form.starts_on) e.starts_on = "Pick the first day";
-      if (!form.ends_on) e.ends_on = "Pick the last day";
-      else if (form.starts_on && form.ends_on < form.starts_on)
-        e.ends_on = "The last day cannot be before the first";
-    }
+    if (!/^[a-z][a-z0-9_]{1,39}$/.test(form.code))
+      e.code = "Use 2 to 40 lower-case letters, digits or _";
+    if (!form.starts_on) e.starts_on = "Pick the first day";
+    if (!form.ends_on) e.ends_on = "Pick the last day";
+    else if (form.starts_on && form.ends_on < form.starts_on)
+      e.ends_on = "The last day cannot be before the first";
     setErrors(e);
     if (Object.keys(e).length) return;
     key.current ??= crypto.randomUUID();
@@ -240,7 +227,7 @@ function FestivalPanel({ festival, onSaved }) {
           ? {
               label: "Undo",
               onClick: async () => {
-                const u = await saveFestival(before.id, toInput(before), crypto.randomUUID());
+                const u = await saveFestival(r.festival.id, toInput(before), crypto.randomUUID());
                 toast(u.ok ? "Change undone" : "Could not undo. Edit the day to change it back.");
                 router.refresh();
               },
@@ -252,9 +239,7 @@ function FestivalPanel({ festival, onSaved }) {
     });
   }
 
-  const title = festival
-    ? `${festival.name} · ${festival.region.charAt(0).toUpperCase()}${festival.region.slice(1)}`
-    : "Add a day";
+  const title = festival ? `${festival.name} · ${regionLabel(festival.region)}` : "Add a day";
 
   return (
     <section
@@ -277,41 +262,39 @@ function FestivalPanel({ festival, onSaved }) {
         isInvalid={!!errors.name}
         errorMessage={errors.name}
       />
-      {form.repeat ? (
-        <p className="text-sm leading-5 text-fg-secondary">Repeats: {form.repeat}</p>
-      ) : (
-        <div className="flex flex-wrap gap-3">
-          <TextField
-            label="Starts on"
-            type="date"
-            value={form.starts_on ?? ""}
-            onChange={(starts_on) => change({ starts_on })}
-            isInvalid={!!errors.starts_on}
-            errorMessage={errors.starts_on}
-            className="min-w-40 flex-1"
-          />
-          <TextField
-            label="Ends on"
-            type="date"
-            value={form.ends_on ?? ""}
-            onChange={(ends_on) => change({ ends_on })}
-            isInvalid={!!errors.ends_on}
-            errorMessage={errors.ends_on}
-            className="min-w-40 flex-1"
-          />
-        </div>
-      )}
-      {!form.repeat && (
-        <p className="-mt-1 text-sm leading-5 text-fg-secondary">
-          Check the dates against the panchang.
-        </p>
-      )}
-      <Select
-        label="Fasting code"
-        value={form.code ?? ""}
-        onChange={(code) => change({ code: code || null })}
-        options={CODE_OPTIONS}
-        error={errors.code}
+      <TextField
+        label="Code"
+        description="What the planner reads: navratri, ekadashi. It cannot change later."
+        value={form.code}
+        onChange={(code) => change({ code })}
+        isDisabled={!!festival}
+        isInvalid={!!errors.code}
+        errorMessage={errors.code}
+      />
+      <div className="flex flex-wrap gap-3">
+        <TextField
+          label="Starts on"
+          type="date"
+          value={form.starts_on}
+          onChange={(starts_on) => change({ starts_on })}
+          isInvalid={!!errors.starts_on}
+          errorMessage={errors.starts_on}
+          className="min-w-40 flex-1"
+        />
+        <TextField
+          label="Ends on"
+          type="date"
+          value={form.ends_on}
+          onChange={(ends_on) => change({ ends_on })}
+          isInvalid={!!errors.ends_on}
+          errorMessage={errors.ends_on}
+          className="min-w-40 flex-1"
+        />
+      </div>
+      <Checkbox
+        label="Dates checked against the panchang"
+        isSelected={form.verified}
+        onChange={(verified) => change({ verified })}
       />
       <p className="text-[15px] leading-[22px] font-bold">Rules for the planner</p>
       {RULES.map(([rule, label, description]) => (
@@ -323,13 +306,6 @@ function FestivalPanel({ festival, onSaved }) {
           onChange={(on) => change({ rules: { ...form.rules, [rule]: on } })}
         />
       ))}
-      <TextField
-        label="What the planner does"
-        description="One line, shown in the table."
-        value={form.summary}
-        onChange={(summary) => change({ summary })}
-        className="max-w-none!"
-      />
       <Button variant="primary" block isDisabled={saving} onPress={onSave}>
         Save · applies to plans made after now
       </Button>
