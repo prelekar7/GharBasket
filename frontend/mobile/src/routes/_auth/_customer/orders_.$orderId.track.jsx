@@ -7,6 +7,7 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
 import { useOrder, useTracking } from "@/features/orders/queries.js";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
+import { intlLocale } from "@/lib/intlLocale.js";
 
 const TrackMap = lazy(() => import("@/components/TrackMap.jsx"));
 
@@ -128,7 +129,7 @@ function Track() {
                 {arrived
                   ? t("track.noMapThere", { society: v.society.name })
                   : t("track.noMap", {
-                      km: away.toLocaleString(lang, { maximumFractionDigits: 1 }),
+                      km: away.toLocaleString(intlLocale(lang), { maximumFractionDigits: 1 }),
                       society: v.society.name,
                     })}
               </div>
