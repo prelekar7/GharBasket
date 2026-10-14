@@ -335,7 +335,8 @@
         "identity_tower_unknown": "We couldn’t find that wing in this society. Go back and choose it again.",
         "identity_address_outside_society": "That address is outside this society. Go back and check it.",
         "identity_society_unknown": "We couldn’t find that society. Go back and choose it again.",
-        "identity_diet_conflict": "Jain food is veg only. Go back to Food and change one of them."
+        "identity_diet_conflict": "Jain food is veg only. Go back to Food and change one of them.",
+        "identity_consent_version_stale": "This privacy notice has been updated. Update the app to see the new one, then continue."
       }
     },
     "preview": {

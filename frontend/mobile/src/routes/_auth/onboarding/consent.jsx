@@ -14,6 +14,7 @@ const KNOWN = [
   "identity_address_outside_society",
   "identity_society_unknown",
   "identity_diet_conflict",
+  "identity_consent_version_stale",
 ];
 
 /**
