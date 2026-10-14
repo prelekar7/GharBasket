@@ -6,12 +6,8 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { issueAction } from "@/features/captain/parts.jsx";
-import {
-  uploadPhoto,
-  useCaptainDay,
-  useCaptainWrite,
-  useDrafts,
-} from "@/features/captain/queries.js";
+import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
+import { uploadFile } from "@/lib/upload.js";
 
 /**
  * Problems from the doors, sorted out in one go: where a "no one home" bag goes, and a photo of
@@ -128,7 +124,7 @@ function DamagePhoto({ added, onKey }) {
           if (!file) return;
           setBusy(true);
           setFailed(false);
-          await uploadPhoto(file)
+          await uploadFile(file)
             .then(onKey, () => setFailed(true))
             .finally(() => setBusy(false));
         }}

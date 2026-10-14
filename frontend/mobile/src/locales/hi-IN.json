@@ -36,8 +36,7 @@
   },
   "shell": {
     "comingTitle": "{screen} जल्द आ रहा है",
-    "comingBody": "यह स्क्रीन मॉड्यूल {module} के साथ आएगी। डिज़ाइन Customer screens कैनवस पर तैयार है।",
-    "fieldBody": "{role} की स्क्रीनें फ़ेज़ 3 की शुरुआत में डिज़ाइन होंगी।"
+    "comingBody": "यह स्क्रीन मॉड्यूल {module} के साथ आएगी। डिज़ाइन Customer screens कैनवस पर तैयार है।"
   },
   "profile": {
     "language": "भाषा",

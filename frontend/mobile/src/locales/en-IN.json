@@ -36,8 +36,7 @@
   },
   "shell": {
     "comingTitle": "{screen} is on its way",
-    "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas.",
-    "fieldBody": "The {role} screens are designed at the start of Phase 3."
+    "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas."
   },
   "profile": {
     "language": "Language",

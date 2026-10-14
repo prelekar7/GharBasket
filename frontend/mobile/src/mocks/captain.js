@@ -3,6 +3,7 @@
 // screen. Only the captain of the society may call them (X-Active-Role: captain:<society>).
 import { HttpResponse, http } from "msw";
 import { applyAction } from "@/features/captain/day.js";
+import { mockPdfUrl } from "./pdf.js";
 
 const KEY = "gb-mock-captain";
 
@@ -190,19 +191,8 @@ export const captainHandlers = [
   http.get("*/v1/earnings/certificate", ({ request }) => {
     if (guard(request)) return undefined;
     const text = "GharBasket income certificate (example) - Meena Jadhav, Society Captain";
-    const stream = `BT /F1 12 Tf 48 780 Td (${text}) Tj ET`;
-    const pdf = [
-      "%PDF-1.4",
-      "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
-      "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
-      "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj",
-      `4 0 obj << /Length ${stream.length} >> stream\n${stream}\nendstream endobj`,
-      "5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
-      "trailer << /Root 1 0 R >>",
-      "%%EOF",
-    ].join("\n");
     return HttpResponse.json({
-      url: `data:application/pdf;base64,${btoa(pdf)}`,
+      url: mockPdfUrl(text),
       filename: "gharbasket-income-certificate.pdf",
     });
   }),
