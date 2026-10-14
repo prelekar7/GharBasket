@@ -40,14 +40,77 @@ const EMPTY_HOUSEHOLD = {
   insightsConsent: false,
 };
 
+/** Health tags and consents: never kept past the tab (DPDP), so a resumed draft asks for them again. */
+const SENSITIVE = ["health", "healthConsent", "whatsappConsent", "insightsConsent"];
+const STORAGE_KEY = "gb-onboarding";
+
+/** @param {Storage} store @param {string} name */
+const read = (store, name) => {
+  try {
+    return JSON.parse(store.getItem(name) ?? "null");
+  } catch {
+    return null;
+  }
+};
+/** @param {Record<string, unknown>} obj @param {boolean} sensitive */
+const pick = (obj, sensitive) =>
+  Object.fromEntries(Object.entries(obj).filter(([k]) => SENSITIVE.includes(k) === sensitive));
+
 /**
- * What a new household has told us so far. Kept on the device (sessionStorage) until the last
- * onboarding step creates the household, with its members, address and consents, in one call (M1).
+ * The draft is split in two. What is not sensitive (society, flat, family, food, cooking, budget,
+ * and how far the person got) lives in localStorage, so it survives Android killing the app or the
+ * tab closing. The sensitive part lives in sessionStorage. Both are removed on sign-out
+ * (lib/localData.js).
+ * @type {import("zustand/middleware").StateStorage}
+ */
+const splitStorage = {
+  getItem: (name) => {
+    const durable = read(localStorage, name);
+    if (!durable) return null;
+    const session = read(sessionStorage, name);
+    return JSON.stringify({
+      ...durable,
+      state: {
+        ...durable.state,
+        household: { ...durable.state.household, ...session?.state?.household },
+      },
+    });
+  },
+  setItem: (name, value) => {
+    const { state, version } = JSON.parse(value);
+    try {
+      localStorage.setItem(
+        name,
+        JSON.stringify({ state: { ...state, household: pick(state.household, false) }, version }),
+      );
+      sessionStorage.setItem(
+        name,
+        JSON.stringify({ state: { household: pick(state.household, true) }, version }),
+      );
+    } catch {
+      // Storage blocked (private mode): the draft just isn't kept.
+    }
+  },
+  removeItem: (name) => {
+    try {
+      localStorage.removeItem(name);
+      sessionStorage.removeItem(name);
+    } catch {
+      // Nothing was kept.
+    }
+  },
+};
+
+/**
+ * What a new household has told us so far. Kept on the device until the last onboarding step
+ * creates the household, with its members, address and consents, in one call (M1); see `splitStorage` for what is kept where.
  * @typedef {object} OnboardingDraft
  * @property {string | null} societyId
  * @property {string | null} towerId
  * @property {string} flat
+ * @property {number} reached index in ONBOARDING_STEPS of the furthest screen opened
  * @property {HouseholdDraft} household
+ * @property {(path: string) => void} markReached
  * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat">>) => void} update
  * @property {(patch: Partial<HouseholdDraft>) => void} updateHousehold
  * @property {() => void} reset
@@ -63,7 +126,12 @@ export const useOnboardingDraft = create(
         societyId: null,
         towerId: null,
         flat: "",
+        reached: 0,
         household: EMPTY_HOUSEHOLD,
+        markReached: (path) => {
+          const i = ONBOARDING_STEPS.indexOf(path);
+          if (i > useOnboardingDraft.getState().reached) set({ reached: i });
+        },
         update: (patch) => set(patch),
         updateHousehold: (patch) => set((s) => ({ household: { ...s.household, ...patch } })),
         reset: () =>
@@ -71,6 +139,7 @@ export const useOnboardingDraft = create(
             societyId: null,
             towerId: null,
             flat: "",
+            reached: 0,
             household: EMPTY_HOUSEHOLD,
             editing: null,
           }),
@@ -94,7 +163,15 @@ export const useOnboardingDraft = create(
           }),
         stopEdit: () => set({ editing: null, household: EMPTY_HOUSEHOLD }),
       }),
-      { name: "gb-onboarding", storage: createJSONStorage(() => sessionStorage) },
+      {
+        name: STORAGE_KEY,
+        storage: createJSONStorage(() => splitStorage),
+        // A draft saved before a field existed (or without its sensitive part) still gets every field.
+        merge: (persisted, current) => {
+          const saved = /** @type {Partial<OnboardingDraft> | undefined} */ (persisted);
+          return { ...current, ...saved, household: { ...EMPTY_HOUSEHOLD, ...saved?.household } };
+        },
+      },
     )
   ),
 );
@@ -126,4 +203,21 @@ export function nextStep(path) {
   const i = ONBOARDING_STEPS.indexOf(path);
   if (i < 0) throw new Error(`${path} is not in ONBOARDING_STEPS`);
   return ONBOARDING_STEPS[i + 1] ?? "/";
+}
+
+/**
+ * Where to send someone who has not finished onboarding: the furthest screen they opened, not
+ * step 1. Without society and tower the draft cannot be trusted, so it starts at the society.
+ * Health tags and consents are not kept past the tab, so if they are gone (the app was killed, or
+ * the tab closed) the person re-enters at the health step, which asks for consent again.
+ */
+export function resumeStep() {
+  const { societyId, towerId, reached } = useOnboardingDraft.getState();
+  if (!societyId) return "/onboarding/society";
+  if (!towerId) return "/onboarding/flat";
+  const last = ONBOARDING_STEPS.indexOf("/onboarding/done") - 1;
+  const target = Math.min(Math.max(reached, ONBOARDING_STEPS.indexOf("/onboarding/flat")), last);
+  const sensitiveKept = read(sessionStorage, STORAGE_KEY) !== null;
+  const health = ONBOARDING_STEPS.indexOf("/onboarding/health");
+  return ONBOARDING_STEPS[!sensitiveKept && target > health ? health : target];
 }

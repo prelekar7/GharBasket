@@ -17,9 +17,13 @@ import { useTranslation } from "react-i18next";
 import { InstallBanner } from "@/components/InstallBanner.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
 import { householdQuery } from "@/features/identity/profile.js";
+import { resumeStep } from "@/features/onboarding/draft.js";
 import { queryClient } from "@/lib/queryClient.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 import { useToastAboveTabs } from "@/lib/toastOffset.js";
+
+/** How long the customer shell waits for GET /v1/households/me before opening the app anyway. */
+const HOUSEHOLD_CHECK_MS = 4000;
 
 /** Customer shell: role bar, the five tabs and the floating Ghar Saathi button (FDD §8). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -27,12 +31,16 @@ export const Route = createFileRoute("/_auth/_customer")({
   beforeLoad: async () => {
     const role = useSession.getState().activeRole;
     if (role && role !== "customer") throw redirect({ to: HOME_BY_ROLE[role] });
-    // No household yet (onboarding left halfway): finish setting it up first. Offline or an
-    // error never blocks the app.
-    const household = await queryClient.ensureQueryData(householdQuery).catch(() => undefined);
+    // No household yet (onboarding left halfway): finish setting it up first, where they left
+    // off. Offline, an error or a slow network never blocks the app: after HOUSEHOLD_CHECK_MS we
+    // let them in.
+    const household = await Promise.race([
+      queryClient.ensureQueryData(householdQuery).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, HOUSEHOLD_CHECK_MS, undefined)),
+    ]);
     if (household === null) {
       queryClient.removeQueries({ queryKey: householdQuery.queryKey });
-      throw redirect({ to: "/onboarding/society" });
+      throw redirect({ to: resumeStep() });
     }
   },
   component: CustomerShell,

@@ -21,7 +21,9 @@ export const householdQuery = {
     try {
       return /** @type {HouseholdSummary} */ (await request("/v1/households/me"));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 404) return null;
+      // Only the household's own "not found". An unknown route is also a 404 (http.not_found),
+      // and must not send every customer back to onboarding.
+      if (e instanceof ApiError && e.code === "identity.household_not_found") return null;
       throw e;
     }
   },

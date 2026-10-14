@@ -1,6 +1,7 @@
 import { IconButton, ProgressBar } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { useRouter } from "@tanstack/react-router";
+import { useLocation, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { HOUSEHOLD_STEPS, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
@@ -16,6 +17,11 @@ export function OnboardingFrame({ children, footer, step, back = true }) {
   const router = useRouter();
   // Editing from Profile is one screen, not a flow, so the step progress is left out.
   const editing = useOnboardingDraft((s) => !!s.editing);
+  const { pathname } = useLocation();
+  // Remember how far a new household got, so coming back resumes here and not at step 1.
+  useEffect(() => {
+    if (!editing) useOnboardingDraft.getState().markReached(pathname);
+  }, [pathname, editing]);
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-4 bg-bg px-5 pt-[calc(12px+env(safe-area-inset-top))] pb-6 text-fg">
       {back && (
