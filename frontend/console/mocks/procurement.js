@@ -341,6 +341,30 @@ export function purchaseOrdersFor(date) {
   return procurementState().orders.filter((o) => o.delivery_date === date);
 }
 
+/**
+ * The 12:30 run's close of the day's buying (§3.5): partly received POs become received, POs still
+ * only sent become cancelled ("not_delivered"), and the day's plan is closed. Returns how many POs closed.
+ * @param {string} date
+ */
+export function closeBuying(date) {
+  seed();
+  const now = new Date().toISOString();
+  let closed = 0;
+  for (const po of procurementState().orders.filter((o) => o.delivery_date === date)) {
+    if (po.status === "partly_received") po.status = "received";
+    else if (po.status === "sent") {
+      po.status = "cancelled";
+      po.cancel_reason = "not_delivered";
+    } else continue;
+    po.closed_at = now;
+    po.version += 1;
+    closed += 1;
+  }
+  const plan = planFor(KHARGHAR_HUB_ID, date);
+  if (plan && plan.status !== "closed") plan.status = "closed";
+  return closed;
+}
+
 /** Is the product on a sent, partly received or received PO of the plan? @param {Plan} plan @param {string} productId */
 const onSentPo = (plan, productId) =>
   procurementState().orders.some(
