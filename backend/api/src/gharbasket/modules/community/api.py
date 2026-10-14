@@ -8,7 +8,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from geoalchemy2 import Geometry
+from sqlalchemy import cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED
@@ -32,6 +33,7 @@ __all__ = [
     "hubs_with_societies",
     "is_active_captain",
     "society_labels",
+    "society_points",
 ]
 
 
@@ -98,6 +100,22 @@ async def society_labels(
         society_id: SocietyLabels(name, {str(t["id"]): str(t["label"]) for t in towers})
         for society_id, name, towers in rows.all()
     }
+
+
+async def society_points(
+    session: AsyncSession, society_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[float, float]]:
+    """Where a van stops for each society, as (lat, lng) (M7's route stops): a point inside its
+    boundary until M9 records a gate. Societies without a boundary are left out."""
+    if not society_ids:
+        return {}
+    inside = func.ST_PointOnSurface(cast(Society.boundary, Geometry))
+    rows = await session.execute(
+        select(Society.id, func.ST_Y(inside), func.ST_X(inside)).where(
+            Society.id.in_(society_ids), Society.boundary.is_not(None)
+        )
+    )
+    return {society_id: (float(lat), float(lng)) for society_id, lat, lng in rows.all()}
 
 
 # --- captains (§3.2, ADR-0026 §4) ---------------------------------------------------------------

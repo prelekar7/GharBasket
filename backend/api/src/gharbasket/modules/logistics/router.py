@@ -1,26 +1,41 @@
-"""HTTP endpoints of M7 Logistics: vehicles (spec §3.1)."""
+"""HTTP endpoints of M7 Logistics: vehicles (spec §3.1) and route plans (§3.2)."""
 
 import uuid
+from datetime import date, datetime, time, timedelta
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.logistics import jobs, plans, service
 from gharbasket.modules.logistics import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.logistics import service
-from gharbasket.modules.logistics.models import Vehicle
+from gharbasket.modules.logistics.models import RoutePlan, Vehicle
 from gharbasket.modules.logistics.schemas import (
+    PlanKind,
+    PlanSummary,
+    PublishIn,
     RiderRef,
+    RoutePlanOut,
+    RoutePlansOut,
+    RoutePlanSummary,
+    RouteSummary,
+    SolveIn,
+    UserRef,
     VehicleIn,
     VehicleKind,
     VehicleOut,
     VehiclePatch,
+    VehicleRef,
     VehiclesOut,
 )
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import Settings, get_settings
 
 router = APIRouter(tags=["logistics"])
 
@@ -147,4 +162,216 @@ async def patch_vehicle(
     [out] = await _vehicles_out(session, [vehicle])
     await session.commit()
     set_etag(response, out.version)
+    return out
+
+
+# --- route plans (§3.2) -----------------------------------------------------------------------
+
+CanSolve = Annotated[Permit, require("routes:write")]
+CanReadPlans = Annotated[Permit, require("route_plans:read")]
+Day = Annotated[date | None, Query(alias="date", description="IST date; default today")]
+IST = ZoneInfo("Asia/Kolkata")
+PLAN_RESPONSES: dict[int | str, dict[str, Any]] = {404: _problem("logistics.plan_not_found")}
+
+
+def _within(day: date, earliest: int, latest: int) -> date:
+    """`day` if it is between today + `earliest` and today + `latest` days (IST)."""
+    today = datetime.now(IST).date()
+    if not today + timedelta(days=earliest) <= day <= today + timedelta(days=latest):
+        raise ProblemError(
+            422,
+            "logistics.date_out_of_range",
+            "That date is outside the range allowed here.",
+            extra={
+                "earliest": (today + timedelta(days=earliest)).isoformat(),
+                "latest": (today + timedelta(days=latest)).isoformat(),
+            },
+        )
+    return day
+
+
+def _clock(at: time) -> str:
+    return at.strftime("%H:%M")
+
+
+async def _plans_out(
+    session: AsyncSession, found: list[RoutePlan], *, with_routes: bool
+) -> list[RoutePlanOut]:
+    rows = {p.id: await plans.routes_of(session, p.id) for p in found} if with_routes else {}
+    people = {p.requested_by for p in found} | {
+        r.route.rider_user_id for routes in rows.values() for r in routes
+    }
+    names = await identity_api.user_names(session, sorted(u for u in people if u is not None))
+
+    def person(user_id: uuid.UUID | None, model: type[RiderRef] | type[UserRef]) -> Any:
+        return None if user_id is None else model(user_id=user_id, name=names.get(user_id))
+
+    return [
+        RoutePlanOut(
+            id=p.id,
+            hub_id=p.hub_id,
+            delivery_date=p.delivery_date,
+            kind=p.kind,  # pyright: ignore[reportArgumentType]
+            status=p.status,  # pyright: ignore[reportArgumentType]
+            trigger=p.trigger,  # pyright: ignore[reportArgumentType]
+            source=p.source,  # pyright: ignore[reportArgumentType]
+            distance_source=p.distance_source,  # pyright: ignore[reportArgumentType]
+            model=p.model,
+            summary=None if p.summary is None else PlanSummary.model_validate(p.summary),
+            seconds=p.seconds,
+            error=p.error,
+            requested_by=person(p.requested_by, UserRef),
+            created_at=p.created_at,
+            published_at=p.published_at,
+            routes=[
+                RouteSummary(
+                    id=r.route.id,
+                    plan_id=r.route.plan_id,
+                    hub_id=r.route.hub_id,
+                    delivery_date=r.route.delivery_date,
+                    kind=r.route.kind,  # pyright: ignore[reportArgumentType]
+                    trip=r.route.trip,
+                    status=r.route.status,  # pyright: ignore[reportArgumentType]
+                    vehicle=VehicleRef(
+                        id=r.vehicle.id,
+                        label=r.vehicle.label,
+                        kind=r.vehicle.kind,  # pyright: ignore[reportArgumentType]
+                    ),
+                    rider=person(r.route.rider_user_id, RiderRef),
+                    depart=_clock(r.route.depart_time),
+                    return_by=_clock(r.route.return_by),
+                    stops_total=r.stops_total,
+                    stops_done=r.stops_done,
+                    crates=r.crates,
+                    bags=r.bags,
+                    km=r.route.planned_km,
+                    started_at=r.route.started_at,
+                    completed_at=r.route.completed_at,
+                    version=r.route.version,
+                )
+                for r in rows.get(p.id, [])
+            ],
+        )
+        for p in found
+    ]
+
+
+async def _plan_in_scope(session: AsyncSession, permit: Permit, plan_id: uuid.UUID) -> RoutePlan:
+    plan = await plans.get_plan(session, plan_id)
+    if not permit.allows(plan.hub_id):
+        raise plans.plan_not_found()
+    return plan
+
+
+@router.post(
+    "/hubs/{hub_id}/route-plans",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Solve (or re-solve) a hub's routes for today or tomorrow (Idempotency-Key required)",
+    description="Answers at once with the queued plan; the solve runs in the background (the ML "
+    "solver, or M7's fallback when it is down). Poll GET /v1/route-plans/{id}. A manual plan is "
+    "never published automatically.",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found"),
+        409: _problem("logistics.solve_running, logistics.routes_started"),
+        422: _problem("logistics.date_out_of_range, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def solve_plan(
+    hub_id: uuid.UUID,
+    body: SolveIn,
+    permit: CanSolve,
+    session: DbSession,
+    idem: Idempotent,
+    request: Request,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> RoutePlanOut:
+    permit.ensure(hub_id)
+    await service.ensure_hub(session, hub_id)
+    day = _within(body.delivery_date, 0, 1)
+    plan = await plans.request_solve(
+        session, hub_id, day, body.kind, trigger="manual", requested_by=permit.principal.user_id
+    )
+    [out] = await _plans_out(session, [plan], with_routes=True)
+    await idem.save(202, out)
+    await session.commit()
+    state = request.app.state
+    jobs.solve_soon(
+        getattr(state, "sessionmaker", None), getattr(state, "http", None), settings, plan.id
+    )
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/route-plans",
+    summary="A hub's route plans for a date, newest first (without routes)",
+    responses={
+        **SIGNED_IN,
+        404: _problem("hub_ops.hub_not_found"),
+        422: _problem("logistics.date_out_of_range"),
+    },
+)
+async def list_plans(
+    hub_id: uuid.UUID,
+    permit: CanReadPlans,
+    session: DbSession,
+    response: Response,
+    day: Day = None,
+    kind: Annotated[PlanKind | None, Query(description="Only this kind")] = None,
+) -> RoutePlansOut:
+    permit.ensure(hub_id)
+    await service.ensure_hub(session, hub_id)
+    found = await plans.list_plans(
+        session, hub_id, _within(day or datetime.now(IST).date(), -7, 1), kind
+    )
+    response.headers["Cache-Control"] = "no-store"
+    out = await _plans_out(session, found, with_routes=False)
+    return RoutePlansOut(
+        items=[RoutePlanSummary.model_validate(p, from_attributes=True) for p in out]
+    )
+
+
+@router.get(
+    "/route-plans/{plan_id}",
+    summary="A route plan with its routes (poll it after a solve)",
+    responses={**SIGNED_IN, **PLAN_RESPONSES},
+)
+async def get_plan(
+    plan_id: uuid.UUID, permit: CanReadPlans, session: DbSession, response: Response
+) -> RoutePlanOut:
+    plan = await _plan_in_scope(session, permit, plan_id)
+    [out] = await _plans_out(session, [plan], with_routes=True)
+    response.headers["Cache-Control"] = "no-store"
+    return out
+
+
+@router.post(
+    "/route-plans/{plan_id}/publish",
+    summary="Publish a solved plan (Idempotency-Key required)",
+    description="The routes become published; the date's previously published plan is "
+    "superseded and its routes cancelled, unless one of them has started. A plan with problems "
+    "needs accept_problems (audited); one that leaves a stop off every route never publishes.",
+    responses={
+        **CREATES,
+        **PLAN_RESPONSES,
+        409: _problem(
+            "logistics.plan_not_publishable, logistics.plan_incomplete, "
+            "logistics.plan_has_problems, logistics.routes_started"
+        ),
+        422: _problem("request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def publish_plan(
+    plan_id: uuid.UUID,
+    permit: CanSolve,
+    session: DbSession,
+    idem: Idempotent,
+    body: Annotated[PublishIn | None, Body()] = None,
+) -> RoutePlanOut:
+    plan = await _plan_in_scope(session, permit, plan_id)
+    accept = body is not None and body.accept_problems
+    await plans.publish(session, plan, user_id=permit.principal.user_id, accept_problems=accept)
+    [out] = await _plans_out(session, [plan], with_routes=True)
+    await idem.save(200, out)
+    await session.commit()
     return out
