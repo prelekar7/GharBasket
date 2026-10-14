@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { getResponse } from "msw";
 import { notificationsHandlers } from "./notifications.js";
+import { mockUuid } from "./util.js";
 
+const PRIYA = mockUuid("b600", 8);
 const TEMPLATES = "/v1/admin/notification-templates";
 
 /**
@@ -192,4 +194,83 @@ test("preview renders each locale with the sample values and saves nothing", asy
   );
   const wa = await call("GET", `${TEMPLATES}?kind=orders.locked&channel=whatsapp`);
   assert.deepEqual(wa.body.items, []);
+});
+
+test("the delivery log is by user_id with LogEntry fields, paged by cursor", async () => {
+  const path = `/v1/admin/notifications?user_id=${PRIYA}`;
+  const first = await call("GET", `${path}&limit=2`);
+  assert.equal(first.status, 200);
+  assert.deepEqual(keys(first.body), ["items", "next_cursor"]);
+  assert.equal(first.body.items.length, 2);
+  assert.deepEqual(keys(first.body.items[0]), [
+    "body",
+    "category",
+    "created_at",
+    "deliveries",
+    "event_id",
+    "event_type",
+    "id",
+    "kind",
+    "link",
+    "read_at",
+    "title",
+  ]);
+  assert.deepEqual(keys(first.body.items[0].deliveries[0]), [
+    "attempts",
+    "channel",
+    "last_error",
+    "next_attempt_at",
+    "provider_ref",
+    "sent_at",
+    "status",
+  ]);
+  const seen = [...first.body.items];
+  let cursor = first.body.next_cursor;
+  while (cursor) {
+    const next = await call("GET", `${path}&limit=2&cursor=${cursor}`);
+    seen.push(...next.body.items);
+    cursor = next.body.next_cursor;
+  }
+  assert.equal(new Set(seen.map((e) => e.id)).size, seen.length);
+  assert.deepEqual(
+    seen.map((e) => e.created_at),
+    seen
+      .map((e) => e.created_at)
+      .sort()
+      .reverse(),
+  );
+  assert.deepEqual(
+    (await call("GET", `/v1/admin/notifications?user_id=${mockUuid("b600", 4)}`)).body,
+    { items: [], next_cursor: null },
+  );
+});
+
+test("the delivery log refuses what the real one refuses", async () => {
+  const noUser = await call("GET", "/v1/admin/notifications");
+  assert.equal(noUser.status, 422);
+  assert.deepEqual(noUser.body.errors[0].loc, ["query", "user_id"]);
+  assert.equal((await call("GET", "/v1/admin/notifications?user_id=9800001001")).status, 422);
+  assert.equal(
+    (await call("GET", `/v1/admin/notifications?user_id=${PRIYA}&cursor=zz`)).body.code,
+    "request.invalid_cursor",
+  );
+  assert.equal(
+    (await call("GET", `/v1/admin/notifications?user_id=${PRIYA}`, { role: "franchise_owner" }))
+      .status,
+    403,
+  );
+  assert.equal(
+    (await call("GET", `/v1/admin/notifications?user_id=${PRIYA}`, { role: "hub_manager" })).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call("GET", `/v1/admin/notifications?user_id=${mockUuid("b600", 4)}`, {
+        role: "hub_manager",
+      })
+    ).body.code,
+    "auth.forbidden",
+  );
+  // The phone search of the old mock is not a route of the real API.
+  assert.equal(await send("GET", "/v1/admin/notification-log?phone=9800001001"), undefined);
 });
