@@ -2,7 +2,7 @@
 partner kind and community.captain_assigned (M11 §3.1 event map, M8 §10, M9 §3.2)
 
 Revision ID: c3d7e1a95b42
-Revises: 232e527f6a85
+Revises: 5d81c0e3a9f2
 Create Date: 2026-10-10 14:15:00.000000+00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c3d7e1a95b42"
-down_revision: str | Sequence[str] | None = "232e527f6a85"
+down_revision: str | Sequence[str] | None = "5d81c0e3a9f2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
