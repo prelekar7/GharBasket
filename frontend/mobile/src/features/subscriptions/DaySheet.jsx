@@ -1,6 +1,16 @@
-import { Button, Chip, formatPaise, Sheet, toast } from "@gharbasket/ui";
+import {
+  Button,
+  Chip,
+  formatPaise,
+  KnowYourCookCard,
+  Sheet,
+  Skeleton,
+  toast,
+} from "@gharbasket/ui";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { usePublicPartner } from "@/features/partners/queries.js";
 import { clockTime, istClock, reasonText, shortDate, weekdayName, weekdayOf } from "./format.js";
 import { useSwapMeal } from "./queries.js";
 
@@ -16,6 +26,7 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
   const navigate = useNavigate();
   const day = index === null ? null : cycle.meal_plan.days[index];
   const offer = day?.tiffin_offer;
+  const cook = usePublicPartner(editable ? offer?.kitchen_id : undefined, lang);
   const orderBy = `${weekdayName(cycle.cutoff_at, lang)} ${clockTime(istClock(cycle.cutoff_at), lang)}`;
 
   return (
@@ -24,7 +35,7 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
       onOpenChange={(open) => !open && onClose()}
       title={day ? `${t(`days.short.d${weekdayOf(day.date)}`)}, ${shortDate(day.date, lang)}` : ""}
       footer={
-        <Button variant="secondary" size="lg" block onPress={onClose}>
+        <Button variant="primary" size="lg" block onPress={onClose}>
           {t("week.day.done")}
         </Button>
       }
@@ -64,8 +75,27 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
             </section>
           ))}
           {editable && offer && (
-            <section className="flex flex-col gap-2 rounded-md bg-surface px-4 py-3">
-              <strong>{t(`week.day.noTime.${offer.slot}`)}</strong>
+            <section className="flex flex-col gap-2.5 border-t border-line pt-3">
+              <h2 className="text-lg leading-[26px] font-bold">
+                {t(`week.day.noTime.${offer.slot}`)}
+              </h2>
+              {cook.isLoading && <Skeleton lines={3} />}
+              {cook.data && (
+                <KnowYourCookCard
+                  name={cook.data.name}
+                  kitchen={`${cook.data.kitchen}, ${cook.data.area}`}
+                  since={cook.data.since}
+                  specialty={cook.data.specialty}
+                  fssai={cook.data.fssai_registered}
+                  hygiene={cook.data.hygiene_trained}
+                  labels={{
+                    eyebrow: t("tiffin.knowCook"),
+                    since: t("tiffin.since"),
+                    fssai: t("tiffin.fssai"),
+                    hygiene: t("tiffin.hygiene"),
+                  }}
+                />
+              )}
               <p className="text-sm leading-5 text-fg-secondary">
                 {t("week.day.offer", {
                   cook: offer.cook.name,
@@ -74,17 +104,17 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
                   when: orderBy,
                 })}
               </p>
-              <div>
-                <Button
-                  variant="secondary"
-                  onPress={() => {
-                    onClose();
-                    navigate({ to: "/week/tiffin/$date", params: { date: day.date } });
-                  }}
-                >
-                  {t("week.day.addTiffin")}
-                </Button>
-              </div>
+              <Button
+                variant="secondary"
+                block
+                onPress={() => {
+                  onClose();
+                  navigate({ to: "/week/tiffin/$date", params: { date: day.date } });
+                }}
+              >
+                <PlusIcon aria-hidden size={20} weight="bold" />
+                {t("week.day.addTiffin")}
+              </Button>
             </section>
           )}
         </div>

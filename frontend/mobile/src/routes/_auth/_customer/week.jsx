@@ -11,7 +11,9 @@ import {
   StatusPill,
   ThaliWeek,
   toast,
+  WalletCard,
 } from "@gharbasket/ui";
+import { WarningIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -80,6 +82,8 @@ function Week() {
   // Edits, including skipping, stay open until the cut-off, even after approving (W3).
   const editable = c.status === "ready" || c.status === "approved";
   const due = c.payment_due;
+  // The failed-payment week shows only the alert, the wallet and the two ways out (design HcPayFailed).
+  const failed = c.status === "payment_failed" && !!due;
 
   /** @param {unknown} e */
   const onError = (e) => {
@@ -120,40 +124,63 @@ function Week() {
           </p>
         </section>
       )}
-      {c.status === "payment_failed" && due && (
-        <section
-          role="alert"
-          className="flex flex-col gap-2 rounded-md border-2 border-danger bg-bg px-4 py-3"
-        >
-          <strong>{t("week.failedTitle")}</strong>
-          <p className="text-sm leading-5">
-            {t("week.failedBody", {
-              wallet: formatPaise(due.wallet_paise),
-              total: formatPaise(c.total_paise),
-              short: formatPaise(due.shortfall_paise),
-              time: clockTime(istClock(due.due_at), lang),
-              day: t(`days.long.d${weekdayOf(c.delivery_date)}`),
-            })}
-          </p>
+      {failed && due && (
+        <>
+          <section
+            role="alert"
+            className="flex flex-col gap-2 rounded-md border border-danger bg-danger-soft px-4 py-3.5"
+          >
+            <h2 className="flex items-center gap-2 text-[18px] leading-[26px] font-bold">
+              <WarningIcon aria-hidden size={20} className="shrink-0 text-danger" />
+              {t("week.failedTitle")}
+            </h2>
+            <p className="text-[15px] leading-[22px]">
+              {t("week.failedBody", {
+                wallet: formatPaise(due.wallet_paise),
+                total: formatPaise(c.total_paise),
+                short: formatPaise(due.shortfall_paise),
+                time: clockTime(istClock(due.due_at), lang),
+                day: t(`days.long.d${weekdayOf(c.delivery_date)}`),
+              })}
+            </p>
+          </section>
           {topUp.error && (
             <p role="alert" className="text-sm font-semibold text-danger">
               {topUp.error}
             </p>
           )}
-          <Button
-            variant="primary"
-            block
-            isPending={topUp.busy || pay.isPending}
-            onPress={() => topUp.start(due.shortfall_paise)}
-          >
-            {t("week.topUpShort", { short: formatPaise(due.shortfall_paise) })}
-          </Button>
-          <Button variant="quiet" block onPress={() => setConfirmSkip(true)}>
-            {t("week.skipInstead")}
-          </Button>
-        </section>
+          <WalletCard
+            balancePaise={due.wallet_paise}
+            weekTotalPaise={c.total_paise}
+            onTopUp={() => topUp.start(due.shortfall_paise)}
+            onStatement={() => navigate({ to: "/wallet/statement" })}
+            labels={{
+              name: t("wallet.title"),
+              balance: t("wallet.balance"),
+              week: t("week.thisBox"),
+              topUpNeeded: t("wallet.topUpNeeded"),
+              covered: t("wallet.covered"),
+              topUp: t("wallet.topUp"),
+              statement: t("wallet.statement"),
+            }}
+          />
+          <div className="flex flex-col">
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              isPending={topUp.busy || pay.isPending}
+              onPress={() => topUp.start(due.shortfall_paise)}
+            >
+              {t("week.topUpShort", { short: formatPaise(due.shortfall_paise) })}
+            </Button>
+            <Button variant="quiet" block onPress={() => setConfirmSkip(true)}>
+              {t("week.skipInstead")}
+            </Button>
+          </div>
+        </>
       )}
-      {c.status === "skipped" ? (
+      {failed ? null : c.status === "skipped" ? (
         <>
           <EmptyState
             illustration={<EmptyBasket />}
