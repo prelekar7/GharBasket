@@ -3,6 +3,7 @@
 // (box) and §6.3 (tiffin). Names come back in the caller's language, like the M3 mocks.
 import { HttpResponse, http } from "msw";
 import { caller, isNewUser } from "./handlers.js";
+import { deliveryStage } from "./tracking.js";
 
 const problem = (
   /** @type {number} */ status,
@@ -16,15 +17,24 @@ const problem = (
 const langOf = (/** @type {Request} */ r) =>
   (r.headers.get("accept-language") ?? "").startsWith("hi") ? "hi" : "en";
 
-/** The designs' Tuesday: the box is with the captain, a tiffin tomorrow, next week's box to approve. */
+/**
+ * The designs' Tuesday: the box is on the way (it reaches the captain, then the door, as the demo
+ * day runs: mocks/tracking.js), a tiffin tomorrow, next week's box to approve.
+ */
 function orders(/** @type {"en" | "hi"} */ lang) {
   const hi = lang === "hi";
   const address = { flat: "B-402", society: "Sunrise Towers" };
+  const { status } = deliveryStage();
+  const later = /** @type {{ to_status: string, at: string }[]} */ ([]);
+  if (status !== "DISPATCHED")
+    later.push({ to_status: "AT_SOCIETY", at: "2026-10-06T08:40:00+05:30" });
+  if (status === "DELIVERED")
+    later.push({ to_status: "DELIVERED", at: "2026-10-06T09:30:00+05:30" });
   return [
     {
       id: "ord-2026-10-06",
       kind: "box",
-      status: "AT_SOCIETY",
+      status,
       delivery_date: "2026-10-06",
       eta_by: "10:00",
       items_count: 14,
@@ -36,9 +46,9 @@ function orders(/** @type {"en" | "hi"} */ lang) {
       events: [
         { to_status: "APPROVED", at: "2026-10-01T19:12:00+05:30" },
         { to_status: "LOCKED", at: "2026-10-05T21:00:00+05:30" },
-        { to_status: "PACKED", at: "2026-10-06T06:05:00+05:30" },
-        { to_status: "DISPATCHED", at: "2026-10-06T07:40:00+05:30" },
-        { to_status: "AT_SOCIETY", at: "2026-10-06T08:20:00+05:30" },
+        { to_status: "PACKED", at: "2026-10-06T06:10:00+05:30" },
+        { to_status: "DISPATCHED", at: "2026-10-06T07:45:00+05:30" },
+        ...later,
       ],
       version: 7,
     },

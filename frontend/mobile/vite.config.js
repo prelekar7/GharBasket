@@ -27,8 +27,10 @@ export default defineConfig(({ mode }) => ({
       registerType: "prompt", // the app shows "New version available → Refresh"
       injectRegister: null, // registered from main.jsx, web mode only
       // The maps (MapLibre) need the network for tiles anyway, so they are not precached for offline.
-      // With two map screens MapLibre is its own shared chunk, so it is listed too.
-      injectManifest: { globIgnores: ["**/PinMap-*", "**/RouteMap-*", "**/maplibre-gl-*"] },
+      // With several map screens MapLibre is its own shared chunk, so it is listed too.
+      injectManifest: {
+        globIgnores: ["**/PinMap-*", "**/RouteMap-*", "**/TrackMap-*", "**/maplibre-gl-*"],
+      },
       pwaAssets: { config: true, overrideManifestIcons: true }, // icons from pwa-assets.config.js
       manifest: {
         id: "/",

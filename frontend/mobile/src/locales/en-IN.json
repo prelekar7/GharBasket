@@ -675,7 +675,8 @@
     "nothingTitle": "Nothing on the way today",
     "nothingBody": "Your next delivery shows here on the morning it comes.",
     "emptyTitle": "No orders yet",
-    "emptyBody": "Your first box shows here once your society unlocks and you approve the week."
+    "emptyBody": "Your first box shows here once your society unlocks and you approve the week.",
+    "track": "Track live"
   },
   "kindness": {
     "title": "Your gullak",
@@ -1406,5 +1407,25 @@
     "per": "{price} {unit, select, kg {a kg} l {a litre} bunch {a bunch} loaf {a loaf} other {each}}",
     "season": "In season this week",
     "swaps": "Good swaps, best first"
+  },
+  "track": {
+    "title": "{day}’s box",
+    "vanLabel": "{rider}’s van",
+    "noMap": "The map can’t load on this phone. The van is {km} km from {society}.",
+    "noMapThere": "The map can’t load on this phone. The van has reached {society}.",
+    "eta": "At {society} by {time}",
+    "rider": "{rider} is bringing your society’s crates from the {hub} hub",
+    "arrived": "At {society} since {time}",
+    "captain": "{captain} brings it to your door by {time}",
+    "delivered": "Delivered at {time}",
+    "about": "About {time}",
+    "by": "By {time}",
+    "stage": {
+      "packed": "Packed at the hub",
+      "left": "Left the hub",
+      "society": "At {society}",
+      "captain": "With {captain}",
+      "door": "At your door, {flat}"
+    }
   }
 }

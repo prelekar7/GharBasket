@@ -4,18 +4,16 @@ import {
   formatPaise,
   MoneyText,
   OrderTimeline,
-  RadioCards,
-  Sheet,
   Skeleton,
   StatusPill,
   TiffinSteam,
-  toast,
 } from "@gharbasket/ui";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { useOrders, useReportIssue } from "@/features/orders/queries.js";
+import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
+import { useOrders } from "@/features/orders/queries.js";
 import {
   clockTime,
   istClock,
@@ -24,7 +22,7 @@ import {
   weekdayName,
 } from "@/features/subscriptions/format.js";
 
-/** Orders: today's delivery with its timeline and what's coming up (design HcOrders, M4). */
+/** Orders: today's delivery with its timeline, live tracking, and what's coming up (designs HcOrders, HcTracking; M4). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders")({ component: Orders });
 
@@ -61,16 +59,21 @@ const STAGE_OF = /** @type {Record<string, string>} */ ({
   UNDELIVERED: "AT_SOCIETY",
   REDELIVERY: "AT_SOCIETY",
 });
-const ISSUES = ["missing", "damaged", "late", "other"];
+/** The van or the captain is on the way: live tracking is worth opening. */
+const TRACKABLE = new Set(["DISPATCHED", "AT_SOCIETY"]);
 
 function Orders() {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { data, isPending, isError, refetch } = useOrders(lang);
+  const navigate = useNavigate();
   const [reporting, setReporting] = useState(false);
-  const [issue, setIssue] = useState("missing");
 
   const today = todayIst();
+  // A delivery stays on top until the day after, so it can still be rated or reported.
+  const yesterday = new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
   const header = (
     <header className="flex flex-col">
@@ -82,9 +85,8 @@ function Orders() {
   );
 
   const current = data?.find(
-    (o) => ACTIVE.has(o.status) || (o.status === "DELIVERED" && o.delivery_date === today),
+    (o) => ACTIVE.has(o.status) || (o.status === "DELIVERED" && o.delivery_date >= yesterday),
   );
-  const report = useReportIssue(current?.id);
 
   if (isPending)
     return (
@@ -112,7 +114,9 @@ function Orders() {
       </div>
     );
 
-  const upcoming = data.filter((o) => o !== current && o.delivery_date >= today);
+  const upcoming = data.filter(
+    (o) => o !== current && o.status !== "DELIVERED" && o.delivery_date >= today,
+  );
 
   /** When a stage happened: the time on the delivery day, else the weekday and time. */
   const at = (/** @type {string} */ iso, /** @type {string} */ deliveryDate) => {
@@ -181,7 +185,17 @@ function Orders() {
               todo: t("orders.tl.todo"),
             }}
           />
-          <div>
+          <div className="flex flex-wrap gap-2">
+            {current.kind === "box" && TRACKABLE.has(current.status) && (
+              <Button
+                variant="primary"
+                onPress={() =>
+                  navigate({ to: "/orders/$orderId/track", params: { orderId: current.id } })
+                }
+              >
+                {t("orders.track")}
+              </Button>
+            )}
             <Button variant="secondary" onPress={() => setReporting(true)}>
               {t("orders.problem")}
             </Button>
@@ -231,38 +245,7 @@ function Orders() {
           </ul>
         </section>
       )}
-      <Sheet
-        open={reporting}
-        onOpenChange={setReporting}
-        title={t("orders.problem")}
-        description={t("orders.problemLead")}
-        footer={
-          <Button
-            variant="primary"
-            size="lg"
-            block
-            isPending={report.isPending}
-            onPress={() =>
-              report.mutate(issue, {
-                onSuccess: () => {
-                  setReporting(false);
-                  toast(t("orders.problemSent"));
-                },
-                onError: () => toast(t("orders.problemFailed")),
-              })
-            }
-          >
-            {t("orders.problemSend")}
-          </Button>
-        }
-      >
-        <RadioCards
-          label={t("orders.problem")}
-          value={issue}
-          onChange={setIssue}
-          options={ISSUES.map((value) => ({ value, title: t(`orders.issues.${value}`) }))}
-        />
-      </Sheet>
+      <ProblemSheet orderId={current?.id} open={reporting} onOpenChange={setReporting} />
     </div>
   );
 }
