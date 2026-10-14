@@ -19,6 +19,8 @@ import { approveDish, reopenDish, sendDishBack } from "./actions.js";
 /** @typedef {import("@/lib/admin/types.js").TiffinDish} TiffinDish */
 
 const TABS = /** @type {const} */ (["review", "live", "back"]);
+/** The tab of each M2 menu status: waiting is `draft`, approved is `approved`, sent back is `withdrawn`. */
+const STATUS = /** @type {const} */ ({ review: "draft", live: "approved", back: "withdrawn" });
 const STATE = /** @type {const} */ ({
   review: ["accent", "Waiting"],
   live: ["primary", "Approved"],
@@ -40,18 +42,18 @@ const EMPTY = {
  * Tiffin menu approvals: the hub manager approves each dish a kitchen proposes before families can
  * book it. The price families pay and the kitchen's pay come from the catalog and GharBasket's rate
  * card; this page shows them and never changes them.
- * @param {{ dishes: TiffinDish[], hubName: string, now: number }} props
+ * @param {{ dishes: TiffinDish[], hubName: string, kitchenPayPaise: number | null, now: number }} props
  */
-export function TiffinView({ dishes, hubName, now }) {
+export function TiffinView({ dishes, hubName, kitchenPayPaise, now }) {
   const [tab, setTab] = useQueryState(
     "tab",
     parseAsStringLiteral(TABS).withDefault("review").withOptions({ history: "replace" }),
   );
   const [pickedId, setPickedId] = useState(/** @type {string | null} */ (null));
-  const list = dishes.filter((d) => d.status === tab);
+  const list = dishes.filter((d) => d.status === STATUS[tab]);
   const dish = list.find((d) => d.id === pickedId) ?? list[0] ?? null;
-  const count = (/** @type {TiffinDish["status"]} */ s) =>
-    dishes.filter((d) => d.status === s).length;
+  const count = (/** @type {typeof TABS[number]} */ t) =>
+    dishes.filter((d) => d.status === STATUS[t]).length;
 
   return (
     <>
@@ -115,14 +117,16 @@ export function TiffinView({ dishes, hubName, now }) {
                         <MoneyText paise={d.price_paise} size="sm" />
                       </td>
                       <td className={TD}>
-                        <Badge tone={STATE[d.status][0]}>{STATE[d.status][1]}</Badge>
+                        <Badge tone={STATE[tab][0]}>{STATE[tab][1]}</Badge>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {dish && <ReviewPanel key={dish.id} dish={dish} now={now} />}
+            {dish && (
+              <ReviewPanel key={dish.id} dish={dish} kitchenPayPaise={kitchenPayPaise} now={now} />
+            )}
           </div>
         )}
       </Tabs>
@@ -132,15 +136,15 @@ export function TiffinView({ dishes, hubName, now }) {
 
 /**
  * The dish being reviewed: its facts, and Approve or Send back while it waits.
- * @param {{ dish: TiffinDish, now: number }} props
+ * @param {{ dish: TiffinDish, kitchenPayPaise: number | null, now: number }} props
  */
-function ReviewPanel({ dish, now }) {
+function ReviewPanel({ dish, kitchenPayPaise, now }) {
   const [note, setNote] = useState("");
   const [problem, setProblem] = useState("");
   const [busy, run] = useTransition();
   const keys = useRef({ approve: "", back: "" });
   const first = dish.kitchen.name.split(" ")[0];
-  const waiting = dish.status === "review";
+  const waiting = dish.status === "draft";
 
   /** @param {string} message @param {string} id */
   const undoable = (message, id) =>
@@ -180,8 +184,8 @@ function ReviewPanel({ dish, now }) {
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-[17px] leading-6 font-bold">{dish.name}</h2>
         {waiting && dish.is_new && <Badge tone="accent">New dish</Badge>}
-        {dish.status === "live" && <Badge tone="primary">Approved</Badge>}
-        {dish.status === "back" && <Badge tone="outline">Sent back</Badge>}
+        {dish.status === "approved" && <Badge tone="primary">Approved</Badge>}
+        {dish.status === "withdrawn" && <Badge tone="outline">Sent back</Badge>}
       </div>
       <p className="text-sm leading-5 text-fg-secondary">
         Proposed by {dish.kitchen.name} for {dish.meal}. Recipe lines come from the catalog, so
@@ -189,7 +193,9 @@ function ReviewPanel({ dish, now }) {
       </p>
       <div>
         <KV k="Price to families">{formatPaise(dish.price_paise)} (catalog price)</KV>
-        <KV k="Kitchen is paid">{formatPaise(dish.kitchen_pay_paise)} a tiffin</KV>
+        {kitchenPayPaise !== null && (
+          <KV k="Kitchen is paid">{formatPaise(kitchenPayPaise)} a tiffin (the hub’s rate card)</KV>
+        )}
         <KV k="Contains">{dish.contains.join(", ")}</KV>
         <KV k="Fasting days">{dish.fasting_note}</KV>
         <KV k="Capacity">
@@ -225,7 +231,7 @@ function ReviewPanel({ dish, now }) {
         </>
       ) : (
         <p className="text-sm leading-5 text-fg-secondary">
-          {dish.status === "live" ? "Approved" : "Sent back"} by {dish.decided_by} ·{" "}
+          {dish.status === "approved" ? "Approved" : "Sent back"} by {dish.decided_by} ·{" "}
           {dish.decided_at ? whenLabel(dish.decided_at, now) : ""}
           {dish.note ? `. Note to ${first}: "${dish.note}"` : ""}
         </p>
