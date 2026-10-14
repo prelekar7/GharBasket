@@ -3,6 +3,7 @@
 // backend/api/.../modules/catalog/schemas.py (ProductOut, SearchResults); ids are the slugs.
 // Money is integer paise. Mock-only extras are listed in mocks/README.md.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 // The list in use at the hub: published for Thu 1 Oct 2026 (mocks/prices.js moves it when a new list starts).
@@ -105,7 +106,7 @@ const PRODUCTS = [
   ["eggs", "Eggs", "अंडे", "अंडी", "dairy-eggs", "staple", 6, "piece", 336, 4500, null, ["egg", "high_protein"], ["anda", "ande", "andi", "egg"]],
 ];
 const LANGS = /** @type {const} */ (["en", "hi", "mr"]);
-const HUB_ID = "kharghar";
+const HUB_ID = KHARGHAR_HUB_ID;
 
 /**
  * The catalog in memory (active products with this hub's price per step). Other mocks that change

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { KHARGHAR_HUB_ID } from "../../../../mocks/hubs.js";
 import { buildTiles } from "./tiles.js";
 
 /** The simulator seed's last four weeks, as in the KPI design. */
 const KPIS = {
-  hub_id: "kharghar",
+  hub_id: KHARGHAR_HUB_ID,
   data_source: /** @type {const} */ ("simulator"),
   weeks: ["7 Sep", "14 Sep", "21 Sep", "28 Sep"],
   active_households: [52, 55, 58, 64],

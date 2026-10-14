@@ -13,7 +13,7 @@ const MESSAGES = {
   "auth.forbidden": "Only an admin can change plans.",
   "subscriptions.plan_not_found": "This plan no longer exists. Reload the page.",
   "subscriptions.plan_exists": "A plan with this code already exists.",
-  "request.idempotency_conflict": "This save was already sent with other values. Press Save again.",
+  "request.idempotency_mismatch": "This save was already sent with other values. Press Save again.",
 };
 
 /**

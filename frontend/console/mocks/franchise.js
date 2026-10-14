@@ -5,6 +5,7 @@
 import { HttpResponse, http } from "msw";
 import { toDecimalText } from "../lib/money.js";
 import { boxEconomics } from "../lib/unit-economics.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { buildPnl, PERIOD_OPTIONS, SEED_ASSUMPTIONS } from "./pnl-data.js";
 import { mockStore, problem, roleOf } from "./util.js";
 
@@ -40,7 +41,7 @@ function forbidden(request) {
 
 /** @param {Assumptions} a */
 const payload = (a) => ({
-  hub_id: "kharghar",
+  hub_id: KHARGHAR_HUB_ID,
   assumptions: a,
   per_box: boxEconomics(a),
   history: store().history,
@@ -74,7 +75,7 @@ export const franchiseHandlers = [
     const earlier = PERIOD_OPTIONS[index + 1];
     const previous = earlier ? buildPnl(earlier.value, store().assumptions) : null;
     return HttpResponse.json({
-      hub_id: "kharghar",
+      hub_id: KHARGHAR_HUB_ID,
       ...pnl,
       periods: PERIOD_OPTIONS,
       previous_contribution_paise: previous?.contribution_paise ?? null,

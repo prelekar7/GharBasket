@@ -4,6 +4,7 @@
 // real coordinates near 19.04 N, 73.07 E; they are approximate squares, not surveyed.
 import { HttpResponse, http } from "msw";
 import { deny, istDay, slugify, square, validPolygon } from "./adminShared.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /**
@@ -31,7 +32,7 @@ const towers = (prefix, n) =>
 const seedSocieties = () => [
   {
     id: "sunrise-towers",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Sunrise Towers",
     area: "Sector 20, Kharghar",
     status: "live",
@@ -44,7 +45,7 @@ const seedSocieties = () => [
   },
   {
     id: "krishna-kunj",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Krishna Kunj",
     area: "Sector 17, New Panvel",
     status: "live",
@@ -57,7 +58,7 @@ const seedSocieties = () => [
   },
   {
     id: "green-valley-heights",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Green Valley Heights",
     area: "Sector 35, Kharghar",
     status: "unlocking",
@@ -70,7 +71,7 @@ const seedSocieties = () => [
   },
   {
     id: "shree-ganesh-chs",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Shree Ganesh CHS",
     area: "Sector 12, Kharghar",
     status: "unlocking",
@@ -83,7 +84,7 @@ const seedSocieties = () => [
   },
   {
     id: "panchavati-residency",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     name: "Panchavati Residency",
     area: "Sector 7, Kamothe",
     status: "prospect",

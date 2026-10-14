@@ -4,6 +4,7 @@
 // shared story: Tue 6 Oct 2026, Kharghar hub, 58 boxes (46 Sunrise Towers + 12 Krishna Kunj),
 // methi 26 of 34 received (30 needed, 4 bags short), van out at 7.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { problem } from "./util.js";
 
 export const TODAY = "2026-10-06";
@@ -15,7 +16,7 @@ const at = (/** @type {number} */ x, /** @type {number} */ y) => ({
 });
 
 const BOARD = {
-  hub_id: "kharghar",
+  hub_id: KHARGHAR_HUB_ID,
   date: TODAY,
   as_of: "8:20 AM",
   status_line: "Packing finished, the van is out, and Meena tai has Sunrise Towers’ crates.",

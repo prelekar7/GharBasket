@@ -4,6 +4,7 @@
 // Money is integer paise. The mock "now" is fixed to the shared story: Mon 5 Oct 2026, 6:46 PM IST,
 // so the cut-off countdown reads "2 h 14 min" on every load.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 export const STORY_NOW = "2026-10-05T18:46:00+05:30";
@@ -27,7 +28,7 @@ export const KRISHNA = { id: "krishna-kunj", name: "Krishna Kunj" };
 const SLOT_SEED = [
   {
     id: "slot-early",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     label: "7 to 9 AM",
     start_time: "07:00",
     end_time: "09:00",
@@ -36,7 +37,7 @@ const SLOT_SEED = [
   },
   {
     id: "slot-am",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     label: "8 to 10 AM",
     start_time: "08:00",
     end_time: "10:00",
@@ -45,7 +46,7 @@ const SLOT_SEED = [
   },
   {
     id: "slot-pm",
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     label: "5 to 7 PM",
     start_time: "17:00",
     end_time: "19:00",
@@ -235,7 +236,7 @@ export const ordersHandlers = [
       /** @type {Slot} */
       const slot = {
         id: `slot-${crypto.randomUUID().slice(0, 8)}`,
-        hub_id: body.hub_id ?? "kharghar",
+        hub_id: body.hub_id ?? KHARGHAR_HUB_ID,
         label: slotLabel(body.start_time, body.end_time),
         start_time: body.start_time,
         end_time: body.end_time,
@@ -276,7 +277,7 @@ export const ordersHandlers = [
     const mine = s.orders.filter((o) => o.delivery_date === DELIVERY_DATE);
     const c = counts(mine);
     return HttpResponse.json({
-      hub_id: "kharghar",
+      hub_id: KHARGHAR_HUB_ID,
       delivery_date: DELIVERY_DATE,
       cutoff_at: CUTOFF_AT,
       grace_until: GRACE_UNTIL,

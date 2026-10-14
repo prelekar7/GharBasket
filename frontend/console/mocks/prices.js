@@ -4,8 +4,8 @@
 import { HttpResponse, http } from "msw";
 import { todayIso } from "../lib/catalog.js";
 import { catalogStore } from "./catalog.js";
-import { HUBS } from "./hubs.js";
-import { idempotent, mockStore, problem, roleOf } from "./util.js";
+import { HUBS, KHARGHAR_HUB_ID } from "./hubs.js";
+import { fieldError, idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /**
  * A list of one hub. `lines` is kept only for lists that have not started yet; the list in use is the
@@ -32,7 +32,7 @@ function lists() {
 function list(id, from, status, count, changed, publishedOn) {
   return {
     id,
-    hub_id: "kharghar",
+    hub_id: KHARGHAR_HUB_ID,
     valid_from: from,
     status,
     published_at: `${publishedOn}T18:30:00+05:30`,
@@ -68,7 +68,7 @@ function apply(l) {
   store.priceValidFrom = l.valid_from;
 }
 
-/** @param {{ field: string, message: string }[]} errors */
+/** @param {ReturnType<typeof fieldError>[]} errors */
 const invalid = (errors) =>
   problem(422, "request.invalid", "Fix the prices and try again", { errors });
 
@@ -78,7 +78,7 @@ export const pricesHandlers = [
     startDue();
     const { products, priceValidFrom, categories } = catalogStore();
     return HttpResponse.json({
-      hub_id: new URL(request.url).searchParams.get("hub_id") ?? "kharghar",
+      hub_id: new URL(request.url).searchParams.get("hub_id") ?? KHARGHAR_HUB_ID,
       valid_from: priceValidFrom,
       items: products
         .filter((p) => p.active && p.price_paise != null)
@@ -123,27 +123,29 @@ export const pricesHandlers = [
         );
       if (!HUBS.some((h) => h.id === params.id))
         return problem(404, "hubs.not_found", "No such hub");
-      /** @type {{ field: string, message: string }[]} */
+      /** @type {ReturnType<typeof fieldError>[]} */
       const errors = [];
       const from = body?.valid_from;
       if (typeof from !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(from) || from < todayIso())
-        errors.push({ field: "valid_from", message: "Pick today or a later date" });
+        errors.push(fieldError("valid_from", "Pick today or a later date"));
       const lines = Array.isArray(body?.lines) ? body.lines : [];
-      if (lines.length === 0) errors.push({ field: "lines", message: "Add at least one price" });
+      if (lines.length === 0) errors.push(fieldError("lines", "Add at least one price"));
       const { products } = catalogStore();
       const seen = new Set();
-      for (const l of lines) {
+      for (const [i, l] of lines.entries()) {
         const p = products.find((x) => x.slug === l?.product_id && x.active);
-        const at = `lines.${l?.product_id}`;
-        if (!p) errors.push({ field: at, message: `${l?.product_id} is not in the catalog` });
+        if (!p)
+          errors.push(
+            fieldError(`lines.${i}.product_id`, `${l?.product_id} is not in the catalog`),
+          );
         else if (seen.has(p.slug))
-          errors.push({ field: at, message: `${p.names.en} appears twice` });
+          errors.push(fieldError(`lines.${i}.product_id`, `${p.names.en} appears twice`));
         else if (!Number.isInteger(l.price_paise) || l.price_paise < 1)
-          errors.push({ field: at, message: `${p.names.en} needs a price above ₹0` });
+          errors.push(fieldError(`lines.${i}.price_paise`, `${p.names.en} needs a price above ₹0`));
         else {
           const mrp = l.mrp_paise === undefined ? p.mrp_paise : l.mrp_paise;
           if (mrp != null && l.price_paise > mrp)
-            errors.push({ field: at, message: `${p.names.en} is above its MRP` });
+            errors.push(fieldError(`lines.${i}.price_paise`, `${p.names.en} is above its MRP`));
         }
         seen.add(l?.product_id);
       }

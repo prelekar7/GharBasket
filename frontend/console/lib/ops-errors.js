@@ -1,4 +1,5 @@
 import { ApiProblem } from "./api.js";
+import { fieldMessages } from "./problem-fields.js";
 
 /**
  * A sentence a person can read for a failed API call: never the code or the raw detail. Pass
@@ -17,18 +18,11 @@ export function humanMessage(error, byCode = {}) {
 }
 
 /**
- * Field errors of a 422 as `{ field: message }`, for showing under the inputs.
+ * Field errors of a 422 as `{ field: message }`, for showing under the inputs. The field is the
+ * last string of each error's `loc` (lib/problem-fields.js).
  * @param {unknown} error
  * @returns {Record<string, string>}
  */
 export function fieldErrors(error) {
-  /** @type {Record<string, string>} */
-  const out = {};
-  if (error instanceof ApiProblem) {
-    for (const e of error.errors) {
-      if (e && typeof e.field === "string" && typeof e.message === "string")
-        out[e.field] = e.message;
-    }
-  }
-  return out;
+  return error instanceof ApiProblem ? fieldMessages(error.errors) : {};
 }

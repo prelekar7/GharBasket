@@ -1,6 +1,7 @@
 // Helpers and typedefs for the catalog, price and plan pages (M2, M3). Plain JS, no React, so server
 // and client components can both import it. Money is integer paise; every number here is arithmetic
 // on what the API sent, never a guess.
+import { fieldMessages } from "./problem-fields.js";
 
 /**
  * @typedef {{ en: string, hi: string, mr: string }} Names
@@ -126,12 +127,8 @@ export function todayIso() {
  * @returns {{ message: string, fields: Record<string, string> }}
  */
 export function describeProblem(error, byCode = {}) {
-  /** @type {Record<string, string>} */
-  const fields = {};
-  const e = /** @type {{ code?: string, errors?: { field?: string, message?: string }[] }} */ (
-    error
-  );
-  for (const f of e?.errors ?? []) if (f.field && f.message) fields[f.field] = f.message;
+  const e = /** @type {{ code?: string, errors?: unknown }} */ (error);
+  const fields = fieldMessages(e?.errors);
   const message =
     (e?.code && byCode[e.code]) ||
     (Object.keys(fields).length ? "Check the highlighted fields and try again." : null) ||

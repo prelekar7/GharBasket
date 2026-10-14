@@ -2,6 +2,7 @@
 
 import { ApiProblem, apiPost } from "@/lib/api.js";
 import { currentHub } from "@/lib/hub.js";
+import { fieldMessages } from "@/lib/problem-fields.js";
 
 /**
  * Adds a vendor to this hub. A 422 comes back as field messages the form shows next to the fields.
@@ -18,9 +19,7 @@ export async function addVendor(vendor, idempotencyKey) {
     };
   } catch (e) {
     if (!(e instanceof ApiProblem)) throw e;
-    /** @type {Record<string, string>} */
-    const fields = {};
-    for (const err of e.errors) if (err?.field) fields[err.field] = err.message;
+    const fields = fieldMessages(e.errors);
     return {
       ok: false,
       fields,

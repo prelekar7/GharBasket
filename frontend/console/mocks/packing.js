@@ -6,6 +6,7 @@
 // Seeded like the Packing design at 5:40 AM on Tue 6 Oct 2026: 58 bags (46 Sunrise Towers + 12
 // Krishna Kunj) = 24 to pack, 2 packing, 28 packed, 4 in crate S-1. Task ids are made up here.
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /** @typedef {"to_pack" | "packing" | "packed" | "crated"} PackStatus */
@@ -139,7 +140,7 @@ const STATUSES = ["to_pack", "packing", "packed", "crated"];
 export const packingHandlers = [
   // GET /v1/hubs/{id}/packing-tasks?date=&status=  (spec) plus crates and packers (proposal)
   http.get("*/v1/hubs/:id/packing-tasks", ({ params, request }) => {
-    if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
     const { tasks, sheets } = state();

@@ -13,7 +13,7 @@ const MESSAGES = {
   "auth.forbidden": "Only an admin can change the catalog.",
   "catalog.product_not_found": "This product no longer exists. Go back to the catalog.",
   "catalog.product_exists": "A product with this English name already exists.",
-  "request.idempotency_conflict": "This save was already sent with other values. Press Save again.",
+  "request.idempotency_mismatch": "This save was already sent with other values. Press Save again.",
 };
 
 /**

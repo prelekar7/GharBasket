@@ -3,6 +3,7 @@
 import { ApiProblem, apiPost } from "@/lib/api.js";
 import { describeProblem } from "@/lib/catalog.js";
 import { currentHub } from "@/lib/hub.js";
+import { messagesOf } from "@/lib/problem-fields.js";
 
 /**
  * @typedef {{ product_id: string, price_paise: number, mrp_paise?: number | null }} PriceLine
@@ -11,7 +12,7 @@ import { currentHub } from "@/lib/hub.js";
 
 const MESSAGES = {
   "auth.forbidden": "Only an admin or the hub manager can publish prices.",
-  "request.idempotency_conflict":
+  "request.idempotency_mismatch":
     "This publish was already sent with other prices. Press Publish again.",
 };
 
@@ -35,7 +36,7 @@ export async function publishPriceList(validFrom, lines, idempotencyKey) {
     return { ok: true, status: list.status };
   } catch (error) {
     if (!(error instanceof ApiProblem)) throw error;
-    const { message, fields } = describeProblem(error, MESSAGES);
-    return { ok: false, message, details: Object.values(fields) };
+    const { message } = describeProblem(error, MESSAGES);
+    return { ok: false, message, details: messagesOf(error.errors) };
   }
 }

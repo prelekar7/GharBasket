@@ -5,6 +5,7 @@
 // methi is next (34 ordered, 30 needed today), curry leaves not yet.
 import { HttpResponse, http } from "msw";
 import { catalogStore } from "./catalog.js";
+import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { procurementState, VENDORS } from "./procurement.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
@@ -75,7 +76,7 @@ function board() {
 
 export const receivingHandlers = [
   http.get("*/v1/hubs/:id/receiving", ({ params }) =>
-    params.id === "kharghar"
+    params.id === KHARGHAR_HUB_ID
       ? HttpResponse.json(board())
       : problem(404, "hubs.not_found", "No such hub"),
   ),
@@ -83,7 +84,7 @@ export const receivingHandlers = [
   // POST /v1/hubs/{id}/grn  { product_id, received_qty, grade, has_photo? } (spec; body is our proposal)
   http.post("*/v1/hubs/:id/grn", ({ params, request }) =>
     idempotent(request, (body) => {
-      if (params.id !== "kharghar") return problem(404, "hubs.not_found", "No such hub");
+      if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
       const line = board().lines.find((l) => l.product_id === body?.product_id);
       if (!line)
         return problem(404, "receiving.line_not_found", "That item is not on today’s orders");
