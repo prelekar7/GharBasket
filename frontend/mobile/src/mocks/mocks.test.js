@@ -160,3 +160,47 @@ describe("box line quantity (Core-B3)", () => {
     expect((await patch({ op: "qty", product_id: "methi", qty: 0 }, 1)).status).toBe(422);
   });
 });
+
+describe("add-ons (M2 search, lines on the box)", () => {
+  const search = async (/** @type {string} */ q, lang = "en-IN") =>
+    (
+      await (
+        await mockFetch(
+          new Request(`http://localhost/v1/search?q=${encodeURIComponent(q)}`, {
+            headers: { "accept-language": lang },
+          }),
+        )
+      ).json()
+    ).items;
+
+  it("finds a product by its Hinglish or Hindi name", async () => {
+    expect((await search("anda"))[0]).toMatchObject({ product_id: "eggs", name: "Eggs" });
+    expect((await search("दूध", "hi-IN"))[0]).toMatchObject({ product_id: "milk", name: "दूध" });
+    expect(await search("x")).toEqual([]);
+  });
+
+  it("adds a catalog item as a box line, priced into the total, and Undo keeps its amount", async () => {
+    const patch = async (/** @type {object} */ body, /** @type {number} */ v) =>
+      (
+        await mockFetch(
+          new Request("http://localhost/v1/cycles/cyc-2026-10-05/lines", {
+            method: "PATCH",
+            headers: { "content-type": "application/json", "if-match": String(v) },
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json();
+    let c = await patch({ op: "add", product_id: "eggs" }, 1);
+    expect(c.lines.at(-1)).toMatchObject({
+      product_id: "eggs",
+      qty_label: "6 pcs",
+      reason_code: "added_by_you",
+    });
+    expect(c.total_paise).toBe(69000 + 4200);
+    c = await patch({ op: "qty", product_id: "eggs", qty: 2 }, 2);
+    c = await patch({ op: "remove", product_id: "eggs" }, 3);
+    expect(c.total_paise).toBe(69000);
+    c = await patch({ op: "restore", product_id: "eggs" }, 4);
+    expect(c.lines.at(-1).qty_label).toBe("12 pcs");
+  });
+});

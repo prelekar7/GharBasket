@@ -4,6 +4,7 @@
 // highlights are codes with params, which the app turns into sentences.
 import { HttpResponse, http } from "msw";
 import { chargeBox, walletBalance } from "./billing.js";
+import { PRODUCTS } from "./catalog.js";
 import { bookedTiffins, TIFFIN_OFFER } from "./orders.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
@@ -129,7 +130,7 @@ const loadState = () => {
   }
 };
 const saveState = (
-  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[] }} */ s,
+  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[], added?: Record<string, number>, parked?: Record<string, number> }} */ s,
 ) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
@@ -145,6 +146,7 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
     meals = {},
     qty = {},
     removed = [],
+    added = {},
   } = loadState();
   const base = LINES.filter(([id]) => !removed.includes(id)).map(
     ([id, en, hi, qen, qhi, price, code, params, from]) => {
@@ -200,6 +202,25 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       swapped_from_paise: l.price_paise,
     };
   });
+  // Add-ons are lines on the weekly box, paid at the same cut-off (design review, 2 Oct).
+  for (const [id, count] of Object.entries(added)) {
+    const p = PRODUCTS.find(([pid]) => pid === id);
+    if (!p) continue;
+    const [, en, hin, , amount, uen, uhi, price] = p;
+    const unit = lang === "hi" ? uhi : uen;
+    lines.push({
+      product_id: id,
+      name: lang === "hi" ? hin : en,
+      qty_label: qtyLabel(count * amount, unit, lang),
+      qty: count,
+      step: { label: qtyLabel(amount, unit, lang), price_paise: price },
+      used_in: [],
+      price_paise: count * price,
+      reason_code: "added_by_you",
+      reason_params: null,
+      swapped_from_paise: null,
+    });
+  }
   return {
     id: "cyc-2026-10-05",
     week_start: "2026-10-05",
@@ -374,6 +395,26 @@ export const subscriptionHandlers = [
       return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
     const body = /** @type {any} */ (await request.json());
     // { op: "qty", product_id, qty } | { op: "remove" | "restore", product_id } (Core-B3, B4).
+    // { op: "add", product_id }: an add-on from the catalog, one step to start (or one more).
+    if (body.op === "add" || (body.op && PRODUCTS.some(([pid]) => pid === body.product_id))) {
+      const added = { ...(state.added ?? {}) };
+      if (!PRODUCTS.some(([pid]) => pid === body.product_id))
+        return problem(404, "catalog.product_not_found", "No such product");
+      if (body.op === "add") added[body.product_id] = (added[body.product_id] ?? 0) + 1;
+      else if (body.op === "qty") {
+        if (!(Number.isInteger(body.qty) && body.qty >= 1 && body.qty <= 20))
+          return problem(422, "subscriptions.qty_invalid", "Pick between 1 and 20");
+        added[body.product_id] = body.qty;
+      }
+      // Remember what was removed, so Undo brings back the same amount.
+      const parked = { ...(state.parked ?? {}) };
+      if (body.op === "remove") {
+        parked[body.product_id] = added[body.product_id];
+        delete added[body.product_id];
+      } else if (body.op === "restore") added[body.product_id] = parked[body.product_id] ?? 1;
+      saveState({ ...state, version: state.version + 1, added, parked });
+      return HttpResponse.json(cycle(langOf(request)));
+    }
     if (body.op === "qty" || body.op === "remove" || body.op === "restore") {
       if (!LINES.some(([id]) => id === body.product_id))
         return problem(404, "subscriptions.line_not_found", "That item is not in the box");

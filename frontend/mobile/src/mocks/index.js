@@ -1,6 +1,7 @@
 import { getResponse } from "msw";
 import { assistantHandlers } from "./assistant.js";
 import { billingHandlers } from "./billing.js";
+import { catalogHandlers } from "./catalog.js";
 import { communityHandlers } from "./community.js";
 import { handlers } from "./handlers.js";
 import { identityHandlers } from "./identity.js";
@@ -21,6 +22,7 @@ const all = [
   ...profileHandlers,
   ...partnerHandlers,
   ...assistantHandlers,
+  ...catalogHandlers,
 ];
 
 /**
