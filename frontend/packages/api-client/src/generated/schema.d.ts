@@ -911,7 +911,8 @@ export interface paths {
         get: operations["me_v1_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete my account after a 30-day grace (signs out every device; spec §3.5) */
+        delete: operations["delete_me_v1_me_delete"];
         options?: never;
         head?: never;
         /** Change name, language or senior mode (only the fields sent) */
@@ -2241,6 +2242,31 @@ export interface components {
             /** Meals */
             meals: components["schemas"]["MealOut"][];
         };
+        /**
+         * DeletionOut
+         * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+         *     in again before then.
+         */
+        DeletionOut: {
+            /**
+             * Purge On
+             * Format: date
+             * @description IST date, 30 days after the request
+             */
+            purge_on: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "scheduled";
+            /** @description The wallet balance on its way back to the original payment source */
+            wallet_refund: components["schemas"]["WalletRefundOut"] | null;
+        };
         /** DeliveryDayIn */
         DeliveryDayIn: {
             /**
@@ -2383,6 +2409,12 @@ export interface components {
             device: components["schemas"]["DeviceIn"];
             /** Firebase Id Token */
             firebase_id_token?: string | null;
+            /**
+             * Keep Account
+             * @description For an account whose deletion is scheduled: true (after the app asked "Keep my account?") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)
+             * @default false
+             */
+            keep_account: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -2393,6 +2425,12 @@ export interface components {
             access_expires_in: number;
             /** Access Token */
             access_token: string | null;
+            /**
+             * Deletion Cancelled
+             * @description True when this sign-in cancelled a scheduled deletion
+             * @default false
+             */
+            deletion_cancelled: boolean;
             /** Is New User */
             is_new_user: boolean;
             /** Refresh Token */
@@ -6018,6 +6056,19 @@ export interface components {
              */
             topup_room_paise: number;
         };
+        /** WalletRefundOut */
+        WalletRefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
+        };
         /** WebhookAck */
         WebhookAck: {
             /**
@@ -7168,6 +7219,15 @@ export interface operations {
             };
             /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9944,6 +10004,53 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_me_v1_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.staff_account (with roles): an admin removes staff roles first */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

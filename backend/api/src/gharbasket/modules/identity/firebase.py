@@ -13,6 +13,7 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx2
@@ -38,6 +39,7 @@ log = structlog.get_logger("gharbasket.identity.firebase")
 class FirebaseIdentity:
     uid: str
     phone_e164: str
+    auth_time: datetime  # when the OTP was entered; DELETE /v1/me needs it recent (spec §3.5)
 
 
 def _max_age(cache_control: str | None) -> int:
@@ -118,4 +120,6 @@ class FirebaseTokenVerifier:
             raise invalid_token("The phone verification is not valid.")
         if not isinstance(phone, str) or not phone:
             raise invalid_token("Sign in with your phone number.")
-        return FirebaseIdentity(uid=uid, phone_e164=phone)
+        return FirebaseIdentity(
+            uid=uid, phone_e164=phone, auth_time=datetime.fromtimestamp(auth_time, UTC)
+        )
