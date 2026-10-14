@@ -22,7 +22,11 @@ export async function uploadFile(file, purpose = "order_issue_photo") {
   const { "Content-Length": _length, ...send } = headers;
   const put = new Request(url, { method: "PUT", body: file, headers: send });
   // Same switch as lib/api.js: the fake storage lives in the mocks and never keeps the bytes.
-  const res = MOCK ? await (await import("@/mocks/index.js")).mockFetch(put) : await fetch(put);
+  // `DEV` inline (as well as inside MOCK) lets the bundler drop the mocks from every build.
+  const res =
+    import.meta.env.DEV && MOCK
+      ? await (await import("@/mocks/index.js")).mockFetch(put)
+      : await fetch(put);
   if (!res.ok) throw new Error(`upload ${res.status}`);
   return key;
 }
