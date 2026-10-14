@@ -6,6 +6,7 @@ import { communityHandlers } from "./community.js";
 import { handlers } from "./handlers.js";
 import { identityHandlers } from "./identity.js";
 import { kindnessHandlers } from "./kindness.js";
+import { logisticsHandlers } from "./logistics.js";
 import { notificationHandlers } from "./notifications.js";
 import { orderHandlers } from "./orders.js";
 import { packerHandlers } from "./packer.js";
@@ -27,6 +28,7 @@ const all = [
   ...catalogHandlers,
   ...notificationHandlers,
   ...packerHandlers,
+  ...logisticsHandlers,
 ];
 
 /**
