@@ -10,7 +10,7 @@ export const KHARGHAR_HUB_ID = "0199a000-0000-7000-8000-00000000a001";
 /** A made-up second hub, so the KPI Hub filter has something to compare. Not in the backend seed. */
 export const TALOJA_HUB_ID = "0199a000-0000-7000-8000-00000000a002";
 
-/** @type {{ id: string, slug: string, name: string, city: string, status: "active" | "planned" }[]} */
+/** @type {{ id: string, slug: string, name: string, city: string, status: "active" | "planned", location: { lat: number, lng: number } }[]} */
 export const HUBS = [
   {
     id: KHARGHAR_HUB_ID,
@@ -18,9 +18,17 @@ export const HUBS = [
     name: "Kharghar hub",
     city: "Navi Mumbai",
     status: "active",
+    location: { lat: 19.033, lng: 73.066 },
   },
   // Only admins see the second hub (see visibleHubs).
-  { id: TALOJA_HUB_ID, slug: "taloja", name: "Taloja hub", city: "Navi Mumbai", status: "active" },
+  {
+    id: TALOJA_HUB_ID,
+    slug: "taloja",
+    name: "Taloja hub",
+    city: "Navi Mumbai",
+    status: "active",
+    location: { lat: 19.07, lng: 73.1 },
+  },
 ];
 
 /**

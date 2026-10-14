@@ -25,6 +25,16 @@ export function formatTime(iso) {
 }
 
 /**
+ * "8:07 AM" for an IST clock time as the API sends it ("08:07"), the way `formatTime` shows a timestamp.
+ * @param {string | null | undefined} hhmm
+ */
+export function formatClock(hhmm) {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/**
  * "Tue 6 Oct" for an ISO date or timestamp.
  * @param {string} iso
  */
@@ -57,11 +67,10 @@ export function newKey() {
   );
 }
 
-/** The kinds the solver plans for, as the API names them. */
+/** The vehicle kinds of M7 §3.1: boxes and add-ons ride cargo three-wheelers, tiffins ride two-wheelers. */
 export const KINDS = [
-  { value: "van", label: "Van" },
-  { value: "ev3w", label: "Electric three-wheeler" },
-  { value: "bike", label: "Two-wheeler with box" },
+  { value: "cargo_3w", label: "Electric three-wheeler" },
+  { value: "two_wheeler", label: "Two-wheeler with box" },
 ];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

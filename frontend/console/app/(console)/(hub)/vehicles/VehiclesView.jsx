@@ -12,28 +12,45 @@ const COLUMNS = [
   { key: "kind", label: "Kind" },
   { key: "kg", label: "Max weight", align: /** @type {const} */ ("end") },
   { key: "crates", label: "Max crates", align: /** @type {const} */ ("end") },
+  { key: "tiffins", label: "Max tiffins", align: /** @type {const} */ ("end") },
   { key: "today", label: "Today" },
   { key: "state", label: "State" },
 ];
 
-/** @type {Record<import("./data.js").Vehicle["status"], { tone: "primary" | "outline" | "neutral", label: string }>} */
+/** @type {Record<"on_route" | "available" | "retired", { tone: "primary" | "outline" | "neutral", label: string }>} */
 const STATE = {
   on_route: { tone: "primary", label: "On route" },
   available: { tone: "outline", label: "Available" },
   retired: { tone: "neutral", label: "Retired" },
 };
 
-/** @param {{ vehicles: import("./data.js").Vehicle[] }} props */
-export function VehiclesView({ vehicles }) {
-  const rows = vehicles.map((v) => ({
-    id: v.id,
-    name: { text: v.name, sub: v.registration, strong: true },
-    kind: KINDS.find((k) => k.value === v.kind)?.label ?? v.kind,
-    kg: `${v.capacity_kg} kg`,
-    crates: String(v.capacity_crates),
-    today: v.assignment ? `${v.assignment.rider} · ${v.assignment.route_label}` : "—",
-    state: { badge: STATE[v.status] },
-  }));
+/**
+ * @param {{ vehicles: import("./data.js").Vehicle[], today: import("./data.js").TodayRoute[], riders: { user_id: string, name: string }[] }} props
+ */
+export function VehiclesView({ vehicles, today, riders }) {
+  const rows = vehicles.map((v) => {
+    const route = today.find((r) => r.vehicleId === v.id);
+    const state = !v.active
+      ? "retired"
+      : route?.status === "in_progress"
+        ? "on_route"
+        : "available";
+    const rider = route ? route.rider : (v.default_rider?.name ?? null);
+    return {
+      id: v.id,
+      name: { text: v.label, sub: v.registration ?? undefined, strong: true },
+      kind: KINDS.find((k) => k.value === v.kind)?.label ?? v.kind,
+      kg: `${v.capacity_kg} kg`,
+      crates: String(v.capacity_crates),
+      tiffins: String(v.capacity_tiffins),
+      today: route
+        ? `${rider ?? "No rider yet"} · trip ${route.trip}`
+        : v.active
+          ? (rider ?? "—")
+          : "—",
+      state: { badge: STATE[state] },
+    };
+  });
   return (
     <>
       <div className="flex flex-col gap-0.5">
@@ -48,21 +65,28 @@ export function VehiclesView({ vehicles }) {
           columns={COLUMNS}
           rows={rows}
           caption="Vehicles at this hub"
-          footer="Registration numbers and limits are placeholders until the hub’s real fleet is entered."
+          footer="A change applies to the next solve, never to a route already published."
           labels={{ empty: "No vehicles yet. Add the first one." }}
         />
-        <AddVehicle />
+        <AddVehicle riders={riders} />
       </div>
       <Toasts />
     </>
   );
 }
 
-function AddVehicle() {
-  const [kind, setKind] = useState("van");
+/** A blank number field means "the default for this kind". @param {string} text */
+const optionalWhole = (text) => (text.trim() === "" ? undefined : Number(text));
+
+/** @param {{ riders: { user_id: string, name: string }[] }} props */
+function AddVehicle({ riders }) {
+  const [label, setLabel] = useState("");
+  const [kind, setKind] = useState("cargo_3w");
   const [registration, setRegistration] = useState("");
   const [kg, setKg] = useState("");
   const [crates, setCrates] = useState("");
+  const [tiffins, setTiffins] = useState("");
+  const [rider, setRider] = useState("");
   const [fields, setFields] = useState(/** @type {Record<string, string>} */ ({}));
   const [problem, setProblem] = useState("");
   // One Idempotency-Key per request: the same body retried reuses it, a changed body is a new intent.
@@ -78,19 +102,21 @@ function AddVehicle() {
   function submit() {
     start(async () => {
       const input = {
+        label: label.trim(),
         kind,
-        registration,
-        capacity_kg: Number(kg),
-        capacity_crates: Number(crates),
+        ...(registration.trim() && { registration: registration.trim() }),
+        ...(kg.trim() && { capacity_kg: optionalWhole(kg) }),
+        ...(crates.trim() && { capacity_crates: optionalWhole(crates) }),
+        ...(tiffins.trim() && { capacity_tiffins: optionalWhole(tiffins) }),
+        ...(rider && { default_rider_user_id: rider }),
       };
       const body = JSON.stringify(input);
       if (attempt.current.body !== body) attempt.current = { body, key: newKey() };
       const result = await addVehicle(attempt.current.key, input);
       if (result.ok) {
-        toast(`${result.name} added`);
-        setRegistration("");
-        setKg("");
-        setCrates("");
+        toast(`${result.label} added`);
+        for (const reset of [setLabel, setRegistration, setKg, setCrates, setTiffins, setRider])
+          reset("");
         setFields({});
         setProblem("");
         attempt.current = { body: "", key: "" }; // the next vehicle is a new intent
@@ -111,16 +137,24 @@ function AddVehicle() {
       className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4"
     >
       <h2 className="text-[17px] leading-6 font-bold">Add a vehicle</h2>
+      <TextField
+        label="Label"
+        placeholder="EV-3"
+        value={label}
+        onChange={edit("label", setLabel)}
+        isInvalid={!!fields.label}
+        errorMessage={fields.label}
+      />
       <Select label="Kind" options={KINDS} value={kind} onChange={setKind} />
       <TextField
-        label="Registration number"
-        placeholder="MH-46 …"
+        label="Registration number (optional)"
+        placeholder="MH46AB1234"
         value={registration}
         onChange={edit("registration", setRegistration)}
         isInvalid={!!fields.registration}
         errorMessage={fields.registration}
       />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <TextField
           label="Max weight"
           inputMode="numeric"
@@ -138,7 +172,27 @@ function AddVehicle() {
           isInvalid={!!fields.capacity_crates}
           errorMessage={fields.capacity_crates}
         />
+        <TextField
+          label="Max tiffins"
+          inputMode="numeric"
+          value={tiffins}
+          onChange={edit("capacity_tiffins", setTiffins)}
+          isInvalid={!!fields.capacity_tiffins}
+          errorMessage={fields.capacity_tiffins}
+        />
       </div>
+      <p className="text-sm leading-5 text-fg-secondary">
+        Leave the limits blank to use the kind’s usual ones (three-wheeler 400 kg and 24 crates,
+        two-wheeler 40 kg and 30 tiffins).
+      </p>
+      <Select
+        label="Default rider (optional)"
+        placeholder="No default rider"
+        options={riders.map((r) => ({ value: r.user_id, label: r.name }))}
+        value={rider}
+        onChange={edit("default_rider_user_id", setRider)}
+        error={fields.default_rider_user_id}
+      />
       {problem && (
         <p role="alert" className="text-sm leading-5 font-semibold text-danger">
           {problem}
