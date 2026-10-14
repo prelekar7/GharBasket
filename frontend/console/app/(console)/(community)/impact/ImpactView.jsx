@@ -2,6 +2,7 @@
 
 import { Button, EmptyState, formatPaise, toast } from "@gharbasket/ui";
 import { ChartCard, DataTable, KpiTile } from "@gharbasket/ui/console";
+import { LinkButton } from "@/components/LinkButton.jsx";
 import { PageHeader } from "@/components/PageHeader.jsx";
 import { Toasts } from "@/components/Toasts.jsx";
 import { downloadCsv } from "@/lib/csv.js";
@@ -35,7 +36,19 @@ export function ImpactView({ impact }) {
     <>
       <PageHeader
         title={`Impact · ${label}`}
-        aside={<Button onPress={download}>Download report (CSV)</Button>}
+        aside={
+          <div className="flex flex-wrap gap-2">
+            <LinkButton
+              href={`/impact/report?month=${impact.month}`}
+              variant="primary"
+              download
+              onClick={() => toast(`${month} report is downloading`)}
+            >
+              Download report (PDF)
+            </LinkButton>
+            <Button onPress={download}>Download report (CSV)</Button>
+          </div>
+        }
       >
         The same counters families see on their Society screen, added up for the hub. Refreshed
         every hour.

@@ -2,6 +2,7 @@
 // /v1/analytics/impact?scope=`). The list, batch and report shapes are our proposal. Seeded story: October
 // 2026, Kharghar hub; Sunrise Towers' numbers match what its families see on the mobile Society screen.
 import { HttpResponse, http } from "msw";
+import { pdfResponse } from "./pdf.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /**
@@ -111,6 +112,51 @@ export const impactHandlers = [
       ],
     };
     return HttpResponse.json(impact);
+  }),
+
+  // Proposal: the rendered monthly report. Only the seeded month exists.
+  http.get("*/v1/analytics/impact/report", ({ request }) => {
+    const denied = staffOnly(request);
+    if (denied) return denied;
+    const month = new URL(request.url).searchParams.get("month");
+    if (month !== "2026-10")
+      return problem(404, "analytics.report_not_found", "No report for that month");
+    return pdfResponse(
+      request,
+      `gharbasket-impact-${month}.pdf`,
+      `GharBasket impact, ${MONTH_LABEL}`,
+      [
+        "Kharghar hub",
+        "",
+        "Food saved: 53 kg",
+        "Items donated: 30",
+        "Earned by home cooks and captains: Rs 15,800",
+        `People the NGO reached: ${state().handoffs.reduce((n, h) => n + h.people_reached, 0)}`,
+        "",
+        "Sunrise Towers: 42 kg saved, 18 items donated, Rs 12,400 earned",
+        "Krishna Kunj: 11 kg saved, 12 items donated, Rs 3,400 earned",
+      ],
+    );
+  }),
+
+  // Proposal: the rendered monthly hand-off report.
+  http.get("*/v1/ngo-handoffs/report", ({ request }) => {
+    const denied = staffOnly(request);
+    if (denied) return denied;
+    const month = new URL(request.url).searchParams.get("month");
+    if (month !== "2026-10")
+      return problem(404, "community.report_not_found", "No report for that month");
+    const { handoffs } = state();
+    return pdfResponse(
+      request,
+      `gharbasket-handoffs-${month}.pdf`,
+      `GharBasket NGO hand-offs, ${MONTH_LABEL}`,
+      [
+        `${handoffs.length} hand-offs, ${handoffs.reduce((n, h) => n + h.people_reached, 0)} people reached`,
+        "",
+        ...handoffs.map((h) => `${h.on}: ${h.items} to ${h.given_to} (${h.people_reached} people)`),
+      ],
+    );
   }),
 
   http.get("*/v1/ngo-handoffs", ({ request }) => {
