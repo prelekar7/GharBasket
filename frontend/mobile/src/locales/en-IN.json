@@ -437,5 +437,62 @@
     "planTitle": "Your plan is ready",
     "planBody": "Your Autopilot week starts as soon as the society unlocks.",
     "progress": "Homes joined"
+  },
+  "orders": {
+    "today": "Today, {day}",
+    "title": "Orders",
+    "box": "Sabzi box · {n, plural, one {# item} other {# items}}",
+    "tiffinTitle": "Tiffin · {dish}",
+    "status": {
+      "LOCKED": "Locked",
+      "PICKING": "Being packed",
+      "PACKED": "Packed",
+      "DISPATCHED": "On the way",
+      "AT_SOCIETY": "On the way",
+      "DELIVERED": "Delivered",
+      "UNDELIVERED": "Not delivered",
+      "REDELIVERY": "Coming again",
+      "ASSIGNED": "Being cooked",
+      "PREPARING": "Being cooked",
+      "READY": "Ready",
+      "PICKED_UP": "On the way"
+    },
+    "paidWallet": "{amount} paid from wallet · {flat}, {society}",
+    "paidUpi": "{amount} paid by UPI Autopay · {flat}, {society}",
+    "mapLabel": "Map: the van is at the {society} gate",
+    "stage": {
+      "APPROVED": "Approved",
+      "LOCKED": "Paid at cut-off",
+      "PACKED": "Packed at {hub} hub",
+      "AT_SOCIETY": "With {captain}, your captain",
+      "DELIVERED": "Delivered to your door"
+    },
+    "by": "by {time}",
+    "tl": {
+      "done": "Done",
+      "current": "Now",
+      "issue": "Problem",
+      "todo": "Not yet"
+    },
+    "problem": "Report a problem",
+    "problemLead": "Tell us what went wrong. The hub calls you back within 2 hours.",
+    "issues": {
+      "missing": "An item is missing",
+      "damaged": "Something is damaged or spoilt",
+      "late": "The box hasn’t come",
+      "other": "Something else"
+    },
+    "problemSend": "Send",
+    "problemSent": "Sent. The hub will call you within 2 hours.",
+    "problemFailed": "We couldn’t send it. Check your internet and try again.",
+    "next": "Coming up",
+    "tiffin": "Tiffin · {day} · {cook}’s {dish}",
+    "nextBox": "Sabzi box · {day} · plan ready {ready}",
+    "boxOn": "Sabzi box · {day}",
+    "toApprove": "to approve",
+    "nothingTitle": "Nothing on the way today",
+    "nothingBody": "Your next delivery shows here on the morning it comes.",
+    "emptyTitle": "No orders yet",
+    "emptyBody": "Your first box shows here once your society unlocks and you approve the week."
   }
 }

@@ -437,5 +437,62 @@
     "planTitle": "आपका प्लान तैयार है",
     "planBody": "सोसाइटी अनलॉक होते ही आपका Autopilot हफ़्ता शुरू होगा।",
     "progress": "जुड़े हुए घर"
+  },
+  "orders": {
+    "today": "आज, {day}",
+    "title": "ऑर्डर",
+    "box": "सब्ज़ी बॉक्स · {n} चीज़ें",
+    "tiffinTitle": "टिफ़िन · {dish}",
+    "status": {
+      "LOCKED": "लॉक",
+      "PICKING": "पैक हो रहा है",
+      "PACKED": "पैक हो गया",
+      "DISPATCHED": "रास्ते में",
+      "AT_SOCIETY": "रास्ते में",
+      "DELIVERED": "पहुँच गया",
+      "UNDELIVERED": "नहीं पहुँचा",
+      "REDELIVERY": "फिर से आ रहा है",
+      "ASSIGNED": "बन रहा है",
+      "PREPARING": "बन रहा है",
+      "READY": "तैयार",
+      "PICKED_UP": "रास्ते में"
+    },
+    "paidWallet": "{amount} वॉलेट से चुकाए · {flat}, {society}",
+    "paidUpi": "{amount} UPI ऑटोपे से चुकाए · {flat}, {society}",
+    "mapLabel": "नक्शा: गाड़ी {society} के गेट पर है",
+    "stage": {
+      "APPROVED": "मंज़ूर",
+      "LOCKED": "कट-ऑफ़ पर भुगतान",
+      "PACKED": "{hub} हब पर पैक",
+      "AT_SOCIETY": "{captain} (कैप्टन) के पास",
+      "DELIVERED": "आपके दरवाज़े पर"
+    },
+    "by": "{time} तक",
+    "tl": {
+      "done": "हो गया",
+      "current": "अभी",
+      "issue": "समस्या",
+      "todo": "अभी नहीं"
+    },
+    "problem": "समस्या बताएँ",
+    "problemLead": "बताइए क्या गड़बड़ हुई। हब 2 घंटे में आपको फ़ोन करेगा।",
+    "issues": {
+      "missing": "कोई चीज़ नहीं आई",
+      "damaged": "कुछ टूटा या खराब है",
+      "late": "बॉक्स नहीं आया",
+      "other": "कुछ और"
+    },
+    "problemSend": "भेजें",
+    "problemSent": "भेज दिया। हब 2 घंटे में आपको फ़ोन करेगा।",
+    "problemFailed": "भेज नहीं पाए। इंटरनेट देखकर फिर कोशिश करें।",
+    "next": "आगे",
+    "tiffin": "टिफ़िन · {day} · {cook} का {dish}",
+    "nextBox": "सब्ज़ी बॉक्स · {day} · प्लान {ready} को",
+    "boxOn": "सब्ज़ी बॉक्स · {day}",
+    "toApprove": "मंज़ूरी बाकी",
+    "nothingTitle": "आज कुछ नहीं आ रहा",
+    "nothingBody": "अगली डिलीवरी उसी दिन सुबह यहाँ दिखेगी।",
+    "emptyTitle": "अभी कोई ऑर्डर नहीं",
+    "emptyBody": "सोसाइटी अनलॉक होने और हफ़्ता मंज़ूर करने के बाद पहला बॉक्स यहाँ दिखेगा।"
   }
 }

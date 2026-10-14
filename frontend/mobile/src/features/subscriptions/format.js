@@ -74,3 +74,22 @@ export const monthName = (iso, locale) =>
   new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(
     new Date(`${iso}T12:00:00Z`),
   );
+
+/** "Tue" / "मंगल" from an ISO date. @param {string} iso @param {string} locale */
+export const weekdayName = (iso, locale) =>
+  new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "Asia/Kolkata" }).format(
+    new Date(`${iso.slice(0, 10)}T12:00:00+05:30`),
+  );
+
+/** "HH:MM" in India time from an ISO timestamp, for clockTime(). @param {string} at */
+export const istClock = (at) =>
+  new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(at));
+
+/** Today's date in India as "YYYY-MM-DD". */
+export const todayIst = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());

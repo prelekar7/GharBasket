@@ -437,5 +437,62 @@
     "planTitle": "तुमचा प्लॅन तयार आहे",
     "planBody": "सोसायटी अनलॉक होताच तुमचा Autopilot आठवडा सुरू होईल.",
     "progress": "जोडलेली घरे"
+  },
+  "orders": {
+    "today": "आज, {day}",
+    "title": "ऑर्डर",
+    "box": "भाजी बॉक्स · {n} वस्तू",
+    "tiffinTitle": "डबा · {dish}",
+    "status": {
+      "LOCKED": "लॉक",
+      "PICKING": "पॅक होत आहे",
+      "PACKED": "पॅक झाले",
+      "DISPATCHED": "वाटेत",
+      "AT_SOCIETY": "वाटेत",
+      "DELIVERED": "पोहोचले",
+      "UNDELIVERED": "पोहोचले नाही",
+      "REDELIVERY": "पुन्हा येत आहे",
+      "ASSIGNED": "बनत आहे",
+      "PREPARING": "बनत आहे",
+      "READY": "तयार",
+      "PICKED_UP": "वाटेत"
+    },
+    "paidWallet": "{amount} वॉलेटमधून भरले · {flat}, {society}",
+    "paidUpi": "{amount} UPI ऑटोपेने भरले · {flat}, {society}",
+    "mapLabel": "नकाशा: गाडी {society} च्या गेटवर आहे",
+    "stage": {
+      "APPROVED": "मंजूर",
+      "LOCKED": "कट-ऑफला पेमेंट",
+      "PACKED": "{hub} हबवर पॅक",
+      "AT_SOCIETY": "{captain} (कॅप्टन) कडे",
+      "DELIVERED": "तुमच्या दारात"
+    },
+    "by": "{time} पर्यंत",
+    "tl": {
+      "done": "झाले",
+      "current": "आता",
+      "issue": "अडचण",
+      "todo": "अजून नाही"
+    },
+    "problem": "अडचण सांगा",
+    "problemLead": "काय चुकलं ते सांगा. हब 2 तासांत तुम्हाला फोन करेल.",
+    "issues": {
+      "missing": "एखादी वस्तू आली नाही",
+      "damaged": "काहीतरी तुटलं किंवा खराब आहे",
+      "late": "बॉक्स आला नाही",
+      "other": "दुसरं काही"
+    },
+    "problemSend": "पाठवा",
+    "problemSent": "पाठवलं. हब 2 तासांत तुम्हाला फोन करेल.",
+    "problemFailed": "पाठवता आलं नाही. इंटरनेट तपासून पुन्हा प्रयत्न करा.",
+    "next": "पुढे",
+    "tiffin": "डबा · {day} · {cook} यांचा {dish}",
+    "nextBox": "भाजी बॉक्स · {day} · प्लॅन {ready} ला",
+    "boxOn": "भाजी बॉक्स · {day}",
+    "toApprove": "मंजुरी बाकी",
+    "nothingTitle": "आज काही येत नाही",
+    "nothingBody": "पुढची डिलिव्हरी त्या दिवशी सकाळी इथे दिसेल.",
+    "emptyTitle": "अजून कोणतीही ऑर्डर नाही",
+    "emptyBody": "सोसायटी अनलॉक झाल्यावर आणि आठवडा मंजूर केल्यावर पहिला बॉक्स इथे दिसेल."
   }
 }
