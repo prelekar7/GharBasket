@@ -38,21 +38,48 @@ export async function signIn(form) {
 }
 
 /**
- * Dev stand-in for phone OTP sign-in: the staff phones of the backend seed (+91 98000 01008 to
- * 01011) with the code 123456. M1 replaces this with the real OTP exchange.
+ * The 10 digits of a staff phone as typed ("98000 01011", "+91 98000 01011"), or null.
+ * @param {FormDataEntryValue | null} value
+ */
+function staffDigits(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  const phone = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+  return phone.length === 10 ? phone : null;
+}
+
+/**
+ * Step 1 of the sign-in, and the Resend button: "send" a code to a staff phone. Dev stand-in: nothing is
+ * sent; it only checks the number is one of the backend seed's staff phones (+91 98000 01008 to
+ * 01011). Real OTP plugs in here (M1, with Firebase phone auth as in the app): this action asks
+ * Firebase to SMS the code and keeps the verification id, `signInWithPhone` below exchanges the code
+ * for a session with POST /v1/auth/exchange, and the 24-second resend wait comes from the provider's limit.
+ * @param {unknown} _previous
+ * @param {FormData} form
+ * @returns {Promise<{ phone?: string, nonce?: number, error?: string }>} `nonce` is new on every send, so the page restarts its countdown
+ */
+export async function requestCode(_previous, form) {
+  if (!devLoginEnabled) redirect("/login");
+  const phone = staffDigits(form.get("phone"));
+  if (!phone) return { error: "Enter the 10-digit mobile number." };
+  if (!Object.values(ROLES).some((r) => r.phone === phone))
+    return { error: "This number is not on the staff list." };
+  return { phone, nonce: Date.now() };
+}
+
+/**
+ * Step 2: dev stand-in for the OTP exchange. The staff phones of the backend seed accept the code
+ * 123456. M1 replaces this with POST /v1/auth/exchange (see `requestCode`).
  * @param {{ error?: string } | null} _previous
  * @param {FormData} form
- * @returns {Promise<{ error?: string, field?: "phone" | "code" }>}
+ * @returns {Promise<{ error?: string }>}
  */
 export async function signInWithPhone(_previous, form) {
   if (!devLoginEnabled) redirect("/login");
-  const digits = String(form.get("phone") ?? "").replace(/\D/g, "");
-  const phone = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
-  if (phone.length !== 10) return { field: "phone", error: "Enter the 10-digit mobile number." };
+  const phone = staffDigits(form.get("phone"));
   const role = Object.entries(ROLES).find(([, r]) => r.phone === phone)?.[0];
-  if (!role) return { field: "phone", error: "This number is not on the staff list." };
+  if (!role) return { error: "Start again with a staff mobile number." };
   if (String(form.get("code") ?? "").trim() !== DEV_CODE) {
-    return { field: "code", error: "That code is not right. Try again." };
+    return { error: "That code is not right. Check the SMS and try again." };
   }
   return startSession(
     /** @type {import("@/lib/session.js").ConsoleRole} */ (role),
