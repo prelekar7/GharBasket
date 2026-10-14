@@ -1,58 +1,100 @@
 import { apiGet } from "@/lib/api.js";
+import { getRole } from "@/lib/auth.js";
 import { currentHub } from "@/lib/hub.js";
+import { istDate } from "@/lib/payout-weeks.js";
+import { orNotShipped } from "@/lib/proposal.js";
 
 /**
- * Shapes of GET /v1/routes (docs/modules/M7-logistics.md §3 path; the field names are our proposal until the OpenAPI lands).
+ * Shapes of the route endpoints (docs/modules/M7-logistics.md §3.2 and §3.3).
  * @typedef {object} RouteStop
+ * @property {string} id
  * @property {number} seq
- * @property {"drop" | "pickup"} kind
- * @property {string} society_id
- * @property {string} society
- * @property {string} where  gate and locality
- * @property {string | null} captain  first name and "tai"/"bhai", never a phone number
- * @property {string} eta  ISO
- * @property {string | null} handed_over_at  ISO, once the captain has taken the crates
+ * @property {"drop" | "bank" | "kitchen"} kind
+ * @property {{ id: string, name: string, location: { lat: number, lng: number } } | null} society  null for a food bank or a kitchen
+ * @property {{ id: string, label: string, start: string, end: string } | null} slot
+ * @property {string} eta  IST "HH:MM", planned
+ * @property {string | null} eta_now  the planned time plus the route's current delay
+ * @property {"pending" | "arrived" | "handed_over" | "skipped"} status
  * @property {number} crates
  * @property {number} bags
- * @property {"todo" | "current" | "done" | "issue"} status
- * @property {number} lat
- * @property {number} lng
+ * @property {{ display_name: string, photo_url: string | null } | null} captain  null: no active captain (rider mode)
+ * @property {boolean} rider_mode
+ * @property {string} navigate_url
+ * @property {string | null} handed_over_at  ISO
  *
- * @typedef {object} SolverStats
- * @property {string} solver  "ortools" or "fallback" (yesterday's sequence)
- * @property {number} distance_m
- * @property {number} drive_min
+ * @typedef {object} RouteRecord  `RouteDetail`: the summary and the stops
+ * @property {string} id
+ * @property {string} plan_id
+ * @property {string} delivery_date
+ * @property {number} trip
+ * @property {"draft" | "published" | "in_progress" | "completed" | "cancelled"} status
+ * @property {{ id: string, label: string, kind: string }} vehicle
+ * @property {{ user_id: string, name: string } | null} rider
+ * @property {string} depart  IST "HH:MM"
+ * @property {string} return_by
  * @property {number} crates
- * @property {number} capacity_crates
- * @property {boolean} empty_crates_on_return
- * @property {number} donation_pickups
+ * @property {number} bags
+ * @property {number} km
+ * @property {RouteStop[]} stops
+ *
+ * @typedef {object} RoutePlan
+ * @property {string} id
+ * @property {"queued" | "solving" | "solved" | "published" | "failed" | "superseded"} status
+ * @property {"job" | "manual"} trigger
+ * @property {"ml" | "fallback_previous" | "fallback_nearest" | null} source
+ * @property {"osrm" | "haversine" | null} distance_source
+ * @property {{ stops: number, orders: number, vehicles: number, routes: number, km: number, cost_paise: number, on_time: number, late_min: number, problems: string[] } | null} summary
+ * @property {string | null} error
+ * @property {string | null} published_at  ISO
  *
  * @typedef {object} VanPosition
  * @property {number} lat
  * @property {number} lng
  * @property {string} at  ISO
- *
- * @typedef {object} RouteRecord
- * @property {string} id
- * @property {string} hub_id
- * @property {string} date  ISO date
- * @property {string} slot_id
- * @property {"published" | "in_progress" | "completed"} status
- * @property {string} published_at  ISO
- * @property {{ name: string, lat: number, lng: number }} hub
- * @property {{ id: string, name: string, registration: string }} vehicle
- * @property {{ id: string, name: string }} rider
- * @property {VanPosition | null} van  last known position, null before the route starts
- * @property {RouteStop[]} stops
- * @property {SolverStats} solver_stats
  */
 
+/** @typedef {"today" | "tomorrow"} Day */
+
 /**
- * The routes of one slot at the selected hub, today.
- * @param {string} slot
- * @returns {Promise<{ date: string, items: RouteRecord[] }>}
+ * The hub's box routes for today or tomorrow (riders see tomorrow's the night before), the day's newest plan, the hub's
+ * position for the map and each vehicle's capacity.
+ * @param {Day} day
  */
-export async function getRoutes(slot) {
-  const hub = await currentHub();
-  return apiGet("/v1/routes", { searchParams: { hub_id: hub.id, slot_id: slot } });
+export async function getRoutes(day) {
+  const [hub, role] = await Promise.all([currentHub(), getRole()]);
+  const now = Date.now(); // after the cookies are read, as cacheComponents requires
+  const date = istDate(day === "tomorrow" ? now + 86_400_000 : now);
+  const base = `/v1/hubs/${encodeURIComponent(hub.id)}`;
+  const [summaries, plans, hubDetail, vehicles] = await Promise.all([
+    apiGet(`${base}/routes`, { searchParams: { date, kind: "box" } }),
+    apiGet(`${base}/route-plans`, { searchParams: { date, kind: "box" } }),
+    orNotShipped(apiGet(base)),
+    apiGet(`${base}/vehicles`),
+  ]);
+  /** @type {RouteRecord[]} */
+  const routes = await Promise.all(
+    summaries.items.map((/** @type {{ id: string }} */ r) =>
+      apiGet(`/v1/routes/${encodeURIComponent(r.id)}`),
+    ),
+  );
+  /** @type {RoutePlan[]} */
+  const list = plans.items;
+  return {
+    date,
+    day,
+    routes,
+    plan: list.find((p) => p.status !== "superseded") ?? null,
+    hub: {
+      name: hub.name,
+      lat: /** @type {number | null} */ (hubDetail?.location?.lat ?? null),
+      lng: /** @type {number | null} */ (hubDetail?.location?.lng ?? null),
+    },
+    capacity: Object.fromEntries(
+      vehicles.items.map((/** @type {{ id: string, capacity_crates: number }} */ v) => [
+        v.id,
+        v.capacity_crates,
+      ]),
+    ),
+    canPlan: role === "hub_manager",
+  };
 }
