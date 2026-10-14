@@ -299,21 +299,6 @@ export const billingHandlers = [
     save(s);
     return new HttpResponse(null, { status: 204 });
   }),
-
-  http.post("*/v1/subscriptions", async ({ request }) => {
-    const missing = needsKey(request);
-    if (missing) return missing;
-    const body = /** @type {any} */ (await request.json());
-    const s = load();
-    s.subscription = {
-      id: `sub-${Date.now()}`,
-      status: "active",
-      plan: body.plan ?? "autopilot",
-      payment_mode: body.payment_mode,
-    };
-    save(s);
-    return HttpResponse.json(s.subscription, { status: 201 });
-  }),
 ];
 
 /** Dev helper: empty the mock wallet. */
