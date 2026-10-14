@@ -101,3 +101,34 @@ export function timeLeft(from, to) {
 export function istDay(iso) {
   return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
+
+/**
+ * "2026-10-05T10:42:00+05:30" → "10:42" (24-hour, IST), the way payment tables show times.
+ * @param {string} iso
+ */
+export function clock24(iso) {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+/**
+ * "Today, 10:42" when `iso` is on the same IST day as `asOf`, else "4 Oct, 10:42" style.
+ * @param {string} iso
+ * @param {string} asOf the server's current instant
+ */
+export function whenLabel(iso, asOf) {
+  const day = istDay(iso) === istDay(asOf) ? "Today" : dayLabel(istDay(iso));
+  return `${day}, ${clock24(iso)}`;
+}
+
+/**
+ * "2026-09-28" → "28 Sep" (no weekday).
+ * @param {string} iso a calendar day, YYYY-MM-DD
+ */
+export function dateLabel(iso) {
+  return dayLabel(iso).split(" ").slice(1).join(" ");
+}

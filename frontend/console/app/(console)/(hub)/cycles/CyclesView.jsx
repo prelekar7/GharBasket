@@ -54,7 +54,7 @@ export function CyclesView({ cycles }) {
       ) : (
         <div
           aria-busy={pending}
-          className={`overflow-x-auto rounded-md border border-line ${pending ? "opacity-60" : ""}`}
+          className={`relative overflow-x-auto rounded-md border border-line ${pending ? "opacity-60" : ""}`}
         >
           <table className="w-full min-w-[820px] border-collapse text-sm leading-5">
             <caption className="sr-only">Weekly cycles by society for {cycles.label}</caption>

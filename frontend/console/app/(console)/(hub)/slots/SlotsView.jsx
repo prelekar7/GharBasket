@@ -146,7 +146,7 @@ export function SlotsView({ hubId, date, dates, slots }) {
           onAction={() => setEditing("new")}
         />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-line">
+        <div className="relative overflow-x-auto rounded-md border border-line">
           <table className="w-full min-w-[640px] border-collapse text-sm leading-5">
             <caption className="sr-only">Delivery slots and their bookings</caption>
             <thead>
