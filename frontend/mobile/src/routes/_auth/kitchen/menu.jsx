@@ -1,4 +1,5 @@
 import { Button, Chip, QtyStepper, SegmentedControl, Skeleton, toast } from "@gharbasket/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,8 +8,9 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/kitchen/format.js";
 import { useCapacity, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
+import { request } from "@/lib/api.js";
 
-/** Menu and capacity: the most tiffins per day and meal, and what I cook well (design KitchenMenu; M8 US-5). */
+/** Menu and capacity: the most tiffins per day and meal, and what I cook well (design KitchenMenu; M8 §3.4). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/kitchen/menu")({ component: KitchenMenu });
 
@@ -20,6 +22,7 @@ function KitchenMenu() {
   const me = usePartnerMe();
   const capacity = useCapacity();
   const write = useKitchenWrite();
+  const client = useQueryClient();
   const [meal, setMeal] = useState("lunch");
   const [edits, setEdits] = useState(/** @type {Record<string, number>} */ ({}));
   const [skills, setSkills] = useState(/** @type {string[] | null} */ (null));
@@ -40,25 +43,37 @@ function KitchenMenu() {
   const chosen = skills ?? data.skills;
   const changed = data.days.filter((d) => keyOf(d) in edits && edits[keyOf(d)] !== d.max_portions);
 
-  const save = () => {
-    const days = changed.map((d) => ({
-      date: d.date,
-      meal: d.meal,
-      max_portions: edits[keyOf(d)],
-    }));
-    write({
-      name: "capacity",
-      method: "PUT",
-      path: "/v1/kitchen-capacity",
-      body: { days, skills: chosen },
-      update: (/** @type {Capacity} */ c) => ({
-        ...c,
-        skills: chosen,
-        days: c.days.map((d) => ({ ...d, max_portions: edits[keyOf(d)] ?? d.max_portions })),
-      }),
-    });
+  const save = async () => {
+    // One PUT per date and meal, queued in order; each patches the screen at once.
+    for (const d of changed) {
+      const max = edits[keyOf(d)];
+      write({
+        name: "capacity",
+        method: "PUT",
+        path: "/v1/kitchen-capacity",
+        body: { date: d.date, meal: d.meal, max_portions: max },
+        update: (/** @type {Capacity} */ c) => ({
+          ...c,
+          days: c.days.map((x) => (keyOf(x) === keyOf(d) ? { ...x, max_portions: max } : x)),
+        }),
+      });
+    }
     setEdits({});
-    setSkills(null);
+    // Skills are the kitchen's own record (PATCH with If-Match), saved when there is signal.
+    if (skills && skills.join() !== data.skills.join()) {
+      try {
+        await request("/v1/kitchens/me", {
+          method: "PATCH",
+          body: { skills },
+          headers: { "if-match": `"${data.version}"` },
+        });
+        await client.invalidateQueries({ queryKey: ["kitchen", "capacity"] });
+        setSkills(null);
+      } catch {
+        toast(t("kitchen.menu.skillsFailed"));
+        return;
+      }
+    }
     toast(t("kitchen.menu.saved"));
   };
 
@@ -95,7 +110,9 @@ function KitchenMenu() {
                   title={day}
                   sub={
                     d.locked
-                      ? t("kitchen.menu.locked", { n: d.assigned ?? 0 })
+                      ? d.assigned > 0
+                        ? t("kitchen.menu.locked", { n: d.assigned })
+                        : t("kitchen.menu.closed")
                       : value === 0
                         ? t("kitchen.menu.dayOff")
                         : undefined

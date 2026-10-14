@@ -1381,7 +1381,7 @@
     "today": {
       "title": "Tomorrow’s tiffins",
       "forDay": "{meal, select, dinner {Dinner} other {Lunch}} · {day}",
-      "window": "Counts are in ({time}). Accept so you can buy and plan tonight.",
+      "window": "Counts are in. Answer by {time} so you can buy and plan tonight.",
       "accepted": "Accepted. Buy tonight; your prep list is ready for the morning.",
       "declined": "You said you can’t cook on {day}. These tiffins go to other kitchens at the hub.",
       "fair": "Shared fairly between the hub’s kitchens, within the capacity you set.",
@@ -1396,7 +1396,15 @@
       "emptyTitle": "No tiffins for {day}",
       "emptyBody": "No families booked lunch from your kitchen for tomorrow. Nothing to buy tonight.",
       "emptyAction": "Check my menu and capacity",
-      "emptyNote": "Counts come by 9:30 PM every night. A day with no orders doesn’t change your rating."
+      "emptyNote": "Counts come by 9:30 PM every night. A day with no orders doesn’t change your rating.",
+      "closed": "The offer for {day} has closed. These tiffins went to another kitchen at the hub.",
+      "declineWhy": "Why can’t you cook?",
+      "reason": {
+        "unwell": "I’m unwell",
+        "no_ingredients": "No ingredients",
+        "family": "Family reason",
+        "other": "Another reason"
+      }
     },
     "menu": {
       "title": "Menu and capacity",
@@ -1409,15 +1417,17 @@
       "increase": "More",
       "skillsTitle": "What I cook well",
       "save": "Save for the coming days",
-      "saved": "Saved. New counts follow these numbers."
+      "saved": "Saved. New counts follow these numbers.",
+      "closed": "Closed for changes",
+      "skillsFailed": "Couldn’t save what you cook well. Check your internet and try again."
     },
     "skills": {
-      "maharashtrian_thali": "Maharashtrian thali",
-      "chapati_bhaji": "Chapati-bhaji",
       "jain": "Jain (no onion, garlic)",
-      "puran_poli": "Puran poli",
-      "south_indian": "South Indian",
-      "low_oil": "Low oil"
+      "veg": "Vegetarian",
+      "no_onion_garlic": "No onion, garlic",
+      "diabetic": "Diabetic-friendly",
+      "egg": "Egg",
+      "nonveg": "Non-vegetarian"
     },
     "prep": {
       "title": "Prep",
@@ -1425,7 +1435,7 @@
       "packed": "Tiffins packed",
       "packedValue": "{done} of {total}",
       "batch": "{dish} × {n}",
-      "label": "Each tiffin gets a label with the flat and your FSSAI number, so the family sees who cooked it.",
+      "label": "Write each box’s code on it (like T-07). The rider and the family match it; you never see a flat or a name.",
       "status": {
         "planned": "Not started",
         "preparing": "Cooking",
@@ -1433,13 +1443,20 @@
       },
       "action": {
         "planned": "Start cooking",
-        "preparing": "Mark packed",
-        "packed": "Print labels again"
+        "preparing": "Mark packed"
       },
-      "labelsAgain": "Labels sent to print again",
       "emptyTitle": "Nothing to cook yet",
       "emptyBody": "When you accept tomorrow’s tiffins, each dish shows here to mark as you cook and pack.",
-      "emptyAction": "See tomorrow’s tiffins"
+      "emptyAction": "See tomorrow’s tiffins",
+      "codes": "Label the boxes: {codes}",
+      "checklistTitle": "Before {dish} is packed",
+      "checklist": {
+        "handwash": "I washed my hands",
+        "hair_cover": "My hair is covered",
+        "clean_surface": "The surface is clean",
+        "sealed": "The tiffins are sealed",
+        "fresh_today": "Everything was cooked today"
+      }
     },
     "training": {
       "back": "Back to today",
@@ -1462,9 +1479,8 @@
       "title": "Earnings",
       "week": "This week so far",
       "count": "{n, plural, one {# tiffin} other {# tiffins}} over {days, plural, one {# day} other {# days}}",
-      "line": "{n, plural, one {# tiffin} other {# tiffins}} · {meal, select, dinner {dinner} other {lunch}}",
-      "lastWeek": "Last week · {n, plural, one {# tiffin} other {# tiffins}}",
-      "rating": "Families’ rating, last 30 days",
+      "line": "{n, plural, one {# tiffin} other {# tiffins}}",
+      "rating": "Families’ rating",
       "stars": "{rating} ★",
       "payout": "Paid every Monday to your bank, from the same ledger as every rupee in GharBasket.",
       "cert": "Download income certificate (PDF)",
