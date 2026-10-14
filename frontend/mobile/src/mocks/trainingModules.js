@@ -289,10 +289,7 @@ export const MODULES = [
         ],
       ],
       [
-        [
-          "Which leafy vegetables need the most care in the rains?",
-          "बारिश में किन पत्तेदार सब्ज़ियों का सबसे ज़्यादा ध्यान रखें?",
-        ],
+        ["How should you wash leafy vegetables in the rains?", "बारिश में पत्तेदार सब्ज़ियों को कैसे धोएँ?"],
         [
           ["Wash leaves well in clean water, several times", "पत्तों को साफ़ पानी में कई बार अच्छे से धोएँ"],
           ["Skip washing; cooking kills everything", "धोएँ नहीं; पकाने से सब मर जाता है"],
