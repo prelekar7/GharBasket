@@ -9,7 +9,7 @@ import {
   toast,
 } from "@gharbasket/ui";
 import { PlusIcon } from "@phosphor-icons/react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
@@ -200,12 +200,16 @@ function Box() {
           </Button>
         )}
         {c.budget_lock && (
-          <p className="text-sm leading-[22px] text-fg-secondary">
+          // Opens Budget Lock settings (HcBudget).
+          <Link
+            to="/budget"
+            className="flex min-h-12 items-center text-sm leading-[22px] text-fg-secondary underline decoration-line-strong underline-offset-3 outline-none focus-visible:shadow-focus"
+          >
             {t(
               c.budget_lock.spent_paise <= c.budget_lock.budget_paise ? "box.within" : "box.over",
               { budget: formatPaise(c.budget_lock.budget_paise) },
             )}
-          </p>
+          </Link>
         )}
       </div>
       {c.status === "ready" && (

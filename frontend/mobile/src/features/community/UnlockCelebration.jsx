@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 const DOTS = Array.from({ length: 14 }, (_, i) => i);
 
 /**
- * "Green Valley CHS is unlocked": shown once when a society goes live (design Core-S4). The burst is
+ * "Green Valley Heights is unlocked": shown once when a society goes live (design Core-S4). The burst is
  * CSS only and stays still for people who ask for reduced motion.
  * @param {{ society: string, homes: number, start: string, days: string, captain: string | null, onDone: () => void }} props
  */

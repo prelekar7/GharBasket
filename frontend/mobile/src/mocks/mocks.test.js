@@ -277,7 +277,7 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
   it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
     expect(await society("green-valley")).toMatchObject({
       status: "prospect",
-      unlock: { joined: 14 },
+      unlock: { joined: 19, threshold: 25 },
     });
     for (let i = 0; i < 6; i++)
       await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
@@ -286,7 +286,7 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     const s = await society("green-valley");
     expect(s).toMatchObject({
       status: "live",
-      unlock: { joined: 20 },
+      unlock: { joined: 25 },
       captain: { name: "Asha tai" },
     });
     expect(s.unlocked_at).toBeTruthy();
@@ -375,6 +375,33 @@ describe("household edits and pause (M1, M3)", () => {
     expect(
       (await call("PATCH", `/v1/addresses/${h.address_id}`, { tower: "c", flat: "" })).status,
     ).toBe(422);
+  });
+
+  it("sets Budget Lock with a key, into the household's budget, and turns it off", async () => {
+    await signedIn();
+    const before = await (await call("GET", "/v1/budget-lock")).json();
+    expect(before).toMatchObject({ budget_paise: 300000, spent_paise: 118000, when_over: "swap" });
+    const body = { budget_paise: 350000, when_over: "ask" };
+    expect((await call("PUT", "/v1/budget-lock", body)).status).toBe(400);
+    const saved = await (
+      await call("PUT", "/v1/budget-lock", body, { "idempotency-key": "b1" })
+    ).json();
+    expect(saved).toMatchObject({ budget_paise: 350000, when_over: "ask" });
+    expect((await (await call("GET", "/v1/households/me")).json()).budget_paise).toBe(350000);
+    const low = await call(
+      "PUT",
+      "/v1/budget-lock",
+      { budget_paise: 100 },
+      { "idempotency-key": "b2" },
+    );
+    expect(low.status).toBe(422);
+    const off = await call(
+      "PUT",
+      "/v1/budget-lock",
+      { budget_paise: null, when_over: "ask" },
+      { "idempotency-key": "b3" },
+    );
+    expect((await off.json()).budget_paise).toBe(null);
   });
 });
 

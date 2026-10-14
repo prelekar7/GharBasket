@@ -38,13 +38,13 @@ export const Route = createFileRoute("/_auth/_customer/profile")({ component: Pr
 const LANGUAGE_NAMES = { "en-IN": "English", "hi-IN": "हिन्दी", "mr-IN": "मराठी" };
 /** @typedef {"language" | "household" | "address" | "autopilot" | "devices" | "privacy" | null} SheetName */
 
-/** Household parts Profile can change, each on its onboarding screen in edit mode. */
+/** Household parts Profile can change, each on its onboarding screen in edit mode; Budget Lock has its own screen. */
 const HOUSEHOLD_STEPS_EDIT = [
   { key: "family", to: "/onboarding/family" },
   { key: "food", to: "/onboarding/food" },
   { key: "health", to: "/onboarding/health" },
   { key: "cooking", to: "/onboarding/cooking" },
-  { key: "budget", to: "/onboarding/budget" },
+  { key: "budget", to: "/budget" },
 ];
 
 /** "YYYY-MM-DD", `weeks` weeks from today in India. @param {string} weeks */
@@ -143,6 +143,16 @@ function Profile() {
       label: t("wallet.title"),
       value: wallet.data ? formatPaise(wallet.data.balance_paise) : undefined,
       onPress: () => navigate({ to: "/wallet" }),
+    },
+    {
+      key: "budget",
+      label: t("budget.title"),
+      value: hh
+        ? hh.budget_paise
+          ? formatPaise(hh.budget_paise)
+          : t("profile.edit.off")
+        : undefined,
+      onPress: () => navigate({ to: "/budget" }),
     },
     ...(society
       ? [
@@ -270,7 +280,7 @@ function Profile() {
                 <button
                   type="button"
                   onClick={() => {
-                    startEdit(hh);
+                    if (key !== "budget") startEdit(hh);
                     setSheet(null);
                     navigate({ to });
                   }}
