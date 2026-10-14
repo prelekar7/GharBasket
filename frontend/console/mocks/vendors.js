@@ -1,131 +1,197 @@
-// Vendor mocks (M6 §3 and §4: vendors and weekly vendor_scores). Spec: GET / POST / PATCH
-// /v1/hubs/{id}/vendors (POST needs an Idempotency-Key). The scoring job (freshness 40 %, price 20 %,
-// reliability 20 %, defects 20 %) belongs to the backend; the mock only carries the numbers the Vendors
-// design shows for the week of 28 Sep 2026. The score columns and `history` are our proposal; the spec
-// lists freshness, price, reliability, defects and score per week.
+// Vendor mocks: the real M6 §3.1 contract (built, backend/api/openapi.json). Vendors per hub, listed by
+// name; POST needs an Idempotency-Key; PATCH needs If-Match (the vendor's version) and deactivates
+// instead of deleting. `score` is the last weekly score (0 to 1), null until the vendor is scored; the
+// score's four parts are not in the contract (backend ask), so only the score shows. Seed: the pilot
+// hub's default vendor "Shinde Traders" (backend seed) plus two made-up sellers from the Vendors design.
 import { HttpResponse, http } from "msw";
+import { checkIfMatch, hubGuard, withEtag } from "./hubops.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
-import { procurementState, VENDORS } from "./procurement.js";
-import { idempotent, mockStore, problem } from "./util.js";
+import { fieldError, idempotent, mockStore, mockUuid, problem } from "./util.js";
 
-const WEEKS = ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"];
-const KINDS = ["apmc", "fpo", "farmer"];
+export const VENDOR_KINDS = ["apmc_trader", "fpo", "farmer", "wholesaler"];
+const E164 = /^\+[1-9]\d{7,14}$/;
+const FIELDS = ["name", "kind", "phone", "whatsapp", "is_default", "notes", "active"];
 
 /**
- * @typedef {{ id: string, name: string, supplies: string, kind: string, phone: string,
- *   scores: { ontime_pct: number, fill_pct: number, grade_a_pct: number, score: number,
- *     state: { tone: "primary" | "accent", label: string } } | null,
- *   history: { week: string, fill_pct: number, grade_a_pct: number }[] }} Vendor
+ * @typedef {{ id: string, hub_id: string, name: string, kind: string, phone: string | null,
+ *   whatsapp: boolean, is_default: boolean, notes: string | null, active: boolean,
+ *   score: number | null, version: number, created_at: string }} Vendor
  */
 
-/** @type {Record<string, Vendor["scores"] & {}>} */
-const SCORES = {
-  "vendor-a": {
-    ontime_pct: 96,
-    fill_pct: 98,
-    grade_a_pct: 91,
-    score: 94,
-    state: { tone: "primary", label: "Preferred" },
-  },
-  "vendor-b": {
-    ontime_pct: 88,
-    fill_pct: 84,
-    grade_a_pct: 86,
-    score: 86,
-    state: { tone: "accent", label: "Watch: methi short twice" },
-  },
-  "vendor-c": {
-    ontime_pct: 100,
-    fill_pct: 97,
-    grade_a_pct: 95,
-    score: 97,
-    state: { tone: "primary", label: "Preferred" },
-  },
-};
-/** [fill %, grade A %] for the four weeks. */
-const HISTORY = {
-  "vendor-a": [
-    [97, 90],
-    [98, 92],
-    [96, 89],
-    [98, 91],
-  ],
-  "vendor-b": [
-    [92, 89],
-    [90, 88],
-    [88, 87],
-    [84, 86],
-  ],
-  "vendor-c": [
-    [99, 96],
-    [97, 94],
-    [98, 95],
-    [97, 95],
-  ],
-};
+/** @type {() => { vendors: Vendor[] }} */
+export const vendorState = () =>
+  mockStore("vendors", () => {
+    /** @param {number} n @param {Partial<Vendor>} v @returns {Vendor} */
+    const vendor = (n, v) => ({
+      id: mockUuid("b200", n),
+      hub_id: KHARGHAR_HUB_ID,
+      kind: "apmc_trader",
+      phone: null,
+      whatsapp: true,
+      is_default: false,
+      notes: null,
+      active: true,
+      score: null,
+      version: 1,
+      created_at: "2026-09-01T06:30:00Z",
+      name: "",
+      ...v,
+    });
+    return {
+      vendors: [
+        vendor(1, {
+          name: "Shinde Traders",
+          phone: "+919800002001",
+          is_default: true,
+          notes: "Vegetables",
+          score: 0.94,
+        }),
+        vendor(2, {
+          name: "Patil Farm Fresh",
+          kind: "farmer",
+          phone: "+919800002002",
+          notes: "Leafy greens",
+          score: 0.86,
+        }),
+        vendor(3, {
+          name: "Gokul Dairy Producers",
+          kind: "fpo",
+          phone: "+919800002003",
+          notes: "Dairy and eggs",
+          score: 0.97,
+        }),
+      ],
+    };
+  });
 
-const vendors = () =>
-  mockStore(
-    "vendors",
-    () =>
-      /** @type {Vendor[]} */ (
-        VENDORS.map((v) => ({
-          ...v,
-          scores: SCORES[v.id],
-          history: HISTORY[/** @type {keyof typeof HISTORY} */ (v.id)].map(([fill, gradeA], i) => ({
-            week: WEEKS[i],
-            fill_pct: fill,
-            grade_a_pct: gradeA,
-          })),
-        }))
-      ),
-  );
+/** @param {string} id */
+export const findVendor = (id) => vendorState().vendors.find((v) => v.id === id);
+
+/** @param {Vendor} v @param {string} name */
+const sameName = (v, name) => v.name.toLowerCase() === name.toLowerCase();
+
+/** Makes `vendor` the hub's one default: the previous default loses it (and its version moves). @param {Vendor} vendor */
+function takeDefault(vendor) {
+  for (const other of vendorState().vendors) {
+    if (other !== vendor && other.is_default) {
+      other.is_default = false;
+      other.version += 1;
+    }
+  }
+  vendor.is_default = true;
+}
+
+/**
+ * The 422 for a body's vendor fields, or null. Mirrors VendorIn / VendorPatch.
+ * @param {any} body @param {boolean} partial a PATCH: every field optional, and only some may be null
+ */
+function invalid(body, partial) {
+  /** @type {ReturnType<typeof fieldError>[]} */
+  const errors = [];
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return problem(422, "request.invalid", "Send a JSON object");
+  for (const key of Object.keys(body)) {
+    if (!FIELDS.includes(key) || (!partial && key === "active"))
+      errors.push(fieldError(key, "Not a vendor field", "extra_forbidden"));
+  }
+  const name = body.name;
+  if (
+    name !== undefined &&
+    name !== null &&
+    (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 80)
+  )
+    errors.push(fieldError("name", "Use 2 to 80 characters", "string_length"));
+  if (!partial && name === undefined) errors.push(fieldError("name", "Field required", "missing"));
+  if (body.kind != null && !VENDOR_KINDS.includes(body.kind))
+    errors.push(fieldError("kind", "Choose a kind of vendor", "enum"));
+  if (!partial && body.kind === undefined)
+    errors.push(fieldError("kind", "Field required", "missing"));
+  if (body.phone != null && !(typeof body.phone === "string" && E164.test(body.phone)))
+    errors.push(fieldError("phone", "Use an international number such as +919800002001"));
+  if (body.notes != null && !(typeof body.notes === "string" && body.notes.length <= 500))
+    errors.push(fieldError("notes", "Use up to 500 characters", "string_too_long"));
+  for (const key of ["whatsapp", "is_default", "active"]) {
+    if (body[key] != null && typeof body[key] !== "boolean")
+      errors.push(fieldError(key, "Use true or false", "bool_type"));
+  }
+  // A field that may not be null, sent as null, is 422 (M6 §3.1 as built).
+  for (const key of ["name", "kind", "whatsapp", "is_default", "active"])
+    if (body[key] === null) errors.push(fieldError(key, "May not be null", "none_not_allowed"));
+  return errors.length
+    ? problem(422, "request.invalid", "Check the vendor’s details", { errors })
+    : null;
+}
 
 export const vendorsHandlers = [
-  http.get("*/v1/hubs/:id/vendors", ({ params }) => {
-    if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
-    const lines = procurementState().plan.lines;
-    return HttpResponse.json({
-      week: WEEKS.at(-1),
-      weeks: WEEKS,
-      items: vendors().map((v) => ({
-        ...v,
-        item_count: lines.filter((l) => l.vendor_id === v.id).length,
-      })),
-      next_cursor: null,
-    });
+  http.get("*/v1/hubs/:id/vendors", ({ params, request }) => {
+    const refused = hubGuard(request, params.id);
+    if (refused) return refused;
+    const active = new URL(request.url).searchParams.get("active");
+    const items = vendorState()
+      .vendors.filter((v) => active === null || v.active === (active === "true"))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return HttpResponse.json({ items });
   }),
 
   http.post("*/v1/hubs/:id/vendors", ({ params, request }) =>
     idempotent(request, (body) => {
-      if (params.id !== KHARGHAR_HUB_ID) return problem(404, "hubs.not_found", "No such hub");
-      const name = String(body?.name ?? "").trim();
-      const supplies = String(body?.supplies ?? "").trim();
-      const phone = String(body?.phone ?? "").trim();
-      /** @type {{ field: string, message: string }[]} */
-      const errors = [];
-      if (!name) errors.push({ field: "name", message: "Enter the vendor’s name" });
-      if (!supplies) errors.push({ field: "supplies", message: "Say what they supply" });
-      if (!/^[6-9]\d{9}$/.test(phone))
-        errors.push({ field: "phone", message: "Enter a 10-digit mobile number" });
-      if (!KINDS.includes(body?.kind))
-        errors.push({ field: "kind", message: "Choose the kind of vendor" });
-      if (errors.length)
-        return problem(422, "request.invalid", "Check the vendor’s details", { errors });
-      if (vendors().some((v) => v.name.toLowerCase() === name.toLowerCase()))
-        return problem(409, "vendors.name_taken", "A vendor with this name already exists");
+      const refused = hubGuard(request, params.id, { write: true });
+      if (refused) return refused;
+      const bad = invalid(body, false);
+      if (bad) return bad;
+      const name = body.name.trim();
+      if (vendorState().vendors.some((v) => sameName(v, name)))
+        return problem(409, "hub_ops.vendor_name_taken", "A vendor with this name already exists");
+      const { vendors } = vendorState();
       /** @type {Vendor} */
       const vendor = {
-        id: `vendor-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        id: mockUuid("b200", vendors.length + 1),
+        hub_id: KHARGHAR_HUB_ID,
         name,
-        supplies,
         kind: body.kind,
-        phone,
-        scores: null,
-        history: [],
+        phone: body.phone ?? null,
+        whatsapp: body.whatsapp ?? true,
+        is_default: false,
+        notes: body.notes ?? null,
+        active: true,
+        score: null,
+        version: 1,
+        created_at: new Date().toISOString(),
       };
-      vendors().push(vendor);
-      return HttpResponse.json({ ...vendor, item_count: 0 }, { status: 201 });
+      vendors.push(vendor);
+      if (body.is_default) takeDefault(vendor);
+      return withEtag(vendor, vendor.version, 201);
     }),
   ),
+
+  http.patch("*/v1/vendors/:id", async ({ params, request }) => {
+    const vendor = findVendor(String(params.id));
+    if (!vendor) return problem(404, "hub_ops.vendor_not_found", "No such vendor");
+    const refused = hubGuard(request, vendor.hub_id, { write: true });
+    if (refused) return refused;
+    const stale = checkIfMatch(request, vendor.version);
+    if (stale) return stale;
+    /** @type {any} */
+    const body = await request.json().catch(() => null);
+    const bad = invalid(body, true);
+    if (bad) return bad;
+    if (
+      body.name != null &&
+      vendorState().vendors.some((v) => v !== vendor && sameName(v, body.name.trim()))
+    )
+      return problem(409, "hub_ops.vendor_name_taken", "A vendor with this name already exists");
+
+    /** @type {Record<string, any>} */
+    const next = { ...vendor };
+    for (const key of FIELDS) if (body[key] !== undefined) next[key] = body[key];
+    next.name = next.name.trim();
+    if (!next.active) next.is_default = false; // deactivating clears the default, and an inactive vendor never has it
+    const changed = FIELDS.some((k) => next[k] !== /** @type {any} */ (vendor)[k]);
+    if (changed) {
+      const becomesDefault = next.is_default && !vendor.is_default;
+      Object.assign(vendor, next, { version: vendor.version + 1 });
+      if (becomesDefault) takeDefault(vendor);
+    }
+    return withEtag(vendor, vendor.version);
+  }),
 ];

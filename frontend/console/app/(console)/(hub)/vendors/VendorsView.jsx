@@ -1,75 +1,86 @@
 "use client";
 
-import { Button, EmptyState, Select, Sheet, TextField, Toaster, toast } from "@gharbasket/ui";
-import { ChartCard, DataTable } from "@gharbasket/ui/console";
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { plural, formatShortDate as shortDate } from "@/lib/format.js";
-import { addVendor } from "./actions.js";
+import {
+  Button,
+  Checkbox,
+  EmptyState,
+  Select,
+  Sheet,
+  TextField,
+  Toaster,
+  toast,
+} from "@gharbasket/ui";
+import { DataTable } from "@gharbasket/ui/console";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { addVendor, updateVendor } from "./actions.js";
 
 /**
- * GET /v1/hubs/{id}/vendors (M6 §3). `scores` and `history` come from the weekly scoring job; a vendor
- * with no deliveries yet has `scores: null`.
- * @typedef {{ id: string, name: string, supplies: string, kind: string, phone: string, item_count: number,
- *   scores: { ontime_pct: number, fill_pct: number, grade_a_pct: number, score: number,
- *     state: { tone: "primary" | "accent", label: string } } | null,
- *   history: { week: string, fill_pct: number, grade_a_pct: number }[] }} Vendor
- * @typedef {{ week: string, weeks: string[], items: Vendor[] }} VendorList
+ * GET /v1/hubs/{id}/vendors (M6 §3.1, built). `score` is the last weekly score from 0 to 1, null until
+ * the vendor has been scored. The contract has no breakdown of the score and no "what they supply"
+ * beyond `notes`.
+ * @typedef {{ id: string, name: string, kind: "apmc_trader" | "fpo" | "farmer" | "wholesaler",
+ *   phone: string | null, whatsapp: boolean, is_default: boolean, notes: string | null, active: boolean,
+ *   score: number | null, version: number }} Vendor
  */
 
 const COLUMNS = [
   { key: "vendor", label: "Vendor", sortable: true },
-  { key: "items", label: "Supplies" },
-  { key: "ontime", label: "On time", align: /** @type {const} */ ("end"), sortable: true },
-  { key: "fill", label: "Fill rate", align: /** @type {const} */ ("end"), sortable: true },
-  { key: "gradeA", label: "Grade A", align: /** @type {const} */ ("end"), sortable: true },
+  { key: "kind", label: "Kind" },
+  { key: "phone", label: "Phone" },
   { key: "score", label: "Score", align: /** @type {const} */ ("end"), sortable: true },
   { key: "state", label: "State" },
 ];
 const KINDS = [
-  { value: "apmc", label: "APMC market trader" },
+  { value: "apmc_trader", label: "APMC market trader" },
   { value: "fpo", label: "Farmer producer organisation (FPO)" },
   { value: "farmer", label: "Farmer" },
+  { value: "wholesaler", label: "Wholesaler" },
 ];
+const BLANK = { name: "", notes: "", kind: "", phone: "", whatsapp: true, isDefault: false };
 
-/** @param {number} n */
-const pct = (n) => ({ text: `${n}%`, sort: n });
+/** @param {string | null} phone `+919800002001` as `+91 98000 02001` */
+const showPhone = (phone) => (phone ? phone.replace(/^(\+91)(\d{5})(\d+)$/, "$1 $2 $3") : "—");
 
-/** @param {{ list: VendorList }} props */
-export function VendorsView({ list }) {
-  const [vendors, setVendors] = useState(list.items);
-  useEffect(() => setVendors(list.items), [list.items]);
+/** @param {Vendor} v */
+function state(v) {
+  if (!v.active) return { tone: /** @type {const} */ ("outline"), label: "Inactive" };
+  if (v.is_default) return { tone: /** @type {const} */ ("primary"), label: "Default" };
+  return v.score === null
+    ? { tone: /** @type {const} */ ("outline"), label: "New" }
+    : { tone: /** @type {const} */ ("neutral"), label: "Active" };
+}
+
+/** @param {{ vendors: Vendor[] }} props */
+export function VendorsView({ vendors }) {
+  const router = useRouter();
+  const [selected, setSelected] = useState(/** @type {(string | number)[]} */ ([]));
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", supplies: "", kind: "", phone: "" });
+  const [form, setForm] = useState(BLANK);
   const [errors, setErrors] = useState(/** @type {Record<string, string>} */ ({}));
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [busy, startTransition] = useTransition();
+  // Forget a selection whose vendor is gone after a reload.
+  useEffect(
+    () => setSelected((s) => s.filter((id) => vendors.some((v) => v.id === id))),
+    [vendors],
+  );
 
   const rows = vendors.map((v) => ({
     id: v.id,
-    vendor: { text: v.name, sub: v.supplies, strong: true },
-    items: plural(v.item_count, "item"),
-    ontime: v.scores ? pct(v.scores.ontime_pct) : { text: "—", sort: -1 },
-    fill: v.scores ? pct(v.scores.fill_pct) : { text: "—", sort: -1 },
-    gradeA: v.scores ? pct(v.scores.grade_a_pct) : { text: "—", sort: -1 },
-    score: v.scores
-      ? { text: String(v.scores.score), sort: v.scores.score, strong: true }
-      : { text: "—", sort: -1 },
-    state: {
-      badge: v.scores ? v.scores.state : { tone: /** @type {const} */ ("outline"), label: "New" },
-    },
+    vendor: { text: v.name, sub: v.notes ?? undefined, strong: true },
+    kind: KINDS.find((k) => k.value === v.kind)?.label ?? v.kind,
+    phone: { text: showPhone(v.phone), sub: v.phone && v.whatsapp ? "WhatsApp" : undefined },
+    score:
+      v.score === null
+        ? { text: "—", sort: -1 }
+        : { text: String(Math.round(v.score * 100)), sort: v.score, strong: true },
+    state: { badge: state(v) },
   }));
+  const one = selected.length === 1 ? vendors.find((v) => v.id === selected[0]) : undefined;
 
-  const labels = list.weeks.map(shortDate);
-  const series = useMemo(() => {
-    const scored = vendors.filter((v) => v.history.length === list.weeks.length);
-    return {
-      fill: scored.map((v) => ({ name: v.name, values: v.history.map((h) => h.fill_pct) })),
-      grade: scored.map((v) => ({ name: v.name, values: v.history.map((h) => h.grade_a_pct) })),
-    };
-  }, [vendors, list.weeks.length]);
-
-  /** @param {keyof typeof form} field */
-  const set = (field) => (/** @type {string} */ value) => {
+  /** @param {keyof typeof BLANK} field */
+  const set = (field) => (/** @type {string | boolean} */ value) => {
     setForm((f) => ({ ...f, [field]: value }));
     setErrors((e) => ({ ...e, [field]: "" }));
   };
@@ -78,27 +89,50 @@ export function VendorsView({ list }) {
     // The same checks the API makes, so most mistakes show before the round trip.
     /** @type {Record<string, string>} */
     const local = {};
-    if (!form.name.trim()) local.name = "Enter the vendor’s name";
-    if (!form.supplies.trim()) local.supplies = "Say what they supply";
+    const digits = form.phone.replace(/\s/g, "");
+    if (form.name.trim().length < 2) local.name = "Enter the vendor’s name";
     if (!form.kind) local.kind = "Choose the kind of vendor";
-    if (!/^[6-9]\d{9}$/.test(form.phone)) local.phone = "Enter a 10-digit mobile number";
+    if (digits && !/^[6-9]\d{9}$/.test(digits)) local.phone = "Enter a 10-digit mobile number";
     if (Object.keys(local).length) {
       setErrors(local);
       return;
     }
     startTransition(async () => {
-      const res = await addVendor(form, key);
+      const res = await addVendor(
+        {
+          name: form.name.trim(),
+          kind: form.kind,
+          phone: digits ? `+91${digits}` : null,
+          whatsapp: form.whatsapp,
+          is_default: form.isDefault,
+          notes: form.notes.trim() || null,
+        },
+        key,
+      );
       if (!res.ok) {
         setErrors(res.fields);
         toast(res.message);
         return;
       }
-      setVendors((all) => [...all, res.data]);
       setOpen(false);
-      setForm({ name: "", supplies: "", kind: "", phone: "" });
+      setForm(BLANK);
       setErrors({});
       setKey(crypto.randomUUID());
       toast(`${res.data.name} added`);
+      router.refresh(); // a new default changes the old default too, so read the list again
+    });
+  }
+
+  /** @param {Vendor} vendor @param {{ is_default?: boolean, active?: boolean }} patch @param {string} done */
+  function change(vendor, patch, done) {
+    startTransition(async () => {
+      const res = await updateVendor(vendor.id, vendor.version, patch);
+      if (!res.ok) {
+        toast(res.message);
+        return;
+      }
+      toast(`${vendor.name} ${done}`);
+      router.refresh();
     });
   }
 
@@ -108,8 +142,9 @@ export function VendorsView({ list }) {
         <div className="flex flex-col gap-0.5">
           <h1 className="m-0 font-display text-[28px] leading-[34px] font-semibold">Vendors</h1>
           <p className="m-0 max-w-[70ch] text-sm text-fg-secondary">
-            Weekly scores from receiving: did it come on time, in full, and at grade A. The plan
-            suggests the best-scoring vendor per item.
+            The people you buy from. The weekly score comes from receiving: freshness, price,
+            reliability and defects. The default vendor is suggested for items you have never
+            bought.
           </p>
         </div>
         <Button onPress={() => setOpen(true)}>Add vendor</Button>
@@ -127,34 +162,40 @@ export function VendorsView({ list }) {
           columns={COLUMNS}
           rows={rows}
           defaultSort={{ key: "score", dir: "desc" }}
-          caption={`Vendor scores, week of ${shortDate(list.week)}`}
-          footer="Vendor names are placeholders until real vendors are onboarded."
+          caption="Vendors and their latest weekly score"
+          selectable
+          selected={selected}
+          onSelect={setSelected}
+          labels={{ selectRow: "Select {row}" }}
+          bulk={
+            one ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <Button
+                  isDisabled={busy || one.is_default || !one.active}
+                  onPress={() => change(one, { is_default: true }, "is now the default")}
+                >
+                  Make default
+                </Button>
+                <Button
+                  isDisabled={busy}
+                  onPress={() =>
+                    change(one, { active: !one.active }, one.active ? "deactivated" : "reactivated")
+                  }
+                >
+                  {one.active ? "Deactivate" : "Reactivate"}
+                </Button>
+              </span>
+            ) : (
+              <span>Select one vendor to make it the default or to deactivate it.</span>
+            )
+          }
+          footer="Vendors are deactivated, never deleted, so old purchase orders keep their names."
         />
       )}
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 min-[900px]:grid-cols-2">
-        <ChartCard
-          title="Fill rate by week"
-          subtitle="Share of ordered quantity delivered"
-          kind="line"
-          format="pct"
-          max={100}
-          labels={labels}
-          series={series.fill}
-        />
-        <ChartCard
-          title="Grade A share by week"
-          subtitle="Share of received weight graded A"
-          format="pct"
-          max={100}
-          labels={labels}
-          series={series.grade}
-        />
-      </div>
-
       <Sheet
         title="Add a vendor"
-        description="They appear on the procurement plan once their scores are in."
+        description="They can be put on procurement lines and purchase orders straight away."
         open={open}
         onOpenChange={setOpen}
         footer={
@@ -175,12 +216,12 @@ export function VendorsView({ list }) {
             errorMessage={errors.name}
           />
           <TextField
-            label="What they supply"
+            label="What they supply (optional)"
             description="For example: vegetables, or dairy and eggs"
-            value={form.supplies}
-            onChange={set("supplies")}
-            isInvalid={!!errors.supplies}
-            errorMessage={errors.supplies}
+            value={form.notes}
+            onChange={set("notes")}
+            isInvalid={!!errors.notes}
+            errorMessage={errors.notes}
           />
           <Select
             label="Kind of vendor"
@@ -191,13 +232,24 @@ export function VendorsView({ list }) {
             error={errors.kind}
           />
           <TextField
-            label="Mobile number"
+            label="Mobile number (optional)"
             prefix="+91"
             inputMode="numeric"
             value={form.phone}
             onChange={set("phone")}
             isInvalid={!!errors.phone}
             errorMessage={errors.phone}
+          />
+          <Checkbox
+            label="Send purchase orders on WhatsApp"
+            isSelected={form.whatsapp}
+            onChange={set("whatsapp")}
+          />
+          <Checkbox
+            label="Make this the default vendor"
+            description="Suggested for items with no purchase history"
+            isSelected={form.isDefault}
+            onChange={set("isDefault")}
           />
         </div>
       </Sheet>
