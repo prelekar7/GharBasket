@@ -676,7 +676,9 @@
     "nothingBody": "Your next delivery shows here on the morning it comes.",
     "emptyTitle": "No orders yet",
     "emptyBody": "Your first box shows here once your society unlocks and you approve the week.",
-    "track": "Track live"
+    "track": "Track live",
+    "rate": "How was today?",
+    "rated": "Thanks for rating today’s delivery."
   },
   "kindness": {
     "title": "Your gullak",
@@ -1443,5 +1445,39 @@
     "goneTitle": "This tiffin can’t be booked now",
     "goneBody": "It may be booked already, or this week’s orders have closed.",
     "backToWeek": "Back to the week"
+  },
+  "rate": {
+    "when": "{day} · delivered",
+    "title": "How was today?",
+    "box": "Your box",
+    "tiffin": "{slot, select, dinner {Dinner tiffin} other {Lunch tiffin}}",
+    "tiffinBy": "{dish} · {cook}",
+    "tags": {
+      "box": {
+        "fresh": "Fresh",
+        "on_time": "On time",
+        "packed_well": "Packed well",
+        "missing": "Something was missing"
+      },
+      "tiffin": {
+        "tasty": "Tasty",
+        "hot": "Hot enough",
+        "portion": "Right portion",
+        "oily": "Too oily"
+      }
+    },
+    "more": "Anything else? (optional)",
+    "morePh": "Tell us in your own words",
+    "privacy": "{cook} and {captain} see the average rating, never your name or flat.",
+    "privacyBox": "{captain} and the hub see the average rating, never your name or flat.",
+    "send": "Send rating",
+    "problem": "Report a problem with this order",
+    "thanks": "Thank you. Your rating is in.",
+    "failed": "We couldn’t send your rating. Check your internet and try again.",
+    "doneTitle": "Rated already",
+    "doneBody": "Thanks for rating this delivery. You can still report a problem from Orders.",
+    "notYetTitle": "Not delivered yet",
+    "notYetBody": "You can rate it once it reaches your door.",
+    "backToOrders": "Back to Orders"
   }
 }

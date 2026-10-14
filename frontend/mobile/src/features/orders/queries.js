@@ -7,7 +7,8 @@ import { request } from "@/lib/api.js";
  *   id: string, kind: "box" | "tiffin" | "addon", status: string, delivery_date: string, eta_by?: string,
  *   items_count?: number, total_paise: number, paid_from?: "wallet" | "upi_autopay", plan_ready_on?: string,
  *   address: { flat: string, society: string }, hub?: { name: string }, captain?: { name: string, phone_e164: string },
- *   cook?: { name: string }, dish?: { name: string }, slot?: "lunch" | "dinner", qty?: number, events: { to_status: string, at: string }[], version: number,
+ *   cook?: { name: string }, dish?: { name: string }, slot?: "lunch" | "dinner", qty?: number,
+ *   rating?: { score: number } | null, events: { to_status: string, at: string }[], version: number,
  * }} Order
  */
 
@@ -99,5 +100,31 @@ export function useAddTiffin() {
       client.invalidateQueries({ queryKey: ["cycle", "current"] });
       client.invalidateQueries({ queryKey: ["orders"] });
     },
+  });
+}
+
+/** @typedef {{ orderId: string, score: number, tags: string[], comment?: string }} Rating */
+
+/**
+ * Rate a delivered day: the box and any tiffin with it, one rating each (POST
+ * /v1/orders/{id}/rating, our proposal for M4 and M8). One Idempotency-Key per order, so a retry
+ * after half went through never rates twice.
+ */
+export function useRateDelivery() {
+  const client = useQueryClient();
+  const keys = useRef(/** @type {Record<string, string>} */ ({}));
+  return useMutation({
+    mutationFn: (/** @type {Rating[]} */ list) =>
+      Promise.all(
+        list.map((r) => {
+          keys.current[r.orderId] ??= crypto.randomUUID();
+          return request(`/v1/orders/${r.orderId}/rating`, {
+            method: "POST",
+            body: { score: r.score, tags: r.tags, comment: r.comment || undefined },
+            headers: { "idempotency-key": keys.current[r.orderId] },
+          });
+        }),
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
