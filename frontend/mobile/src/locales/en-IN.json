@@ -7,7 +7,16 @@
     "failed": "We couldn’t sign you in. Check your internet and try again.",
     "cta": "Continue",
     "mock": "Test mode: no SMS is sent. Use code 123456.",
-    "sendFailed": "We couldn’t send the code. Check your internet and try again."
+    "sendFailed": "We couldn’t send the code. Check your internet and try again.",
+    "sendCode": "Send code",
+    "foot": "Same number on a new phone? Your household comes back with it.",
+    "consent": {
+      "pre": "By continuing you agree to the ",
+      "terms": "Terms",
+      "mid": " and ",
+      "privacy": "Privacy notice",
+      "post": "."
+    }
   },
   "role": {
     "title": "Continue as",
@@ -74,7 +83,13 @@
     "sub": "Your family’s week of food, planned and delivered by your society.",
     "langLabel": "Choose your language",
     "cta": "Continue",
-    "later": "You can change this later in Profile."
+    "later": "You can change this later in Profile.",
+    "weekLabel": "A sample week",
+    "sample": [
+      ["Dal chawal", "Methi thepla"],
+      ["Rajma chawal", "Khichdi"],
+      ["Bhindi roti", "Paneer bhurji"]
+    ]
   },
   "otp": {
     "back": "Back",
