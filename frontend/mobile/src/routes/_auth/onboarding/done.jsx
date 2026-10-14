@@ -128,10 +128,22 @@ function Done() {
             )}
           </div>
           <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.done.invite")}</p>
-          <Button variant="secondary" onPress={invite}>
-            {t("onboarding.done.inviteCta")}
-            <ArrowRightIcon aria-hidden size={20} weight="bold" />
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onPress={invite}>
+              {t("onboarding.done.inviteCta")}
+              <ArrowRightIcon aria-hidden size={20} weight="bold" />
+            </Button>
+            <Button
+              variant="quiet"
+              onPress={() => {
+                const id = society.id;
+                reset();
+                navigate({ to: "/society/$societyId", params: { societyId: id } });
+              }}
+            >
+              {t("society.title")}
+            </Button>
+          </div>
         </section>
       )}
     </OnboardingFrame>

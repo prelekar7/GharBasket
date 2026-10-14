@@ -18,8 +18,18 @@ export async function shareInvite({ societyId, slug, text, copied }) {
   }
 }
 
+/**
+ * The public web address neighbours open. Inside Capacitor `location.origin` is the app's own
+ * `https://localhost`, so the link must come from configuration (VITE_PUBLIC_WEB_URL).
+ */
+const PUBLIC_WEB_URL = (import.meta.env.VITE_PUBLIC_WEB_URL || "https://gharbasket.in").replace(
+  /\/+$/,
+  "",
+);
+
 /** The society's landing page that an invite points to (M9 `/s/<society>`, by slug). @param {string} societySlug */
-export const inviteLink = (societySlug) => `${location.origin}/s/${societySlug}`;
+export const inviteLink = (societySlug) =>
+  `${PUBLIC_WEB_URL}/s/${encodeURIComponent(societySlug)}`;
 
 /** WhatsApp with the message ready to send (wa.me works in the app and on the web). @param {string} text */
 export const whatsappShare = (text) =>
