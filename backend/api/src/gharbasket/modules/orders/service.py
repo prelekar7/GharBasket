@@ -20,7 +20,14 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import state
 from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
-from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot, SlotBooking
+from gharbasket.modules.orders.models import (
+    Order,
+    OrderEvent,
+    OrderIssue,
+    OrderLine,
+    Slot,
+    SlotBooking,
+)
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
@@ -559,6 +566,8 @@ async def transition(
     Only the state machine is checked: the caller has checked that this person may act."""
     state.check(order.kind, order.status, to_status, actor)
     from_status = order.status
+    if to_status == "refunded":
+        payload = {**(payload or {}), "refund_paise": await _refund(session, order, payload or {})}
     order.status = to_status
     order.version += 1
     if to_status == "locked":
@@ -772,3 +781,33 @@ async def mark_shortage(
         },
     )
     return line
+
+
+async def refundable_paise(session: AsyncSession, order: Order) -> int:
+    """What may still be refunded on an order: its paid total (net of shortage refunds, which
+    follow the lines) minus the issue credits already made on it."""
+    credited = await session.scalar(
+        select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
+            OrderIssue.order_id == order.id, OrderIssue.status == "credited"
+        )
+    )
+    return max(0, order.total_paise - int(credited or 0))
+
+
+async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> int:
+    """The money of a move to `refunded` (ADR-0027 §5): `payload.refund_paise` (default: all that
+    is refundable) back to the wallet with `payload.reason`, once per order and reason."""
+    most = await refundable_paise(session, order)
+    amount = payload.get("refund_paise")
+    amount = most if amount is None else int(amount)
+    if not 0 <= amount <= most:
+        raise ValueError(f"refund_paise must be 0 to {most}")
+    if amount > 0:
+        owner = await identity_api.owner_of_household(session, order.household_id)
+        if owner is None:
+            raise ValueError(f"order {order.id} has no household owner")
+        async with session.begin_nested():  # a refused refund leaves nothing behind
+            await billing_api.refund_to_wallet(
+                session, owner, order.id, amount, reason=str(payload.get("reason") or "refund")
+            )
+    return amount

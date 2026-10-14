@@ -458,6 +458,8 @@ DeliveryStatus = Literal[
     "triage",
 ]
 
+Reason = Literal["not_home", "refused", "wrong_address", "damaged", "missing", "other"]
+
 
 class ProofIn(FieldTap):
     bag_qr: str = Field(
@@ -495,3 +497,15 @@ class DeliveryOut(BaseModel):
     proof: Literal["scan", "otp", "photo"] | None
     by: Literal["captain", "rider", "hub", "system"] | None
     at: datetime | None
+
+
+class UndeliveredIn(FieldTap):
+    reason: Reason
+    note: str | None = Field(default=None, max_length=300, description="Required for other")
+    photo_key: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _note_for_other(self) -> Self:
+        if self.reason == "other" and not (self.note and self.note.strip()):
+            raise ValueError("a note is required for other")
+        return self

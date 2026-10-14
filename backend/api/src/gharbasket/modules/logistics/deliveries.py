@@ -1,15 +1,20 @@
-"""The doors (spec §3.4): proof of delivery on the order's current attempt.
+"""The doors (spec §3.4): proof of delivery, undelivered, hold and refunds on the order's
+current attempt.
 
 Attempt 1 is opened when the order's route starts (with the household's delivery code) and
 follows the handover (`with_captain`). At the door the bag's QR must be the order's; a captain may
-prove it by the scan alone, a rider needs the household's code or a photo. Order moves go through
-`orders.api.transition`.
+prove it by the scan alone, a rider needs the household's code or a photo. A captain holds a
+not-home bag until 20:00 IST; damaged and missing bags are refunded at once, refused, wrong
+address and other wait for the hub's triage. Order moves go through `orders.api.transition`;
+refunds go through M4's move to `refunded`, which pays the wallet (ADR-0027 §5).
 """
 
 import uuid
+from datetime import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.logistics import events
 from gharbasket.modules.logistics.attempts import latest
 from gharbasket.modules.logistics.handover import (
     MAX_CODE_TRIES,
@@ -20,12 +25,16 @@ from gharbasket.modules.logistics.handover import (
 )
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
-from gharbasket.modules.logistics.schemas import ProofIn
-from gharbasket.modules.logistics.views import now
+from gharbasket.modules.logistics.schemas import ProofIn, UndeliveredIn
+from gharbasket.modules.logistics.views import hhmm, now
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.outbox import publish
 from gharbasket.platform.permissions import Permit
 
+HOLD_UNTIL = time(20, 0)  # IST; hold_expiry runs at 20:30
+REFUND_AT_ONCE = ("damaged", "missing")  # our fault: refunded in full
+TRIAGE = ("refused", "wrong_address", "other")
 CLOSED = ("delivered", "refunded")
 
 
@@ -129,4 +138,64 @@ async def deliver(
     )
     delivery.hold_until, delivery.at = None, now()
     await _tap(session, delivery, "proof", actor, {"proof": body.proof}, body.client_at)
+    await session.flush()
+
+
+async def refund(
+    session: AsyncSession, delivery: Delivery, order_id: uuid.UUID, amount: int, reason: str
+) -> None:
+    """undelivered → refunded (actor system); M4 pays the wallet."""
+    await orders_api.transition(
+        session,
+        order_id,
+        "refunded",
+        actor="system",
+        payload={"refund_paise": amount, "reason": reason},
+    )
+    delivery.status, delivery.refund_paise, delivery.at = "refunded", amount, now()
+
+
+async def fail(
+    session: AsyncSession,
+    delivery: Delivery,
+    order: orders_api.Order,
+    actor: Actor,
+    body: UndeliveredIn,
+) -> None:
+    """The table of §3.4: a captain holds a not-home bag until 20:00; otherwise the order is
+    undelivered, then refunded at once (damaged, missing) or left for triage."""
+    _ensure_open(delivery, order)
+    if body.reason == "not_home" and actor.kind == "captain":
+        if delivery.status != "held":
+            delivery.status, delivery.hold_until, delivery.reason = "held", HOLD_UNTIL, "not_home"
+            delivery.by_actor, delivery.user_id, delivery.at = "captain", actor.user_id, now()
+            await publish(
+                session,
+                events.DELIVERY_HELD,
+                {
+                    "order_id": str(order.id),
+                    "household_id": str(order.household_id),
+                    "society_id": str(order.society_id),
+                    "hold_until": hhmm(HOLD_UNTIL),
+                },
+            )
+            await _tap(session, delivery, "hold", actor, None, body.client_at)
+        return
+    await orders_api.transition(
+        session,
+        order.id,
+        "undelivered",
+        actor=actor.kind,
+        actor_user_id=actor.user_id,
+        payload={"reason": body.reason},
+    )
+    delivery.status, delivery.reason, delivery.hold_until = "undelivered", body.reason, None
+    delivery.by_actor, delivery.user_id, delivery.note = actor.kind, actor.user_id, body.note
+    delivery.photo_key, delivery.client_at, delivery.at = body.photo_key, body.client_at, now()
+    if body.reason in REFUND_AT_ONCE:
+        amount = await orders_api.refundable_paise(session, order.id)
+        await refund(session, delivery, order.id, amount, body.reason)
+    elif body.reason in TRIAGE:
+        delivery.status = "triage"
+    await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)
     await session.flush()

@@ -55,6 +55,7 @@ __all__ = [
     "grace_until_for",
     "mark_shortage",
     "orders_for_delivery",
+    "refundable_paise",
     "resolve_issue",
     "slot_ref",
     "transition",
@@ -86,6 +87,8 @@ async def transition(
     """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
     actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
     `actor_user_id` the person, recorded on the timeline row but never shown to customers.
+    A move to `refunded` pays `payload.refund_paise` (default: all that is refundable) back to
+    the wallet with `payload.reason` (ADR-0027 §5).
     M4 checks only the state machine (409 `orders.illegal_transition`); the caller has already
     checked that this person may act on this order (packer of its hub, rider of its route,
     active captain of its society, kitchen of its assignment)."""
@@ -93,6 +96,11 @@ async def transition(
     return await service.transition(
         session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
     )
+
+
+async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
+    """What a refund of the order may still pay back (M7's triage bound)."""
+    return await service.refundable_paise(session, await service.get(session, order_id))
 
 
 async def mark_shortage(
