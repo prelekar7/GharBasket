@@ -7,16 +7,24 @@ import { PageHeader, Panel } from "@/components/PageHeader.jsx";
 import { Toasts } from "@/components/Toasts.jsx";
 import { addNgo, createDrive } from "./actions.js";
 
-/** @typedef {import("@/mocks/community.js").Drive} Drive */
-/** @typedef {import("@/mocks/community.js").PointRate} PointRate */
-/** @typedef {import("@/mocks/community.js").Ngo} Ngo */
-/** @typedef {import("@/lib/types.js").Column} Column */
+/**
+ * GET /v1/drives, GET /v1/point-rates and GET /v1/ngos (M9 sections 3.4 and 3.5).
+ * @typedef {{ id: string, code: string, name: string, description: string | null, scope: string,
+ *   codes: string[], multiplier: number, starts_on: string, ends_on: string,
+ *   state: "upcoming" | "running" | "ended" | "cancelled", ngo: { id: string, name: string } | null,
+ *   goal_items: number | null, progress: { pledged: number, verified: number } }} Drive
+ * @typedef {{ code: string, label: string, unit: "kg" | "each", points: number, max_qty: number }} PointRate
+ * @typedef {{ id: string, name: string, kind: string, verified: boolean, status: "active" | "paused",
+ *   note: string | null, coordinator: { name: string, phone_e164: string } | null }} Ngo
+ * @typedef {import("@/lib/types.js").Column} Column
+ */
 
 /** @type {Column[]} */
 const DRIVE_COLUMNS = [
   { key: "name", label: "Drive" },
   { key: "dates", label: "Dates" },
   { key: "mult", label: "Multiplier", align: "end" },
+  { key: "items", label: "Items", align: "end" },
   { key: "state", label: "State" },
 ];
 /** @type {Column[]} */
@@ -36,7 +44,20 @@ const STATE = {
   running: { tone: /** @type {const} */ ("primary"), label: "Running" },
   upcoming: { tone: /** @type {const} */ ("accent"), label: "Starts soon" },
   ended: { tone: /** @type {const} */ ("outline"), label: "Ended" },
+  cancelled: { tone: /** @type {const} */ ("outline"), label: "Cancelled" },
 };
+
+const KINDS = [
+  { value: "food_bank", label: "Food bank" },
+  { value: "shelter", label: "Shelter" },
+  { value: "school", label: "School" },
+  { value: "other", label: "Other" },
+];
+
+const SCOPES = [
+  { value: "platform", label: "Everyone" },
+  { value: "hub", label: "This hub only" },
+];
 
 const MULTIPLIERS = [
   { value: "1.5", label: "1.5×" },
@@ -59,14 +80,21 @@ function range(from, to) {
 /** @param {number} m */
 const times = (m) => `${m}×`;
 
-/** @param {{ drives: Drive[], rates: PointRate[], ngos: Ngo[] }} props */
-export function DrivesView({ drives, rates, ngos }) {
+/**
+ * @param {Drive} d
+ * "31 of 200", or "31" when the drive has no goal: the items the hub has counted so far.
+ */
+const itemsText = (d) =>
+  d.goal_items ? `${d.progress.verified} of ${d.goal_items}` : String(d.progress.verified);
+
+/** @param {{ drives: Drive[], rates: PointRate[], ngos: Ngo[], role: string | null, hubId: string }} props */
+export function DrivesView({ drives, rates, ngos, role, hubId }) {
   const [driveOpen, setDriveOpen] = useState(false);
   const [ngoOpen, setNgoOpen] = useState(false);
   const running = drives.find((d) => d.state === "running");
   // The worked example of the footer, from the live rates: a school bag and 3 kg of clothes.
-  const bag = rates.find((r) => r.key === "school_bag");
-  const clothes = rates.find((r) => r.key === "clothes");
+  const bag = rates.find((r) => r.code === "school_bag");
+  const clothes = rates.find((r) => r.code === "clothes");
   const example =
     running && bag && clothes
       ? `With these, a school bag and 3 kg of clothes in the ${running.name} earn ${(bag.points + 3 * clothes.points) * running.multiplier} points.`
@@ -94,7 +122,8 @@ export function DrivesView({ drives, rates, ngos }) {
                 name: { text: d.name, sub: d.description, strong: true },
                 dates: range(d.starts_on, d.ends_on),
                 mult: times(d.multiplier),
-                state: { badge: STATE[d.state ?? "running"] },
+                items: itemsText(d),
+                state: { badge: STATE[d.state] },
               }))}
               labels={{ empty: "No drives yet. Start one for the next festival." }}
             />
@@ -105,7 +134,7 @@ export function DrivesView({ drives, rates, ngos }) {
               caption="Base points per item before the drive multiplier"
               columns={RATE_COLUMNS}
               rows={rates.map((r) => ({
-                id: r.key,
+                id: r.code,
                 item: r.label,
                 unit: r.unit === "kg" ? "per kg" : "each",
                 pts: r.points,
@@ -122,11 +151,14 @@ export function DrivesView({ drives, rates, ngos }) {
             rows={ngos.map((n) => ({
               id: n.id,
               name: { text: n.name, sub: n.note ?? undefined, strong: true },
-              contact: n.coordinator ?? "—",
+              contact: n.coordinator?.name ?? "—",
               state: {
-                badge: n.verified
-                  ? { tone: "primary", label: "Verified" }
-                  : { tone: "outline", label: "Unverified" },
+                badge:
+                  n.status === "paused"
+                    ? { tone: "outline", label: "Paused" }
+                    : n.verified
+                      ? { tone: "primary", label: "Verified" }
+                      : { tone: "outline", label: "Unverified" },
               },
             }))}
             labels={{ empty: "No NGOs yet." }}
@@ -135,19 +167,27 @@ export function DrivesView({ drives, rates, ngos }) {
             Rhythm and Manish are identifying the two pilot NGOs. A new NGO stays unverified until
             its registration is checked; unverified NGOs can’t receive hand-offs.
           </p>
-          <Button block onPress={() => setNgoOpen(true)}>
-            Add NGO
-          </Button>
+          {role === "admin" && (
+            <Button block onPress={() => setNgoOpen(true)}>
+              Add NGO
+            </Button>
+          )}
         </Panel>
       </div>
-      <DriveSheet open={driveOpen} onOpenChange={setDriveOpen} />
-      <NgoSheet open={ngoOpen} onOpenChange={setNgoOpen} />
+      <DriveSheet
+        open={driveOpen}
+        onOpenChange={setDriveOpen}
+        isAdmin={role === "admin"}
+        hubId={hubId}
+        codes={rates.map((r) => r.code)}
+      />
+      <NgoSheet open={ngoOpen} onOpenChange={setNgoOpen} hubId={hubId} />
     </>
   );
 }
 
-/** @param {{ open: boolean, onOpenChange: (open: boolean) => void }} props */
-function DriveSheet({ open, onOpenChange }) {
+/** @param {{ open: boolean, onOpenChange: (open: boolean) => void, isAdmin: boolean, hubId: string, codes: string[] }} props */
+function DriveSheet({ open, onOpenChange, isAdmin, hubId, codes }) {
   const [pending, start] = useTransition();
   const key = useRef(crypto.randomUUID());
   const [form, setForm] = useState({
@@ -156,6 +196,7 @@ function DriveSheet({ open, onOpenChange }) {
     starts_on: "",
     ends_on: "",
     multiplier: "2",
+    scope: "platform",
   });
   const [problem, setProblem] = useState(
     /** @type {{ message: string, fields: Record<string, string> } | null} */ (null),
@@ -167,13 +208,30 @@ function DriveSheet({ open, onOpenChange }) {
   function submit() {
     setProblem(null);
     start(async () => {
-      const res = await createDrive({ ...form, multiplier: Number(form.multiplier) }, key.current);
+      const res = await createDrive(
+        {
+          ...form,
+          multiplier: Number(form.multiplier),
+          // A hub manager starts drives for their own hub only.
+          scope: isAdmin && form.scope === "platform" ? "platform" : "hub",
+          codes,
+        },
+        hubId,
+        key.current,
+      );
       if (!res.ok) {
         setProblem({ message: res.message, fields: res.fields ?? {} });
         return;
       }
       key.current = crypto.randomUUID();
-      setForm({ name: "", description: "", starts_on: "", ends_on: "", multiplier: "2" });
+      setForm({
+        name: "",
+        description: "",
+        starts_on: "",
+        ends_on: "",
+        multiplier: "2",
+        scope: "platform",
+      });
       onOpenChange(false);
       toast(`${form.name.trim()} created`);
     });
@@ -232,6 +290,14 @@ function DriveSheet({ open, onOpenChange }) {
         value={form.multiplier}
         onChange={(multiplier) => set({ multiplier })}
       />
+      {isAdmin && (
+        <Select
+          label="Who can join"
+          options={SCOPES}
+          value={form.scope}
+          onChange={(scope) => set({ scope })}
+        />
+      )}
       {problem && !Object.keys(problem.fields).length && (
         <p role="alert" className="text-sm leading-5 font-semibold text-danger">
           {problem.message}
@@ -241,18 +307,19 @@ function DriveSheet({ open, onOpenChange }) {
   );
 }
 
-/** @param {{ open: boolean, onOpenChange: (open: boolean) => void }} props */
-function NgoSheet({ open, onOpenChange }) {
+/** @param {{ open: boolean, onOpenChange: (open: boolean) => void, hubId: string }} props */
+function NgoSheet({ open, onOpenChange, hubId }) {
   const [pending, start] = useTransition();
   const key = useRef(crypto.randomUUID());
   const [name, setName] = useState("");
-  const [coordinator, setCoordinator] = useState("");
+  const [kind, setKind] = useState("food_bank");
+  const [registration, setRegistration] = useState("");
   const [error, setError] = useState(/** @type {string | null} */ (null));
 
   function submit() {
     setError(null);
     start(async () => {
-      const res = await addNgo({ name, coordinator }, key.current);
+      const res = await addNgo({ name, kind, registration_ref: registration }, hubId, key.current);
       if (!res.ok) {
         setError(res.fields?.name ?? res.message);
         return;
@@ -261,7 +328,7 @@ function NgoSheet({ open, onOpenChange }) {
       onOpenChange(false);
       toast(`${name.trim()} added, not verified yet`);
       setName("");
-      setCoordinator("");
+      setRegistration("");
     });
   }
 
@@ -270,7 +337,7 @@ function NgoSheet({ open, onOpenChange }) {
       open={open}
       onOpenChange={onOpenChange}
       title="Add NGO"
-      description="It stays unverified until its registration is checked."
+      description="It stays unverified until its registration is checked. Its coordinator is given the role on Users and roles."
       footer={
         <>
           <Button variant="quiet" onPress={() => onOpenChange(false)}>
@@ -289,11 +356,12 @@ function NgoSheet({ open, onOpenChange }) {
         isInvalid={!!error}
         errorMessage={error ?? undefined}
       />
+      <Select label="Kind" options={KINDS} value={kind} onChange={setKind} />
       <TextField
-        label="Coordinator"
-        value={coordinator}
-        onChange={setCoordinator}
-        placeholder="Who we speak to"
+        label="Registration number"
+        value={registration}
+        onChange={setRegistration}
+        placeholder="e.g. DARPAN MH/2019/0123456"
       />
     </Sheet>
   );

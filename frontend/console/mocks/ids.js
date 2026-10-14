@@ -18,3 +18,9 @@ export const SLOT_ID = {
   am: mockUuid("b200", 2),
   pm: mockUuid("b200", 3),
 };
+
+/** The partner NGOs of the pilot hub (M9 section 3.5); the first one's coordinator is the mock's NGO sign-in. */
+export const NGO_ID = {
+  first: mockUuid("b800", 1),
+  second: mockUuid("b800", 2),
+};
