@@ -1,18 +1,30 @@
 "use client";
 
-import { Button, EmptyState, ProgressBar, Select, Sheet, TextField, toast } from "@gharbasket/ui";
+import {
+  Button,
+  EmptyState,
+  ProgressBar,
+  Select,
+  Sheet,
+  Switch,
+  TextField,
+  toast,
+} from "@gharbasket/ui";
 import { parseAsString, useQueryState } from "nuqs";
 import { useRef, useState, useTransition } from "react";
 import { PageHead } from "@/components/ops/PageHead.jsx";
-import { dayLabel } from "@/lib/when.js";
-import { saveSlot } from "./actions.js";
+import { dayLabel, hhmm } from "@/lib/when.js";
+import { changeSlot, createSlot } from "./actions.js";
 
-/** @typedef {import("@/mocks/orders.js").Slot & { booked: number }} SlotRow */
+/** One slot of GET /v1/slots (contract SlotOut): `kind` is "box" or "tiffin", times are "HH:MM:SS". @typedef {{ id: string, hub_id: string, label: string, kind: "box" | "tiffin", start: string, end: string, capacity: number, booked: number, available: number }} SlotRow */
 
-const SERVES = [
-  { value: "Boxes", label: "Boxes" },
-  { value: "Tiffins and add-ons", label: "Tiffins and add-ons" },
+const KINDS = [
+  { value: "box", label: "Boxes" },
+  { value: "tiffin", label: "Tiffins and add-ons" },
 ];
+
+/** @param {SlotRow["kind"]} kind */
+const kindLabel = (kind) => KINDS.find((k) => k.value === kind)?.label ?? kind;
 
 /**
  * @param {number} booked
@@ -23,14 +35,18 @@ const toneOf = (booked, cap) =>
   booked >= cap ? "danger" : booked / cap > 0.8 ? "accent" : "primary";
 
 /**
- * Slot form inside the sheet. It owns its fields, so each time the sheet opens it starts fresh.
+ * Slot form inside the sheet. It owns its fields, so each time the sheet opens it starts fresh. A new slot
+ * takes a name, kind, times and capacity; an existing one shows its times read-only and changes only its
+ * capacity and whether it is offered (the API does not edit times: add a new slot instead).
  * @param {{ hubId: string, slot: SlotRow | null, onDone: () => void }} props
  */
 function SlotForm({ hubId, slot, onDone }) {
-  const [start, setStart] = useState(slot?.start_time ?? "");
-  const [end, setEnd] = useState(slot?.end_time ?? "");
+  const [label, setLabel] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
   const [capacity, setCapacity] = useState(slot ? String(slot.capacity) : "");
-  const [serves, setServes] = useState("Boxes");
+  const [kind, setKind] = useState(/** @type {SlotRow["kind"]} */ ("box"));
+  const [active, setActive] = useState(true);
   const [errors, setErrors] = useState(/** @type {Record<string, string>} */ ({}));
   const [pending, startTransition] = useTransition();
   const key = useRef(crypto.randomUUID());
@@ -40,10 +56,19 @@ function SlotForm({ hubId, slot, onDone }) {
     e.preventDefault();
     const cap = /^\d+$/.test(capacity.trim()) ? Number(capacity.trim()) : 0;
     startTransition(async () => {
-      const r = await saveSlot(
-        { id: slot?.id, hubId, start: start.trim(), end: end.trim(), capacity: cap, serves },
-        key.current,
-      );
+      const r = slot
+        ? await changeSlot(slot.id, { capacity: cap, ...(active ? {} : { active: false }) })
+        : await createSlot(
+            {
+              hubId,
+              label: label.trim(),
+              kind,
+              start: start.trim(),
+              end: end.trim(),
+              capacity: cap,
+            },
+            key.current,
+          );
       if (r.ok) {
         toast(`Saved ${r.label}`);
         onDone();
@@ -56,25 +81,50 @@ function SlotForm({ hubId, slot, onDone }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
-      <div className="grid grid-cols-2 gap-3">
+      {!slot && (
         <TextField
-          label="Starts"
-          value={start}
-          onChange={setStart}
-          placeholder="08:00"
-          isInvalid={!!errors.start_time}
-          errorMessage={errors.start_time}
+          label="Name"
+          value={label}
+          onChange={setLabel}
+          placeholder="Morning 7-9"
+          description="Shown to customers. Each slot of a hub needs its own name."
+          isInvalid={!!errors.label}
+          errorMessage={errors.label}
         />
-        <TextField
-          label="Ends"
-          value={end}
-          onChange={setEnd}
-          placeholder="10:00"
-          isInvalid={!!errors.end_time}
-          errorMessage={errors.end_time}
+      )}
+      {slot ? (
+        <p className="text-sm leading-5 text-fg-secondary">
+          {hhmm(slot.start)} to {hhmm(slot.end)} · times can’t be changed. To use other times, add a
+          new slot and switch this one off.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <TextField
+            label="Starts"
+            value={start}
+            onChange={setStart}
+            placeholder="08:00"
+            isInvalid={!!errors.start}
+            errorMessage={errors.start}
+          />
+          <TextField
+            label="Ends"
+            value={end}
+            onChange={setEnd}
+            placeholder="10:00"
+            isInvalid={!!errors.end}
+            errorMessage={errors.end}
+          />
+        </div>
+      )}
+      {!slot && (
+        <Select
+          label="For"
+          options={KINDS}
+          value={kind}
+          onChange={(v) => setKind(/** @type {SlotRow["kind"]} */ (v))}
         />
-      </div>
-      {!slot && <Select label="For" options={SERVES} value={serves} onChange={setServes} />}
+      )}
       <TextField
         label="Orders per day"
         inputMode="numeric"
@@ -84,6 +134,14 @@ function SlotForm({ hubId, slot, onDone }) {
         isInvalid={!!errors.capacity}
         errorMessage={errors.capacity}
       />
+      {slot && (
+        <Switch
+          label="Offer this slot"
+          description="Switched off, customers can’t pick it and it can’t be given to a society."
+          isSelected={active}
+          onChange={setActive}
+        />
+      )}
       <Button type="submit" variant="primary" size="lg" block isDisabled={pending}>
         Save slot
       </Button>
@@ -172,7 +230,12 @@ export function SlotsView({ hubId, date, dates, slots }) {
               {slots.map((s) => (
                 <tr key={s.id} className="border-b border-line last:border-b-0">
                   <td className="px-3 py-3 font-semibold">{s.label}</td>
-                  <td className="px-3 py-3">{s.serves}</td>
+                  <td className="px-3 py-3">
+                    {kindLabel(s.kind)}
+                    <span className="block text-fg-secondary">
+                      {hhmm(s.start)} to {hhmm(s.end)}
+                    </span>
+                  </td>
                   <td className="px-3 py-3">
                     <ProgressBar
                       label={s.label}
@@ -198,7 +261,7 @@ export function SlotsView({ hubId, date, dates, slots }) {
         title={editing && editing !== "new" ? `Edit ${editing.label}` : "Add a slot"}
         description={
           editing && editing !== "new"
-            ? `${editing.serves} go out in this slot.`
+            ? `${kindLabel(editing.kind)} go out in this slot.`
             : "Pick the window and how many orders it can take."
         }
         open={editing !== null}

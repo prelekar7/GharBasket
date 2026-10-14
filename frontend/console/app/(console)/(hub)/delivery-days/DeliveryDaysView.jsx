@@ -3,39 +3,53 @@
 import { Button, Select, toast } from "@gharbasket/ui";
 import { useState, useTransition } from "react";
 import { PageHead } from "@/components/ops/PageHead.jsx";
+import { WEEKDAYS } from "@/lib/when.js";
 import { saveDeliveryDays } from "./actions.js";
 
-const WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+/** Days sorted by weekday. @param {Picked} days @returns {Picked} */
+const byDay = (days) => [...days].sort((a, b) => a.weekday - b.weekday);
 
-/** @typedef {{ slotId: string, weekdays: number[] }} Pick */
+/** The contract allows 1 to 3 delivery days a week. */
+const MAX_DAYS = 3;
+
+/** @typedef {import("./page.jsx").Day[]} Picked a society's days: weekday (0 = Monday) and slot, sorted by weekday */
 
 /**
- * Delivery days and slot of each live society. Edits stay in the page until "Save delivery days".
+ * Delivery days and slot of each live society. Edits stay in the page until "Save delivery days". The API
+ * gives each day its own slot; the Slot picker sets one slot for all of a society's days, and shows
+ * "Different slots" when the days already differ.
  * @param {{ data: import("./page.jsx").DeliveryDays }} props
  */
 export function DeliveryDaysView({ data }) {
-  const saved = Object.fromEntries(
-    data.items.map((s) => [s.society_id, { slotId: s.slot_id, weekdays: s.weekdays }]),
-  );
-  const [picks, setPicks] = useState(/** @type {Record<string, Pick>} */ (saved));
+  const saved = Object.fromEntries(data.items.map((s) => [s.society_id, byDay(s.days)]));
+  const [picks, setPicks] = useState(/** @type {Record<string, Picked>} */ (saved));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
 
-  const same = (/** @type {Pick} */ a, /** @type {Pick} */ b) =>
-    a.slotId === b.slotId && a.weekdays.join() === b.weekdays.join();
-  const changed = data.items.filter((s) => !same(picks[s.society_id], saved[s.society_id]));
+  const changed = data.items.filter(
+    (s) => JSON.stringify(picks[s.society_id]) !== JSON.stringify(saved[s.society_id]),
+  );
 
-  /** @param {string} id @param {number} day */
-  function toggle(id, day) {
-    const cur = picks[id].weekdays;
-    const next = cur.includes(day) ? cur.filter((d) => d !== day) : [...cur, day].sort();
-    setPicks({ ...picks, [id]: { ...picks[id], weekdays: next } });
+  /** The slot all days share, or "" when they differ. @param {Picked} days */
+  const commonSlot = (days) =>
+    days.every((d) => d.slot_id === days[0]?.slot_id) ? (days[0]?.slot_id ?? "") : "";
+
+  /** @param {string} id @param {number} weekday */
+  function toggle(id, weekday) {
+    const cur = picks[id];
+    const next = cur.some((d) => d.weekday === weekday)
+      ? cur.filter((d) => d.weekday !== weekday)
+      : byDay([
+          ...cur,
+          { weekday, slot_id: commonSlot(cur) || cur[0]?.slot_id || data.slots[0]?.id },
+        ]);
+    setPicks({ ...picks, [id]: next });
   }
 
   /**
    * Saves each society in `list` with its value from `values`; returns the first failure message.
    * @param {typeof data.items} list
-   * @param {Record<string, Pick>} values
+   * @param {Record<string, Picked>} values
    */
   async function saveAll(list, values) {
     for (const s of list) {
@@ -73,6 +87,7 @@ export function DeliveryDaysView({ data }) {
 
       {data.items.map((s) => {
         const pick = picks[s.society_id];
+        const slot = commonSlot(pick);
         return (
           <section
             key={s.society_id}
@@ -87,22 +102,26 @@ export function DeliveryDaysView({ data }) {
                 <Select
                   label="Slot"
                   options={data.slots.map((x) => ({ value: x.id, label: x.label }))}
-                  value={pick.slotId}
-                  onChange={(v) => setPicks({ ...picks, [s.society_id]: { ...pick, slotId: v } })}
+                  value={slot}
+                  placeholder="Different slots"
+                  onChange={(v) =>
+                    setPicks({ ...picks, [s.society_id]: pick.map((d) => ({ ...d, slot_id: v })) })
+                  }
                 />
               </div>
             </div>
             <fieldset className="m-0 grid min-w-0 grid-cols-7 gap-1.5 border-0 p-0 min-[600px]:gap-2">
               <legend className="sr-only">{s.name} delivery days</legend>
-              {WEEK.map((label, i) => {
-                const on = pick.weekdays.includes(i + 1);
+              {WEEKDAYS.map((label, i) => {
+                const on = pick.some((d) => d.weekday === i);
                 return (
                   <button
                     key={label}
                     type="button"
                     aria-pressed={on}
-                    onClick={() => toggle(s.society_id, i + 1)}
-                    className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-sm border px-1 py-2.5 text-sm outline-none focus-visible:shadow-focus ${on ? "border-primary bg-primary font-bold text-on-primary" : "border-line-strong bg-bg text-fg"}`}
+                    disabled={!on && pick.length >= MAX_DAYS}
+                    onClick={() => toggle(s.society_id, i)}
+                    className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-sm border px-1 py-2.5 text-sm outline-none focus-visible:shadow-focus ${on ? "border-primary bg-primary font-bold text-on-primary" : "border-line-strong bg-bg text-fg disabled:opacity-50"}`}
                   >
                     {label}
                     <span aria-hidden className="h-4 text-xs leading-4">
@@ -112,6 +131,11 @@ export function DeliveryDaysView({ data }) {
                 );
               })}
             </fieldset>
+            <p className="text-sm leading-5 text-fg-secondary">
+              {pick.length === 0
+                ? "Pick at least one day."
+                : `${pick.length} of ${MAX_DAYS} days; a society can have up to ${MAX_DAYS}.`}
+            </p>
           </section>
         );
       })}
@@ -122,7 +146,6 @@ export function DeliveryDaysView({ data }) {
           <p className="text-sm leading-5 text-fg-secondary">
             {data.not_live.slice(0, -1).join(", ")} and {data.not_live.at(-1)} get delivery days
             when they unlock.
-            {data.needs_hub.length > 0 && ` ${data.needs_hub.join(" and ")} needs a hub first.`}
           </p>
         </section>
       )}
@@ -136,7 +159,13 @@ export function DeliveryDaysView({ data }) {
         {changed.length === 0 && (
           <span className="text-sm text-fg-secondary">No changes to save.</span>
         )}
-        <Button variant="primary" isDisabled={pending || changed.length === 0} onPress={save}>
+        <Button
+          variant="primary"
+          isDisabled={
+            pending || changed.length === 0 || changed.some((s) => picks[s.society_id].length === 0)
+          }
+          onPress={save}
+        >
           Save delivery days
         </Button>
       </div>

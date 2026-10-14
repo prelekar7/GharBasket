@@ -5,6 +5,7 @@
 import { HttpResponse, http } from "msw";
 import { deny, istDay, slugify, square, validPolygon } from "./adminShared.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
+import { SOCIETY_ID } from "./ids.js";
 import { idempotent, mockStore, problem } from "./util.js";
 
 /**
@@ -31,7 +32,7 @@ const towers = (prefix, n) =>
 /** @type {() => Society[]} */
 const seedSocieties = () => [
   {
-    id: "sunrise-towers",
+    id: SOCIETY_ID["sunrise-towers"],
     hub_id: KHARGHAR_HUB_ID,
     name: "Sunrise Towers",
     area: "Sector 20, Kharghar",
@@ -44,7 +45,7 @@ const seedSocieties = () => [
     version: 1,
   },
   {
-    id: "krishna-kunj",
+    id: SOCIETY_ID["krishna-kunj"],
     hub_id: KHARGHAR_HUB_ID,
     name: "Krishna Kunj",
     area: "Sector 17, New Panvel",
@@ -57,7 +58,7 @@ const seedSocieties = () => [
     version: 1,
   },
   {
-    id: "green-valley-heights",
+    id: SOCIETY_ID["green-valley-heights"],
     hub_id: KHARGHAR_HUB_ID,
     name: "Green Valley Heights",
     area: "Sector 35, Kharghar",
@@ -70,7 +71,7 @@ const seedSocieties = () => [
     version: 1,
   },
   {
-    id: "shree-ganesh-chs",
+    id: SOCIETY_ID["shree-ganesh-chs"],
     hub_id: KHARGHAR_HUB_ID,
     name: "Shree Ganesh CHS",
     area: "Sector 12, Kharghar",
@@ -83,7 +84,7 @@ const seedSocieties = () => [
     version: 1,
   },
   {
-    id: "panchavati-residency",
+    id: SOCIETY_ID["panchavati-residency"],
     hub_id: KHARGHAR_HUB_ID,
     name: "Panchavati Residency",
     area: "Sector 7, Kamothe",
@@ -96,7 +97,7 @@ const seedSocieties = () => [
     version: 1,
   },
   {
-    id: "sai-darshan-apartments",
+    id: SOCIETY_ID["sai-darshan-apartments"],
     hub_id: null,
     name: "Sai Darshan Apartments",
     area: "Old Panvel",
@@ -154,7 +155,7 @@ const seedRequests = () => [
     note: "Same as the Green Valley Heights compound.",
     created_at: istDay(-6, 12, 0),
     society_id: null,
-    duplicate_of: "green-valley-heights",
+    duplicate_of: SOCIETY_ID["green-valley-heights"],
   },
   {
     id: "req-sai-darshan",
@@ -164,7 +165,7 @@ const seedRequests = () => [
     location: { lng: 73.119, lat: 18.988 },
     note: null,
     created_at: istDay(-7, 16, 20),
-    society_id: "sai-darshan-apartments",
+    society_id: SOCIETY_ID["sai-darshan-apartments"],
     duplicate_of: null,
   },
 ];
