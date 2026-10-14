@@ -30,7 +30,7 @@ export const Wallet = {
 export const Society = {
   render: () => (
     <div className="flex flex-col gap-3">
-      <SocietyUnlockBar society="Green Valley CHS" joined={14} target={20} />
+      <SocietyUnlockBar society="Green Valley Heights" joined={19} target={25} />
       <SocietyUnlockBar society="Sunrise Towers" joined={20} target={20} captain="Meena" />
     </div>
   ),

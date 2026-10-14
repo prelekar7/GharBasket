@@ -41,7 +41,7 @@ export function EmptyState({ title, body, illustration, action, onAction }) {
 
 /**
  * Content could not load: plain words, a retry, a support line. Never a raw error code.
- * @param {{ title: string, body?: string, retryLabel: string, onRetry?: () => void, support?: string }} props
+ * @param {{ title: string, body?: string, retryLabel: string, onRetry?: () => void, support?: import("react").ReactNode }} props
  */
 export function ErrorState({ title, body, retryLabel, onRetry, support }) {
   return (

@@ -61,7 +61,7 @@ export const Meals = {
         slot="Lunch"
         name="Rajma chawal"
         items="Rajma, rice, salad"
-        cook="Sunita tai"
+        cook="Lata tai"
         reason="Protein for the week"
         pricePaise={9000}
         status="preparing"
@@ -72,11 +72,11 @@ export const Meals = {
         name="खिचड़ी"
         items="मूँग दाल, चावल"
         labels={{ cookedBy: "बनाने वाली" }}
-        cook="सुनीता ताई"
+        cook="लता ताई"
       />
       <KnowYourCookCard
-        name="Sunita Patil"
-        kitchen="Sunita's Kitchen, Thane"
+        name="Lata Shinde"
+        kitchen="Lata tai’s kitchen, Kharghar"
         since="2024"
         specialty="My puran poli is my mother's recipe."
         fssai
