@@ -1,17 +1,24 @@
 import { Button, Chip, IconButton, MoneyText } from "@gharbasket/ui";
 import { ArrowLeftIcon, ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BrandMark } from "@/components/BrandMark.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
-import { useAssistant } from "@/features/assistant/chat.js";
+import { canRetry, isStale, useAssistant } from "@/features/assistant/chat.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
-import { useSession } from "@/lib/session.js";
+import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
 
 /** Ghar Saathi: ask in your language; any change comes back as a card you confirm (design HcAssistant, M13, W12). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
-export const Route = createFileRoute("/_auth/assistant")({ component: Assistant });
+export const Route = createFileRoute("/_auth/assistant")({
+  // Customer only (M13 §7): other roles go to their own home, like the customer shell does.
+  beforeLoad: () => {
+    const role = useSession.getState().activeRole;
+    if (role && role !== "customer") throw redirect({ to: HOME_BY_ROLE[role] });
+  },
+  component: Assistant,
+});
 
 const SUGGESTIONS = ["lighter", "track"];
 
@@ -20,7 +27,7 @@ function Assistant() {
   const router = useRouter();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const role = useSession((s) => s.activeRole) ?? "customer";
-  const { messages, send, confirm, reject } = useAssistant();
+  const { messages, send, ask, retry, askAgain, confirm, reject } = useAssistant();
   const [text, setText] = useState("");
   const end = useRef(/** @type {HTMLDivElement | null} */ (null));
 
@@ -30,11 +37,20 @@ function Assistant() {
   }, [messages.length, send.isPending]);
 
   const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
-  const ask = (/** @type {string} */ value) => {
+  const submit = (/** @type {string} */ value) => {
     const v = value.trim();
     if (!v || send.isPending) return;
-    send.mutate(v);
+    ask(v);
     setText("");
+  };
+
+  /** The error of a confirm or turn-down that failed for this very card, not for another one. */
+  const failed = (/** @type {string} */ id) => {
+    if (confirm.isError && confirm.variables?.id === id)
+      return /** @type {{ code?: string, status?: number }} */ (confirm.error);
+    if (reject.isError && reject.variables?.id === id)
+      return /** @type {{ code?: string, status?: number }} */ (reject.error);
+    return null;
   };
 
   return (
@@ -61,13 +77,13 @@ function Assistant() {
         {messages.length === 0 && (
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
-              <Chip key={s} onChange={() => ask(t(`ghar.suggest.${s}`))}>
+              <Chip key={s} onChange={() => submit(t(`ghar.suggest.${s}`))}>
                 {t(`ghar.suggest.${s}`)}
               </Chip>
             ))}
           </div>
         )}
-        {messages.map((m) => (
+        {messages.map((m, i) => (
           <div key={m.id} className="contents">
             <Bubble from={m.from}>
               {m.error
@@ -76,6 +92,13 @@ function Assistant() {
                   })
                 : m.text}
             </Bubble>
+            {m.error && i === messages.length - 1 && canRetry(m.error) && (
+              <div>
+                <Button variant="secondary" isPending={send.isPending} onPress={retry}>
+                  {t("ghar.retry")}
+                </Button>
+              </div>
+            )}
             {m.proposal && (
               <section
                 aria-label={t("ghar.confirmTitle", { day: day(m.proposal.box.delivery_date) })}
@@ -116,7 +139,10 @@ function Assistant() {
                     <Button
                       variant="primary"
                       isPending={confirm.isPending && confirm.variables?.id === m.proposal.id}
-                      isDisabled={reject.isPending}
+                      isDisabled={
+                        reject.isPending ||
+                        (confirm.isPending && confirm.variables?.id !== m.proposal.id)
+                      }
                       onPress={() => m.proposal && confirm.mutate(m.proposal)}
                     >
                       <CheckIcon aria-hidden size={20} weight="bold" />
@@ -140,13 +166,25 @@ function Assistant() {
                     })}
                   </p>
                 )}
-                {(confirm.isError || reject.isError) && m.proposal.status === "pending" && (
-                  <p role="alert" className="text-sm font-semibold text-danger">
-                    {t(
-                      `ghar.errors.${/** @type {{ code?: string }} */ (confirm.error ?? reject.error)?.code?.replace(/\./g, "_") ?? "other"}`,
-                      { defaultValue: t("ghar.errors.other") },
+                {m.proposal.status === "pending" && failed(m.proposal.id) && (
+                  <div className="flex flex-col items-start gap-2">
+                    <p role="alert" className="text-sm font-semibold text-danger">
+                      {t(
+                        `ghar.errors.${failed(m.proposal.id)?.code?.replace(/\./g, "_") ?? "other"}`,
+                        {
+                          defaultValue: t("ghar.errors.other"),
+                        },
+                      )}
+                    </p>
+                    {isStale(failed(m.proposal.id)) && (
+                      <Button
+                        variant="secondary"
+                        onPress={() => m.proposal && askAgain(m.proposal)}
+                      >
+                        {t("ghar.askAgain")}
+                      </Button>
                     )}
-                  </p>
+                  </div>
                 )}
               </section>
             )}
@@ -163,7 +201,7 @@ function Assistant() {
         className="sticky bottom-0 flex items-center gap-2 border-t border-line bg-bg px-4 pt-2.5 pb-[calc(18px+env(safe-area-inset-bottom))]"
         onSubmit={(e) => {
           e.preventDefault();
-          ask(text);
+          submit(text);
         }}
       >
         <label htmlFor="ghar-msg" className="sr-only">

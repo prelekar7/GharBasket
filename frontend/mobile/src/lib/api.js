@@ -32,7 +32,7 @@ export class ApiError extends Error {
   }
 }
 
-/** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string> }} RequestOptions */
+/** @typedef {{ method?: string, body?: unknown, headers?: Record<string, string>, signal?: AbortSignal }} RequestOptions */
 
 /** @type {string | null} */
 let activeRole = null;
@@ -51,7 +51,7 @@ export function onSessionExpired(/** @type {() => void} */ fn) {
  * @param {string} path
  * @param {RequestOptions} [init]
  */
-async function send(path, { method = "GET", body, headers: extra } = {}) {
+async function send(path, { method = "GET", body, headers: extra, signal } = {}) {
   /** @type {Record<string, string>} */
   const headers = { accept: "application/json", "accept-language": i18n.language, ...extra };
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -66,6 +66,7 @@ async function send(path, { method = "GET", body, headers: extra } = {}) {
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: NATIVE ? "omit" : "same-origin",
+    signal,
   });
   if (MOCK) {
     const { mockFetch } = await import("@/mocks/index.js");

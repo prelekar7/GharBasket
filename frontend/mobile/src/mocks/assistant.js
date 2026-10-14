@@ -1,5 +1,5 @@
-// M13 Ghar Saathi mocks (docs/modules/M13-assistant.md §3, workflow W12). The real reply streams
-// over SSE; the mock answers in one JSON body. Every change comes back as a proposal that runs only
+// M13 Ghar Saathi mocks (docs/modules/M13-assistant.md §3, workflow W12). The reply is one JSON body
+// (no SSE in v1, M13 §3). Every change comes back as a proposal that runs only
 // after POST /v1/assistant/confirm/{id}; the server prices it, the model never does.
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";

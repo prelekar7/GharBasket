@@ -638,8 +638,11 @@
     "safe": "Nothing changes until you say yes.",
     "thinking": "Checking your box…",
     "placeholder": "Type a message",
+    "retry": "Try again",
+    "askAgain": "Ask again",
     "send": "Send",
     "errors": {
+      "assistant_timeout": "That took too long. Check your internet and try again.",
       "assistant_daily_limit": "That’s all I can do today. I’ll be back tomorrow morning.",
       "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
       "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
