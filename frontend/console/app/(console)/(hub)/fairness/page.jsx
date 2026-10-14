@@ -3,7 +3,9 @@ import { FairnessView } from "./FairnessView.jsx";
 
 export const metadata = { title: "Fairness" };
 
-export default async function Page() {
-  const { fairness, canEdit } = await getFairness();
+/** @param {{ searchParams: Promise<{ source?: string }> }} props */
+export default async function Page({ searchParams }) {
+  const { source } = await searchParams;
+  const { fairness, canEdit } = await getFairness(source);
   return <FairnessView fairness={fairness} canEdit={canEdit} />;
 }

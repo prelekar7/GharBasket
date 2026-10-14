@@ -1,29 +1,15 @@
-// Intelligence mocks (M10 AI health, experiments and model promotions). Admin only: the spec gives
-// `models:read` to the admin role. These paths are our proposal; M10 itself only names the internal
-// `GET /models` and `GET /health/ai` that the API would call. Numbers are the seeded story: the
-// Kharghar hub on Tue 6 Oct 2026, simulator data. The pilot has no data yet (ADR-0008, around March 2027).
+// Intelligence mocks. AI health is M12 section 3.8's GET /v1/analytics/ai-health (admin; built on
+// feat/M10-forecast-v1): every model's newest metrics per data source, drift per hub over 7 days, and how often
+// each kind of prediction came from the ML service or the fallback. Its data sources are the built API's
+// `synthetic | pilot | live | mixed`. Experiments and model promotions (`/v1/intel/experiments`) are our
+// proposal: M12 cut `/v1/analytics/experiments/{key}` from S9 (nothing assigns experiments yet) and M10 names
+// only the internal `GET /models`. Numbers are the seeded story: the Kharghar hub on Tue 6 Oct 2026, simulator
+// data. The pilot has no data yet (ADR-0008, around March 2027).
 import { HttpResponse, http } from "msw";
+import { KHARGHAR_HUB_ID, TALOJA_HUB_ID } from "./hubs.js";
 import { idempotent, mockStore, problem, roleOf } from "./util.js";
 
 /**
- * @typedef {object} AiHealth GET /v1/intel/health?hub_id=&data_source=
- * @property {"synthetic" | "pilot"} data_source
- * @property {boolean} available false while the source has no data (the pilot before it starts)
- * @property {object} [kpis]
- * @property {number} kpis.wape_pct forecast error, lower is better
- * @property {number} kpis.wape_delta_pts change since last week, in points
- * @property {number[]} kpis.wape_trend
- * @property {number} kpis.kept_pct box lines the family neither edited nor swapped
- * @property {number} kpis.kept_delta_pts
- * @property {number} kpis.fallback_pct plans where the rule-based box was sent instead
- * @property {number} kpis.fallback_delta_pts
- * @property {string} kpis.fallback_note
- * @property {number} kpis.route_solve_s
- * @property {number} kpis.route_solve_limit_s
- * @property {{ item: string, unit: string, labels: string[], forecast_q50: number[], approved: number[], note: string }} [forecast_vs_actual]
- * @property {{ labels: string[], values: number[], threshold_pct: number }} [wape_by_week]
- * @property {{ key: string, name: string, does: string, live_version: string, metric: string, fallback: string, state: "healthy" | "fallback_up" | "degraded" }[]} [models]
- *
  * @typedef {object} ModelRun One champion/challenger run (`intel.model_metrics` plus MLflow ids).
  * @property {string} id
  * @property {string} model
@@ -143,92 +129,96 @@ const adminOnly = (request) =>
     ? null
     : problem(403, "auth.forbidden", "Only admins can see model health");
 
-/** @type {AiHealth} */
-const SIMULATOR_HEALTH = {
+const AT = "2026-10-06T03:00:00+05:30";
+
+/**
+ * @param {string} metric @param {number} value @param {string} split @param {string} version
+ * @param {string | null} [hub]
+ */
+const metric = (metric, value, split, version, hub = null) => ({
+  metric,
+  value,
+  split,
   data_source: "synthetic",
-  available: true,
-  kpis: {
-    wape_pct: 14.2,
-    wape_delta_pts: -1.1,
-    wape_trend: [17.8, 16.4, 15.3, 14.2],
-    kept_pct: 86,
-    kept_delta_pts: 3,
-    fallback_pct: 2.1,
-    fallback_delta_pts: 0.8,
-    fallback_note: "Sunday’s slow run",
-    route_solve_s: 11,
-    route_solve_limit_s: 30,
-  },
-  forecast_vs_actual: {
-    item: "methi",
-    unit: "bunches",
-    labels: ["Tue 29", "Fri 2", "Sun 4", "Tue 6"],
-    forecast_q50: [27, 29, 30, 31],
-    approved: [26, 30, 29, 30],
-    note: "The gap on Tue 6 Oct is the vendor short-delivery, not a forecast miss: families approved 30.",
-  },
-  wape_by_week: {
-    labels: ["7 Sep", "14 Sep", "21 Sep", "28 Sep"],
-    values: [17.8, 16.4, 15.3, 14.2],
-    threshold_pct: 20,
-  },
+  version,
+  computed_at: AT,
+  hub_id: hub,
+});
+
+/** The health of the simulator week: Kharghar is steady, Taloja (new, small) drifted on two days. */
+const AI_HEALTH = {
+  generated_at: "2026-10-06T11:10:00+05:30",
+  window_days: 7,
   models: [
     {
-      key: "forecast",
-      name: "Demand forecast",
-      does: "Quantities with uncertainty per item",
-      live_version: "v12 · retrained Sun 03:00",
-      metric: "WAPE 14.2%",
-      fallback: "Last 4 weeks’ average + buffer",
-      state: "healthy",
+      model_name: "forecast_lightgbm",
+      metrics: [
+        metric("wape", 0.129, "holdout", "v12"),
+        metric("wape", 0.131, "backtest", "v12", KHARGHAR_HUB_ID),
+        metric("wape", 0.142, "live", "v12", KHARGHAR_HUB_ID),
+        metric("wape", 0.17, "backtest", "v12", TALOJA_HUB_ID),
+        metric("wape", 0.31, "live", "v12", TALOJA_HUB_ID),
+      ],
+      drift: true,
+      hubs: [
+        {
+          hub_id: KHARGHAR_HUB_ID,
+          data_source: "synthetic",
+          drift: false,
+          drifted_days: 0,
+          scored_days: 7,
+          for_date: "2026-10-05",
+          wape: 0.142,
+          backtest_wape: 0.131,
+        },
+        {
+          hub_id: TALOJA_HUB_ID,
+          data_source: "synthetic",
+          drift: true,
+          drifted_days: 2,
+          scored_days: 5,
+          for_date: "2026-10-05",
+          wape: 0.31,
+          backtest_wape: 0.17,
+        },
+      ],
     },
     {
-      key: "ranker",
-      name: "Next-basket ranker",
-      does: "What a family is likely to need",
-      live_version: "v9",
-      metric: "Recall@20 0.61",
-      fallback: "Last box repeated",
-      state: "healthy",
+      model_name: "ranker_lightgbm",
+      metrics: [metric("ndcg_at_10", 0.61, "holdout", "v9")],
+      drift: false,
+      hubs: [],
     },
     {
-      key: "planner",
-      name: "Meal planner (CP-SAT)",
-      does: "Builds the week within Budget Lock and food rules",
-      live_version: "solver",
-      metric: "Feasible 100%",
-      fallback: "Rule-based box",
-      state: "fallback_up",
+      model_name: "planner_ml",
+      metrics: [metric("acceptance", 0.91, "live", "v3")],
+      drift: false,
+      hubs: [],
     },
     {
-      key: "routes",
-      name: "Route solver (OR-Tools)",
-      does: "Routes with time windows and pickups",
-      live_version: "solver",
-      metric: "Solve 11 s of 30",
-      fallback: "Nearest-neighbour route",
-      state: "healthy",
+      model_name: "planner_fallback",
+      metrics: [metric("acceptance", 0.78, "live", "rules")],
+      drift: false,
+      hubs: [],
     },
-    {
-      key: "assignment",
-      name: "Fair kitchen assignment",
-      does: "Spreads tiffins across kitchens",
-      live_version: "λ 0.3",
-      metric: "Gini 0.14",
-      fallback: "Nearest kitchen with space",
-      state: "healthy",
-    },
+  ],
+  predictions: [
+    { kind: "weekly_plan", source: "ml", count: 412 },
+    { kind: "weekly_plan", source: "fallback", count: 9 },
+    { kind: "forecast", source: "ml", count: 14 },
+    { kind: "basket_rank", source: "ml", count: 398 },
+    { kind: "basket_rank", source: "fallback", count: 3 },
+    { kind: "route", source: "ml", count: 12 },
   ],
 };
 
 export const intelHandlers = [
-  http.get("*/v1/intel/health", ({ request }) => {
-    const denied = adminOnly(request);
-    if (denied) return denied;
-    const source = new URL(request.url).searchParams.get("data_source");
-    return HttpResponse.json(
-      source === "pilot" ? { data_source: "pilot", available: false } : SIMULATOR_HEALTH,
-    );
+  // GET /v1/analytics/ai-health (admin, no-store): no parameters; the page picks its source and hub.
+  http.get("*/v1/analytics/ai-health", ({ request }) => {
+    const role = roleOf(request);
+    if (!role) return problem(401, "auth.unauthenticated", "Sign in again");
+    if (role !== "admin") return problem(403, "auth.forbidden", "Only admins can see model health");
+    return HttpResponse.json(AI_HEALTH, { headers: { "cache-control": "no-store" } });
   }),
 
   // Runs and tests of one data source; the two sources are never returned together.
@@ -236,7 +226,7 @@ export const intelHandlers = [
     const denied = adminOnly(request);
     if (denied) return denied;
     const source =
-      new URL(request.url).searchParams.get("data_source") === "pilot" ? "pilot" : "synthetic";
+      new URL(request.url).searchParams.get("data_source") === "real" ? "pilot" : "synthetic";
     const { runs, ab } = state();
     return HttpResponse.json({
       data_source: source,
