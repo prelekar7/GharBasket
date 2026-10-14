@@ -9,6 +9,8 @@ export default defineConfig({
     environment: "jsdom",
     include: ["src/**/*.test.js"],
     setupFiles: ["./src/test/setup.js"],
+    // The mock API is opt-in (lib/env.js); the mock tests run against it.
+    env: { VITE_API_MOCK: "true" },
     restoreMocks: true,
   },
 });

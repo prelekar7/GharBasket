@@ -28,7 +28,10 @@ const ASG = "/v1/assignments/01996000-0000-7000-8000-000000000001";
 
 describe("kitchen partner mocks (M8)", () => {
   beforeEach(async () => {
-    await call("POST", "/v1/auth/exchange", { dev_phone: "+919800001005" });
+    await call("POST", "/v1/auth/exchange", {
+      dev_phone: "+919800001005",
+      device: { platform: "web", push_token: null },
+    });
   });
 
   it("needs a signed-in person", async () => {

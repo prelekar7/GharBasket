@@ -5,10 +5,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
+import { MOCK } from "@/lib/env.js";
 import { sendCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
 
-const MOCK = import.meta.env.VITE_API_MOCK !== "false";
 // In-app Terms and Privacy notice (routes/legal.$doc.jsx).
 const TERMS_HREF = "/legal/terms";
 const PRIVACY_HREF = "/legal/privacy";

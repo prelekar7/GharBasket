@@ -1,6 +1,6 @@
-// MSW handlers for the frozen auth contract (docs/modules/M1-identity.md §3.1, Part 3). Shapes
-// must match the backend exactly; later these come from openapi.json. /v1/auth/refresh, logout
-// and logout-all are not in §3.1 yet, so their shapes here are our proposal (see the PR).
+// MSW handlers for the auth contract (docs/modules/M1-identity.md §3.1, Part 3), matching the
+// backend's /v1/auth/exchange, refresh, logout and logout-all. Shapes must match the backend
+// exactly; later these are typed from the generated api-client's schema.d.ts.
 import { HttpResponse, http } from "msw";
 import { seedShortWallet } from "./billing.js";
 import { clearRatings } from "./orders.js";
@@ -26,7 +26,7 @@ export function rolesFor(/** @type {string} */ phone) {
     roles.push({
       role: "captain",
       scope_type: "society",
-      scope_id: "sunrise-towers",
+      scope_id: "0190f0aa-5000-7000-8000-000000000001", // Sunrise Towers
       status: "verified",
     });
   }
@@ -65,7 +65,7 @@ export function rolesFor(/** @type {string} */ phone) {
     roles.splice(0, 1, {
       role: "rider",
       scope_type: "hub",
-      scope_id: "hub-thane-1",
+      scope_id: "0190f0aa-6000-7000-8000-000000000001", // Kharghar hub
       status: "verified",
     });
   }
@@ -112,6 +112,8 @@ const REFRESH_KEY = "gb-mock-refresh-tokens";
   JSON.parse(localStorage.getItem(REFRESH_KEY) ?? "[]"),
 ); // refresh token → phone
 const saveRefresh = () => localStorage.setItem(REFRESH_KEY, JSON.stringify([...refreshTokens]));
+/** Rotated-out refresh tokens → phone. Presenting one again means it was copied (M1 §3.1). */
+/** @type {Map<string, string>} */ const usedRefresh = new Map();
 let counter = Date.now();
 
 function issue(/** @type {string} */ phone) {
@@ -159,6 +161,7 @@ function phoneFromIdToken(/** @type {string} */ token) {
 export const handlers = [
   http.post("*/v1/auth/exchange", async ({ request }) => {
     const body = /** @type {any} */ (await request.json());
+    if (!body.device?.platform) return problem(422, "request.invalid", "The request is not valid.");
     const phone = body.firebase_id_token
       ? phoneFromIdToken(body.firebase_id_token)
       : body.dev_phone;
@@ -206,20 +209,38 @@ export const handlers = [
       });
     }
     const { refresh_token: token } = /** @type {any} */ (await request.json());
+    const reused = usedRefresh.get(token);
+    if (reused) {
+      // A rotated token came back: someone copied it, so the whole session ends.
+      for (const [t, owner] of refreshTokens) if (owner === reused) refreshTokens.delete(t);
+      saveRefresh();
+      return problem(
+        401,
+        "auth.refresh_reused",
+        "This sign-in was used from somewhere else, so it has been ended. Sign in again.",
+      );
+    }
     const phone = refreshTokens.get(token);
     if (!phone) return problem(401, "auth.invalid_token", "Please sign in again.");
     refreshTokens.delete(token); // rotation: each refresh token works once
+    usedRefresh.set(token, phone);
     saveRefresh();
     return HttpResponse.json(issue(phone));
   }),
 
-  // No body: the access token (or cookie) says whose session this is.
+  // Like the backend: only a signed-in caller can log out (an expired access token gets a 401, so
+  // the app refreshes and retries), and it ends this device's session and clears the cookies.
   http.post("*/v1/auth/logout", ({ request }) => {
     const phone = caller(request);
     if (!phone) return problem(401, "auth.invalid_token", "Your session has expired.");
-    for (const [token, owner] of refreshTokens) if (owner === phone) refreshTokens.delete(token);
-    saveRefresh();
-    webSession.set(null);
+    const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "");
+    if (bearer) {
+      accessTokens.delete(bearer);
+      // One device = one session: its refresh token is the newest one issued for this phone.
+      const mine = [...refreshTokens].filter(([, owner]) => owner === phone).at(-1);
+      if (mine) refreshTokens.delete(mine[0]);
+      saveRefresh();
+    } else webSession.set(null);
     return new HttpResponse(null, { status: 204 });
   }),
 

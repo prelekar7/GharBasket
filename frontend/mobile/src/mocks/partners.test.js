@@ -17,7 +17,11 @@ const call = async (
     }),
   );
 const key = () => ({ "idempotency-key": crypto.randomUUID() });
-const signIn = (phone = "+919800000001") => call("POST", "/v1/auth/exchange", { dev_phone: phone });
+const signIn = (phone = "+919800000001") =>
+  call("POST", "/v1/auth/exchange", {
+    dev_phone: phone,
+    device: { platform: "web", push_token: null },
+  });
 const photo = (/** @type {string} */ purpose = "kyc_document") => ({
   purpose,
   content_type: "image/jpeg",

@@ -59,7 +59,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 beforeEach(async () => {
   localStorage.clear();
-  await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+  await call("POST", "/v1/auth/exchange", {
+    dev_phone: "+919800000001",
+    device: { platform: "web", push_token: null },
+  });
   atTripTime(0);
 });
 
@@ -86,7 +89,10 @@ describe("GET /v1/orders (OrderSummaryOut)", () => {
   });
 
   it("is empty for a household still in onboarding", async () => {
-    await call("POST", "/v1/auth/exchange", { dev_phone: "+919876543210" });
+    await call("POST", "/v1/auth/exchange", {
+      dev_phone: "+919876543210",
+      device: { platform: "web", push_token: null },
+    });
     expect(await (await get("/v1/orders")).json()).toEqual({ items: [], next_cursor: null });
   });
 });

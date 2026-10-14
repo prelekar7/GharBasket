@@ -8,7 +8,7 @@ const signIn = (phone) =>
     new Request("http://localhost/v1/auth/exchange", {
       method: "POST",
       headers: { "content-type": "application/json", "x-gb-client": "web" },
-      body: JSON.stringify({ dev_phone: phone }),
+      body: JSON.stringify({ dev_phone: phone, device: { platform: "web", push_token: null } }),
     }),
   );
 

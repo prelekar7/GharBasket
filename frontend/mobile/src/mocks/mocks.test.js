@@ -18,7 +18,7 @@ const signIn = (phone = "+919800000001") =>
     new Request("http://localhost/v1/auth/exchange", {
       method: "POST",
       headers: { "content-type": "application/json", "x-gb-client": "web" },
-      body: JSON.stringify({ dev_phone: phone }),
+      body: JSON.stringify({ dev_phone: phone, device: { platform: "web", push_token: null } }),
     }),
   );
 const getJson = async (/** @type {string} */ path) =>
@@ -967,7 +967,10 @@ describe("Budget Lock (M3)", () => {
       new Request("http://localhost/v1/auth/exchange", {
         method: "POST",
         headers: { "content-type": "application/json", "x-gb-client": "web" },
-        body: JSON.stringify({ dev_phone: "+919800000001" }),
+        body: JSON.stringify({
+          dev_phone: "+919800000001",
+          device: { platform: "web", push_token: null },
+        }),
       }),
     );
     return (await ex.json()).user;
@@ -1079,7 +1082,11 @@ describe("notifications inbox and preferences (M11)", () => {
         body: body ? JSON.stringify(body) : undefined,
       }),
     );
-  const signIn = () => call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+  const signIn = () =>
+    call("POST", "/v1/auth/exchange", {
+      dev_phone: "+919800000001",
+      device: { platform: "web", push_token: null },
+    });
 
   it("needs a signed-in person", async () => {
     expect((await call("GET", "/v1/notifications")).status).toBe(401);

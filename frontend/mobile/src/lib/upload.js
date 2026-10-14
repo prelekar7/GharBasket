@@ -1,6 +1,5 @@
 import { request } from "@/lib/api.js";
-
-const MOCK = import.meta.env.VITE_API_MOCK !== "false";
+import { MOCK } from "@/lib/env.js";
 
 /** What a file is for (M0 §3.1): decides the allowed types, the size limit and how long it is kept. @typedef {"order_issue_photo" | "donation_photo" | "kyc_document" | "delivery_photo"} UploadPurpose */
 // "delivery_photo" is M7's purpose (proof, undelivered and damage photos); M0 §3.1 does not list it yet.

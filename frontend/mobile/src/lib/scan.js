@@ -1,3 +1,5 @@
+import { MOCK } from "@/lib/env.js";
+
 /**
  * Reads a bag, crate or item code. The camera scanner arrives with the Capacitor build (ML Kit,
  * Phase 4); until then the PWA on mocks "scans" the code the screen expects next, so every flow can
@@ -7,7 +9,7 @@
  * @returns {Promise<string | null>}
  */
 export async function scanCode({ expected } = {}) {
-  if (import.meta.env.VITE_API_MOCK === "false" || !expected) return null;
+  if (!MOCK || !expected) return null;
   await new Promise((resolve) => setTimeout(resolve, 350));
   return expected;
 }
