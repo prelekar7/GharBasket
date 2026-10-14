@@ -46,7 +46,7 @@ const TABS = [
   { value: "profile", Icon: UserIcon },
 ];
 
-const UNDER_PROFILE = ["wallet", "society", "partner"];
+const UNDER_PROFILE = ["wallet", "society", "partner", "notifications"];
 
 function CustomerShell() {
   const { t } = useTranslation();

@@ -359,3 +359,75 @@ describe("household edits and pause (M1, M3)", () => {
     ).toBe(422);
   });
 });
+
+describe("notifications inbox and preferences (M11)", () => {
+  const call = async (
+    /** @type {string} */ method,
+    /** @type {string} */ path,
+    /** @type {object | undefined} */ body = undefined,
+    /** @type {Record<string, string>} */ headers = {},
+  ) =>
+    mockFetch(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { "content-type": "application/json", "x-gb-client": "web", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+    );
+  const signIn = () => call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
+
+  it("needs a signed-in person", async () => {
+    expect((await call("GET", "/v1/notifications")).status).toBe(401);
+    expect((await call("GET", "/v1/notifications/preferences")).status).toBe(401);
+  });
+
+  it("lists messages newest first in the caller's language", async () => {
+    await signIn();
+    const en = await (await call("GET", "/v1/notifications")).json();
+    expect(en.items[0]).toMatchObject({ id: "n-5", link: "/orders", read_at: null });
+    expect(en.unread).toBe(en.items.length);
+    const hi = await (
+      await call("GET", "/v1/notifications", undefined, { "accept-language": "hi-IN" })
+    ).json();
+    expect(hi.items[0].title).toBe("आपका बॉक्स मीना ताई के पास है");
+  });
+
+  it("marks a message read and lowers the unread count", async () => {
+    await signIn();
+    const before = await (await call("GET", "/v1/notifications")).json();
+    expect((await call("POST", "/v1/notifications/n-3/read", {})).status).toBe(204);
+    const after = await (await call("GET", "/v1/notifications")).json();
+    expect(after.unread).toBe(before.unread - 1);
+    expect(after.items.find((/** @type {{ id: string }} */ m) => m.id === "n-3").read_at).not.toBe(
+      null,
+    );
+  });
+
+  it("saves channel choices but keeps quiet hours, and refuses unknown categories", async () => {
+    await signIn();
+    const prefs = await (await call("GET", "/v1/notifications/preferences")).json();
+    expect(
+      prefs.categories.find((/** @type {{ category: string }} */ c) => c.category === "offers")
+        .push,
+    ).toBe(false);
+    const categories = prefs.categories.map((/** @type {{ category: string }} */ c) => ({
+      ...c,
+      whatsapp: c.category === "delivery",
+    }));
+    const saved = await (
+      await call("PUT", "/v1/notifications/preferences", {
+        ...prefs,
+        categories,
+        quiet_start: "00:00",
+      })
+    ).json();
+    expect(saved.quiet_start).toBe("22:00");
+    const again = await (await call("GET", "/v1/notifications/preferences")).json();
+    expect(again.categories).toEqual(categories);
+    const bad = await call("PUT", "/v1/notifications/preferences", {
+      categories: [{ category: "lottery", push: true, whatsapp: false }],
+    });
+    expect(bad.status).toBe(422);
+    expect((await bad.json()).code).toBe("notifications.category_unknown");
+  });
+});
