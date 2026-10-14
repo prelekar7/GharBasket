@@ -35,8 +35,8 @@ describe("captain day (M7 §3.4 mocks)", () => {
     expect(d.stops).toHaveLength(1);
     expect(d.stops[0]).toMatchObject({
       status: "pending",
-      slot: { label: "7-9 am", start: "07:00", end: "09:00" },
-      eta_now: "07:20",
+      slot: { label: "8-10 am", start: "08:00", end: "10:00" },
+      eta_now: "08:05",
       expected: { crates: 16, bags: 46, redelivery_bags: 1 },
     });
     expect(d.flats).toHaveLength(46);

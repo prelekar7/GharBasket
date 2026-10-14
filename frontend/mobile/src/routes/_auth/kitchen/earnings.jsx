@@ -10,7 +10,7 @@ import { useEarnings, usePartnerMe } from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
 import { request } from "@/lib/api.js";
 
-/** Earnings: this week from the ledger, rating, payouts and the income certificate (design KitchenEarnings; M8 US-7). */
+/** Earnings: this week from the ledger, rating, payouts and the income certificate (design KitchenEarnings; M8 §3.6). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/kitchen/earnings")({ component: KitchenEarnings });
 
@@ -34,7 +34,7 @@ function KitchenEarnings() {
   }
   const e = earnings.data;
 
-  // GET /v1/earnings/certificate (proposal) answers with a short-lived link to the PDF.
+  // GET /v1/earnings/certificate (not in M8 §3.7 yet) answers with a short-lived link to the PDF.
   const download = async () => {
     setDownloading(true);
     try {
@@ -66,24 +66,22 @@ function KitchenEarnings() {
       <ul>
         {e.items.map((d) => (
           <Row
-            key={`${d.date}-${d.meal}`}
+            key={d.date}
             title={dayLabel(d.date, lang)}
-            sub={
-              d.this_week
-                ? t("kitchen.earnings.line", { n: d.tiffins, meal: d.meal })
-                : t("kitchen.earnings.lastWeek", { n: d.tiffins })
-            }
+            sub={t("kitchen.earnings.line", { n: d.tiffins })}
             end={<MoneyText paise={d.amount_paise} />}
           />
         ))}
-        <li className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
-          <span className="text-[15px] leading-[22px] text-fg-secondary">
-            {t("kitchen.earnings.rating")}
-          </span>
-          <strong className="tabular-nums">
-            {t("kitchen.earnings.stars", { rating: e.rating.toFixed(1) })}
-          </strong>
-        </li>
+        {me.data.rating && (
+          <li className="flex items-baseline justify-between gap-3 border-b border-line py-2.5">
+            <span className="text-[15px] leading-[22px] text-fg-secondary">
+              {t("kitchen.earnings.rating")}
+            </span>
+            <strong className="tabular-nums">
+              {t("kitchen.earnings.stars", { rating: me.data.rating.average.toFixed(1) })}
+            </strong>
+          </li>
+        )}
       </ul>
       <Muted>{t("kitchen.earnings.payout")}</Muted>
       <Button block isPending={downloading} onPress={download}>

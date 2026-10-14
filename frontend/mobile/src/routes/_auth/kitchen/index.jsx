@@ -1,13 +1,19 @@
-import { Button, Dialog, EmptyState, Skeleton, TiffinSteam } from "@gharbasket/ui";
+import { Button, Dialog, EmptyState, RadioCards, Skeleton, TiffinSteam } from "@gharbasket/ui";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { clock, dateLabel, dayLabel } from "@/features/kitchen/format.js";
-import { useAssignments, useKitchenWrite, usePartnerMe } from "@/features/kitchen/queries.js";
+import {
+  dishes,
+  useAssignments,
+  useKitchenWrite,
+  usePartnerMe,
+} from "@/features/kitchen/queries.js";
 import { Muted, Row } from "@/features/kitchen/ui.jsx";
 import { useTrainings } from "@/features/partners/queries.js";
+import { istClock } from "@/features/subscriptions/format.js";
 
 /** Tomorrow's tiffins: the counts, accept or decline, or a quiet day (designs KitchenToday, KitchenNoTiffins; M8 US-6). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -22,6 +28,7 @@ function KitchenToday() {
   const trainings = useTrainings();
   const write = useKitchenWrite();
   const [declining, setDeclining] = useState(false);
+  const [reason, setReason] = useState("other");
 
   if (me.isPending || assignments.isPending) return <Skeleton lines={8} />;
   if (me.isError || assignments.isError) {
@@ -64,6 +71,7 @@ function KitchenToday() {
     write({
       name: "assignments",
       path: `/v1/assignments/${a.id}/${action}`,
+      body: action === "decline" ? { reason } : undefined,
       update: (/** @type {import("@/features/kitchen/queries.js").Assignments} */ d) => ({
         ...d,
         items: d.items.map((x) =>
@@ -72,7 +80,7 @@ function KitchenToday() {
       }),
     });
   const day = dayLabel(a.date, lang);
-  const accepted = a.status === "accepted" || a.status === "ready";
+  const accepted = ["accepted", "preparing", "ready", "completed"].includes(a.status);
 
   return (
     <>
@@ -84,19 +92,21 @@ function KitchenToday() {
         </span>
         <p>
           {a.status === "offered"
-            ? t("kitchen.today.window", { time: clock(a.counts_at, lang) })
+            ? t("kitchen.today.window", { time: clock(istClock(a.respond_by), lang) })
             : accepted
               ? t("kitchen.today.accepted")
-              : t("kitchen.today.declined", { day })}
+              : a.status === "declined"
+                ? t("kitchen.today.declined", { day })
+                : t("kitchen.today.closed", { day })}
         </p>
       </section>
       <ul>
-        {a.batches.map((b) => (
+        {dishes(a).map((d) => (
           <Row
-            key={b.id}
-            title={b.note ? `${b.dish} (${b.note})` : b.dish}
-            sub={b.societies.map((s) => s.name).join(" · ")}
-            end={<strong className="tabular-nums">{b.portions}</strong>}
+            key={d.product_id}
+            title={d.name}
+            sub={d.societies.join(" · ")}
+            end={<strong className="tabular-nums">{d.portions}</strong>}
           />
         ))}
       </ul>
@@ -140,7 +150,16 @@ function KitchenToday() {
         cancelLabel={t("kitchen.today.declineCancel")}
         onConfirm={() => respond("decline")}
       >
-        {t("kitchen.today.declineBody", { n: a.portions })}
+        <p>{t("kitchen.today.declineBody", { n: a.portions })}</p>
+        <RadioCards
+          label={t("kitchen.today.declineWhy")}
+          value={reason}
+          onChange={setReason}
+          options={["unwell", "no_ingredients", "family", "other"].map((value) => ({
+            value,
+            title: t(`kitchen.today.reason.${value}`),
+          }))}
+        />
       </Dialog>
     </>
   );
