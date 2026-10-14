@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { MAX_MEMBERS } from "@/features/onboarding/members.js";
 import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 /** @type {("adults" | "seniors" | "children" | "little")[]} */
@@ -56,7 +57,7 @@ function Family() {
               label={t(`onboarding.family.${g}`)}
               value={members[g]}
               min={0}
-              max={10}
+              max={Math.min(10, members[g] + MAX_MEMBERS - total)}
               onChange={(n) => updateHousehold({ members: { ...members, [g]: n } })}
               labels={{ decrease: t("onboarding.decrease"), increase: t("onboarding.increase") }}
             />

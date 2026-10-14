@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMandate, useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
+import { flatNumber } from "@/features/identity/address.js";
 import {
   useChangeAddress,
   useDataExport,
@@ -48,7 +49,7 @@ function Profile() {
   const mandate = useMandate();
   const update = useUpdateMe();
   const inbox = useInbox(lang);
-  const changeAddress = useChangeAddress(household.data?.address_id);
+  const changeAddress = useChangeAddress(household.data?.address.id);
   const [tower, setTower] = useState("");
   const [flatNo, setFlatNo] = useState("");
   const [sheet, setSheet] = useState(/** @type {SheetName} */ (null));
@@ -63,7 +64,7 @@ function Profile() {
     await signOut({ everywhere });
     navigate({ to: "/login" });
   };
-  const where = [household.data?.flat, society?.name].filter(Boolean).join(", ");
+  const where = [household.data?.address.flat, society?.name].filter(Boolean).join(", ");
   const phone = user?.phone_e164.replace(/^\+91(\d{5})(\d{5})$/, "+91 $1 $2") ?? "";
 
   /** @type {{ key: string, label: string, value?: string, onPress: () => void }[]} */
@@ -85,9 +86,9 @@ function Profile() {
       label: t("profile.address.row"),
       value: where || undefined,
       onPress: () => {
-        const [w = "", n = ""] = (household.data?.flat ?? "").split("-");
-        setTower(w.toLowerCase());
-        setFlatNo(n);
+        const address = household.data?.address;
+        setTower(address?.tower_id ?? "");
+        setFlatNo(address ? flatNumber(address) : "");
         setSheet("address");
       },
     },

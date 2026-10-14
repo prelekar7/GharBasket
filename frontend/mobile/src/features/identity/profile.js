@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { ApiError, request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
+import { flatLabel } from "./address.js";
 
 /**
  * @typedef {import("@/mocks/householdStore.js").Household} Household
@@ -11,7 +12,7 @@ import { useSession } from "@/lib/session.js";
  */
 
 /**
- * Your household, or null while you have none yet (GET /v1/households/me, our proposal for M1).
+ * Your household, or null while you have none yet (GET /v1/households/me: 404 until onboarding).
  * Shared by the Profile summary and the customer shell's onboarding check.
  */
 export const householdQuery = {
@@ -30,6 +31,35 @@ export const householdQuery = {
 /** Your household for the Profile summary. */
 export function useMyHousehold() {
   return useQuery(householdQuery);
+}
+
+/** @typedef {import("@/mocks/householdStore.js").Subscription} Subscription */
+
+/** Your subscription, or null before you have one (GET /v1/subscriptions/current, M3: 404 `subscriptions.not_found`). */
+export function useSubscription() {
+  return useQuery({
+    queryKey: ["subscription", "current"],
+    queryFn: async () => {
+      try {
+        return /** @type {Subscription} */ (await request("/v1/subscriptions/current"));
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    retry: false,
+  });
+}
+
+/** Whether health personalisation is on: its consent in GET /v1/consents (M1, a bare list). */
+export function useHealthConsent() {
+  return useQuery({
+    queryKey: ["consents"],
+    queryFn: async () =>
+      /** @type {import("@/mocks/householdStore.js").Consent[]} */ (
+        await request("/v1/consents")
+      ).find((c) => c.purpose === "health_personalisation")?.granted ?? false,
+  });
 }
 
 /**
@@ -95,32 +125,39 @@ export function useDeleteAccount() {
 }
 
 /**
- * Pause Autopilot until a date, or resume with null (PATCH /v1/subscriptions/{id}, M3 `paused_until`).
- * @param {string | undefined} subscriptionId
+ * Pause Autopilot until a date, or resume with null (PATCH /v1/subscriptions/current, M3
+ * `paused_until`: a date after today pauses).
  */
-export function usePause(subscriptionId) {
+export function usePause() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (/** @type {string | null} */ until) =>
-      /** @type {Promise<{ id: string, status: string, paused_until: string | null }>} */ (
-        request(`/v1/subscriptions/${subscriptionId}`, {
+      /** @type {Promise<Subscription>} */ (
+        request("/v1/subscriptions/current", {
           method: "PATCH",
           body: { paused_until: until },
         })
       ),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["household", "me"] });
-      client.invalidateQueries({ queryKey: ["cycle", "current"] });
+    onSuccess: (subscription) => {
+      client.setQueryData(["subscription", "current"], subscription);
+      client.invalidateQueries({ queryKey: ["cycle"] });
     },
   });
 }
 
-/** Change wing or flat within the same society (PATCH /v1/addresses/{id}, M1). @param {string | null | undefined} addressId */
+/**
+ * Change wing or flat within the same society (PATCH /v1/addresses/{id}, M1). The flat is the
+ * whole label ("B-402"). The household's version moves on, so it is read again.
+ * @param {string | null | undefined} addressId
+ */
 export function useChangeAddress(addressId) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (/** @type {{ tower: string, flat: string }} */ v) =>
-      request(`/v1/addresses/${addressId}`, { method: "PATCH", body: v }),
+      request(`/v1/addresses/${addressId}`, {
+        method: "PATCH",
+        body: { tower_id: v.tower, flat: flatLabel(v.tower, v.flat) },
+      }),
     onSuccess: () => client.invalidateQueries({ queryKey: ["household", "me"] }),
   });
 }
@@ -136,23 +173,24 @@ export const HOUSEHOLD_STEPS_EDIT = [
 
 /**
  * The current setting of one household part, in words (design HcHousehold). Food rules are the
- * diet plus Jain, and no onion-garlic on fast days or some days.
+ * diet plus Jain (on any member) and no onion-garlic on fast days.
  * @param {(key: string, options?: Record<string, unknown>) => string} t
  * @param {string} key one of HOUSEHOLD_STEPS_EDIT
  * @param {Household} h
+ * @param {boolean} healthConsent
  */
-export function householdValue(t, key, h) {
+export function householdValue(t, key, h, healthConsent) {
   if (key === "family") return t("profile.edit.familyOf", { n: h.size });
   if (key === "food")
     return [
       t(`onboarding.food.diets.${h.diet}`),
-      h.rules.jain && t("onboarding.food.jain"),
-      h.fasting.length > 0 && t("profile.edit.noOnionFast"),
-      h.rules.no_onion_some_days && !h.fasting.length && t("profile.edit.noOnionSome"),
+      h.members.some((m) => m.fasting_rules.jain) && t("onboarding.food.jain"),
+      h.members.some((m) => m.fasting_rules.no_onion_garlic_on_fast_days) &&
+        t("profile.edit.noOnionFast"),
     ]
       .filter(Boolean)
       .join(" · ");
-  if (key === "health") return t(h.health_consent ? "profile.edit.on" : "profile.edit.off");
+  if (key === "health") return t(healthConsent ? "profile.edit.on" : "profile.edit.off");
   if (key === "cooking") return t("profile.edit.minutes", { n: h.weekday_cook_minutes });
   return h.budget_paise ? formatPaise(h.budget_paise) : t("profile.edit.off");
 }

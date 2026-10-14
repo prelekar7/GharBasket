@@ -6,6 +6,7 @@ import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useSociety } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useUnlock } from "@/features/onboarding/unlock.js";
 
 /** Tower and flat in the chosen society, and who its captain is (design Hf06). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -21,6 +22,11 @@ function FlatStep() {
   const navigate = useNavigate();
   const { societyId, towerId, flat, update } = useOnboardingDraft();
   const { data: society, isPending, isError, refetch } = useSociety(societyId ?? undefined);
+  // SocietyOut.captain is { display_name, photo_url } | null (M9); the Society typedef follows.
+  const captain = /** @type {{ display_name: string } | null | undefined} */ (
+    /** @type {unknown} */ (society?.captain)
+  );
+  const { data: unlock } = useUnlock(society && !captain ? society.id : undefined);
   const valid = !!towerId && /^[A-Za-z0-9-]{1,8}$/.test(flat.trim());
 
   return (
@@ -66,35 +72,37 @@ function FlatStep() {
             value={flat}
             onChange={(v) => update({ flat: v })}
           />
-          {society.captain ? (
+          {captain ? (
             <section className="flex items-start gap-3.5 rounded-md bg-surface p-4">
               <div className="grid size-13 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-fg">
                 <MedalIcon aria-hidden size={28} />
               </div>
               <div className="flex flex-col gap-0.5">
-                <strong>{t("onboarding.flat.capTitle", { name: society.captain.name })}</strong>
+                <strong>{t("onboarding.flat.capTitle", { name: captain.display_name })}</strong>
                 <p className="text-sm leading-5 text-fg-secondary">
-                  {t("onboarding.flat.capBody", { flat: society.captain.flat })}
+                  {t("onboarding.flat.capBody")}
                 </p>
               </div>
             </section>
           ) : (
-            <SocietyUnlockBar
-              society={society.name}
-              joined={society.unlock.joined}
-              target={society.unlock.threshold}
-              labels={{
-                count: t("onboarding.unlock.count", {
-                  joined: society.unlock.joined,
-                  target: society.unlock.threshold,
-                }),
-                remaining: t("onboarding.unlock.remaining", {
-                  n: society.unlock.threshold - society.unlock.joined,
-                }),
-                invite: t("onboarding.unlock.invite"),
-                progress: t("onboarding.unlock.progress"),
-              }}
-            />
+            unlock && (
+              <SocietyUnlockBar
+                society={society.name}
+                joined={unlock.joined}
+                target={unlock.threshold}
+                labels={{
+                  count: t("onboarding.unlock.count", {
+                    joined: unlock.joined,
+                    target: unlock.threshold,
+                  }),
+                  remaining: t("onboarding.unlock.remaining", {
+                    n: Math.max(unlock.threshold - unlock.joined, 0),
+                  }),
+                  invite: t("onboarding.unlock.invite"),
+                  progress: t("onboarding.unlock.progress"),
+                }}
+              />
+            )
           )}
         </>
       )}

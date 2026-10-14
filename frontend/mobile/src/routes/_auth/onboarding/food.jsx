@@ -41,7 +41,11 @@ function Food() {
           label={t("onboarding.food.diet")}
           value={h.diet}
           onChange={(diet) =>
-            updateHousehold({ diet: /** @type {"veg" | "egg" | "nonveg"} */ (diet) })
+            // A Jain household eats veg (M1 identity.diet_conflict): leaving veg turns Jain off.
+            updateHousehold({
+              diet: /** @type {"veg" | "egg" | "nonveg"} */ (diet),
+              ...(diet !== "veg" && { jain: false }),
+            })
           }
           options={["veg", "egg", "nonveg"].map((value) => ({
             value,
@@ -69,7 +73,7 @@ function Food() {
           label={t("onboarding.food.jain")}
           description={t("onboarding.food.jainDesc")}
           isSelected={h.jain}
-          onChange={(jain) => updateHousehold({ jain })}
+          onChange={(jain) => updateHousehold(jain ? { jain, diet: "veg" } : { jain })}
         />
         <Checkbox
           label={t("onboarding.food.noOnion")}
