@@ -101,9 +101,10 @@ export function useTiffinOffers(cycle) {
 }
 
 /**
- * Approve or skip the week (POST /v1/cycles/{id}/approve|skip, M3 PR #102, not shipped yet). Each
- * attempt has its own Idempotency-Key; approve also sends If-Match with the version the person saw
- * (skip takes only the key). A retry of the same tap reuses its key, so it never acts twice.
+ * Approve or skip the week (POST /v1/cycles/{id}/approve|skip, M3 PR #102, not shipped yet);
+ * approve also sends If-Match with the version the person saw (skip takes only the key). The
+ * Idempotency-Key belongs to the intent, not the tap: approving version 3 of this week always
+ * sends the same key, so a retry after a lost response replays instead of acting twice.
  * `unskip` is our proposal (the spec has no way back from a skip), kept for the Skipped design.
  * @param {"approve" | "skip" | "unskip"} action
  */
@@ -116,7 +117,7 @@ export function useCycleAction(action) {
           method: "POST",
           body: {},
           headers: {
-            "idempotency-key": crypto.randomUUID(),
+            "idempotency-key": `cycle:${cycle.id}:${action}:v${cycle.version}`,
             ...(action === "skip" ? {} : { "if-match": ifMatch(cycle) }),
           },
         })

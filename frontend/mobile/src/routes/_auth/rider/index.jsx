@@ -14,7 +14,7 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { clock, dayLabel, nextStop, routeSlot, stopDone } from "@/features/logistics/format.js";
 import { useHub, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
-import { useWaitingCount } from "@/lib/outbox.js";
+import { useOutboxCount } from "@/lib/outbox.js";
 
 const RouteMap = lazy(() => import("@/features/logistics/RouteMap.jsx"));
 
@@ -29,7 +29,7 @@ function RiderRoute() {
   const query = useMyRoute(lang);
   const actions = useRiderActions();
   const hub = useHub(query.data?.route?.hub_id);
-  const waiting = useWaitingCount();
+  const waiting = useOutboxCount("waiting");
   const today = todayIst();
 
   if (query.isPending) return <Skeleton lines={8} />;

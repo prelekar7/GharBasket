@@ -148,7 +148,8 @@
   },
   "outbox": {
     "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
-    "retry": "Try now"
+    "retry": "Try now",
+    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}"
   },
   "install": {
     "title": "Install GharBasket",
@@ -384,7 +385,9 @@
         "billing_payments_unavailable": "Payments aren’t available right now. Try again later.",
         "payment_pending": "We haven’t had confirmation of your payment yet. If money was taken, it will show in your wallet shortly. Check Wallet in a minute.",
         "payment_refunded": "Your wallet was full when the payment arrived, so it was sent back to your bank."
-      }
+      },
+      "confirming": "Confirming your payment…",
+      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute."
     },
     "done": {
       "title": "You’re all set. First box on {day}.",
