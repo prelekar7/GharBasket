@@ -10,6 +10,10 @@ import { createSociety, updateSociety } from "./actions.js";
 
 /** @typedef {import("@/lib/admin/types.js").Society} Society */
 
+/** What to say when the society list holds only what the public API gives (the admin list is not available). */
+const LIMITED_NOTE =
+  "Boundaries, hubs and editing societies are not available yet. They need endpoints that have not shipped, so this shows the public list with each society’s towers and flats.";
+
 const STATUS_LABEL = /** @type {const} */ ({
   live: "Live",
   unlocking: "Unlocking",
@@ -24,8 +28,19 @@ const STATUS_TONE = /** @type {const} */ ({
 });
 const STATUS_OPTIONS = Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label }));
 
-/** The second line of a list row, as in the design. @param {Society} s */
-function meta(s) {
+/**
+ * The second line of a list row, as in the design. `limited`: only the selected society has its towers,
+ * flats and threshold, so the others show just their area.
+ * @param {Society} s @param {boolean} limited
+ */
+function meta(s, limited) {
+  if (limited)
+    return [
+      s.towers.length ? `${s.towers.length} wings` : null,
+      s.flats ? `${s.flats} flats` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
   if (s.status === "unlocking") return `unlocks at ${s.unlock_threshold}`;
   if (!s.boundary) return "no boundary yet";
   const wings = s.towers.length ? `${s.towers.length} wings` : null;
@@ -36,12 +51,15 @@ function meta(s) {
 /**
  * The societies map editor: the list of societies on the left, the map with the boundary tools in
  * the middle, and the selected society's details on the right.
- * @param {{ hubName: string, societies: Society[], hubs: { id: string, name: string }[] }} props
+ * @param {{ hubName: string, societies: Society[], hubs: { id: string, name: string }[], limited: boolean }} props
+ * `limited`: the admin list (a @proposal, not in the contract yet) is not available, so societies come from the
+ * public list and the page is read-only
  */
-export function SocietiesView({ hubName, societies, hubs }) {
+export function SocietiesView({ hubName, societies, hubs, limited }) {
   const [selectedId, setSelectedId] = useQueryState(
     "society",
-    parseAsString.withOptions({ history: "replace" }),
+    // shallow false: without the admin list the server loads the selected society's towers and flats
+    parseAsString.withOptions({ history: "replace", shallow: false }),
   );
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState(
@@ -130,85 +148,98 @@ export function SocietiesView({ hubName, societies, hubs }) {
   }
 
   return (
-    <div className="grid overflow-hidden rounded-md border border-line min-[1100px]:grid-cols-[280px_minmax(0,1fr)_340px]">
-      <section
-        aria-label={`Societies of ${hubName}`}
-        className="flex flex-col gap-1.5 border-b border-line bg-surface p-4 min-[1100px]:border-r min-[1100px]:border-b-0"
-      >
-        <TextField
-          label="Find a society"
-          placeholder="Name or sector"
-          value={search}
-          onChange={setSearch}
-          className="max-w-none"
-        />
-        <ul className="m-0 mt-1 flex list-none flex-col gap-0.5 p-0">
-          {shown.map((s) => {
-            const current = !adding && selected?.id === s.id;
-            return (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  aria-current={current}
-                  onClick={() => pick(s.id)}
-                  className={`flex min-h-12 w-full cursor-default flex-col gap-0.5 rounded-sm border px-3 py-2.5 text-left outline-none focus-visible:shadow-focus ${current ? "border-fg bg-bg" : "border-transparent"}`}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <strong>{s.name}</strong>
-                    <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
-                  </span>
-                  <span className="text-sm leading-5 text-fg-secondary">
-                    {s.area} · {meta(s)}
-                  </span>
-                </button>
+    <>
+      {limited && (
+        <p
+          role="status"
+          className="rounded-md border border-line bg-surface px-3.5 py-3 text-sm leading-5"
+        >
+          {LIMITED_NOTE}
+        </p>
+      )}
+      <div className="grid overflow-hidden rounded-md border border-line min-[1100px]:grid-cols-[280px_minmax(0,1fr)_340px]">
+        <section
+          aria-label={`Societies of ${hubName}`}
+          className="flex flex-col gap-1.5 border-b border-line bg-surface p-4 min-[1100px]:border-r min-[1100px]:border-b-0"
+        >
+          <TextField
+            label="Find a society"
+            placeholder="Name or sector"
+            value={search}
+            onChange={setSearch}
+            className="max-w-none"
+          />
+          <ul className="m-0 mt-1 flex list-none flex-col gap-0.5 p-0">
+            {shown.map((s) => {
+              const current = !adding && selected?.id === s.id;
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    aria-current={current}
+                    onClick={() => pick(s.id)}
+                    className={`flex min-h-12 w-full cursor-default flex-col gap-0.5 rounded-sm border px-3 py-2.5 text-left outline-none focus-visible:shadow-focus ${current ? "border-fg bg-bg" : "border-transparent"}`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <strong>{s.name}</strong>
+                      <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABEL[s.status]}</Badge>
+                    </span>
+                    <span className="text-sm leading-5 text-fg-secondary">
+                      {[s.area, meta(s, limited)].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+            {shown.length === 0 && (
+              <li className="px-3 py-2 text-sm text-fg-secondary">
+                No society matches that. Try a sector number or part of the name.
               </li>
-            );
-          })}
-          {shown.length === 0 && (
-            <li className="px-3 py-2 text-sm text-fg-secondary">
-              No society matches that. Try a sector number or part of the name.
-            </li>
+            )}
+          </ul>
+          {!limited && (
+            <Button variant="secondary" block onPress={() => pick("new")} className="mt-2">
+              Add society
+            </Button>
           )}
-        </ul>
-        <Button variant="secondary" block onPress={() => pick("new")} className="mt-2">
-          Add society
-        </Button>
-      </section>
+        </section>
 
-      <section aria-label="Map" className="flex min-w-0 flex-col gap-2 p-4">
-        <PolygonEditor
-          areas={areas}
-          selected={editorId}
-          tool={tool}
-          onTool={setTool}
-          height={560}
-          onSave={(_, ring) => void saveBoundary(ring)}
-          onRemove={() => void removeBoundary()}
-          onCancel={() => setDraft(null)}
-        />
-        {draft && (
-          <p role="status" className="text-sm leading-5 text-fg-secondary">
-            A boundary of {draft.length} corners is ready. Save the society to store it.
-          </p>
-        )}
-      </section>
+        <section aria-label="Map" className="flex min-w-0 flex-col gap-2 p-4">
+          <PolygonEditor
+            areas={areas}
+            selected={editorId}
+            tool={tool}
+            onTool={setTool}
+            height={560}
+            onSave={(_, ring) => void saveBoundary(ring)}
+            onRemove={() => void removeBoundary()}
+            onCancel={() => setDraft(null)}
+          />
+          {draft && (
+            <p role="status" className="text-sm leading-5 text-fg-secondary">
+              A boundary of {draft.length} corners is ready. Save the society to store it.
+            </p>
+          )}
+        </section>
 
-      <aside
-        aria-label="Society details"
-        className="flex min-w-0 flex-col gap-3.5 border-t border-line p-4 min-[1100px]:border-t-0 min-[1100px]:border-l"
-      >
-        <SocietyForm
-          key={adding ? "new" : `${selected?.id}:${selected?.version}`}
-          society={adding ? null : selected}
-          hubs={hubs}
-          draft={draft}
-          onCreated={(id) => {
-            setDraft(null);
-            void setSelectedId(id);
-          }}
-        />
-      </aside>
-    </div>
+        <aside
+          aria-label="Society details"
+          className="flex min-w-0 flex-col gap-3.5 border-t border-line p-4 min-[1100px]:border-t-0 min-[1100px]:border-l"
+        >
+          <SocietyForm
+            key={adding ? "new" : `${selected?.id}:${selected?.version}`}
+            society={adding ? null : selected}
+            hubs={hubs}
+            draft={draft}
+            readOnly={limited}
+            onCreated={(id) => {
+              setDraft(null);
+              void setSelectedId(id);
+            }}
+          />
+        </aside>
+      </div>
+    </>
   );
 }
 
@@ -216,9 +247,9 @@ export function SocietiesView({ hubName, societies, hubs }) {
  * The details form of one society (or an empty one for "Add society"). Keyed by society and version,
  * so it starts again from the saved values whenever those change.
  * @param {{ society: Society | null, hubs: { id: string, name: string }[],
- *   draft: import("@/lib/admin/geo.js").LngLat[] | null, onCreated: (id: string) => void }} props
+ *   draft: import("@/lib/admin/geo.js").LngLat[] | null, readOnly: boolean, onCreated: (id: string) => void }} props
  */
-function SocietyForm({ society, hubs, draft, onCreated }) {
+function SocietyForm({ society, hubs, draft, readOnly, onCreated }) {
   const [name, setName] = useState(society?.name ?? "");
   const [area, setArea] = useState(society?.area ?? "");
   const [hub, setHub] = useState(society?.hub_id ?? "none");
@@ -226,7 +257,7 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
   const [threshold, setThreshold] = useState(String(society?.unlock_threshold ?? 20));
   const [flats, setFlats] = useState(society?.flats ? String(society.flats) : "");
   const [towers, setTowers] = useState(
-    /** @type {{ id?: string, name: string }[]} */ (society?.towers ?? []),
+    /** @type {{ id?: string, label: string }[]} */ (society?.towers ?? []),
   );
   const [problem, setProblem] = useState(/** @type {string | null} */ (null));
   const [fields, setFields] = useState(/** @type {Record<string, string>} */ ({}));
@@ -259,7 +290,7 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
       status,
       unlock_threshold: t,
       flats: f,
-      towers: towers.filter((x) => x.name.trim()),
+      towers: towers.filter((x) => x.label.trim()),
     };
     startSave(async () => {
       if (creating) {
@@ -295,7 +326,7 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
         <p className="text-sm leading-5 text-fg-secondary">
           {creating
             ? "Draw its boundary on the map, then fill in the details."
-            : `${society.area}${society.hub_id ? "" : " · not on a hub yet"}`}
+            : `${society.area}${society.hub_id || readOnly ? "" : " · not on a hub yet"}`}
         </p>
       </div>
 
@@ -320,18 +351,20 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
         </>
       )}
 
-      <p
-        role="status"
-        className={`rounded-sm px-3 py-2.5 text-sm leading-5 ${boundaryCorners > 0 ? "bg-primary-soft" : "bg-accent-soft"}`}
-      >
-        {boundaryCorners > 0
-          ? `Boundary saved, ${boundaryCorners} corners. Addresses are checked against it.`
-          : draft
-            ? `A boundary of ${draft.length} corners is ready. Save the society to store it.`
-            : "No boundary saved yet, so addresses here are accepted anywhere. Close the shape and save to start checking them."}
-      </p>
+      {!readOnly && (
+        <p
+          role="status"
+          className={`rounded-sm px-3 py-2.5 text-sm leading-5 ${boundaryCorners > 0 ? "bg-primary-soft" : "bg-accent-soft"}`}
+        >
+          {boundaryCorners > 0
+            ? `Boundary saved, ${boundaryCorners} corners. Addresses are checked against it.`
+            : draft
+              ? `A boundary of ${draft.length} corners is ready. Save the society to store it.`
+              : "No boundary saved yet, so addresses here are accepted anywhere. Close the shape and save to start checking them."}
+        </p>
+      )}
 
-      <Select label="Hub" options={hubOptions} value={hub} onChange={setHub} />
+      {!readOnly && <Select label="Hub" options={hubOptions} value={hub} onChange={setHub} />}
       <Select
         label="Status"
         options={STATUS_OPTIONS}
@@ -371,13 +404,15 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
           <div key={t.id ?? `new-${i}`} className="flex items-end gap-2">
             <TextField
               label={`Tower ${i + 1}`}
-              value={t.name}
-              onChange={(v) => setTowers(towers.map((x, j) => (j === i ? { ...x, name: v } : x)))}
+              value={t.label}
+              onChange={(v) => setTowers(towers.map((x, j) => (j === i ? { ...x, label: v } : x)))}
+              isDisabled={readOnly}
               className="max-w-none flex-1"
             />
             <Button
               variant="quiet"
               aria-label={`Remove tower ${i + 1}`}
+              isDisabled={readOnly}
               onPress={() => setTowers(towers.filter((_, j) => j !== i))}
             >
               Remove
@@ -386,8 +421,9 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
         ))}
         <Button
           variant="quiet"
+          isDisabled={readOnly}
           onPress={() =>
-            setTowers([...towers, { name: `Wing ${String.fromCharCode(65 + towers.length)}` }])
+            setTowers([...towers, { label: `Wing ${String.fromCharCode(65 + towers.length)}` }])
           }
           className="-ml-4 self-start"
         >
@@ -400,7 +436,13 @@ function SocietyForm({ society, hubs, draft, onCreated }) {
           {problem}
         </p>
       )}
-      <Button variant="primary" block isDisabled={busy} onPress={save} className="mt-auto">
+      <Button
+        variant="primary"
+        block
+        isDisabled={busy || readOnly}
+        onPress={save}
+        className="mt-auto"
+      >
         {creating ? "Add society" : "Save society"}
       </Button>
     </>

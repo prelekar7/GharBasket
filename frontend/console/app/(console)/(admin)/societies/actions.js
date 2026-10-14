@@ -12,7 +12,7 @@ import { apiPatch, apiPost } from "@/lib/api.js";
  * @property {string} [status]
  * @property {number} [unlock_threshold]
  * @property {number | null} [flats]
- * @property {{ id?: string, name: string }[]} [towers]
+ * @property {{ id?: string, label: string }[]} [towers]
  * @property {import("@/lib/admin/geo.js").GeoPolygon | null} [boundary]
  */
 

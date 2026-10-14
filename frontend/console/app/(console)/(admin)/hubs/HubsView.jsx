@@ -31,20 +31,34 @@ const listOf = (names) =>
 /**
  * Hubs and their service areas: pick a hub, see its facts, draw or move its service area on the
  * map, and see the societies inside it.
- * @param {{ hubs: AdminHub[], societies: Society[], currentId: string }} props
+ * The admin list of hubs and of societies are @proposals (not in the contract yet). Without the hub list
+ * (`limited`) only each hub's name is known, so the page is read-only; without the society list
+ * (`societies` null) it cannot say which societies a hub serves.
+ * @param {{ hubs: AdminHub[], societies: Society[] | null, currentId: string, limited: boolean }} props
  */
-export function HubsView({ hubs, societies, currentId }) {
+export function HubsView({ hubs, societies, currentId, limited }) {
   const [param, setParam] = useQueryState("hub", parseAsString.withOptions({ history: "replace" }));
   const [adding, setAdding] = useState(false);
   const hub = hubs.find((h) => h.id === param) ?? hubs.find((h) => h.id === currentId) ?? hubs[0];
   const [tool, setTool] = useState(/** @type {"draw" | "edit"} */ ("edit"));
 
-  const addButton = <Button onPress={() => setAdding(true)}>Add hub</Button>;
+  const addButton = limited ? null : <Button onPress={() => setAdding(true)}>Add hub</Button>;
   const head = (
-    <PageHead title="Hubs" action={addButton}>
-      Each hub is a franchise fulfilment centre with a service area. A society inside the area can
-      be served once it unlocks.
-    </PageHead>
+    <>
+      <PageHead title="Hubs" action={addButton}>
+        Each hub is a franchise fulfilment centre with a service area. A society inside the area can
+        be served once it unlocks.
+      </PageHead>
+      {limited && (
+        <p
+          role="status"
+          className="rounded-md border border-line bg-surface px-3.5 py-3 text-sm leading-5"
+        >
+          Hub details, service areas and adding hubs are not available yet. They need endpoints that
+          have not shipped, so this shows the hubs you can use, by name.
+        </p>
+      )}
+    </>
   );
 
   if (!hub) {
@@ -65,8 +79,8 @@ export function HubsView({ hubs, societies, currentId }) {
       status: /** @type {"live" | "prospect"} */ (h.status === "active" ? "live" : "prospect"),
       coordinates: ringOf(h.service_area),
     }));
-  const mine = societies.filter((s) => s.hub_id === hub.id);
-  const outside = societies.filter((s) => s.hub_id === null);
+  const mine = (societies ?? []).filter((s) => s.hub_id === hub.id);
+  const outside = (societies ?? []).filter((s) => s.hub_id === null);
   const rows = mine.map((s) => ({
     id: s.id,
     s: { text: s.name, sub: s.area, strong: true },
@@ -126,7 +140,7 @@ export function HubsView({ hubs, societies, currentId }) {
               else toast("There is no service area to delete yet.");
             }}
           />
-          {!hub.service_area && (
+          {!hub.service_area && !limited && (
             <p role="status" className="rounded-sm bg-accent-soft px-3 py-2.5 text-sm leading-5">
               {hub.name} has no service area yet. Draw it on the map and save, so we know which
               societies it can serve.
@@ -140,18 +154,26 @@ export function HubsView({ hubs, societies, currentId }) {
               <h2 className="text-[17px] leading-6 font-bold">{hub.name}</h2>
               {hub.status === "planned" && <Badge tone="accent">Planned</Badge>}
             </div>
-            <div>
-              <KV k="Address">{hub.address}</KV>
-              <KV k="Franchise owner">{hub.franchise_owner?.name ?? "Not assigned yet"}</KV>
-              <KV k="Hub manager">{hub.hub_manager?.name ?? "Not assigned yet"}</KV>
-              <KV k="Delivery slots">{hub.slots.length ? hub.slots.join(" · ") : "Not set yet"}</KV>
-              <KV k="Cut-off">{hub.cutoff}</KV>
-            </div>
+            {!limited && (
+              <div>
+                <KV k="Address">{hub.address}</KV>
+                <KV k="Franchise owner">{hub.franchise_owner?.name ?? "Not assigned yet"}</KV>
+                <KV k="Hub manager">{hub.hub_manager?.name ?? "Not assigned yet"}</KV>
+                <KV k="Delivery slots">
+                  {hub.slots.length ? hub.slots.join(" · ") : "Not set yet"}
+                </KV>
+                <KV k="Cut-off">{hub.cutoff}</KV>
+              </div>
+            )}
           </Panel>
 
           <Panel label="Societies in this area">
             <h2 className="text-[17px] leading-6 font-bold">Societies in this area</h2>
-            {rows.length === 0 ? (
+            {societies === null ? (
+              <p className="text-sm leading-5 text-fg-secondary">
+                Which societies a hub serves is not available yet.
+              </p>
+            ) : rows.length === 0 ? (
               <p className="text-sm leading-5 text-fg-secondary">
                 No societies on this hub yet. Add one in Societies and choose this hub.
               </p>

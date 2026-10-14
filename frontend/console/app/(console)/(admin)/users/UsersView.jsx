@@ -10,7 +10,19 @@ import { grantRole, removeRole } from "./actions.js";
 
 /** @typedef {import("@/lib/admin/types.js").AdminUser} AdminUser */
 /** @typedef {import("@/lib/admin/types.js").UserRole} UserRole */
-/** @typedef {{ kind: "staff", people: AdminUser[] } | { kind: "found", person: AdminUser } | { kind: "none" } | { kind: "invalid" }} Lookup */
+/**
+ * What the page found out. `unavailable`: the lookup (GET /v1/admin/users, a @proposal not in the contract yet)
+ * has not shipped, so only giving a role by number works.
+ * @typedef {{ kind: "staff", people: AdminUser[] } | { kind: "found", person: AdminUser } | { kind: "none" }
+ *   | { kind: "invalid" } | { kind: "unavailable" }} Lookup
+ */
+
+const STATUS_LABEL = /** @type {Record<string, string>} */ ({
+  verified: "Verified",
+  applied: "Applied",
+  kyc_pending: "KYC pending",
+  suspended: "Suspended",
+});
 
 const ROLE_LABEL = /** @type {Record<string, string>} */ ({
   customer: "Customer",
@@ -61,7 +73,22 @@ export function UsersView({ phone, lookup, hubs, now }) {
     void setPhone(digits);
   }
 
-  const found = lookup.kind === "found" ? lookup.person : null;
+  const digits = tenDigits(phone);
+  // Without the lookup there is nobody to show, but the number is enough to give a role.
+  const limited = lookup.kind === "unavailable" && digits ? digits : null;
+  const found =
+    lookup.kind === "found"
+      ? lookup.person
+      : limited
+        ? /** @type {AdminUser} */ ({
+            id: limited,
+            name: "This person",
+            phone_e164: `+91${limited}`,
+            locale: "en-IN",
+            last_seen_at: null,
+            roles: [],
+          })
+        : null;
   const person =
     found ??
     (lookup.kind === "staff" ? lookup.people.find((p) => p.id === pickedId) : null) ??
@@ -103,6 +130,17 @@ export function UsersView({ phone, lookup, hubs, now }) {
         )}
       </form>
 
+      {lookup.kind === "unavailable" && (
+        <p
+          role="status"
+          className="rounded-md border border-line bg-surface px-3.5 py-3 text-sm leading-5"
+        >
+          The list of staff and the lookup by number are not available yet; they need an endpoint
+          that has not shipped. You can still give a role: enter the person’s mobile number and
+          press Find.
+        </p>
+      )}
+
       {lookup.kind === "none" && (
         <EmptyState
           title="No one with that number"
@@ -115,6 +153,7 @@ export function UsersView({ phone, lookup, hubs, now }) {
           key={person.id}
           person={person}
           fullPhone={found !== null}
+          limited={limited !== null}
           hubs={hubs}
           now={now}
           onBack={found ? null : () => setPickedId(null)}
@@ -197,9 +236,10 @@ function StaffList({ people, onPick }) {
 
 /**
  * One person: who they are, their roles, and the buttons to give or remove a staff role.
- * @param {{ person: AdminUser, fullPhone: boolean, hubs: { id: string, name: string }[], now: number, onBack: (() => void) | null }} props
+ * @param {{ person: AdminUser, fullPhone: boolean, limited: boolean, hubs: { id: string, name: string }[], now: number, onBack: (() => void) | null }} props
+ * `limited`: only the number is known (the lookup is not available), so there is no role list
  */
-function PersonCard({ person, fullPhone, hubs, now, onBack }) {
+function PersonCard({ person, fullPhone, limited, hubs, now, onBack }) {
   const [giving, setGiving] = useState(false);
   const [role, setRole] = useState("franchise_owner");
   const [hub, setHub] = useState(hubs[0]?.id ?? "");
@@ -208,12 +248,14 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
   const first = person.name.split(" ")[0];
   const hubName = hubs.find((h) => h.id === hub)?.name ?? "this hub";
   const needsHub = NEEDS_HUB.includes(role);
+  // An NGO coordinator is tied to an NGO, which the console cannot pick yet.
+  const needsNgo = role === "ngo_coordinator";
 
   function give() {
     run(async () => {
       key.current ??= crypto.randomUUID();
       const result = await grantRole(key.current, {
-        userId: person.id,
+        phone: person.phone_e164,
         role,
         hubId: needsHub ? hub : null,
       });
@@ -222,12 +264,9 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
         return;
       }
       key.current = null;
-      const given = result.data.id;
+      // The grant has no id, so there is nothing to Undo with: a mistake is removed from the person's card.
       toast(
-        `${first} is now ${/^[aeiou]/i.test(ROLE_LABEL[role]) ? "an" : "a"} ${ROLE_LABEL[role].toLowerCase()}`,
-        {
-          action: { label: "Undo", onClick: () => void removeRole(given) },
-        },
+        `${limited ? "They are" : `${first} is`} now ${/^[aeiou]/i.test(ROLE_LABEL[role]) ? "an" : "a"} ${ROLE_LABEL[role].toLowerCase()}`,
       );
     });
   }
@@ -245,7 +284,7 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
           label: "Undo",
           onClick: () =>
             void grantRole(crypto.randomUUID(), {
-              userId: person.id,
+              phone: person.phone_e164,
               role: r.role,
               hubId: r.scope_id,
             }),
@@ -275,8 +314,10 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
           <div className="flex flex-col">
             <h2 className="text-[17px] leading-6 font-bold">{person.name}</h2>
             <span className="text-sm leading-5 text-fg-secondary">
-              {fullPhone ? formatPhone(person.phone_e164) : maskPhone(person.phone_e164)} ·{" "}
-              {LANGUAGE[person.locale]} · {lastSeenLabel(person.last_seen_at, now)}
+              {fullPhone ? formatPhone(person.phone_e164) : maskPhone(person.phone_e164)}
+              {limited
+                ? ""
+                : ` · ${LANGUAGE[person.locale]} · ${lastSeenLabel(person.last_seen_at, now)}`}
             </span>
           </div>
         </div>
@@ -285,59 +326,67 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
         </Button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className={TABLE}>
-          <caption className="sr-only">Roles of {person.name}</caption>
-          <thead>
-            <tr>
-              <th className={TH}>Role</th>
-              <th className={TH}>Where</th>
-              <th className={TH}>Status</th>
-              <th className={TH}>Given by</th>
-              <th className={TH}>
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {person.roles.map((r) => (
-              <tr key={r.id}>
-                <td className={`${TD} font-semibold`}>{ROLE_LABEL[r.role] ?? r.role}</td>
-                <td className={TD}>{r.scope_label ?? "—"}</td>
-                <td className={TD}>
-                  <Badge tone={r.status === "verified" ? "primary" : "accent"}>
-                    {r.status === "verified" ? "Verified" : "Pending"}
-                  </Badge>
-                </td>
-                <td className={`${TD} text-fg-secondary`}>{r.given_by}</td>
-                <td className={TD_ACT}>
-                  {STAFF.includes(r.role) && (
-                    <Button
-                      variant="quiet"
-                      aria-label={`Remove ${ROLE_LABEL[r.role]} role from ${person.name}`}
-                      onPress={() => remove(r)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </td>
+      {limited ? (
+        <p className="text-sm leading-5 text-fg-secondary">
+          Their current roles can’t be listed yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className={TABLE}>
+            <caption className="sr-only">Roles of {person.name}</caption>
+            <thead>
+              <tr>
+                <th className={TH}>Role</th>
+                <th className={TH}>Where</th>
+                <th className={TH}>Status</th>
+                <th className={TH}>Given by</th>
+                <th className={TH}>
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {person.roles.map((r) => (
+                <tr key={r.id}>
+                  <td className={`${TD} font-semibold`}>{ROLE_LABEL[r.role] ?? r.role}</td>
+                  <td className={TD}>{r.scope_label ?? "—"}</td>
+                  <td className={TD}>
+                    <Badge tone={r.status === "verified" ? "primary" : "accent"}>
+                      {STATUS_LABEL[r.status] ?? r.status}
+                    </Badge>
+                  </td>
+                  <td className={`${TD} text-fg-secondary`}>{r.given_by}</td>
+                  <td className={TD_ACT}>
+                    {STAFF.includes(r.role) && (
+                      <Button
+                        variant="quiet"
+                        aria-label={`Remove ${ROLE_LABEL[r.role]} role from ${person.name}`}
+                        onPress={() => remove(r)}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <p className="text-sm leading-5 text-fg-secondary">
         Role changes take effect at the person's next sign-in and are saved to the audit log.
         Captains, cooks, riders and packers get their roles through Partners and KYC, not here.
       </p>
 
       <Dialog
-        title={`Give ${person.name} a staff role?`}
+        title={`Give ${limited ? "this person" : person.name} a staff role?`}
         confirmLabel="Give role"
         cancelLabel="Cancel"
         isOpen={giving}
         onOpenChange={setGiving}
-        onConfirm={give}
+        onConfirm={
+          needsNgo ? () => toast("Giving the NGO coordinator role is not available yet.") : give
+        }
       >
         <div className="flex flex-col gap-3">
           <Select
@@ -360,7 +409,11 @@ function PersonCard({ person, fullPhone, hubs, now, onBack }) {
               }}
             />
           )}
-          <span className="text-sm leading-5">{effect(role, hubName)}</span>
+          <span className="text-sm leading-5">
+            {needsNgo
+              ? "An NGO coordinator is tied to an NGO, and picking one is not available yet."
+              : effect(role, hubName)}
+          </span>
         </div>
       </Dialog>
     </section>

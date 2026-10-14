@@ -85,3 +85,19 @@ export function NoAccess({ title }) {
     </div>
   );
 }
+
+/**
+ * A page whose data comes from an endpoint that has not shipped yet (a @proposal, see lib/proposal.js):
+ * says so plainly instead of showing the error page.
+ * @param {{ title: string, children: import("react").ReactNode }} props
+ */
+export function NotAvailable({ title, children }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h1 className="font-display text-[28px] leading-[34px] font-semibold">{title}</h1>
+      <p role="status" className="max-w-xl text-fg-secondary">
+        Not available yet. {children}
+      </p>
+    </div>
+  );
+}
