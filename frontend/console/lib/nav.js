@@ -144,8 +144,8 @@ export const NAV = [
     items: [
       { href: "/pnl", label: "P&L", ready: true, key: "l" },
       { href: "/unit-economics", label: "Unit economics", ready: true },
-      { href: "/staff", label: "Staff" },
-      { href: "/customers", label: "Customers" },
+      { href: "/staff", label: "Staff", ready: true },
+      { href: "/customers", label: "Customers", ready: true },
       { href: "/settings", label: "Settings" },
     ],
   },

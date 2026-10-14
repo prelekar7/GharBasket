@@ -9,6 +9,7 @@ import { intelHandlers } from "./intel.js";
 import { plansHandlers } from "./plans.js";
 import { pricesHandlers } from "./prices.js";
 import { publicHandlers } from "./public.js";
+import { teamHandlers } from "./team.js";
 
 export const handlers = [
   ...hubsHandlers,
@@ -21,4 +22,5 @@ export const handlers = [
   ...plansHandlers,
   ...pricesHandlers,
   ...publicHandlers,
+  ...teamHandlers,
 ];
