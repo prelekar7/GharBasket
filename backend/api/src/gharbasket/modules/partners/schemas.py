@@ -530,3 +530,75 @@ class RunOut(BaseModel):
     run_ids: list[uuid.UUID] = Field(description="One run per meal that had orders")
     offers: int
     unassigned: int
+
+
+# --- cooking, manual assignment and the tiffin board (§3.4) -------------------------------------
+
+
+class StartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_at: datetime | None = Field(default=None, description="When she tapped (offline)")
+
+
+class ReadyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_ids: list[uuid.UUID] | None = Field(
+        default=None, max_length=200, description="Default: every assigned order not yet ready"
+    )
+    checklist: dict[str, bool] = Field(
+        description="handwash, hair_cover, clean_surface, sealed, fresh_today: all true "
+        "(else 422 partners.checklist_incomplete)"
+    )
+    client_at: datetime | None = None
+
+
+class ManualIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    order_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    partner_id: uuid.UUID
+    note: str | None = Field(default=None, max_length=300, description="Audit log")
+
+
+class ManualOut(AssignmentOut):
+    over_capacity: bool
+
+
+class BoardUnassignedOut(BaseModel):
+    order_id: uuid.UUID
+    society: SocietyRef
+    portions: int
+    reason: str = Field(description="From the latest run; pending before any run")
+
+
+class BoardMealOut(BaseModel):
+    meal: Meal
+    orders: int
+    portions: int
+    assigned: int = Field(description="Orders held by any assignment")
+    accepted: int
+    preparing: int
+    ready: int
+    picked_up: int
+    unassigned: list[BoardUnassignedOut]
+
+
+class BoardRunOut(BaseModel):
+    meal: Meal
+    round: int
+    source: Literal["ml", "fallback"]
+    model: str
+    status: str
+    gini: float | None
+    km_per_portion: float | None
+    at: datetime
+
+
+class TiffinBoardOut(BaseModel):
+    date: date
+    meals: list[BoardMealOut]
+    assignments: list[AssignmentOut]
+    runs: list[BoardRunOut]
