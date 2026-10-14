@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import events, tracking
+from gharbasket.modules.logistics import attempts, events, tracking
 from gharbasket.modules.logistics.execution import ensure_running, stop_not_found, tap
 from gharbasket.modules.logistics.models import Handover, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
@@ -107,7 +107,7 @@ async def stop_actor(
     raise stop_not_found()
 
 
-def _photo_ok(key: str, user_id: uuid.UUID) -> bool:
+def photo_ok(key: str, user_id: uuid.UUID) -> bool:
     """A `delivery_photo` upload of the caller (M0); the M0 purpose itself is still to come, so
     the key is checked by its shape until then."""
     return (
@@ -129,7 +129,7 @@ def check_proof(route: Route, stop: RouteStop, actor: Actor, body: HandoverIn) -
             422, "request.invalid", "Send exactly one of handover_code and photo_key."
         )
     if body.photo_key is not None:
-        if not _photo_ok(body.photo_key, actor.user_id):
+        if not photo_ok(body.photo_key, actor.user_id):
             raise ProblemError(
                 422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
             )
@@ -147,8 +147,8 @@ def check_proof(route: Route, stop: RouteStop, actor: Actor, body: HandoverIn) -
 
 
 class CodeInvalid(ProblemError):
-    def __init__(self) -> None:
-        super().__init__(422, "logistics.code_invalid", "That is not the rider's handover code.")
+    def __init__(self, detail: str = "That is not the rider's handover code.") -> None:
+        super().__init__(422, "logistics.code_invalid", detail)
 
 
 def bag_order_id(bag_qr: str) -> uuid.UUID:
@@ -202,6 +202,9 @@ async def hand_over(
         await orders_api.transition(
             session, order_id, "at_society", actor=actor.kind, actor_user_id=actor.user_id
         )
+    await attempts.set_status(
+        session, moving, "with_captain", by_actor=actor.kind, user_id=actor.user_id
+    )
     at = now()
     handover = Handover(
         stop_id=stop.id,
