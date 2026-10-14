@@ -7,7 +7,7 @@ import { useWallet } from "@/features/billing/queries.js";
 import { shareInvite } from "@/features/community/invite.js";
 import { useSociety } from "@/features/community/queries.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
-import { shortDate, timeRange, weekdayOf } from "@/features/subscriptions/format.js";
+import { shortDate, timeRange, weekdayName, weekdayOf } from "@/features/subscriptions/format.js";
 import { useCurrentCycle } from "@/features/subscriptions/queries.js";
 
 /** The brand "parchi with a tick" on kraft paper. */
@@ -57,6 +57,7 @@ function Done() {
   const row = "flex items-baseline justify-between gap-3 border-b border-line py-3";
   return (
     <OnboardingFrame
+      back={false}
       footer={
         <Button
           variant="primary"
@@ -85,7 +86,7 @@ function Done() {
           <dt className="text-sm text-fg-secondary">{t("onboarding.done.delivery")}</dt>
           <dd className="font-semibold">
             {cycle ? (
-              `${t(`days.short.d${weekdayOf(cycle.delivery_date)}`)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.delivery_window, lang)}`
+              `${weekdayName(cycle.delivery_date, lang)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.delivery_window, lang)}`
             ) : (
               <Skeleton className="h-5 w-32" />
             )}
@@ -112,10 +113,12 @@ function Done() {
       </dl>
       {society && (
         <section className="flex flex-col items-start gap-2.5 rounded-md bg-surface p-4">
-          <strong className="text-lg leading-[26px]">{society.name}</strong>
-          {society.status === "live" && (
-            <StatusPill status="delivered">{t("onboarding.done.free")}</StatusPill>
-          )}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <strong className="text-lg leading-[26px]">{society.name}</strong>
+            {society.status === "live" && (
+              <StatusPill status="delivered">{t("onboarding.done.free")}</StatusPill>
+            )}
+          </div>
           <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.done.invite")}</p>
           <Button variant="secondary" onPress={invite}>
             {t("onboarding.done.inviteCta")}

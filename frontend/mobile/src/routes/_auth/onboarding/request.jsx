@@ -20,13 +20,15 @@ function MapSketch() {
     >
       <path
         d="M-10 150C80 130 160 140 360 96M120 -10C130 70 140 140 118 220"
-        className="fill-none stroke-line-strong"
+        className="fill-none stroke-line-strong opacity-45"
         strokeWidth="10"
+        strokeLinecap="round"
       />
       <path
         d="M-10 60h380M240 -10v230M30 -10l40 230"
         className="fill-none stroke-line"
-        strokeWidth="3"
+        strokeWidth="4"
+        strokeLinecap="round"
       />
       {[
         [150, 30, 70, 52],
@@ -35,7 +37,7 @@ function MapSketch() {
         [260, 120, 70, 70],
         [44, 76, 56, 48],
       ].map(([x, y, w, h]) => (
-        <rect key={x} x={x} y={y} width={w} height={h} rx="6" className="fill-bg stroke-line" />
+        <rect key={x} x={x} y={y} width={w} height={h} rx="6" className="fill-line" />
       ))}
       <path
         d="M188 58c-12 0-21 9-21 20.5 0 15 21 34.5 21 34.5s21-19.5 21-34.5C209 67 200 58 188 58z"
@@ -72,7 +74,7 @@ function RequestSociety() {
     <OnboardingFrame
       footer={
         <>
-          <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.request.note")}</p>
+          <p className="text-sm leading-5 text-fg-secondary">{t("onboarding.request.note")}</p>
           {send.isError && (
             <p role="alert" className="text-sm font-semibold text-danger">
               {t("onboarding.error")}
@@ -106,7 +108,7 @@ function RequestSociety() {
             fallback={<MapSketch />}
           />
         </Suspense>
-        <figcaption className="text-sm leading-[22px] text-fg-secondary">
+        <figcaption className="text-sm leading-5 text-fg-secondary">
           {t("onboarding.request.caption")}
         </figcaption>
       </figure>

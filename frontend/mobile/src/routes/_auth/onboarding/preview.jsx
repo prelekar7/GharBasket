@@ -44,7 +44,7 @@ function Preview() {
         )
       }
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <span className="text-xs leading-[18px] font-semibold tracking-[0.04em] text-fg-secondary uppercase">
           {t("onboarding.preview.eyebrow")}
         </span>
@@ -63,20 +63,23 @@ function Preview() {
         />
       ) : (
         <>
-          <ThaliWeek
-            label={t("week.label")}
-            labels={{ today: t("week.today"), skip: t("week.skip") }}
-            days={cycle.meal_plan.days.map((d) => ({
-              day: t(`days.short.d${weekdayOf(d.date)}`),
-              date: shortDate(d.date, lang),
-              meals: d.meals.map((m) => ({
-                slot: t(`week.slot.${m.slot}`),
-                name: m.name,
-                tiffin: m.tiffin,
-                skip: m.skip,
-              })),
-            }))}
-          />
+          {/* Edge to edge on the right, so the week visibly scrolls on (Hf13). */}
+          <div className="-mr-5">
+            <ThaliWeek
+              label={t("onboarding.preview.title")}
+              labels={{ today: t("week.today"), skip: t("week.skip") }}
+              days={cycle.meal_plan.days.map((d) => ({
+                day: t(`days.short.d${weekdayOf(d.date)}`),
+                date: shortDate(d.date, lang),
+                meals: d.meals.map((m) => ({
+                  slot: t(`week.slot.${m.slot}`),
+                  name: m.name,
+                  tiffin: m.tiffin,
+                  skip: m.skip,
+                })),
+              }))}
+            />
+          </div>
           <section className="flex flex-col gap-2">
             <span className="text-sm leading-5 font-semibold">{t("onboarding.preview.why")}</span>
             <div className="flex flex-wrap gap-2">
@@ -87,19 +90,19 @@ function Preview() {
               ))}
             </div>
           </section>
-          <section className="flex flex-col gap-1 rounded-md bg-surface p-4">
-            <div className="flex items-baseline justify-between gap-2">
+          <section className="flex items-center justify-between gap-3 rounded-md bg-surface p-4">
+            <div className="flex flex-col gap-0.5">
               <strong>{t("onboarding.preview.box", { count: cycle.lines.length })}</strong>
-              <MoneyText paise={cycle.total_paise} size="lg" />
+              <p className="text-sm leading-5 text-fg-secondary">
+                {t("onboarding.preview.when", {
+                  day: t(`days.long.d${weekdayOf(cycle.delivery_date)}`),
+                  range: timeRange(cycle.delivery_window, lang),
+                })}
+                {cycle.budget_lock &&
+                  ` · ${t("onboarding.preview.within", { budget: formatPaise(cycle.budget_lock.budget_paise) })}`}
+              </p>
             </div>
-            <p className="text-sm leading-[22px] text-fg-secondary">
-              {t("onboarding.preview.when", {
-                day: t(`days.long.d${weekdayOf(cycle.delivery_date)}`),
-                range: timeRange(cycle.delivery_window, lang),
-              })}
-              {cycle.budget_lock &&
-                ` · ${t("onboarding.preview.within", { budget: formatPaise(cycle.budget_lock.budget_paise) })}`}
-            </p>
+            <MoneyText paise={cycle.total_paise} size="lg" />
           </section>
         </>
       )}
