@@ -1025,6 +1025,7 @@
   "rider": {
     "tabs": {
       "route": "Route",
+      "stop": "Stop",
       "earnings": "Earnings"
     },
     "title": "Your route",
@@ -1065,8 +1066,36 @@
       "tip": "Load the route once at the hub. After that, stops, crates and handover codes work without signal."
     },
     "stop": {
+      "back": "Back to route",
+      "of": "Stop {n} of {total}",
       "navigate": "Open in Maps",
-      "call": "Call {name}"
+      "call": "Call {name}",
+      "crates": "Crates for this society",
+      "crateLabels": {
+        "label": "Crates",
+        "scanned": "Scanned",
+        "waiting": "Waiting",
+        "missing": "Missing",
+        "bag": "{n} bag",
+        "bags": "{n} bags",
+        "summary": "{done} of {total} crates · {bags} bags"
+      },
+      "captainScans": "{name} scans each crate and counts {bags, plural, one {# bag} other {# bags}}.",
+      "noCaptain": "No captain here yet: leave the crates at the security cabin and take a photo.",
+      "proof": "Handover proof",
+      "otp": "{name}’s handover code",
+      "otpHelp": "She sees the 4-digit code in her app. No signal? Take a photo instead.",
+      "photo": "Take a photo of the crates",
+      "photoAgain": "Take the photo again",
+      "photoAdded": "Photo added",
+      "photoAlt": "Photo of the crates",
+      "photoFailed": "That photo didn’t work. Take it again.",
+      "done": "Handover done",
+      "handed": "{society} handed over.",
+      "startFirst": "Start the route first, then hand over here.",
+      "allDone": "Every stop is handed over",
+      "allDoneBody": "Collect the empty crates and donations on the way back.",
+      "toPickups": "Go to pickups"
     },
     "earnings": {
       "who": "{name} · Rider",

@@ -48,6 +48,7 @@ import { Route as AuthPackerPickRouteImport } from "./routes/_auth/packer/pick"
 import { Route as AuthPackerShortRouteImport } from "./routes/_auth/packer/short"
 import { Route as AuthRiderIndexRouteImport } from "./routes/_auth/rider/index"
 import { Route as AuthRiderEarningsRouteImport } from "./routes/_auth/rider/earnings"
+import { Route as AuthRiderStopRouteImport } from "./routes/_auth/rider/stop"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
 
@@ -245,6 +246,11 @@ const AuthRiderEarningsRoute = AuthRiderEarningsRouteImport.update({
   path: "/earnings",
   getParentRoute: () => AuthRiderRoute,
 })
+const AuthRiderStopRoute = AuthRiderStopRouteImport.update({
+  id: "/stop",
+  path: "/stop",
+  getParentRoute: () => AuthRiderRoute,
+})
 const AuthCustomerSocietySocietyIdRoute =
   AuthCustomerSocietySocietyIdRouteImport.update({
     id: "/society/$societyId",
@@ -287,6 +293,7 @@ const AuthPackerRouteWithChildren = AuthPackerRoute._addFileChildren(
 
 const AuthRiderRouteChildren = {
   AuthRiderEarningsRoute: AuthRiderEarningsRoute,
+  AuthRiderStopRoute: AuthRiderStopRoute,
   AuthRiderIndexRoute: AuthRiderIndexRoute,
 }
 
