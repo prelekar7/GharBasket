@@ -5,7 +5,7 @@ Boxes are allowed before a society goes live, with a per-box delivery fee set pe
 in its life. Societies that are live today get live_at now: when they went live is not known.
 
 Revision ID: 0874299d92b5
-Revises: 232e527f6a85
+Revises: a44a8c013f2a
 Create Date: 2026-10-10 06:30:00.000000+00:00
 """
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0874299d92b5"
-down_revision: str | Sequence[str] | None = "232e527f6a85"
+down_revision: str | Sequence[str] | None = "a44a8c013f2a"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
