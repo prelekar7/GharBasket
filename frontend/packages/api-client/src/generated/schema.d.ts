@@ -540,6 +540,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/deliveries/{order_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's delivery card: window, ETA, tracking, captain, hold, code and proof
+         * @description For the order's household (any member) and hub staff. The delivery code goes only to the household while the order is dispatched or at the society.
+         */
+        get: operations["get_delivery_v1_deliveries__order_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/deliveries/{order_id}/proof": {
         parameters: {
             query?: never;
@@ -554,6 +574,23 @@ export interface paths {
          * @description The bag QR must be this order's. A captain may scan alone; a rider needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.
          */
         post: operations["prove_delivery_v1_deliveries__order_id__proof_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/deliveries/{order_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Triage an undelivered order: the free redelivery or a refund (Idempotency-Key) */
+        post: operations["resolve_delivery_v1_deliveries__order_id__resolve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -747,6 +784,23 @@ export interface paths {
         };
         /** A hub with its location, service area and day timings (ETag = version) */
         get: operations["get_hub_v1_hubs__hub_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's deliveries for a date (the exceptions board), oldest first, with a cursor */
+        get: operations["hub_deliveries_v1_hubs__hub_id__deliveries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2665,6 +2719,52 @@ export interface components {
             date: string;
             /** Meals */
             meals: components["schemas"]["MealOut"][];
+        };
+        /** DeliveriesPage */
+        DeliveriesPage: {
+            /** Items */
+            items: components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DeliveryCard */
+        DeliveryCard: {
+            /** Attempt */
+            attempt: number;
+            captain: components["schemas"]["gharbasket__modules__logistics__schemas__CaptainOut"] | null;
+            /**
+             * Delivery Code
+             * @description Only to the household, while the order is dispatched or at the society
+             * @example 5170
+             */
+            delivery_code: string | null;
+            /**
+             * Eta
+             * @example 08:20
+             */
+            eta: string | null;
+            /** Hold Until */
+            hold_until: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            proof: components["schemas"]["ProofView"] | null;
+            redelivery: components["schemas"]["Redelivery"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage";
+            /**
+             * Tracking
+             * @description {route_id} while the order is on the van: open GET /v1/routes/{id}/live
+             */
+            tracking: {
+                [key: string]: string;
+            } | null;
+            window: components["schemas"]["Window"] | null;
         };
         /** DeliveryDayIn */
         DeliveryDayIn: {
@@ -5371,6 +5471,24 @@ export interface components {
              */
             proof: "scan" | "otp" | "photo";
         };
+        /** ProofView */
+        ProofView: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "scan" | "otp" | "photo";
+            /**
+             * Photo Url
+             * @description A 5-minute link to the door photo
+             */
+            photo_url: string | null;
+        };
         /** PublishIn */
         PublishIn: {
             /**
@@ -5533,6 +5651,15 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /** Redelivery */
+        Redelivery: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            window: components["schemas"]["Window"] | null;
+        };
         /**
          * RefreshIn
          * @description Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.
@@ -5562,25 +5689,6 @@ export interface components {
             slug: string;
             /** Unit Price Paise */
             unit_price_paise: number;
-        };
-        /** ResolveIn */
-        ResolveIn: {
-            /**
-             * Credit Paise
-             * @description Credit only; at most max_credit_paise
-             * @example 4000
-             */
-            credit_paise?: number | null;
-            /**
-             * Note
-             * @description Required to reject
-             */
-            note?: string | null;
-            /**
-             * Outcome
-             * @enum {string}
-             */
-            outcome: "credit" | "reject";
         };
         /** RiderRef */
         RiderRef: {
@@ -7331,6 +7439,19 @@ export interface components {
              */
             outcomes: string[];
         };
+        /** Window */
+        Window: {
+            /**
+             * End
+             * @example 10:00
+             */
+            end: string;
+            /**
+             * Start
+             * @example 08:00
+             */
+            start: string;
+        };
         /**
          * CaptainOut
          * @description An appointment as hub staff see it (§3.2): never the captain's flat or phone.
@@ -7482,6 +7603,22 @@ export interface components {
              */
             status: "scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage";
         };
+        /** ResolveIn */
+        gharbasket__modules__logistics__schemas__ResolveIn: {
+            /** Note */
+            note: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "redeliver" | "refund";
+            /**
+             * Refund Paise
+             * @description Default: all that is left to refund
+             * @example 42000
+             */
+            refund_paise?: number | null;
+        };
         /** SocietyRef */
         gharbasket__modules__logistics__schemas__SocietyRef: {
             /**
@@ -7528,6 +7665,25 @@ export interface components {
              * @description queued, held, sent, delivered, read, failed or skipped
              */
             status: string;
+        };
+        /** ResolveIn */
+        gharbasket__modules__orders__schemas__ResolveIn: {
+            /**
+             * Credit Paise
+             * @description Credit only; at most max_credit_paise
+             * @example 4000
+             */
+            credit_paise?: number | null;
+            /**
+             * Note
+             * @description Required to reject
+             */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "credit" | "reject";
         };
         /** SocietyRef */
         gharbasket__modules__partners__schemas__SocietyRef: {
@@ -8218,7 +8374,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ResolveIn"];
+                "application/json": components["schemas"]["gharbasket__modules__orders__schemas__ResolveIn"];
             };
         };
         responses: {
@@ -9868,6 +10024,66 @@ export interface operations {
             };
         };
     };
+    get_delivery_v1_deliveries__order_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryCard"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     prove_delivery_v1_deliveries__order_id__proof_post: {
         parameters: {
             query?: never;
@@ -9951,6 +10167,89 @@ export interface operations {
             };
             /** @description logistics.code_attempts_exceeded */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_delivery_v1_deliveries__order_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.not_undelivered, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.refund_invalid (max_paise), request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10779,6 +11078,64 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_deliveries_v1_hubs__hub_id__deliveries_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                status?: ("scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveriesPage"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range, request.invalid_cursor */
             422: {
                 headers: {
                     [name: string]: unknown;

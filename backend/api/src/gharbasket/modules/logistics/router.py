@@ -14,6 +14,7 @@ from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import (
     attempts,
+    card,
     deliveries,
     execution,
     handover,
@@ -31,7 +32,10 @@ from gharbasket.modules.logistics.schemas import (
     CaptainDay,
     CaptainStop,
     CompleteIn,
+    DeliveriesPage,
+    DeliveryCard,
     DeliveryOut,
+    DeliveryStatus,
     Expected,
     FieldTap,
     FlatCounts,
@@ -44,6 +48,7 @@ from gharbasket.modules.logistics.schemas import (
     PlanSummary,
     ProofIn,
     PublishIn,
+    ResolveIn,
     RiderRef,
     RouteDetail,
     RoutePatch,
@@ -65,12 +70,14 @@ from gharbasket.modules.logistics.schemas import (
     VehiclePatch,
     VehiclesOut,
 )
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotency, Idempotent
+from gharbasket.platform.pagination import Cursor, decode_cursor, encode_cursor
 from gharbasket.platform.permissions import (
     PERMISSIONS,
     Permit,
@@ -872,6 +879,7 @@ async def hand_over(
 # --- doors (§3.4) and the customer's card (§3.5) ------------------------------------------------
 
 CanDeliver = Annotated[Permit, require("deliveries:write")]
+CanResolve = Annotated[Permit, require("deliveries:resolve")]
 DELIVERY_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.delivery_not_found")}
 DOOR_MOVES: dict[int | str, dict[str, Any]] = {
     **CREATES,
@@ -942,3 +950,94 @@ async def mark_undelivered(
         )
     await deliveries.fail(session, attempt, order, actor, body)
     return await _door_answer(session, idem, order_id)
+
+
+@router.post(
+    "/deliveries/{order_id}/resolve",
+    summary="Triage an undelivered order: the free redelivery or a refund (Idempotency-Key)",
+    responses={
+        **CREATES,
+        **DELIVERY_404,
+        409: _problem("logistics.not_undelivered, orders.illegal_transition"),
+        422: _problem("logistics.refund_invalid (max_paise), request.invalid"),
+    },
+)
+async def resolve_delivery(
+    order_id: uuid.UUID, body: ResolveIn, permit: CanResolve, session: DbSession, idem: Idempotent
+) -> DeliveryOut:
+    attempt = await attempts.latest(session, order_id, for_update=True)
+    order = None if attempt is None else await orders_api.get(session, order_id, for_update=True)
+    if attempt is None or order is None or not permit.allows(order.hub_id):
+        raise deliveries.delivery_not_found()
+    tomorrow = datetime.now(IST).date() + timedelta(days=1)
+    await deliveries.resolve(session, attempt, order, permit.principal.user_id, body, tomorrow)
+    return await _door_answer(session, idem, order_id)
+
+
+@router.get(
+    "/deliveries/{order_id}",
+    summary="The order's delivery card: window, ETA, tracking, captain, hold, code and proof",
+    description="For the order's household (any member) and hub staff. The delivery code goes "
+    "only to the household while the order is dispatched or at the society.",
+    responses={**SIGNED_IN, **DELIVERY_404},
+)
+async def get_delivery(
+    order_id: uuid.UUID,
+    permit: CanReadDeliveries,
+    session: DbSession,
+    request: Request,
+    response: Response,
+) -> DeliveryCard:
+    try:
+        order = await orders_api.get(session, order_id)
+    except ProblemError:
+        raise deliveries.delivery_not_found() from None
+    staff = route_ops.caller(permit, order.hub_id).staff
+    household = False
+    if any(g.role == "customer" for g in permit.grants):
+        mine = await identity_api.household_for_user(session, permit.principal.user_id)
+        household = mine is not None and mine.id == order.household_id
+    if not (staff or household):
+        raise deliveries.delivery_not_found()
+    out = await card.delivery_card(
+        session,
+        order,
+        household=household,
+        store=getattr(request.app.state, "storage", None),
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/deliveries",
+    summary="The hub's deliveries for a date (the exceptions board), oldest first, with a cursor",
+    responses={**SIGNED_IN, 422: _problem("logistics.date_out_of_range, request.invalid_cursor")},
+)
+async def hub_deliveries(
+    hub_id: uuid.UUID,
+    permit: CanReadDeliveries,
+    session: DbSession,
+    response: Response,
+    day: Day = None,
+    delivery_status: Annotated[DeliveryStatus | None, Query(alias="status")] = None,
+    cursor: Cursor = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> DeliveriesPage:
+    roles = {g.role for g in permit.grants if g.scope_id in (None, hub_id)}
+    if not roles & {"hub_manager", "franchise_owner", "admin"}:
+        raise forbidden()
+    after = None
+    if cursor is not None:
+        try:
+            after = uuid.UUID(str(decode_cursor(cursor).get("after")))
+        except ValueError:
+            raise ProblemError(422, "request.invalid_cursor", "The cursor is not valid.") from None
+    on = _within(day or datetime.now(IST).date(), -7, 1)
+    rows = await card.board(session, hub_id, on, delivery_status, after, limit + 1)
+    page = rows[:limit]
+    response.headers["Cache-Control"] = "no-store"
+    return DeliveriesPage(
+        items=[attempts.delivery_out(r) for r in page],
+        next_cursor=encode_cursor({"after": str(page[-1].id)}) if len(rows) > limit else None,
+    )

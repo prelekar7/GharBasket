@@ -457,7 +457,6 @@ DeliveryStatus = Literal[
     "refunded",
     "triage",
 ]
-
 Reason = Literal["not_home", "refused", "wrong_address", "damaged", "missing", "other"]
 
 
@@ -472,6 +471,28 @@ class ProofIn(FieldTap):
     )
     delivery_code: str | None = Field(default=None, pattern=r"^\d{4}$", description="With otp")
     photo_key: str | None = Field(default=None, max_length=200, description="With photo")
+
+
+class UndeliveredIn(FieldTap):
+    reason: Reason
+    note: str | None = Field(default=None, max_length=300, description="Required for other")
+    photo_key: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def _note_for_other(self) -> Self:
+        if self.reason == "other" and not (self.note and self.note.strip()):
+            raise ValueError("a note is required for other")
+        return self
+
+
+class ResolveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["redeliver", "refund"]
+    refund_paise: int | None = Field(
+        default=None, ge=1, examples=[42000], description="Default: all that is left to refund"
+    )
+    note: str = Field(min_length=1, max_length=300)
 
 
 class DeliveryOut(BaseModel):
@@ -499,13 +520,41 @@ class DeliveryOut(BaseModel):
     at: datetime | None
 
 
-class UndeliveredIn(FieldTap):
-    reason: Reason
-    note: str | None = Field(default=None, max_length=300, description="Required for other")
-    photo_key: str | None = Field(default=None, max_length=200)
+class DeliveriesPage(BaseModel):
+    items: list[DeliveryOut]
+    next_cursor: str | None
 
-    @model_validator(mode="after")
-    def _note_for_other(self) -> Self:
-        if self.reason == "other" and not (self.note and self.note.strip()):
-            raise ValueError("a note is required for other")
-        return self
+
+class Window(BaseModel):
+    start: str = Field(examples=["08:00"])
+    end: str = Field(examples=["10:00"])
+
+
+class ProofView(BaseModel):
+    kind: Literal["scan", "otp", "photo"]
+    at: datetime
+    photo_url: str | None = Field(description="A 5-minute link to the door photo")
+
+
+class Redelivery(BaseModel):
+    date: date
+    window: Window | None
+
+
+class DeliveryCard(BaseModel):
+    order_id: uuid.UUID
+    status: DeliveryStatus
+    attempt: int
+    window: Window | None
+    eta: str | None = Field(examples=["08:20"])
+    tracking: dict[str, uuid.UUID] | None = Field(
+        description="{route_id} while the order is on the van: open GET /v1/routes/{id}/live"
+    )
+    captain: CaptainOut | None
+    hold_until: str | None
+    delivery_code: str | None = Field(
+        examples=["5170"],
+        description="Only to the household, while the order is dispatched or at the society",
+    )
+    proof: ProofView | None
+    redelivery: Redelivery | None

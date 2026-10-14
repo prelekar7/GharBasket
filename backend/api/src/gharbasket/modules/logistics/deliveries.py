@@ -1,21 +1,20 @@
-"""The doors (spec §3.4): proof of delivery, undelivered, hold and refunds on the order's
-current attempt.
+"""The doors (spec §3.4): proof of delivery, undelivered, hold and triage, one `Delivery` per
+attempt.
 
-Attempt 1 is opened when the order's route starts (with the household's delivery code) and
-follows the handover (`with_captain`). At the door the bag's QR must be the order's; a captain may
-prove it by the scan alone, a rider needs the household's code or a photo. A captain holds a
-not-home bag until 20:00 IST; damaged and missing bags are refunded at once, refused, wrong
-address and other wait for the hub's triage. Order moves go through `orders.api.transition`;
-refunds go through M4's move to `refunded`, which pays the wallet (ADR-0027 §5).
+Attempt 1 is opened when the order's route starts (with the household's delivery code), follows
+the handover (`with_captain`) and ends delivered, held (a captain's `not_home`, until 20:00 IST),
+undelivered, refunded or in triage. Order moves go through `orders.api.transition`; refunds go
+through M4's move to `refunded`, which pays the wallet (ADR-0027 §5). A captain may prove a door
+by the bag's scan alone; a rider needs the household's code or a photo.
 """
 
 import uuid
-from datetime import time
+from datetime import date, time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import events
-from gharbasket.modules.logistics.attempts import latest
+from gharbasket.modules.logistics.attempts import latest, new_code
 from gharbasket.modules.logistics.handover import (
     MAX_CODE_TRIES,
     Actor,
@@ -25,9 +24,10 @@ from gharbasket.modules.logistics.handover import (
 )
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
-from gharbasket.modules.logistics.schemas import ProofIn, UndeliveredIn
+from gharbasket.modules.logistics.schemas import ProofIn, ResolveIn, UndeliveredIn
 from gharbasket.modules.logistics.views import hhmm, now
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.permissions import Permit
@@ -198,4 +198,91 @@ async def fail(
     elif body.reason in TRIAGE:
         delivery.status = "triage"
     await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)
+    await session.flush()
+
+
+async def schedule_redelivery(
+    session: AsyncSession,
+    delivery: Delivery,
+    order: orders_api.Order,
+    day: date,
+    *,
+    actor: str,
+    actor_user_id: uuid.UUID | None,
+) -> Delivery:
+    """The one free redelivery (§3.4): undelivered → redelivery and attempt 2 on `day`, in the
+    same slot's window; T+1's 23:15 solve gives the society a stop for it."""
+    await orders_api.transition(
+        session, order.id, "redelivery", actor=actor, actor_user_id=actor_user_id
+    )
+    delivery.status, delivery.at = "redelivery", now()
+    again = Delivery(
+        order_id=order.id,
+        attempt=2,
+        hub_id=order.hub_id,
+        society_id=order.society_id,
+        order_kind=order.kind,
+        delivery_date=day,
+        slot_id=order.slot_id,
+        status="scheduled",
+        delivery_code=new_code(),
+    )
+    session.add(again)
+    await session.flush()
+    slot = await orders_api.slot_ref(session, order.slot_id)
+    await publish(
+        session,
+        events.REDELIVERY_SCHEDULED,
+        {
+            "order_id": str(order.id),
+            "household_id": str(order.household_id),
+            "society_id": str(order.society_id),
+            "delivery_date": day.isoformat(),
+            "window": None if slot is None else {"start": hhmm(slot.start), "end": hhmm(slot.end)},
+        },
+    )
+    return again
+
+
+async def resolve(
+    session: AsyncSession,
+    delivery: Delivery,
+    order: orders_api.Order,
+    user_id: uuid.UUID,
+    body: ResolveIn,
+    tomorrow: date,
+) -> None:
+    """A hub manager's triage: the one free redelivery (attempt 1 only), or a refund of up to
+    what is left of the order's paid total (actor system on M4's move; the manager is audited)."""
+    if order.status != "undelivered" or delivery.status not in ("undelivered", "triage"):
+        raise conflict("logistics.not_undelivered", "Only an undelivered order is resolved.")
+    amount = None
+    if body.outcome == "redeliver":
+        if delivery.attempt != 1:
+            raise ProblemError(
+                422, "request.invalid", "The free redelivery was used; refund instead."
+            )
+        await schedule_redelivery(
+            session, delivery, order, tomorrow, actor="hub", actor_user_id=user_id
+        )
+    else:
+        most = await orders_api.refundable_paise(session, order.id)
+        amount = most if body.refund_paise is None else body.refund_paise
+        if amount > most:
+            raise ProblemError(
+                422,
+                "logistics.refund_invalid",
+                "That is more than is left to refund on this order.",
+                extra={"max_paise": most},
+            )
+        await refund(session, delivery, order.id, amount, "triage")
+    delivery.note, delivery.by_actor, delivery.user_id = body.note, "hub", user_id
+    await audit.record(
+        session,
+        actor_user_id=user_id,
+        action="deliveries.resolved",
+        entity_type="order",
+        entity_id=str(order.id),
+        after={"outcome": body.outcome, "refund_paise": amount, "note": body.note},
+    )
     await session.flush()
