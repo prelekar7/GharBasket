@@ -1,108 +1,184 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { todayIst } from "@/features/subscriptions/format.js";
 import { request } from "@/lib/api.js";
-import { enqueue } from "@/lib/outbox.js";
+import { db, enqueue, flush } from "@/lib/outbox.js";
 
-// Rider data (M7 §3). The spec lists endpoints, not fields; these shapes are our proposal.
-// Reads are cached and persisted, so a route loaded at the hub keeps working without signal.
-// Writes go through the offline outbox and patch the cached route at once (optimistic).
+// Rider data (M7 §3.3 and §3.4, frozen). Reads are cached and persisted, so a route loaded at the
+// hub keeps working without signal. Writes go through the offline outbox (each tap has its own
+// Idempotency-Key and a `client_at`) and patch the cached route at once (optimistic).
 
 /**
- * @typedef {{ id: string, bags: number, state: "scanned" | "waiting" | "missing" }} RouteCrate
- * @typedef {{ id: string, name: string, gate: string | null, where: string, lat: number, lng: number }} StopSociety
- * @typedef {{ id: string, seq: number, society: StopSociety, captain: { name: string, phone: string } | null,
- *   eta: string, bags_count: number, crates: RouteCrate[], status: "todo" | "done" }} RouteStop
- * @typedef {{ id: string, kind: "crate" | "donation", stop_id: string, qty: number, ref: string | null,
- *   codes: string[], note: string, status: "pending" | "collected" }} Pickup
- * @typedef {{ id: string, date: string, slot: { id: string, from: string, to: string }, vehicle: { id: string, plate: string },
- *   hub: { id: string, name: string, lat: number, lng: number, manager: { name: string, phone: string } },
- *   status: "published" | "started" | "completed",
- *   stops: RouteStop[], back: { eta: string, from: string, to: string }, pickups: Pickup[] }} Route
- * @typedef {{ items: Route[], next: { date: string, from: string, to: string } | null }} RouteList
+ * @typedef {{ id: string, name: string, location: { lat: number, lng: number } }} StopSociety
+ * @typedef {{ empties_collected: number | null, donations: Donation[] }} StopPickups
+ * @typedef {{ donation_id: string, ref: string, qty: number, note: string, status: "expected" | "collected" | "not_ready" }} Donation
+ * @typedef {{ id: string, seq: number, kind: "drop" | "bank" | "kitchen", society: StopSociety | null,
+ *   slot: { id: string, label: string, start: string, end: string } | null, eta: string, late_min: number,
+ *   eta_now: string | null, status: "pending" | "arrived" | "handed_over" | "skipped", crates: number,
+ *   bags: number, redelivery_bags: number, empties_expected: number,
+ *   captain: { display_name: string, photo_url: string | null } | null, rider_mode: boolean,
+ *   handover_code: string | null, navigate_url: string, arrived_at: string | null,
+ *   handed_over_at: string | null, pickups?: StopPickups }} Stop
+ * @typedef {{ id: string, plan_id: string, hub_id: string, delivery_date: string, kind: "box" | "tiffin",
+ *   trip: number, status: "draft" | "published" | "in_progress" | "completed" | "cancelled",
+ *   vehicle: { id: string, label: string, kind: string }, rider: { user_id: string, name: string } | null,
+ *   depart: string, return_by: string, stops_total: number, stops_done: number, crates: number,
+ *   bags: number, km: number, started_at: string | null, completed_at: string | null, version: number }} RouteSummary
+ * @typedef {RouteSummary & { stops: Stop[], source: string, left_behind: string[] }} Route
+ * @typedef {{ route: Route | null, next: RouteSummary | null }} MyRoute
  */
 
-/** The rider's route for a day, in the caller's language (GET /v1/routes?date=, M7). @param {string} lang */
+const mine = async (/** @type {string} */ date) =>
+  /** @type {{ items: RouteSummary[] }} */ (
+    await request(`/v1/riders/me/routes?${new URLSearchParams({ date })}`)
+  ).items;
+
+/** The route to show: the one in progress, else the first to leave, else the last one done. @param {RouteSummary[]} items */
+const pickRoute = (items) => {
+  const live = items.filter((r) => r.status !== "cancelled" && r.status !== "draft");
+  return (
+    live.find((r) => r.status === "in_progress") ??
+    live.find((r) => r.status === "published") ??
+    live.at(-1) ??
+    null
+  );
+};
+
+/**
+ * The rider's route for today with its stops (GET /v1/riders/me/routes, then GET /v1/routes/{id}),
+ * or none and tomorrow's route, which riders see the night before.
+ * @param {string} lang
+ */
 export function useMyRoute(lang, date = todayIst()) {
   return useQuery({
     queryKey: ["routes", date, lang],
-    queryFn: () =>
-      /** @type {Promise<RouteList>} */ (request(`/v1/routes?${new URLSearchParams({ date })}`)),
+    queryFn: async () => {
+      const pick = pickRoute(await mine(date));
+      if (pick) return /** @type {MyRoute} */ ({ route: await routeDetail(pick.id), next: null });
+      const tomorrow = new Date(Date.parse(`${date}T12:00:00Z`) + 864e5).toISOString().slice(0, 10);
+      return /** @type {MyRoute} */ ({ route: null, next: pickRoute(await mine(tomorrow)) });
+    },
     networkMode: "always", // no signal and nothing cached: show "Your route didn't load", not a skeleton
+    // While the van waits at a captain's gate, her handover shows up here a few seconds later.
+    refetchInterval: (q) =>
+      q.state.data?.route?.stops.some((x) => x.status === "arrived" && !x.rider_mode)
+        ? 5000
+        : false,
+  });
+}
+
+const routeDetail = (/** @type {string} */ id) =>
+  /** @type {Promise<Route>} */ (request(`/v1/routes/${id}`));
+
+/** The hub's name and place, for the map and the way back (GET /v1/hubs/{id}). @param {string | undefined} id */
+export function useHub(id) {
+  return useQuery({
+    queryKey: ["hub", id],
+    queryFn: () =>
+      /** @type {Promise<{ id: string, name: string, location: { lat: number, lng: number } }>} */ (
+        request(`/v1/hubs/${id}`)
+      ),
+    enabled: !!id,
+    staleTime: 60 * 60_000,
   });
 }
 
 /**
- * The hub manager from a route already in the cache (any day, the caller's language first), for
- * the "route didn't load" screen: that screen shows when this query has no data, but an earlier
- * load may be cached.
- * @param {string} lang
- */
-export function useCachedHubManager(lang) {
-  const client = useQueryClient();
-  const managers = client
-    .getQueriesData({ queryKey: ["routes"] })
-    .map(([key, list]) => ({
-      lang: key[2],
-      manager: /** @type {RouteList | undefined} */ (list)?.items?.[0]?.hub.manager,
-    }))
-    .filter((x) => x.manager);
-  return (managers.find((x) => x.lang === lang) ?? managers[0])?.manager ?? null;
-}
-
-/**
  * Rider actions: each is saved in the outbox (sent now, or when there is signal again) and
- * applied to the cached route straight away.
+ * applied to the cached route straight away. Once the outbox is empty the route is read again, so
+ * what only the server knows (handover codes after start, a captain's handover) shows up.
  */
 export function useRiderActions() {
   const client = useQueryClient();
-  /** @param {Route} route @param {(r: Route) => Route} change @param {{ path: string, body?: unknown }} action */
-  const act = (route, change, action) => {
+  /** @param {Route} route @param {(r: Route) => Route} change @param {{ path: string, body?: Record<string, unknown> }} action */
+  const act = async (route, change, action) => {
     // Any day's list: the server may answer "today" with the route of the next delivery day.
-    client.setQueriesData({ queryKey: ["routes"] }, (/** @type {any} */ list) =>
-      list?.items
-        ? {
-            ...list,
-            items: list.items.map((/** @type {Route} */ r) => (r.id === route.id ? change(r) : r)),
-          }
-        : list,
+    client.setQueriesData({ queryKey: ["routes"] }, (/** @type {any} */ data) =>
+      data?.route?.id === route.id ? { ...data, route: change(data.route) } : data,
     );
-    return enqueue({ method: "POST", ...action });
+    const key = await enqueue({
+      method: "POST",
+      path: action.path,
+      body: { ...action.body, client_at: new Date().toISOString() },
+    });
+    flush()
+      .then(async () => {
+        const waiting = await db.table("outbox").where("status").equals("waiting").count();
+        if (navigator.onLine && waiting === 0) client.invalidateQueries({ queryKey: ["routes"] });
+      })
+      .catch(() => {});
+    return key;
   };
+  /** @param {string} id @param {(s: Stop) => Stop} change @returns {(r: Route) => Route} */
+  const onStop = (id, change) => (r) => ({
+    ...r,
+    stops: r.stops.map((x) => (x.id === id ? change(x) : x)),
+  });
+  const now = () => new Date().toISOString();
   return {
     /** POST /v1/routes/{id}/start @param {Route} route */
     start: (route) =>
-      act(route, (r) => ({ ...r, status: "started" }), { path: `/v1/routes/${route.id}/start` }),
-    /** POST /v1/routes/{id}/complete @param {Route} route */
-    complete: (route) =>
-      act(route, (r) => ({ ...r, status: "completed" }), {
-        path: `/v1/routes/${route.id}/complete`,
+      act(route, (r) => ({ ...r, status: "in_progress", started_at: now() }), {
+        path: `/v1/routes/${route.id}/start`,
       }),
-    /**
-     * POST /v1/stops/{id}/handover with the crates, the bag count and the captain's code or a photo
-     * (a small JPEG data URL, so it can wait in the outbox; the server stores it and keeps a key).
-     * @param {Route} route @param {RouteStop} stop @param {{ otp?: string, photo_jpeg?: string }} proof
-     */
-    handover: (route, stop, proof) =>
+    /** POST /v1/routes/{id}/complete @param {Route} route @param {number} [empties] */
+    complete: (route, empties) =>
+      act(route, (r) => ({ ...r, status: "completed", completed_at: now() }), {
+        path: `/v1/routes/${route.id}/complete`,
+        body: empties === undefined ? {} : { empties_returned: empties },
+      }),
+    /** POST /v1/stops/{id}/arrive: the van is at the gate; the captain gets a push. @param {Route} route @param {Stop} stop */
+    arrive: (route, stop) =>
       act(
         route,
-        (r) => ({
-          ...r,
-          stops: r.stops.map((x) => (x.id === stop.id ? { ...x, status: "done" } : x)),
-        }),
+        onStop(stop.id, (x) => ({ ...x, status: "arrived", arrived_at: now() })),
         {
-          path: `/v1/stops/${stop.id}/handover`,
-          body: { crate_ids: stop.crates.map((c) => c.id), bags_count: stop.bags_count, ...proof },
+          path: `/v1/stops/${stop.id}/arrive`,
         },
       ),
-    /** POST /v1/pickups/{id}/collect, with the scanned or typed code if there was one. @param {Route} route @param {Pickup} pickup @param {string} [code] */
-    collect: (route, pickup, code) =>
+    /** POST /v1/stops/{id}/skip @param {Route} route @param {Stop} stop @param {"captain_absent" | "no_access" | "vehicle_issue" | "other"} reason */
+    skip: (route, stop, reason) =>
       act(
         route,
-        (r) => ({
-          ...r,
-          pickups: r.pickups.map((p) => (p.id === pickup.id ? { ...p, status: "collected" } : p)),
-        }),
-        { path: `/v1/pickups/${pickup.id}/collect`, body: code ? { code } : {} },
+        onStop(stop.id, (x) => ({ ...x, status: "skipped" })),
+        {
+          path: `/v1/stops/${stop.id}/skip`,
+          body: { reason },
+        },
+      ),
+    /**
+     * POST /v1/stops/{id}/handover at a rider-mode stop: the crates and bags the rider counted.
+     * A captain's stop is handed over from her phone with the code the rider shows.
+     * @param {Route} route @param {Stop} stop @param {{ crates: number, bags: number }} counted
+     */
+    handover: (route, stop, counted) =>
+      act(
+        route,
+        onStop(stop.id, (x) => ({ ...x, status: "handed_over", handed_over_at: now() })),
+        {
+          path: `/v1/stops/${stop.id}/handover`,
+          body: counted,
+        },
+      ),
+    /**
+     * POST /v1/stops/{id}/pickups on the way back (M7 §3.6, an outline): empties counted and
+     * donations collected or not ready.
+     * @param {Route} route @param {Stop} stop
+     * @param {{ empties?: number, donations?: { donation_id: string, status: "collected" | "not_ready" }[] }} picked
+     */
+    pickups: (route, stop, picked) =>
+      act(
+        route,
+        onStop(stop.id, (x) => ({
+          ...x,
+          pickups: {
+            empties_collected: picked.empties ?? x.pickups?.empties_collected ?? null,
+            donations: (x.pickups?.donations ?? []).map((d) => {
+              const got = picked.donations?.find((p) => p.donation_id === d.donation_id);
+              return got ? { ...d, status: got.status } : d;
+            }),
+          },
+        })),
+        { path: `/v1/stops/${stop.id}/pickups`, body: picked },
       ),
   };
 }

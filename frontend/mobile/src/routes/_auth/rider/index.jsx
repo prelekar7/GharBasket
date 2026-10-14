@@ -11,8 +11,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
-import { clock, dayLabel, mapsLink, nextStop } from "@/features/logistics/format.js";
-import { useCachedHubManager, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
+import { clock, dayLabel, nextStop, routeSlot, stopDone } from "@/features/logistics/format.js";
+import { useHub, useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
 import { useWaitingCount } from "@/lib/outbox.js";
 
@@ -28,7 +28,7 @@ function RiderRoute() {
   const navigate = useNavigate();
   const query = useMyRoute(lang);
   const actions = useRiderActions();
-  const manager = useCachedHubManager(lang);
+  const hub = useHub(query.data?.route?.hub_id);
   const waiting = useWaitingCount();
   const today = todayIst();
 
@@ -48,15 +48,9 @@ function RiderRoute() {
             retryLabel={t("rider.error.retry")}
             onRetry={() => query.refetch()}
             support={
-              manager ? (
-                <a href={`tel:${manager.phone}`} className="font-semibold text-link underline">
-                  {t("rider.error.supportCall", { name: manager.name })}
-                </a>
-              ) : (
-                <Link to="/help" className="font-semibold text-link underline">
-                  {t("rider.error.support")}
-                </Link>
-              )
+              <Link to="/help" className="font-semibold text-link underline">
+                {t("rider.error.support")}
+              </Link>
             }
           />
           <p className="text-[15px] leading-[22px] text-fg-secondary">{t("rider.error.tip")}</p>
@@ -65,7 +59,7 @@ function RiderRoute() {
     );
   }
 
-  const route = query.data.items[0];
+  const route = query.data.route;
   if (!route) {
     const next = query.data.next;
     return (
@@ -78,8 +72,8 @@ function RiderRoute() {
             body={
               next
                 ? t("rider.none.body", {
-                    day: dayLabel(next.date, lang),
-                    slot: timeRange(next, lang),
+                    day: dayLabel(next.delivery_date, lang),
+                    time: clockTime(next.depart, lang),
                   })
                 : t("rider.none.bodyLater")
             }
@@ -91,56 +85,70 @@ function RiderRoute() {
     );
   }
 
-  const current = route.status === "started" ? nextStop(route) : null;
-  const donations = route.pickups.filter((p) => p.kind === "donation").length;
+  const current = route.status === "in_progress" ? nextStop(route) : null;
+  const donations = route.stops.reduce((n, s) => n + (s.pickups?.donations.length ?? 0), 0);
+  const empties = route.stops.reduce((n, s) => n + (s.pickups?.empties_collected ?? 0), 0);
   const toStop = (/** @type {string} */ id) => navigate({ to: "/rider/stop", search: { id } });
+  const mapFallback = (
+    <figure className="m-0 grid h-[180px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center">
+      <figcaption className="text-[15px] leading-[22px] text-fg-secondary">
+        {t("rider.map.fallback")}
+      </figcaption>
+    </figure>
+  );
   return (
     <div className="flex flex-1 flex-col gap-2.5">
       <FieldHeader
         eyebrow={t("rider.when", {
-          day: dayLabel(route.date, lang),
-          slot: timeRange(route.slot, lang),
-          plate: route.vehicle.plate,
+          day: dayLabel(route.delivery_date, lang),
+          slot: timeRange(routeSlot(route), lang),
+          plate: route.vehicle.label,
         })}
         title={t("rider.title")}
       />
       <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
-        <RouteMap
-          route={route}
-          label={t("rider.map.label", { count: route.stops.length })}
-          fallback={
-            <figure className="m-0 grid h-[180px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center">
-              <figcaption className="text-[15px] leading-[22px] text-fg-secondary">
-                {t("rider.map.fallback")}
-              </figcaption>
-            </figure>
-          }
-        />
+        {hub.data ? (
+          <RouteMap
+            route={route}
+            hub={hub.data.location}
+            label={t("rider.map.label", { count: route.stops.length })}
+            fallback={mapFallback}
+          />
+        ) : hub.isError ? (
+          mapFallback
+        ) : (
+          <Skeleton className="h-[180px] w-full" />
+        )}
       </Suspense>
       <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
         {route.stops.map((s) => {
-          const status = s.status === "done" ? "done" : s.id === current?.id ? "current" : "todo";
+          const status =
+            s.status === "skipped"
+              ? "issue"
+              : stopDone(s)
+                ? "done"
+                : s.id === current?.id
+                  ? "current"
+                  : "todo";
           const card = (
             <RouteStopCard
               n={s.seq}
-              society={s.society.name}
-              where={s.society.where}
-              captain={s.captain?.name}
-              window={clock(s.eta)}
-              crates={s.crates.length}
-              bags={s.bags_count}
+              society={s.society?.name ?? ""}
+              // A captain's phone is never returned (M9 §3.1), so the current card has no call button.
+              captain={status === "current" ? undefined : s.captain?.display_name}
+              window={clock(s.eta_now ?? s.eta)}
+              crates={s.crates}
+              bags={s.bags}
               status={status}
-              onNavigate={() => window.open(mapsLink(s.society), "_blank")}
-              onCall={() => s.captain && window.open(`tel:${s.captain.phone}`)}
+              onNavigate={() => window.open(s.navigate_url, "_blank")}
               labels={{
                 stop: t("rider.card.stop", { n: s.seq }),
-                crate: t("rider.card.crates", { n: s.crates.length }),
-                crates: t("rider.card.crates", { n: s.crates.length }),
-                bag: t("rider.card.bags", { n: s.bags_count }),
-                bags: t("rider.card.bags", { n: s.bags_count }),
-                captain: t("rider.card.captain", { name: s.captain?.name ?? "" }),
+                crate: t("rider.card.crates", { n: s.crates }),
+                crates: t("rider.card.crates", { n: s.crates }),
+                bag: t("rider.card.bags", { n: s.bags }),
+                bags: t("rider.card.bags", { n: s.bags }),
+                captain: t("rider.card.captain", { name: s.captain?.display_name ?? "" }),
                 navigate: t("rider.stop.navigate"),
-                call: t("rider.stop.call", { name: s.captain?.name ?? "" }),
                 todo: t("rider.card.todo"),
                 current: t("rider.card.current"),
                 done: t("rider.card.done"),
@@ -167,7 +175,7 @@ function RiderRoute() {
       </ol>
       <p className="text-[15px] leading-[22px] text-fg-secondary">
         <strong className="text-fg">
-          {t("rider.back", { time: clock(route.back.eta), hub: route.hub.name })}
+          {t("rider.back", { time: clock(route.return_by), hub: hub.data?.name ?? "" })}
         </strong>{" "}
         · {t("rider.backDetail", { count: donations })}
       </p>
@@ -180,13 +188,18 @@ function RiderRoute() {
             {t("rider.start")}
           </Button>
         )}
-        {route.status === "started" && current && (
+        {route.status === "in_progress" && current && (
           <Button variant="primary" size="lg" block onPress={() => toStop(current.id)}>
             {t("rider.goTo", { n: current.seq })}
           </Button>
         )}
-        {route.status === "started" && !current && (
-          <Button variant="primary" size="lg" block onPress={() => actions.complete(route)}>
+        {route.status === "in_progress" && !current && (
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            onPress={() => actions.complete(route, empties)}
+          >
             {t("rider.finish")}
           </Button>
         )}
