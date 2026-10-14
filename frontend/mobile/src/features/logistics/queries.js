@@ -15,7 +15,8 @@ import { enqueue } from "@/lib/outbox.js";
  * @typedef {{ id: string, kind: "crate" | "donation", stop_id: string, qty: number, ref: string | null,
  *   codes: string[], note: string, status: "pending" | "collected" }} Pickup
  * @typedef {{ id: string, date: string, slot: { id: string, from: string, to: string }, vehicle: { id: string, plate: string },
- *   hub: { id: string, name: string, lat: number, lng: number }, status: "published" | "started" | "completed",
+ *   hub: { id: string, name: string, lat: number, lng: number, manager: { name: string, phone: string } },
+ *   status: "published" | "started" | "completed",
  *   stops: RouteStop[], back: { eta: string, from: string, to: string }, pickups: Pickup[] }} Route
  * @typedef {{ items: Route[], next: { date: string, from: string, to: string } | null }} RouteList
  */
@@ -28,6 +29,24 @@ export function useMyRoute(lang, date = todayIst()) {
       /** @type {Promise<RouteList>} */ (request(`/v1/routes?${new URLSearchParams({ date })}`)),
     networkMode: "always", // no signal and nothing cached: show "Your route didn't load", not a skeleton
   });
+}
+
+/**
+ * The hub manager from a route already in the cache (any day, the caller's language first), for
+ * the "route didn't load" screen: that screen shows when this query has no data, but an earlier
+ * load may be cached.
+ * @param {string} lang
+ */
+export function useCachedHubManager(lang) {
+  const client = useQueryClient();
+  const managers = client
+    .getQueriesData({ queryKey: ["routes"] })
+    .map(([key, list]) => ({
+      lang: key[2],
+      manager: /** @type {RouteList | undefined} */ (list)?.items?.[0]?.hub.manager,
+    }))
+    .filter((x) => x.manager);
+  return (managers.find((x) => x.lang === lang) ?? managers[0])?.manager ?? null;
 }
 
 /**

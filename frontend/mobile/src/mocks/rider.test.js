@@ -32,6 +32,11 @@ describe("rider route (M7)", () => {
     expect((await route("hi-IN")).stops[0].society.name).toBe("सनराइज़ टावर्स");
   });
 
+  it("names the hub manager, in the caller's language, for the call link on the error screen", async () => {
+    expect((await route()).hub.manager).toEqual({ name: "Vikram Desai", phone: "+919800001008" });
+    expect((await route("hi-IN")).hub.manager.name).toBe("विक्रम देसाई");
+  });
+
   it("answers any day asked with the demo day the other field roles use (Tue 6 Oct, 8-10 AM)", async () => {
     const monday = (await (await get("/v1/routes?date=2026-10-05")).json()).items[0];
     expect(monday.date).toBe(DATE);

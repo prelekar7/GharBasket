@@ -41,7 +41,8 @@ const DELIVERY = /^\/v1\/deliveries\/([^/]+)\/(proof|undelivered|damage)$/;
 /**
  * What a write does to the day. The mock server and the screen share it, so the screen can show
  * a queued write straight away and keep showing it until the server has it.
- * - POST /v1/stops/{id}/handover `{ crates, missing, bags_count }`: lobby bags go to the lobby
+ * - POST /v1/stops/{id}/handover `{ crates, missing, missing_bags, bags_count }`: lobby bags go to the lobby;
+ *   `missing_bags` (proposal) are bag codes missing from crates that did arrive
  * - POST /v1/deliveries/{order_id}/proof `{ proof_kind: "captain_scan", bag_code, typed }`
  * - POST /v1/deliveries/{order_id}/undelivered `{ reason: "not_home", outcome: "lobby" | "return" }`
  * - POST /v1/deliveries/{order_id}/damage `{ note, photo_key }` (not in M7 §3 yet: proposal)
@@ -50,12 +51,13 @@ const DELIVERY = /^\/v1\/deliveries\/([^/]+)\/(proof|undelivered|damage)$/;
 export function applyAction(day, { path, body = {} }) {
   if (HANDOVER.test(path)) {
     const missing = new Set(body.missing ?? []);
+    const lost = new Set(body.missing_bags ?? []);
     return {
       ...day,
       stop: { ...day.stop, handed_over_at: body.at ?? new Date().toISOString() },
       crates: day.crates.map((c) => ({ ...c, state: missing.has(c.id) ? "missing" : "scanned" })),
       bags: day.bags.map((b) => {
-        if (missing.has(b.crate)) return { ...b, status: "missing" };
+        if (missing.has(b.crate) || lost.has(b.code)) return { ...b, status: "missing" };
         return b.pickup === "lobby" && b.status === "planned" ? { ...b, status: "in_lobby" } : b;
       }),
     };

@@ -16,11 +16,12 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ProfileActions } from "@/components/ProfileActions.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { dayLabel } from "@/features/logistics/format.js";
 import { CodeSheet } from "@/features/packing/CodeSheet.jsx";
 import { dayLine } from "@/features/packing/format.js";
 import { usePackingDay, useShortages } from "@/features/packing/queries.js";
 import { useOpenBag } from "@/features/packing/useOpenBag.js";
-import { clockTime } from "@/features/subscriptions/format.js";
+import { clockTime, todayIst } from "@/features/subscriptions/format.js";
 
 /** Packing queue: progress, scan a bag to start, bags in route order (designs Packer · Queue, Queue loading, All bags packed; M6). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -112,11 +113,13 @@ function QueueList({ day }) {
 
 /** Skeleton of the queue (design Packer · Queue loading). */
 function QueueLoading() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <div aria-busy="true" className="flex flex-col gap-2.5">
       <header className="flex flex-col gap-1">
-        <Skeleton className="h-4 w-44" />
+        <span className="text-[15px] leading-[22px] text-fg-secondary">
+          {dayLabel(todayIst(), i18n.resolvedLanguage ?? "en-IN")}
+        </span>
         <h1 className="m-0 text-2xl leading-[30px] font-bold">{t("packer.queue.title")}</h1>
       </header>
       <Skeleton className="h-11 w-full" />

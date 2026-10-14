@@ -72,6 +72,15 @@ describe("captain day (M7 mocks)", () => {
     expect(tally(day).problems).toHaveLength(15);
   });
 
+  it("puts a bag missing from a crate that arrived down as missing, and refuses an unknown bag", async () => {
+    const unknown = await post(HANDOVER, { ...ALL_CRATES, missing_bags: ["B-999"] });
+    expect((await unknown.json()).code).toBe("logistics.bag_unknown");
+    await post(HANDOVER, { ...ALL_CRATES, missing_bags: ["B-214"], bags_count: 45 });
+    const day = await (await today()).json();
+    expect(day.crates.every((/** @type {any} */ c) => c.state === "scanned")).toBe(true);
+    expect(tally(day).problems.map((b) => b.code)).toEqual(["B-214"]);
+  });
+
   it("closes each bag once: delivered, kept in the lobby, back to the hub or damaged", async () => {
     await post(HANDOVER, ALL_CRATES);
     expect((await post("/v1/deliveries/ord-1006-019/proof", { bag_code: "B-214" })).status).toBe(

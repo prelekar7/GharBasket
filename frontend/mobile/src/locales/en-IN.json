@@ -1075,6 +1075,7 @@
       "body": "There’s no signal right now. Move near the hub gate or switch on mobile data, then try again.",
       "retry": "Try again",
       "support": "Still stuck? Call your hub manager.",
+      "supportCall": "Still stuck? Call {name}, hub manager.",
       "tip": "Load the route once at the hub. After that, stops, crates and handover codes work without signal."
     },
     "stop": {
@@ -1191,7 +1192,10 @@
       "missingTitle": "{count, plural, one {Report crate {crates} as missing?} other {Report crates {crates} as missing?}}",
       "missingBody": "{rider} and the hub are told. Those families get their box in the next slot or their money back.",
       "missingConfirm": "Report and continue",
-      "missingCancel": "Keep scanning"
+      "missingCancel": "Keep scanning",
+      "bagTitle": "Which bag is missing?",
+      "bagLabel": "Bag code",
+      "bagUnknown": "No bag {code} is due in these crates. Check the code."
     },
     "flats": {
       "title": "Flats",
