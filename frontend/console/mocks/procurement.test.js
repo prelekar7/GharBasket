@@ -152,7 +152,7 @@ test("editing a line needs If-Match, a reason for a quantity, and a valid quanti
   assert.equal(
     (
       await call("PATCH", path, {
-        body: { vendor_id: "0199b200-0000-7000-8000-0000000000ff" },
+        body: { vendor_id: "0199c100-0000-7000-8000-0000000000ff" },
         version: plan.version,
       })
     ).body.code,

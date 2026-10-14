@@ -20,7 +20,7 @@ export const inventoryState = () => mockStore("inventory", () => ({ lots: [] }))
 export function addLot(lot) {
   const { lots } = inventoryState();
   /** @type {Lot} */
-  const added = { ...lot, id: mockUuid("b330", lots.length + 1), qty_on_hand: lot.qty_in };
+  const added = { ...lot, id: mockUuid("c140", lots.length + 1), qty_on_hand: lot.qty_in };
   lots.push(added);
   return added;
 }

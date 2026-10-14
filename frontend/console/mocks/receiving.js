@@ -31,7 +31,7 @@ const WHOLE_UNITS = ["piece", "bunch", "pack"];
 const MAX_QTY = 9_999_999.999;
 const HOUR = 3_600_000;
 /** The signed-in hub manager of the mock (the seed's Vikram Desai). */
-const USER = { user_id: mockUuid("b400", 1), name: "Vikram Desai" };
+const USER = { user_id: mockUuid("c170", 1), name: "Vikram Desai" };
 
 /**
  * @typedef {{ id: string, hub_id: string, vendor_id: string, purchase_order_id: string | null,
@@ -165,7 +165,7 @@ function receive(body, { now = Date.now(), trustTimes = false } = {}) {
   const { receipts } = receivingState();
   /** @type {Receipt} */
   const receipt = {
-    id: mockUuid("b320", receipts.length + 1),
+    id: mockUuid("c130", receipts.length + 1),
     hub_id: KHARGHAR_HUB_ID,
     vendor_id: vendorId,
     purchase_order_id: po?.id ?? null,

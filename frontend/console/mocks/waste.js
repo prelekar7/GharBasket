@@ -18,7 +18,7 @@ import { closeBuying } from "./procurement.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem } from "./util.js";
 
 const REASONS = ["spoiled", "damaged", "expired", "pest", "other"];
-const USER = { user_id: mockUuid("b400", 1), name: "Vikram Desai" };
+const USER = { user_id: mockUuid("c170", 1), name: "Vikram Desai" };
 const MAX_QTY = 9_999_999.999;
 /** Grams per piece or bunch where the catalog's nutrition data has them (else the weight is unknown, null). */
 const UNIT_G = /** @type {Record<string, number>} */ ({
@@ -66,7 +66,7 @@ function kgOf(productId, qty) {
 function addLog(log) {
   const { logs } = wasteState();
   /** @type {WasteLog} */
-  const added = { ...log, id: mockUuid("b340", logs.length + 1) };
+  const added = { ...log, id: mockUuid("c150", logs.length + 1) };
   logs.push(added);
   return added;
 }
@@ -93,7 +93,7 @@ function openOffer({
   const { offers } = wasteState();
   /** @type {Offer} */
   const offer = {
-    id: mockUuid("b350", offers.length + 1),
+    id: mockUuid("c160", offers.length + 1),
     lot_id,
     product_id: lot?.product_id ?? "",
     qty,
@@ -185,7 +185,7 @@ function seed() {
     log(wasted, "spoiled", "bin", null);
     log(qty3(6 + (back % 4)), "surplus", "kitchen", {
       kind: "kitchen",
-      partner_id: mockUuid("b500", 1),
+      partner_id: mockUuid("c180", 1),
       name: "Lata Shinde",
     });
     log(qty3(2 + (back % 3)), "surplus", "ngo", { kind: "ngo", name: "Asha Fernandes’s NGO" });
@@ -219,7 +219,7 @@ function seed() {
   const coriander = lot("coriander", "A", 8, 30);
   const lata = {
     kind: /** @type {const} */ ("kitchen"),
-    partner_id: mockUuid("b500", 1),
+    partner_id: mockUuid("c180", 1),
     name: "Lata Shinde",
   };
 
