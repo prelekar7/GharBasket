@@ -370,7 +370,15 @@
         "billing_topup_too_small": "कम से कम ₹100 टॉप-अप करें",
         "billing_wallet_limit": "वॉलेट में ज़्यादा से ज़्यादा ₹10,000 रख सकते हैं",
         "payment_checkout_unavailable": "पेमेंट पेज नहीं खुला। इंटरनेट जाँचें।",
-        "subscriptions_payment_mode_unavailable": "UPI ऑटोपे अभी शुरू नहीं हुआ है। अभी वॉलेट चुनें।"
+        "subscriptions_payment_mode_unavailable": "UPI ऑटोपे अभी शुरू नहीं हुआ है। अभी वॉलेट चुनें।",
+        "billing_wallet_limit_room": "आप अपने वॉलेट में {room} तक और जोड़ सकते हैं।",
+        "billing_wallet_limit_full": "वॉलेट अभी भरा है।",
+        "billing_monthly_topup_limit_room": "इस महीने की टॉप-अप सीमा ₹20,000 है। आप {room} और जोड़ सकते हैं।",
+        "billing_monthly_topup_limit_full": "इस महीने की ₹20,000 की टॉप-अप सीमा पूरी हो गई है।",
+        "billing_too_many_topups": "बहुत ज़्यादा टॉप-अप शुरू हुए। एक घंटे बाद फिर कोशिश करें।",
+        "billing_payments_unavailable": "अभी पेमेंट उपलब्ध नहीं है। बाद में फिर कोशिश करें।",
+        "payment_pending": "आपके पेमेंट की पुष्टि अभी नहीं आई। अगर पैसे कटे हैं तो वे जल्द वॉलेट में दिखेंगे। एक मिनट बाद वॉलेट देखें।",
+        "payment_refunded": "पेमेंट आने पर आपका वॉलेट भरा था, इसलिए पैसे आपके बैंक में लौटा दिए गए।"
       }
     },
     "done": {
@@ -595,12 +603,18 @@
     "entry": {
       "topup": "UPI से जोड़े · {date}",
       "box": "{day} का बॉक्स",
-      "refund": "रिफ़ंड · {date}"
+      "refund": "रिफ़ंड · {date}",
+      "topup_bonus": "बोनस · {date}",
+      "adjustment": "सुधार · {date}",
+      "generic": "वॉलेट एंट्री · {date}",
+      "boxNoDate": "बॉक्स का भुगतान · {date}"
     },
     "addMoney": "पैसे जोड़ें",
     "newBalance": "नया बैलेंस",
     "payWith": "भुगतान",
     "upi": "कोई भी UPI ऐप",
+    "room": "आप अभी {room} तक जोड़ सकते हैं। बैलेंस {cap} तक हो सकता है।",
+    "full": "वॉलेट अभी भरा है। अगले बॉक्स के बाद फिर टॉप-अप कर सकते हैं।",
     "cap": "बैलेंस ज़्यादा से ज़्यादा ₹10,000 तक हो सकता है।",
     "continue": "आगे बढ़ें",
     "added": "वॉलेट में {amount} जुड़ गए",

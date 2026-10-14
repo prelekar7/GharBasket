@@ -491,6 +491,72 @@ describe("wallet statement (M5)", () => {
   });
 });
 
+describe("wallet and top-ups (M5 §3.1)", () => {
+  const get = async (/** @type {string} */ path) =>
+    (await mockFetch(new Request(`http://localhost${path}`))).json();
+  const topUp = (/** @type {number} */ amount, key = "top-1") =>
+    post("/v1/wallet/topups", { amount_paise: amount }, key);
+
+  it("shows the cap, the room and entries with typed refs", async () => {
+    const w = await get("/v1/wallet");
+    expect(Object.keys(w).sort()).toEqual([
+      "balance_paise",
+      "cap_paise",
+      "entries",
+      "topup_room_paise",
+    ]);
+    expect(w).toMatchObject({
+      balance_paise: 0,
+      cap_paise: 1_000_000,
+      topup_room_paise: 1_000_000,
+    });
+  });
+
+  it("creates a top-up once per key, polls it to paid, and credits the wallet", async () => {
+    const res = await topUp(50_000);
+    expect(res.status).toBe(201);
+    const order = await res.json();
+    expect(Object.keys(order).sort()).toEqual(
+      "amount_paise created_at currency id key_id razorpay_order_id status".split(" "),
+    );
+    expect(order).toMatchObject({ status: "created", currency: "INR", key_id: "rzp_test_dev" });
+    expect((await (await topUp(50_000)).json()).id).toBe(order.id);
+    expect((await (await topUp(60_000)).json()).code).toBe("request.idempotency_mismatch");
+    expect((await get(`/v1/wallet/topups/${order.id}`)).status).toBe("created");
+    // The dev pay answers 200 with the payment id, as the real API does.
+    const paid = await post("/v1/dev/razorpay/pay", { razorpay_order_id: order.razorpay_order_id });
+    expect(paid.status).toBe(200);
+    expect(await paid.json()).toMatchObject({
+      status: "captured",
+      razorpay_payment_id: expect.stringMatching(/^pay_dev_/),
+    });
+    expect((await get(`/v1/wallet/topups/${order.id}`)).status).toBe("paid");
+    const w = await get("/v1/wallet");
+    expect(w).toMatchObject({ balance_paise: 50_000, topup_room_paise: 950_000 });
+    expect(w.entries[0]).toMatchObject({
+      kind: "topup",
+      amount_paise: 50_000,
+      ref: { type: "topup", id: order.id },
+    });
+  });
+
+  it("refuses what the wallet cannot hold, with the room in the problem", async () => {
+    const full = await (await topUp(1_000_100, "big")).json();
+    expect(full).toMatchObject({ code: "billing.wallet_limit", room_paise: 1_000_000 });
+    expect((await (await topUp(5_000, "small")).json()).code).toBe("billing.topup_too_small");
+    expect((await (await topUp(10_050, "paise")).json()).code).toBe("billing.topup_too_small");
+    const bad = await post("/v1/wallet/topups", { amount_paise: 20_000, note: "x" }, "extra");
+    expect(bad.status).toBe(422);
+    expect((await bad.json()).errors[0].loc).toEqual(["body", "note"]);
+  });
+
+  it("answers 404 for a top-up that is not there", async () => {
+    const res = await mockFetch(new Request("http://localhost/v1/wallet/topups/nope"));
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("billing.topup_not_found");
+  });
+});
+
 describe("society invites and unlock (M9, Core-S1/S4)", () => {
   const society = async (/** @type {string} */ id) =>
     (await mockFetch(new Request(`http://localhost/v1/societies/${id}`))).json();

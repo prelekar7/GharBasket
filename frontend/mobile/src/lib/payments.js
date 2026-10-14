@@ -6,7 +6,15 @@ import { request } from "@/lib/api.js";
 const NATIVE = import.meta.env.MODE === "native";
 export const PAYMENTS_MOCKED = import.meta.env.VITE_API_MOCK !== "false";
 
-/** @typedef {{ id: string, razorpay_order_id: string, key_id: string, amount_paise: number, currency: string }} TopUpOrder */
+/** A top-up as the API returns it (POST and GET /v1/wallet/topups, M5). `status` moves from "created" to "paid" when the webhook credits the wallet.
+ * @typedef {{ id: string, razorpay_order_id: string, key_id: string, amount_paise: number, currency: "INR",
+ *   status: "created" | "paid" | "failed" | "expired" | "refunded", created_at: string }} TopUpOrder */
+
+/** Without Razorpay keys the dev API makes `order_dev_…` orders with this key; Checkout cannot open them. */
+const DEV_KEY_ID = "rzp_test_dev";
+
+/** Whether to pay with the labelled test payment instead of Checkout: mock mode, or a dev-API order. @param {TopUpOrder} order */
+export const isTestOrder = (order) => PAYMENTS_MOCKED || order.key_id === DEV_KEY_ID;
 
 export class PaymentError extends Error {
   /** @param {string} code "dismissed" or a Razorpay error code */
@@ -59,7 +67,13 @@ export async function payWithRazorpay(order, { description, contact }) {
   });
 }
 
-/** Mock mode: what a successful Checkout and its webhook would do. @param {TopUpOrder} order */
+/**
+ * Mock and dev: what a successful Checkout and its webhook would do, by the same processing as a
+ * real captured payment (POST /v1/dev/razorpay/pay, dev and test only, not in openapi.json). Only
+ * the top-up's owner can pay it.
+ * @param {TopUpOrder} order
+ * @returns {Promise<{ razorpay_payment_id: string, status: "captured" }>}
+ */
 export const payInMock = (order) =>
   request("/v1/dev/razorpay/pay", {
     method: "POST",

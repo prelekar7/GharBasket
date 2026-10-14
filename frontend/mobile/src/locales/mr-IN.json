@@ -370,7 +370,15 @@
         "billing_topup_too_small": "किमान ₹100 टॉप-अप करा",
         "billing_wallet_limit": "वॉलेटमध्ये जास्तीत जास्त ₹10,000 ठेवता येतात",
         "payment_checkout_unavailable": "पेमेंट पेज उघडले नाही. इंटरनेट तपासा.",
-        "subscriptions_payment_mode_unavailable": "UPI ऑटोपे अजून सुरू झालेले नाही. सध्या वॉलेट निवडा."
+        "subscriptions_payment_mode_unavailable": "UPI ऑटोपे अजून सुरू झालेले नाही. सध्या वॉलेट निवडा.",
+        "billing_wallet_limit_room": "तुम्ही वॉलेटमध्ये आणखी {room} पर्यंत जोडू शकता.",
+        "billing_wallet_limit_full": "वॉलेट सध्या भरलेले आहे.",
+        "billing_monthly_topup_limit_room": "या महिन्याची टॉप-अप मर्यादा ₹20,000 आहे. तुम्ही आणखी {room} जोडू शकता.",
+        "billing_monthly_topup_limit_full": "या महिन्याची ₹20,000 ची टॉप-अप मर्यादा पूर्ण झाली आहे.",
+        "billing_too_many_topups": "खूप टॉप-अप सुरू झाले. एका तासानंतर पुन्हा प्रयत्न करा.",
+        "billing_payments_unavailable": "सध्या पेमेंट उपलब्ध नाही. नंतर पुन्हा प्रयत्न करा.",
+        "payment_pending": "तुमच्या पेमेंटची पुष्टी अजून आली नाही. पैसे कापले गेले असतील तर ते लवकरच वॉलेटमध्ये दिसतील. एका मिनिटाने वॉलेट पाहा.",
+        "payment_refunded": "पेमेंट आले तेव्हा तुमचे वॉलेट भरलेले होते, म्हणून पैसे तुमच्या बँकेत परत पाठवले."
       }
     },
     "done": {
@@ -595,12 +603,18 @@
     "entry": {
       "topup": "UPI ने टॉप-अप · {date}",
       "box": "{day} चा बॉक्स",
-      "refund": "परतावा · {date}"
+      "refund": "परतावा · {date}",
+      "topup_bonus": "बोनस · {date}",
+      "adjustment": "दुरुस्ती · {date}",
+      "generic": "वॉलेट नोंद · {date}",
+      "boxNoDate": "बॉक्सचे पेमेंट · {date}"
     },
     "addMoney": "पैसे जोडा",
     "newBalance": "नवी शिल्लक",
     "payWith": "पेमेंट",
     "upi": "कोणतेही UPI ॲप",
+    "room": "तुम्ही आता {room} पर्यंत जोडू शकता. शिल्लक {cap} पर्यंत असू शकते.",
+    "full": "वॉलेट सध्या भरलेले आहे. पुढच्या बॉक्सनंतर पुन्हा टॉप-अप करता येईल.",
     "cap": "तुमची शिल्लक ₹10,000 पर्यंत असू शकते.",
     "continue": "पुढे चला",
     "added": "वॉलेटमध्ये {amount} जोडले",

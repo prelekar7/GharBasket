@@ -4,8 +4,9 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { entryLabel } from "@/features/billing/entries.js";
 import { useStatement } from "@/features/billing/queries.js";
-import { monthName, shortDate, todayIst, weekdayOf } from "@/features/subscriptions/format.js";
+import { monthName, todayIst } from "@/features/subscriptions/format.js";
 
 /** The wallet statement: one month of the ledger, opening to closing balance (M5 statements). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -28,16 +29,6 @@ function Statement() {
   const [period, setPeriod] = useState(current);
   const { data: s, isPending, isError, refetch } = useStatement(period);
 
-  /** Words for a ledger entry, as on the Wallet screen. @param {NonNullable<typeof s>["entries"][number]} e */
-  const entryLabel = (e) =>
-    e.kind === "box_debit" && e.ref
-      ? t("wallet.entry.box", {
-          day: `${t(`days.short.d${weekdayOf(e.ref)}`)} ${shortDate(e.ref, lang)}`,
-        })
-      : t(`wallet.entry.${e.kind}`, {
-          date: shortDate(e.at.slice(0, 10), lang),
-          defaultValue: e.kind,
-        });
   const row = "flex items-baseline justify-between gap-3 border-b border-line py-2.5";
 
   return (
@@ -90,7 +81,7 @@ function Statement() {
             <ul aria-label={t("wallet.recent")}>
               {s.entries.map((e) => (
                 <li key={e.id} className={row}>
-                  <span>{entryLabel(e)}</span>
+                  <span>{entryLabel(t, e, lang)}</span>
                   <MoneyText paise={e.amount_paise} delta />
                 </li>
               ))}
