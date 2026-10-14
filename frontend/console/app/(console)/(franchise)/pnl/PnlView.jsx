@@ -8,7 +8,7 @@ import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
 import { shortDate } from "@/lib/dates.js";
 import { toDecimalText, toWholeRupee } from "@/lib/money.js";
-import { monthLabel } from "./months.js";
+import { monthLabel } from "@/lib/months.js";
 
 /** @typedef {import("./data.js").Pnl} Pnl */
 /** @typedef {import("./data.js").PnlLine} PnlLine */

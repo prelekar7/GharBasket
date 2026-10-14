@@ -1,3 +1,4 @@
+/** Month names for the P&L and impact pickers (Indian time, last 24 months). */
 const MONTHS = [
   "January",
   "February",
@@ -37,3 +38,18 @@ export function monthOptions(nowMs) {
 
 /** Whether `period` is one of the months on offer. @param {string | undefined} period @param {{ value: string }[]} options */
 export const isOffered = (period, options) => options.some((o) => o.value === period);
+
+/** "2026-09" → "Sep", for the axis of a chart. @param {string} period */
+export const monthShort = (period) => monthLabel(period).slice(0, 3);
+
+/**
+ * The `count` months up to and including `period`, oldest first: ("2026-10", 6) is 2026-05 to 2026-10.
+ * @param {string} period
+ * @param {number} count
+ */
+export function monthsUpTo(period, count) {
+  const [year, month] = period.split("-").map(Number);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(Date.UTC(year, month - 1 - (count - 1 - i), 1)).toISOString().slice(0, 7),
+  );
+}

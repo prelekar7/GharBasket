@@ -1,21 +1,26 @@
+import { getRole } from "@/lib/auth.js";
 import { monthOf, streamFile } from "@/lib/download.js";
 import { currentHub } from "@/lib/hub.js";
+import { currentNgoId } from "@/lib/ngo.js";
 
 /**
- * The monthly impact report as a PDF: `GET /impact/report?month=2026-10`.
- *
- * Proposed API (not in the M9/M12 specs yet): `GET /v1/analytics/impact/report?scope=hub&hub_id=&month=YYYY-MM`
- * with `Accept: application/pdf` answers the rendered report (the totals, the trend and the society table
- * of `GET /v1/analytics/impact`). Roles as for the impact counters: admin and hub manager (M12 US-5).
+ * The month's impact as a CSV: `GET /impact/report?month=2026-10`, from `GET /v1/analytics/impact?format=csv`
+ * (M12 section 3.6; there is no server PDF, the Impact page prints). One row per month, hub and NGO, at most
+ * 10,000. An NGO coordinator's file is their NGO's, a hub's staff and admins' is the hub's.
  * @param {Request} request
  */
 export async function GET(request) {
   const month = monthOf(request);
   if (!month) return new Response("Pick a month like 2026-10.", { status: 400 });
-  const hub = await currentHub();
+  const [role, hub] = await Promise.all([getRole(), currentHub()]);
+  const scope =
+    role === "ngo_coordinator"
+      ? { scope: "ngo", ngo_id: await currentNgoId() }
+      : { scope: "hub", hub_id: hub.id };
   return streamFile(
-    "/v1/analytics/impact/report",
-    { scope: "hub", hub_id: hub.id, month },
-    `gharbasket-impact-${month}.pdf`,
+    "/v1/analytics/impact",
+    { ...scope, month, format: "csv" },
+    `gharbasket-impact-${month}.csv`,
+    "text/csv",
   );
 }

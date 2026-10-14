@@ -1,7 +1,7 @@
 import { apiGet } from "@/lib/api.js";
 import { apiSource, parseSource } from "@/lib/data-source.js";
 import { currentHub } from "@/lib/hub.js";
-import { isOffered, monthOptions } from "./months.js";
+import { isOffered, monthOptions } from "@/lib/months.js";
 
 /**
  * A line of the P&L. `basis` says how the amount was worked out, so the view words it:
