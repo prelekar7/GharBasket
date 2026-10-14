@@ -335,6 +335,12 @@ const planFor = (hubId, date) => {
 export const todaysPlan = () =>
   planOut(/** @type {Plan} */ (planFor(KHARGHAR_HUB_ID, mockToday())));
 
+/** The purchase orders of a delivery day, as stored (receiving works on these). @param {string} date */
+export function purchaseOrdersFor(date) {
+  seed();
+  return procurementState().orders.filter((o) => o.delivery_date === date);
+}
+
 /** Is the product on a sent, partly received or received PO of the plan? @param {Plan} plan @param {string} productId */
 const onSentPo = (plan, productId) =>
   procurementState().orders.some(
