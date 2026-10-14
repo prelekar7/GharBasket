@@ -488,7 +488,8 @@
     "noCycleTitle": "Your first week is on its way",
     "noCycleBody": "Autopilot plans each week three days before delivery. When it’s ready, it shows up here to check and approve.",
     "atSociety": "At your society",
-    "failed": "That didn’t go through. Please try again."
+    "failed": "That didn’t go through. Please try again.",
+    "payingStill": "The payment is still being processed. This week will update as soon as it clears."
   },
   "reasons": {
     "in_season": "{item} is in season",

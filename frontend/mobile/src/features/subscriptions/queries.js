@@ -101,10 +101,11 @@ export function useTiffinOffers(cycle) {
 }
 
 /**
- * Approve or skip the week (POST /v1/cycles/{id}/approve|skip, M3). Each attempt has its own
- * Idempotency-Key and sends If-Match with the version the person saw. `unskip` and `pay` are our
- * proposals (the spec has neither), kept for the Skipped and Payment-failed designs.
- * @param {"approve" | "skip" | "unskip" | "pay"} action
+ * Approve or skip the week (POST /v1/cycles/{id}/approve|skip, M3 PR #102, not shipped yet). Each
+ * attempt has its own Idempotency-Key; approve also sends If-Match with the version the person saw
+ * (skip takes only the key). A retry of the same tap reuses its key, so it never acts twice.
+ * `unskip` is our proposal (the spec has no way back from a skip), kept for the Skipped design.
+ * @param {"approve" | "skip" | "unskip"} action
  */
 export function useCycleAction(action) {
   const client = useQueryClient();
@@ -114,10 +115,13 @@ export function useCycleAction(action) {
         request(`/v1/cycles/${cycle.id}/${action}`, {
           method: "POST",
           body: {},
-          headers: { "idempotency-key": crypto.randomUUID(), "if-match": ifMatch(cycle) },
+          headers: {
+            "idempotency-key": crypto.randomUUID(),
+            ...(action === "skip" ? {} : { "if-match": ifMatch(cycle) }),
+          },
         })
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle"] }),
   });
 }
 
@@ -138,19 +142,37 @@ export function useSubstitutes(productId, lang) {
   });
 }
 
-/** Swap a box line for a substitute (PATCH /v1/cycles/{id}/lines with If-Match). */
-export function useSwapLine() {
+/**
+ * One edit of the box, applied in order with the others in a request (M3 §3.1). Quantities are in
+ * steps, 1 to 20; `add` always carries one.
+ * @typedef {{ op: "remove", product_id: string } | { op: "add", product_id: string, qty: number } | { op: "qty", product_id: string, qty: number } | { op: "substitute", product_id: string, substitute_id: string }} LineOp
+ */
+
+/** The ops that put a swapped line back: take the replacement out and add what it replaced. @param {BoxLine} line @returns {LineOp[]} */
+export const undoSwapOps = (line) =>
+  line.replaces
+    ? [
+        { op: "remove", product_id: line.product_id },
+        { op: "add", product_id: line.replaces.product_id, qty: line.qty },
+      ]
+    : [];
+
+/**
+ * Swap, resize, remove or add box lines (PATCH /v1/cycles/{id}/lines with { ops } and If-Match,
+ * M3 PR #102, not shipped yet; 1 to 20 ops). Resolves to the cycle at its new version.
+ */
+export function useEditCycle() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (/** @type {{ cycle: Cycle, productId: string, substituteId: string }} */ v) =>
+    mutationFn: (/** @type {{ cycle: Cycle, ops: LineOp[] }} */ v) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/lines`, {
           method: "PATCH",
           headers: { "if-match": ifMatch(v.cycle) },
-          body: { op: "substitute", product_id: v.productId, substitute_id: v.substituteId },
+          body: { ops: v.ops },
         })
       ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle"] }),
   });
 }
 
@@ -171,23 +193,57 @@ export function useSwapMeal() {
 }
 
 /**
- * Change how much of a line comes, take it out, put it back, or add a catalog item (PATCH
- * /v1/cycles/{id}/lines with op qty | remove | restore | add, our proposal for M3), with If-Match.
+ * A box order whose payment didn't go through at the cut-off (OrderSummaryOut, M4). It stays
+ * `payment_failed` until the debit is retried or the grace period ends.
+ * @typedef {{ id: string, kind: "box" | "tiffin" | "addon", status: string, cycle_id: string | null, delivery_date: string, cutoff_at: string, total_paise: number, version: number }} BoxOrder
  */
-export function useEditLine() {
+
+/** Two hours after the cut-off, the grace period before an unpaid box is cancelled (M4 §3.1, 23:00 IST). @param {Pick<BoxOrder, "cutoff_at">} order */
+export const graceEnds = (order) =>
+  new Date(Date.parse(order.cutoff_at) + 2 * 3_600_000).toISOString();
+
+/**
+ * This cycle's box order while it sits in `payment_failed`, or null (GET /v1/orders?status=payment_failed,
+ * M4). The week shows the "payment didn't go through" state from it, with the wallet. With `poll`,
+ * it re-reads every 2 s: a top-up in the grace period re-runs the debit (PR #103), so the order
+ * leaves this list once it is paid. Only a cycle that has an order can have a failed one.
+ * @param {Cycle | null | undefined} cycle
+ * @param {{ poll?: boolean }} [options]
+ */
+export function useFailedBoxOrder(cycle, { poll = false } = {}) {
+  return useQuery({
+    queryKey: ["orders", "payment-failed", cycle?.id],
+    queryFn: async () => {
+      const page = await request("/v1/orders?status=payment_failed");
+      return (
+        /** @type {{ items: BoxOrder[] }} */ (page).items.find(
+          (o) => o.kind === "box" && o.cycle_id === cycle?.id,
+        ) ?? null
+      );
+    },
+    enabled: !!cycle?.order_id && (cycle.status === "approved" || cycle.status === "locked"),
+    refetchInterval: poll ? 2000 : false,
+  });
+}
+
+/**
+ * Let a box that can't be paid go, with nothing charged (POST /v1/orders/{id}/cancel, M4).
+ * @proposal (not in the contract yet) M4 documents cancel only "while approved"; the Payment-failed
+ * design's "Skip this week instead" needs it to also work while the order is `payment_failed`.
+ */
+export function useCancelBox() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (
-      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore" | "add" | "undo_swap" | "dismiss_alert", qty?: number }} */ v,
-    ) =>
-      /** @type {Promise<Cycle>} */ (
-        request(`/v1/cycles/${v.cycle.id}/lines`, {
-          method: "PATCH",
-          body: { op: v.op, product_id: v.productId, qty: v.qty },
-          headers: { "if-match": ifMatch(v.cycle) },
-        })
-      ),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+    mutationFn: (/** @type {BoxOrder} */ order) =>
+      request(`/v1/orders/${order.id}/cancel`, {
+        method: "POST",
+        body: {},
+        headers: { "idempotency-key": crypto.randomUUID() },
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["orders"] });
+      client.invalidateQueries({ queryKey: ["cycle"] });
+    },
   });
 }
 
