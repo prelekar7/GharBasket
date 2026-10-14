@@ -6,6 +6,22 @@ involved: `lib/api.js` builds a `Request` and resolves it with `getResponse(hand
 (the same idea as `frontend/mobile/src/mocks/index.js`). Switch to the real API with
 `GB_API_MOCK=false GB_API_URL=http://localhost:8000`; page code does not change.
 
+## Real mode
+
+`GB_API_MOCK=false GB_API_URL=http://localhost:8010 pnpm exec next dev --port 3160` (the API must allow the port in
+`WEB_ORIGINS`, or be a dev API, which allows 3000). Sign in with the dev buttons (they call `POST /v1/auth/exchange`
+with `dev_phone`, so the API needs `APP_ENV=dev`) or the phone form with the code 123456.
+
+- **Session:** the API's cookies `__Host-gb_at` (access, 15 min, Path=/) and `gb_rt` (refresh, Path=/v1/auth) are relayed to the
+  browser by the sign-in Server Action and by `app/v1/auth/session/route.js`; `gb_session` remembers which staff role
+  (admin, hub_manager, franchise_owner, ngo_coordinator) they work as. Details: `lib/auth-api.js`.
+- **Refresh:** when the access cookie is gone, `proxy.js` redirects a page navigation to `/v1/auth/session?next=…`, which
+  refreshes and returns. `SessionKeeper` refreshes every 12 minutes while a tab is open.
+- **Who is signed in:** `GET /v1/me` (`lib/auth.js`). Someone with no staff role sees `/not-staff`.
+- **Every API call** carries `X-Active-Role: <role>[:<scope id>]` (`hub_manager:<hub uuid>`; `admin` alone).
+- **Hubs:** from the `/v1/me` roles; admins get the proposed `GET /v1/hubs` or, while it 404s, the seed hub (`lib/hub.js`).
+- Pages for endpoints that have not shipped show their error screen (404), as designed.
+
 ## Calling the API from a page
 
 ```js

@@ -1,15 +1,17 @@
+import { connection } from "next/server";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/login/actions.js";
 import { CommandPalette } from "@/components/CommandPalette.jsx";
 import { ConsoleToaster } from "@/components/catalog/ConsoleToaster.jsx";
 import { HubSwitcher } from "@/components/HubSwitcher.jsx";
+import { SessionKeeper } from "@/components/SessionKeeper.jsx";
 import { Sidebar } from "@/components/Sidebar.jsx";
 import { Wordmark } from "@/components/Wordmark.jsx";
 import { getPerson, getRole } from "@/lib/auth.js";
 import { currentHub, listHubs } from "@/lib/hub.js";
 import { isReady, navFor, paletteEntries } from "@/lib/nav.js";
-import { initialsOf } from "@/lib/session.js";
+import { initialsOf, isMockApi } from "@/lib/session.js";
 import Loading from "./loading.jsx";
 
 /** The role's sections (proxy.js has already kept signed-out people out). */
@@ -28,6 +30,12 @@ async function HeaderControls() {
       )}
     </>
   );
+}
+
+/** Real mode only: refreshes the session while the tab is open. Decided per request, not at build. */
+async function Keeper() {
+  await connection();
+  return isMockApi() ? null : <SessionKeeper />;
 }
 
 async function Account() {
@@ -102,6 +110,9 @@ export default function ConsoleLayout({ children }) {
         </main>
       </div>
       <ConsoleToaster />
+      <Suspense>
+        <Keeper />
+      </Suspense>
     </div>
   );
 }

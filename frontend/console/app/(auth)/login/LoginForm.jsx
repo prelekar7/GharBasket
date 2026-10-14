@@ -4,7 +4,6 @@ import { Button, TextField } from "@gharbasket/ui";
 import { useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { ROLES } from "@/lib/session.js";
 import { requestCode, signIn, signInWithPhone } from "./actions.js";
 
 /** Seconds before "Resend" is offered, as in Login.dc.html. */
@@ -32,8 +31,11 @@ function Submit({ label, variant }) {
  * way back to change the number. Real phone OTP arrives with the identity module (M1, see
  * `requestCode` in actions.js); until then the dev form accepts the seed staff phones with the code
  * 123456, and the buttons below skip both steps for each role (only while dev sign-in is on).
+ *
+ * `roles` are the dev buttons: the mock sign-in's three, or every staff role against the real API.
+ * @param {{ roles: [string, { label: string, person: string }][] }} props
  */
-export function LoginForm() {
+export function LoginForm({ roles }) {
   const next = useSearchParams().get("next") ?? "";
   const [sent, send] = useActionState(requestCode, {});
   const [verified, verify] = useActionState(signInWithPhone, {});
@@ -120,7 +122,7 @@ export function LoginForm() {
         <p className="text-sm leading-5 text-fg-secondary">
           Development only: skip the code. While phone sign-in is not live, the code is 123456.
         </p>
-        {Object.entries(ROLES).map(([role, { label, person }]) => (
+        {roles.map(([role, { label, person }]) => (
           <form key={role} action={signIn}>
             <input type="hidden" name="role" value={role} />
             <input type="hidden" name="next" value={next} />

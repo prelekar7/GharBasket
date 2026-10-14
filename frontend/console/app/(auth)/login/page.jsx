@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { Wordmark } from "@/components/Wordmark.jsx";
-import { devLoginEnabled } from "@/lib/session.js";
+import { devLoginEnabled, isMockApi, MOCK_ROLES, ROLES } from "@/lib/session.js";
 import { LoginForm } from "./LoginForm.jsx";
 
 export const metadata = { title: "Sign in" };
@@ -10,7 +10,7 @@ export const metadata = { title: "Sign in" };
 async function DevSignIn() {
   await connection();
   return devLoginEnabled ? (
-    <LoginForm />
+    <LoginForm roles={isMockApi() ? MOCK_ROLES : Object.entries(ROLES)} />
   ) : (
     <p role="alert" className="font-semibold text-danger">
       Sign-in is not available on this server yet.
