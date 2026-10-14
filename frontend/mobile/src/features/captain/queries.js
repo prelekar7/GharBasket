@@ -88,3 +88,25 @@ export async function uploadPhoto(file) {
   if (!res.ok) throw new Error(`upload ${res.status}`);
   return key;
 }
+
+/**
+ * @typedef {{ date: string, boxes: number, tiffins: number, amount_paise: number }} EarningDay
+ * @typedef {{ display_name: string, scope_name: string, verified: boolean, total_paise: number, items: EarningDay[] }} Earnings
+ */
+
+/** The last delivery days' earnings (GET /v1/earnings, M8 US-7; no `week` = the latest days). */
+export function useEarnings() {
+  return useQuery({
+    queryKey: ["captain-earnings"],
+    queryFn: () => /** @type {Promise<Earnings>} */ (request("/v1/earnings")),
+  });
+}
+
+/** Downloads the income certificate PDF (GET /v1/earnings/certificate → a short-lived link). */
+export async function downloadCertificate() {
+  const { url, filename } = /** @type {{ url: string, filename: string }} */ (
+    await request("/v1/earnings/certificate")
+  );
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  a.click();
+}

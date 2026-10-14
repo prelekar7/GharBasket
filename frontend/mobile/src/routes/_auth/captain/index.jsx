@@ -1,6 +1,14 @@
-import { Button, ProgressBar, RoleSwitcher, Skeleton } from "@gharbasket/ui";
+import {
+  Button,
+  EmptyBasket,
+  EmptyState,
+  ProgressBar,
+  RoleSwitcher,
+  Skeleton,
+} from "@gharbasket/ui";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { tally } from "@/features/captain/day.js";
@@ -25,6 +33,7 @@ function Today() {
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
   const n = tally(d);
+  if (d.stop.handed_over_at && n.handled === n.total) return <AllDone day={d} />;
   const issues = Object.keys(drafts.issues).length;
   const next = crates.find((c) => c.state === "waiting");
   /** @type {[string, number][]} */
@@ -116,6 +125,59 @@ function Today() {
             onManual={() => navigate({ to: "/captain/scan", search: { typing: true } })}
           />
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Every bag delivered, in the lobby or reported (design CaptainDone). @param {{ day: import("@/features/captain/day.js").CaptainDay }} props */
+function AllDone({ day: d }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.resolvedLanguage ?? "en-IN";
+  const navigate = useNavigate();
+  const n = tally(d);
+  const problems = n.problems
+    .map((b) => `${b.flat}, ${b.note ?? t(`captain.flats.status.${b.status}`)}`)
+    .join("; ");
+  /** @type {[string, number][]} */
+  const rows = [
+    [t("captain.done.door"), n.door],
+    [t("captain.done.lobby"), n.lobby],
+    [
+      problems ? t("captain.done.problem", { list: problems }) : t("captain.done.problemNone"),
+      n.problems.length,
+    ],
+  ];
+  return (
+    <div className="flex flex-1 flex-col gap-3">
+      <FieldHeader
+        eyebrow={t("captain.done.when", {
+          society: d.society.name,
+          day: dayLabel(d.date, lang),
+          time: clock(new Date().toISOString(), lang),
+        })}
+        title={t("captain.done.title")}
+      />
+      <ProgressBar
+        tone="accent"
+        label={t("captain.done.handled")}
+        value={n.handled}
+        max={n.total}
+        valueLabel={t("captain.ofTotal", { done: n.handled, total: n.total })}
+      />
+      <EmptyState
+        illustration={<EmptyBasket />}
+        title={t("captain.done.doneTitle", { name: d.captain_name })}
+        body={t("captain.done.body")}
+      />
+      <Rows rows={rows} />
+      <p className="m-0 text-[15px] leading-[22px] text-fg-secondary">
+        {t("captain.done.lobbyNote")}
+      </p>
+      <div className="mt-auto">
+        <Button block onPress={() => navigate({ to: "/captain/earnings" })}>
+          {t("captain.done.earnings")}
+        </Button>
       </div>
     </div>
   );
