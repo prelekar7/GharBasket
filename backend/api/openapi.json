@@ -9046,6 +9046,63 @@
         "title": "RoleOut",
         "type": "object"
       },
+      "RunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "RunIn",
+        "type": "object"
+      },
+      "RunOut": {
+        "properties": {
+          "offers": {
+            "title": "Offers",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first meal's run; null with nothing to do",
+            "title": "Run Id"
+          },
+          "run_ids": {
+            "description": "One run per meal that had orders",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Run Ids",
+            "type": "array"
+          },
+          "unassigned": {
+            "title": "Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "run_ids",
+          "offers",
+          "unassigned"
+        ],
+        "title": "RunOut",
+        "type": "object"
+      },
       "SavedTemplatesOut": {
         "properties": {
           "items": {
@@ -18073,6 +18130,128 @@
         "summary": "Publish a hub's prices from a date (hub manager of that hub; audit-logged)",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/tiffin-assignments/run": {
+      "post": {
+        "operationId": "run_round_v1_hubs__hub_id__tiffin_assignments_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Run one assignment round now for a date (hub manager, admin; Idempotency-Key)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },
