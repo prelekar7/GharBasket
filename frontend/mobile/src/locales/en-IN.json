@@ -1401,5 +1401,10 @@
       "cert": "Download income certificate (PDF)",
       "certFailed": "Couldn’t get the certificate. Check your internet and try again."
     }
+  },
+  "product": {
+    "per": "{price} {unit, select, kg {a kg} l {a litre} bunch {a bunch} loaf {a loaf} other {each}}",
+    "season": "In season this week",
+    "swaps": "Good swaps, best first"
   }
 }

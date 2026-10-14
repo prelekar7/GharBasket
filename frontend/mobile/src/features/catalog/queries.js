@@ -19,3 +19,18 @@ export function useProductSearch(q, lang) {
     placeholderData: keepPreviousData,
   });
 }
+
+/**
+ * @typedef {{ product_id: string, name: string, names: { en: string, hi: string, mr: string },
+ *   also_called: string[], unit_price: { price_paise: number, unit: "kg" | "l" | "pc" | "bunch" | "loaf" },
+ *   tags: string[] }} Product
+ */
+
+/** One product's names in every language, list price per unit and tags (GET /v1/products/{id}, M2). @param {string | null} productId @param {string} lang */
+export function useProduct(productId, lang) {
+  return useQuery({
+    queryKey: ["product", productId, lang],
+    queryFn: () => /** @type {Promise<Product>} */ (request(`/v1/products/${productId}`)),
+    enabled: !!productId,
+  });
+}
