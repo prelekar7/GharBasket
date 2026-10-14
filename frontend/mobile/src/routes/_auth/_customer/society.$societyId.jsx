@@ -8,7 +8,7 @@ import {
   toast,
 } from "@gharbasket/ui";
 import { ArrowLeftIcon, CopyIcon, MedalIcon, WhatsappLogoIcon } from "@phosphor-icons/react";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
@@ -201,6 +201,12 @@ function Society() {
                 })}{" "}
                 <MoneyText paise={impact.data.cooks_earned_paise} /> {t("society.impact.cooks")}
               </p>
+              <Link
+                to="/kindness/impact"
+                className="flex min-h-12 items-center font-semibold text-link underline underline-offset-3 outline-none focus-visible:shadow-focus"
+              >
+                {t("impact.link")}
+              </Link>
             </section>
           )}
           <Button variant="primary" size="lg" block onPress={() => setSharing(true)}>

@@ -33,15 +33,29 @@ export function useSociety(id) {
   });
 }
 
+/**
+ * @typedef {{ period: string, food_saved_kg: number, items_donated: number, cooks_earned_paise: number }} ImpactCounters
+ * @typedef {ImpactCounters & { scope: "society", homes: number }} SocietyImpact
+ * @typedef {ImpactCounters & { scope: "me", homes_invited: number, donated: import("./kindness.js").DonationItem[], points_earned: number }} MyImpact
+ */
+
 /** This month's counters for a society (GET /v1/impact?scope=society&id=, M9). @param {string | undefined} id */
 export function useImpact(id) {
   return useQuery({
     queryKey: ["impact", "society", id],
     queryFn: () =>
-      /** @type {Promise<{ period: string, food_saved_kg: number, items_donated: number, cooks_earned_paise: number }>} */ (
+      /** @type {Promise<SocietyImpact>} */ (
         request(`/v1/impact?${new URLSearchParams({ scope: "society", id: id ?? "" })}`)
       ),
     enabled: !!id,
+  });
+}
+
+/** This month for your family, and your share of the society's (GET /v1/impact?scope=me, M9). */
+export function useMyImpact() {
+  return useQuery({
+    queryKey: ["impact", "me"],
+    queryFn: () => /** @type {Promise<MyImpact>} */ (request("/v1/impact?scope=me")),
   });
 }
 

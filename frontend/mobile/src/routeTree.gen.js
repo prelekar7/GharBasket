@@ -61,6 +61,7 @@ import { Route as AuthRiderIndexRouteImport } from "./routes/_auth/rider/index"
 import { Route as AuthRiderEarningsRouteImport } from "./routes/_auth/rider/earnings"
 import { Route as AuthRiderPickupsRouteImport } from "./routes/_auth/rider/pickups"
 import { Route as AuthRiderStopRouteImport } from "./routes/_auth/rider/stop"
+import { Route as AuthCustomerKindnessImpactRouteImport } from "./routes/_auth/_customer/kindness_.impact"
 import { Route as AuthCustomerPartnerDocumentsRouteImport } from "./routes/_auth/_customer/partner_.documents"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
@@ -330,6 +331,12 @@ const AuthRiderStopRoute = AuthRiderStopRouteImport.update({
   path: "/stop",
   getParentRoute: () => AuthRiderRoute,
 })
+const AuthCustomerKindnessImpactRoute =
+  AuthCustomerKindnessImpactRouteImport.update({
+    id: "/kindness_/impact",
+    path: "/kindness/impact",
+    getParentRoute: () => AuthCustomerRoute,
+  })
 const AuthCustomerPartnerDocumentsRoute =
   AuthCustomerPartnerDocumentsRouteImport.update({
     id: "/partner_/documents",
@@ -394,6 +401,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerProfileRoute: AuthCustomerProfileRoute,
   AuthCustomerWalletRoute: AuthCustomerWalletRoute,
   AuthCustomerWeekRoute: AuthCustomerWeekRoute,
+  AuthCustomerKindnessImpactRoute: AuthCustomerKindnessImpactRoute,
   AuthCustomerPartnerDocumentsRoute: AuthCustomerPartnerDocumentsRoute,
   AuthCustomerSocietySocietyIdRoute: AuthCustomerSocietySocietyIdRoute,
   AuthCustomerWalletStatementRoute: AuthCustomerWalletStatementRoute,

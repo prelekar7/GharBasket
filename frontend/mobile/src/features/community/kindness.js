@@ -55,3 +55,20 @@ export function useScheduleDonation() {
     },
   });
 }
+
+/**
+ * "School bag and 3 kg clothes": donated items in words (Kindness history; Our impact, mid-sentence).
+ * @param {import("i18next").TFunction} t @param {string} lang @param {DonationItem[]} items
+ */
+export function describeItems(t, lang, items, capitalise = true) {
+  const text = new Intl.ListFormat(lang, { type: "conjunction" }).format(
+    items.map(({ code, qty, kg }) =>
+      kg
+        ? t("kindness.kg", { kg, item: t(`kindness.of.${code}`) })
+        : qty
+          ? t(`kindness.count.${code}`, { count: qty })
+          : t(`kindness.of.${code}`),
+    ),
+  );
+  return capitalise ? text.charAt(0).toLocaleUpperCase(lang) + text.slice(1) : text;
+}
