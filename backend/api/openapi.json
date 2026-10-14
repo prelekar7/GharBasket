@@ -7359,6 +7359,36 @@
         "title": "ResolveIn",
         "type": "object"
       },
+      "RiderRef": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown to hub staff only",
+            "examples": [
+              "Arjun Pawar"
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "RiderRef",
+        "type": "object"
+      },
       "RoleGrantIn": {
         "additionalProperties": false,
         "description": "Grant a role to an existing user (they must have signed in once).",
@@ -9392,6 +9422,343 @@
           "senior_mode"
         ],
         "title": "UserOut",
+        "type": "object"
+      },
+      "VehicleIn": {
+        "additionalProperties": false,
+        "description": "Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;\ntwo_wheeler 40 kg, 0 crates, 30 tiffins.",
+        "properties": {
+          "capacity_crates": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              24
+            ],
+            "title": "Capacity Crates"
+          },
+          "capacity_kg": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 10.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              400
+            ],
+            "title": "Capacity Kg"
+          },
+          "capacity_tiffins": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              0
+            ],
+            "title": "Capacity Tiffins"
+          },
+          "default_rider_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A rider of this hub (an active rider:<hub> role)",
+            "title": "Default Rider User Id"
+          },
+          "kind": {
+            "enum": [
+              "cargo_3w",
+              "two_wheeler"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "examples": [
+              "EV-1"
+            ],
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z0-9]{4,16}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "MH46AB1234"
+            ],
+            "title": "Registration"
+          }
+        },
+        "required": [
+          "label",
+          "kind"
+        ],
+        "title": "VehicleIn",
+        "type": "object"
+      },
+      "VehicleOut": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "capacity_crates": {
+            "examples": [
+              24
+            ],
+            "title": "Capacity Crates",
+            "type": "integer"
+          },
+          "capacity_kg": {
+            "examples": [
+              400
+            ],
+            "title": "Capacity Kg",
+            "type": "integer"
+          },
+          "capacity_tiffins": {
+            "examples": [
+              0
+            ],
+            "title": "Capacity Tiffins",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "default_rider": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiderRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set as the rider of new routes"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "cargo_3w carries boxes and add-ons; two_wheeler tiffins",
+            "enum": [
+              "cargo_3w",
+              "two_wheeler"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "Unique per hub, ignoring case",
+            "examples": [
+              "EV-1"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "MH46AB1234"
+            ],
+            "title": "Registration"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "label",
+          "kind",
+          "registration",
+          "capacity_kg",
+          "capacity_crates",
+          "capacity_tiffins",
+          "default_rider",
+          "active",
+          "version",
+          "created_at"
+        ],
+        "title": "VehicleOut",
+        "type": "object"
+      },
+      "VehiclePatch": {
+        "additionalProperties": false,
+        "description": "Only the fields sent change; `registration` and `default_rider_user_id` may be null.\nA change applies to the next solve, never to a route already published.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "capacity_crates": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Crates"
+          },
+          "capacity_kg": {
+            "anyOf": [
+              {
+                "maximum": 2000.0,
+                "minimum": 10.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Kg"
+          },
+          "capacity_tiffins": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Tiffins"
+          },
+          "default_rider_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Rider User Id"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cargo_3w",
+                  "two_wheeler"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z0-9]{4,16}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          }
+        },
+        "title": "VehiclePatch",
+        "type": "object"
+      },
+      "VehiclesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VehicleOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "VehiclesOut",
         "type": "object"
       },
       "VendorIn": {
@@ -15941,6 +16308,280 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/vehicles": {
+      "get": {
+        "operationId": "list_vehicles_v1_hubs__hub_id__vehicles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only active (or inactive) vehicles",
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only active (or inactive) vehicles",
+              "title": "Active"
+            }
+          },
+          {
+            "description": "Only this kind",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "cargo_3w",
+                    "two_wheeler"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this kind",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehiclesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A hub's vehicles, by label",
+        "tags": [
+          "logistics"
+        ]
+      },
+      "post": {
+        "operationId": "create_vehicle_v1_hubs__hub_id__vehicles_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.vehicle_label_taken"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.capacity_invalid, logistics.rider_invalid, request.invalid, request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Add a vehicle to a hub (Idempotency-Key required)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/vendors": {
       "get": {
         "operationId": "list_vendors_v1_hubs__hub_id__vendors_get",
@@ -22378,6 +23019,169 @@
         "summary": "Pause or resume, or set auto-approve",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/vehicles/{vehicle_id}": {
+      "patch": {
+        "description": "Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published. A vehicle of a hub outside the caller's roles answers 404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).",
+        "operationId": "patch_vehicle_v1_vehicles__vehicle_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vehicle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehiclePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.vehicle_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.vehicle_label_taken"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch: reload and try again"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.capacity_invalid, logistics.rider_invalid, request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change or deactivate a vehicle (If-Match: the vehicle's version)",
+        "tags": [
+          "logistics"
         ]
       }
     },

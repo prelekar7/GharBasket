@@ -292,6 +292,26 @@ async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[u
     return {user_id: name for user_id, name in rows.all() if name is not None}
 
 
+async def holds_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID
+) -> bool:
+    """True if an active user holds a verified `role` scoped to exactly `scope_id` (a society,
+    hub or NGO): M7 checks that a vehicle's default rider rides for its hub. A blocked or deleted
+    user holds nothing."""
+    query = (
+        select(UserRole.id)
+        .join(User, User.id == UserRole.user_id)
+        .where(
+            UserRole.user_id == user_id,
+            UserRole.role == role,
+            UserRole.scope_id == scope_id,
+            UserRole.status == "verified",
+            User.status == "active",
+        )
+    )
+    return (await session.execute(query.limit(1))).first() is not None
+
+
 async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
     """False while the account's deletion is scheduled, once it is purged, and for a blocked
     account (spec §3.5): M11 checks it before sending anything."""
