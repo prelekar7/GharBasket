@@ -81,7 +81,7 @@ export const NAV = [
       { href: "/orders", label: "Orders", ready: true, key: "o" },
       { href: "/packing", label: "Packing" },
       { href: "/routes", label: "Routes", ready: true, key: "r" },
-      { href: "/deliveries", label: "Deliveries", key: "d" },
+      { href: "/deliveries", label: "Deliveries", ready: true, key: "d" },
     ],
   },
   {
@@ -111,7 +111,7 @@ export const NAV = [
     section: "hub",
     label: "Fleet and partners",
     items: [
-      { href: "/vehicles", label: "Vehicles" },
+      { href: "/vehicles", label: "Vehicles", ready: true },
       { href: "/partners", label: "Partners and KYC" },
       { href: "/partners/[id]", label: "Partner", hidden: true },
       { href: "/fairness", label: "Fairness" },

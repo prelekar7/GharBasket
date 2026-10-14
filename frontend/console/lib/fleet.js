@@ -49,3 +49,17 @@ export function formatKm(metres) {
 
 /** @param {number} n @param {string} one @param {string} many */
 export const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** An Idempotency-Key for one user intent; made when a form renders and reused if the same request is retried. */
+export function newKey() {
+  return (
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  );
+}
+
+/** The kinds the solver plans for, as the API names them. */
+export const KINDS = [
+  { value: "van", label: "Van" },
+  { value: "ev3w", label: "Electric three-wheeler" },
+  { value: "bike", label: "Two-wheeler with box" },
+];
