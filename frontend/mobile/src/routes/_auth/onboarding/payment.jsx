@@ -1,11 +1,13 @@
-import { Button, Chip, formatPaise, RadioCards, TextField } from "@gharbasket/ui";
+import { Button, Chip, formatPaise, RadioCards, TextField, toast } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { createMandate } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
-import { request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
+import { waitForCredit } from "@/lib/payments.js";
 
 const QUICK_RUPEES = [1000, 2000, 3000];
 
@@ -20,35 +22,50 @@ function Payment() {
   const [rupees, setRupees] = useState(2000);
   const [other, setOther] = useState(false);
   const [setup, setSetup] = useState(false);
-  // One key per screen visit for the subscription; the top-up hook keeps one per amount.
-  const subscriptionKey = useRef(crypto.randomUUID());
+  const [confirming, setConfirming] = useState(false);
+  // Keys live for this visit: one for the subscription per payment mode; the top-up hook keeps one per amount.
+  const subscriptionKeys = useRef(/** @type {Record<string, string>} */ ({}));
+  // The wallet balance the top-up should reach.
+  const expected = useRef(0);
   const amountPaise = rupees * 100;
   const done = () => navigate({ to: nextStep("/onboarding/payment") });
-  const topUp = useTopUp({ onPaid: done });
-  const busy = setup || topUp.busy;
+  /** Success only once the wallet shows the money; after a minute, move on and say it's on its way. */
+  const confirm = async () => {
+    setConfirming(true);
+    const credited = await waitForCredit(expected.current);
+    if (!credited) toast(t("onboarding.payment.stillConfirming"));
+    done();
+  };
+  const topUp = useTopUp({ onPaid: confirm });
+  const busy = setup || confirming || topUp.busy;
   const error = topUp.error;
 
   const pay = async () => {
     setSetup(true);
     topUp.setError(null);
     try {
+      subscriptionKeys.current[mode] ??= crypto.randomUUID();
       await request("/v1/subscriptions", {
         method: "POST",
-        headers: { "idempotency-key": subscriptionKey.current },
+        headers: { "idempotency-key": subscriptionKeys.current[mode] },
         body: { plan: "autopilot", payment_mode: mode },
+      }).catch((e) => {
+        // Already subscribed (a first try that went through): carry on to the payment.
+        if (!(e instanceof ApiError && e.code === "subscriptions.exists")) throw e;
       });
       if (mode === "autopay") {
-        await request("/v1/mandates", {
-          method: "POST",
-          headers: { "idempotency-key": crypto.randomUUID() },
-          body: {},
-        });
+        await createMandate({ key: crypto.randomUUID() });
         return done();
       }
+      const before = /** @type {{ balance_paise: number }} */ (await request("/v1/wallet"));
+      expected.current = before.balance_paise + amountPaise;
       setSetup(false);
       await topUp.start(amountPaise);
     } catch (e) {
       setSetup(false);
+      // UPI Autopay is not open yet (subscriptions.payment_mode_unavailable): back to the wallet.
+      if (e instanceof ApiError && e.code === "subscriptions.payment_mode_unavailable")
+        setMode("wallet");
       topUp.fail(e);
     }
   };
@@ -70,9 +87,11 @@ function Payment() {
             isDisabled={amountPaise < 10_000}
             onPress={pay}
           >
-            {mode === "wallet"
-              ? t("onboarding.payment.ctaWallet", { amount: formatPaise(amountPaise) })
-              : t("onboarding.payment.ctaAutopay")}
+            {confirming
+              ? t("onboarding.payment.confirming")
+              : mode === "wallet"
+                ? t("onboarding.payment.ctaWallet", { amount: formatPaise(amountPaise) })
+                : t("onboarding.payment.ctaAutopay")}
           </Button>
         </>
       }

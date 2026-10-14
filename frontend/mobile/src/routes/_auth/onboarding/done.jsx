@@ -1,13 +1,14 @@
-import { Button, MoneyText, Skeleton, StatusPill, toast } from "@gharbasket/ui";
+import { Button, MoneyText, Skeleton, StatusPill } from "@gharbasket/ui";
 import { ArrowRightIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { useWallet } from "@/features/billing/queries.js";
+import { shareInvite } from "@/features/community/invite.js";
 import { useSociety } from "@/features/community/queries.js";
 import { useOnboardingDraft } from "@/features/onboarding/draft.js";
-import { shortDate, timeRange, weekdayOf } from "@/features/subscriptions/format.js";
-import { useCurrentCycle } from "@/features/subscriptions/queries.js";
+import { shortDate, timeRange, weekdayName, weekdayOf } from "@/features/subscriptions/format.js";
+import { useCurrentCycle, usePreviewCycle } from "@/features/subscriptions/queries.js";
 
 /** The brand "parchi with a tick" on kraft paper. */
 function DoneMark() {
@@ -41,28 +42,28 @@ function Done() {
   const navigate = useNavigate();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const { societyId, towerId, flat, reset } = useOnboardingDraft();
-  const { data: cycle } = useCurrentCycle(lang);
+  const current = useCurrentCycle(lang);
+  // A new household has no planned week until the weekly job runs (404 → null); the preview says
+  // which day and slot the first box comes, so the summary never waits on a week that isn't there.
+  const preview = usePreviewCycle(lang);
+  const cycle = current.data ?? preview.data;
+  const settled = !current.isPending && !preview.isPending;
   const { data: society } = useSociety(societyId ?? undefined);
   const { data: wallet } = useWallet();
   const tower = society?.towers.find((tw) => tw.id === towerId);
 
-  const invite = async () => {
-    const url = `${location.origin}/s/${societyId}`;
-    const text = t("onboarding.done.shareText", { society: society?.name ?? "" });
-    try {
-      if (navigator.share) await navigator.share({ title: "GharBasket", text, url });
-      else {
-        await navigator.clipboard.writeText(`${text} ${url}`);
-        toast(t("onboarding.done.copied"));
-      }
-    } catch {
-      // The person closed the share sheet.
-    }
-  };
+  const invite = () =>
+    shareInvite({
+      societyId: societyId ?? "",
+      slug: society?.slug,
+      text: t("onboarding.done.shareText", { society: society?.name ?? "" }),
+      copied: t("onboarding.done.copied"),
+    });
 
   const row = "flex items-baseline justify-between gap-3 border-b border-line py-3";
   return (
     <OnboardingFrame
+      back={false}
       footer={
         <Button
           variant="primary"
@@ -91,7 +92,9 @@ function Done() {
           <dt className="text-sm text-fg-secondary">{t("onboarding.done.delivery")}</dt>
           <dd className="font-semibold">
             {cycle ? (
-              `${t(`days.short.d${weekdayOf(cycle.delivery_date)}`)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.delivery_window, lang)}`
+              `${weekdayName(cycle.delivery_date, lang)} ${shortDate(cycle.delivery_date, lang)} · ${timeRange(cycle.slot, lang)}`
+            ) : settled ? (
+              t("onboarding.done.deliverySoon")
             ) : (
               <Skeleton className="h-5 w-32" />
             )}
@@ -118,15 +121,29 @@ function Done() {
       </dl>
       {society && (
         <section className="flex flex-col items-start gap-2.5 rounded-md bg-surface p-4">
-          <strong className="text-lg leading-[26px]">{society.name}</strong>
-          {society.status === "live" && (
-            <StatusPill status="delivered">{t("onboarding.done.free")}</StatusPill>
-          )}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <strong className="text-lg leading-[26px]">{society.name}</strong>
+            {society.status === "live" && (
+              <StatusPill status="delivered">{t("onboarding.done.free")}</StatusPill>
+            )}
+          </div>
           <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.done.invite")}</p>
-          <Button variant="secondary" onPress={invite}>
-            {t("onboarding.done.inviteCta")}
-            <ArrowRightIcon aria-hidden size={20} weight="bold" />
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onPress={invite}>
+              {t("onboarding.done.inviteCta")}
+              <ArrowRightIcon aria-hidden size={20} weight="bold" />
+            </Button>
+            <Button
+              variant="quiet"
+              onPress={() => {
+                const id = society.id;
+                reset();
+                navigate({ to: "/society/$societyId", params: { societyId: id } });
+              }}
+            >
+              {t("society.title")}
+            </Button>
+          </div>
         </section>
       )}
     </OnboardingFrame>

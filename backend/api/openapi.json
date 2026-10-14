@@ -985,6 +985,46 @@
         "title": "DayOut",
         "type": "object"
       },
+      "DeletionOut": {
+        "description": "DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs\nin again before then.",
+        "properties": {
+          "purge_on": {
+            "description": "IST date, 30 days after the request",
+            "format": "date",
+            "title": "Purge On",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "status": {
+            "const": "scheduled",
+            "title": "Status",
+            "type": "string"
+          },
+          "wallet_refund": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalletRefundOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The wallet balance on its way back to the original payment source"
+          }
+        },
+        "required": [
+          "status",
+          "requested_at",
+          "purge_on",
+          "wallet_refund"
+        ],
+        "title": "DeletionOut",
+        "type": "object"
+      },
       "DeliveryDayIn": {
         "additionalProperties": false,
         "properties": {
@@ -1351,6 +1391,12 @@
               }
             ],
             "title": "Firebase Id Token"
+          },
+          "keep_account": {
+            "default": false,
+            "description": "For an account whose deletion is scheduled: true (after the app asked \"Keep my account?\") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)",
+            "title": "Keep Account",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1378,6 +1424,12 @@
               }
             ],
             "title": "Access Token"
+          },
+          "deletion_cancelled": {
+            "default": false,
+            "description": "True when this sign-in cancelled a scheduled deletion",
+            "title": "Deletion Cancelled",
+            "type": "boolean"
           },
           "is_new_user": {
             "title": "Is New User",
@@ -4383,6 +4435,53 @@
           "read_at"
         ],
         "title": "NotificationOut",
+        "type": "object"
+      },
+      "OrderEventsOut": {
+        "description": "The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).",
+        "properties": {
+          "eta": {
+            "description": "null until M7 publishes route progress",
+            "title": "Eta",
+            "type": "null"
+          },
+          "items": {
+            "description": "Oldest first",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "status",
+          "version"
+        ],
+        "title": "OrderEventsOut",
         "type": "object"
       },
       "OrderLineOut": {
@@ -8893,6 +8992,62 @@
         "title": "TimelineEntry",
         "type": "object"
       },
+      "TimelineEvent": {
+        "description": "A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.",
+        "properties": {
+          "actor": {
+            "description": "Who moved it, as a kind of actor only: never a name or id",
+            "enum": [
+              "customer",
+              "system",
+              "hub",
+              "packer",
+              "rider",
+              "captain",
+              "kitchen"
+            ],
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "id": {
+            "description": "The order_events row; also the SSE event id",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "actor",
+          "id"
+        ],
+        "title": "TimelineEvent",
+        "type": "object"
+      },
       "Timings": {
         "additionalProperties": false,
         "description": "The hub's day as IST `HH:MM`, in this order; display and job planning only.",
@@ -9566,6 +9721,28 @@
           "entries"
         ],
         "title": "WalletOut",
+        "type": "object"
+      },
+      "WalletRefundOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              41000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "refund_id": {
+            "format": "uuid",
+            "title": "Refund Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refund_id",
+          "amount_paise"
+        ],
+        "title": "WalletRefundOut",
         "type": "object"
       },
       "WebhookAck": {
@@ -11690,6 +11867,16 @@
               }
             },
             "description": "auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile"
           },
           "422": {
             "content": {
@@ -16342,6 +16529,60 @@
       }
     },
     "/v1/me": {
+      "delete": {
+        "operationId": "delete_me_v1_me_delete",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "identity.staff_account (with roles): an admin removes staff roles first"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Delete my account after a 30-day grace (signs out every device; spec §3.5)",
+        "tags": [
+          "identity"
+        ]
+      },
       "get": {
         "operationId": "me_v1_me_get",
         "responses": {
@@ -17688,6 +17929,133 @@
           }
         ],
         "summary": "Cancel before the cut-off (Idempotency-Key); nothing was paid yet",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
+    "/v1/orders/{order_id}/events": {
+      "get": {
+        "description": "`Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.",
+        "operationId": "order_events_v1_orders__order_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderEventsOut"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: hub staff of another hub"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.too_many_streams: more than 3 open streams for this user"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The order's live timeline: JSON for polling clients, or a Server-Sent Events stream",
         "tags": [
           "orders"
         ]

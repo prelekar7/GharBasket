@@ -46,6 +46,8 @@ ROLES = (
     "ngo_coordinator",
     "admin",
 )
+# `deleting` during the 30-day grace of an account deletion (spec §3.5); a purged user has no row.
+USER_STATUSES = ("active", "blocked", "deleting")
 ROLE_STATUSES = ("applied", "kyc_pending", "verified", "suspended")
 SCOPE_TYPES = ("society", "hub", "ngo")
 LOCALES = ("en-IN", "hi-IN", "mr-IN")
@@ -75,7 +77,7 @@ class User(Base):
     __table_args__ = (
         CheckConstraint(r"phone_e164 ~ '^\+[1-9][0-9]{7,14}$'", name="phone_e164"),
         CheckConstraint(_one_of("locale", LOCALES), name="locale"),
-        CheckConstraint(_one_of("status", ("active", "blocked", "deleted")), name="status"),
+        CheckConstraint(_one_of("status", USER_STATUSES), name="status"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         {"schema": SCHEMA},
     )
@@ -145,6 +147,9 @@ class LoginSession(Base):
     platform: Mapped[str] = mapped_column(String(16))
     push_token: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # When the OTP behind this session was entered (the Firebase token's auth_time; spec §3.5).
+    # Refreshes keep it: only a new OTP moves it, so DELETE /v1/me can ask for a fresh one.
+    auth_time: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     # Absolute limit: refreshing never extends a session past this (30 days after sign-in).
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -336,3 +341,34 @@ class DataExport(Base):
     )
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Deletion(Base):
+    """One account deletion (spec §3.5): asked for, then cancelled or purged after 30 days.
+
+    After the purge the row is the tombstone: the user id, the dates and the rows erased per
+    module and table. It never holds a phone, a name or household fields."""
+
+    __tablename__ = "deletions"
+    __table_args__ = (
+        # purge_deleted_users takes the due, open deletions.
+        Index(
+            "ix_deletions_due",
+            "purge_on",
+            postgresql_where=text("cancelled_at IS NULL AND purged_at IS NULL"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    # No foreign key: the tombstone outlives the user.
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    purge_on: Mapped[date] = mapped_column(Date)  # the IST date of the request + 30 days
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The IST day of the purge job's last attempt: a nightly run tries untried rows first and
+    # never the same row twice, so blocked or failing accounts cannot starve newer ones.
+    last_attempt_on: Mapped[date | None] = mapped_column(Date)
+    # Why the last purge attempt waited ("open_orders", …); empty once purged.
+    blocked_reasons: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    counts: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # {module: {table: rows}}
