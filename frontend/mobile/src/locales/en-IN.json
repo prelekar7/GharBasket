@@ -1000,6 +1000,26 @@
       "closed": "Bag {code} closed. Put it in crate {crate}.",
       "noBag": "No bag open",
       "noBagBody": "Scan a bag’s label to start picking it."
+    },
+    "short": {
+      "title": "Report a shortage",
+      "reporter": {
+        "title": "{item} is short",
+        "gap": "Needed {needed} {unit} for today’s bags; {received} came in.",
+        "howShort": "How many {unit} short",
+        "who": "What each family gets",
+        "swap": "Swap",
+        "refund": "Money back",
+        "apply": "{n, plural, one {Apply to # bag} other {Apply to # bags}}",
+        "rule": "Each family’s own choice decides: a swap they allowed, or money back to the wallet. Nobody pays for what they don’t get."
+      },
+      "swapDetail": "{item}, allowed by the family",
+      "refundDetail": "{amount} to the wallet",
+      "applied": "{item} short in {n, plural, one {# bag} other {# bags}}. Families will be told.",
+      "reported": "Reported today",
+      "outcomes": "{swaps, plural, one {# swap} other {# swaps}} · {refunds} money back",
+      "noneTitle": "No shortages to report",
+      "noneBody": "When an item comes in short, it shows here with what each family gets."
     }
   }
 }
