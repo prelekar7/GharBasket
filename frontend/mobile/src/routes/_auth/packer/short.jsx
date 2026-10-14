@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLine } from "@/features/packing/format.js";
+import { bagCode } from "@/features/packing/lines.js";
 import { usePackingActions, usePackingDay, useShortages } from "@/features/packing/queries.js";
 
 /** @typedef {import("@/features/packing/queries.js").ShortBagOut} ShortBagOut */
@@ -52,8 +53,6 @@ function Shortages() {
       />
     );
   }
-  const { products } = day.data;
-  const name = (/** @type {string} */ code) => products[code]?.name ?? code;
   // The first goods-receipt gap not reported yet; one at a time.
   const item = shortages.data.find(
     (i) => i.needed != null && i.received != null && i.reported.length === 0 && i.bags.length,
@@ -62,11 +61,11 @@ function Shortages() {
 
   let reporter = null;
   if (item?.needed != null && item.received != null) {
-    const p = products[item.product_code];
-    const unit = t(`packer.unit.${p?.unit ?? "pc"}`);
+    // Counted in steps: "bunch" for a step of one, else "× 250 g".
+    const unit = item.step.qty === 1 ? t(`packer.unit.${item.step.unit}`) : `× ${item.step.label}`;
     const short = value ?? Math.max(0, item.needed - item.received);
     const bags = fallsOn(item.bags, short);
-    const v = { item: name(item.product_code), unit, needed: item.needed, received: item.received };
+    const v = { item: item.name, unit, needed: item.needed, received: item.received };
     reporter = (
       <ShortageReporter
         item={v.item}
@@ -76,12 +75,12 @@ function Shortages() {
         value={short}
         onChange={setValue}
         bags={bags.map((b) => ({
-          bag: `${b.bag_qr} · ${b.society}`,
-          flat: b.flat,
+          bag: `${bagCode(b)} · ${b.society}`,
+          flat: b.flat_label ?? "",
           outcome: b.outcome ?? "refund",
           detail:
             b.outcome === "swap"
-              ? t("packer.short.swapDetail", { item: b.swap_name })
+              ? t("packer.short.swapDetail", { item: b.substitute?.name })
               : t("packer.short.refundDetail", { amount: formatPaise(b.refund_paise ?? 0) }),
         }))}
         onApply={() => {
@@ -122,14 +121,11 @@ function Shortages() {
               const refunds = i.reported.filter((b) => b.outcome === "refund").length;
               return (
                 <li
-                  key={i.product_code}
+                  key={i.product_id}
                   className="flex items-baseline justify-between gap-3 border-b border-line py-2.5"
                 >
                   <strong>
-                    {t("packer.done.shortItem", {
-                      item: name(i.product_code),
-                      n: i.reported.length,
-                    })}
+                    {t("packer.done.shortItem", { item: i.name, n: i.reported.length })}
                   </strong>
                   <span className="text-right text-sm leading-5 text-fg-secondary">
                     {t("packer.short.outcomes", { swaps, refunds })}

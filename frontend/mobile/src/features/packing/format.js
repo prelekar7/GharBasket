@@ -3,8 +3,6 @@
 import { clockTime, shortDate } from "@/features/subscriptions/format.js";
 import { intlLocale } from "@/lib/intlLocale.js";
 
-/** @typedef {import("i18next").TFunction} TFunction */
-
 /** "06:40" in India from an ISO time. @param {string} iso */
 const istHhmm = (iso) =>
   new Intl.DateTimeFormat("en-GB", {
@@ -29,6 +27,3 @@ export function dayLine(lang, day, at) {
   if (at) parts.push(clockTime(istHhmm(at), lang));
   return parts.join(" · ");
 }
-
-/** "2 judi", "250 g". @param {TFunction} t @param {number} qty @param {string} unit */
-export const qtyText = (t, qty, unit) => t(`packer.qty.${unit}`, { n: qty });

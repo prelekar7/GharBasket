@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { normalizeCode } from "@/lib/scan.js";
+import { findBag } from "./lines.js";
 import { usePackingActions } from "./queries.js";
 
 /**
@@ -16,16 +16,16 @@ export function useOpenBag(tasks) {
   const [error, setError] = useState("");
   /** @param {string} raw */
   const open = (raw) => {
-    const code = normalizeCode(raw);
-    const task = tasks.find((x) => x.bag_qr === code);
+    const code = raw.trim();
+    const task = findBag(tasks, code);
     if (!task) return setError(t("packer.queue.unknownBag", { code }));
     if (task.status === "packed") return setError(t("packer.queue.alreadyPacked", { code }));
     setError("");
-    if (task.status === "to_pack") start(task);
+    if (task.status === "queued") start(task);
     navigate({ to: "/packer/pick", search: { bag: task.bag_qr } });
   };
   /** The bag to scan next: the one open, else the first not packed. */
   const next =
-    tasks.find((x) => x.status === "packing") ?? tasks.find((x) => x.status === "to_pack");
+    tasks.find((x) => x.status === "picking") ?? tasks.find((x) => x.status === "queued");
   return { open, error, next };
 }
