@@ -244,6 +244,13 @@ async def test_hub_staff_see_only_their_hub(
     assert (await api.get(TASKS, headers=outsider)).json()["code"] == "auth.forbidden"
     assert (await api.get(f"/v1/packing-tasks/{task['id']}", headers=outsider)).status_code == 404
     assert (await api.get(f"/v1/packing-tasks/{task['id']}", headers=customer)).status_code == 403
+    # Arjun is a customer, the seed hub's rider and a packer elsewhere: no role he picks opens
+    # the seed hub's packing (handbook §13.4).
+    for active in ("customer", f"rider:{SEED_HUB_ID}", f"packer:{elsewhere}"):
+        as_role = {**outsider, "X-Active-Role": active}
+        assert (await api.get(TASKS, headers=as_role)).json()["code"] == "auth.forbidden"
+        one = await api.get(f"/v1/packing-tasks/{task['id']}", headers=as_role)
+        assert one.status_code == (404 if active.startswith("packer") else 403)
     # The franchise owner and admins read; only hub managers and admins build.
     assert (await api.get(f"/v1/packing-tasks/{task['id']}", headers=owner)).status_code == 200
     assert len(await queue(api, admin)) == 1
