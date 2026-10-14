@@ -46,9 +46,9 @@ const TABS = [
   { value: "profile", Icon: UserIcon },
 ];
 
-const UNDER_PROFILE = ["wallet", "society", "partner", "notifications", "budget"];
+const UNDER_PROFILE = ["wallet", "society", "partner", "notifications", "budget", "autopay"];
 
-const NO_ASSISTANT = ["profile", "partner", "budget"];
+const NO_ASSISTANT = ["profile", "partner", "budget", "autopay"];
 
 function CustomerShell() {
   const { t } = useTranslation();
@@ -56,8 +56,8 @@ function CustomerShell() {
   const { pathname } = useLocation();
   const senior = useSession((s) => !!s.user?.senior_mode);
   const segment = pathname.split("/")[1] || "week";
-  // Wallet, Society, Become a partner and Budget Lock open from Profile (HcWallet, HcSociety,
-  // HcPartner, HcBudget).
+  // Wallet, Society, Become a partner, Budget Lock and UPI Autopay open from Profile (HcWallet,
+  // HcSociety, HcPartner, HcBudget, HcAutopay).
   const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
   // The designs leave the assistant button off Profile, the settings screens opened from it, and
   // the screens that end in one big button (HcTiffin, HcRate).

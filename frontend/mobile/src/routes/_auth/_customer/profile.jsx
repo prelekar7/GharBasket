@@ -13,7 +13,7 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useWallet } from "@/features/billing/queries.js";
+import { useMandate, useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
 import {
   useChangeAddress,
@@ -62,6 +62,7 @@ function Profile() {
   const household = useMyHousehold();
   const { data: society } = useSociety(household.data?.society_id);
   const wallet = useWallet();
+  const mandate = useMandate();
   const update = useUpdateMe();
   const pause = usePause(household.data?.subscription.id);
   const inbox = useInbox(lang);
@@ -153,6 +154,12 @@ function Profile() {
           : t("profile.edit.off")
         : undefined,
       onPress: () => navigate({ to: "/budget" }),
+    },
+    {
+      key: "autopay",
+      label: t("autopay.title"),
+      value: mandate.data ? t("autopay.on") : undefined,
+      onPress: () => navigate({ to: "/autopay" }),
     },
     ...(society
       ? [

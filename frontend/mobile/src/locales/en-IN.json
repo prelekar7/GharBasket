@@ -1508,5 +1508,48 @@
     "saved": "Budget Lock saved. It applies from next week’s plan.",
     "turnOff": "Turn off Budget Lock",
     "turnedOff": "Budget Lock is off from next week’s plan."
+  },
+  "autopay": {
+    "title": "UPI Autopay",
+    "pilot": "Pilot",
+    "lead": "Each box is charged to your UPI at the cut-off, instead of from the wallet.",
+    "leadOn": "UPI Autopay is on. Each box is charged to your UPI at the cut-off, instead of from the wallet.",
+    "upi": "Your UPI app asks you to approve the mandate once. Nothing is charged today.",
+    "cta": "Set up UPI Autopay",
+    "wallet": "Keep using the wallet",
+    "facts": {
+      "charged": {
+        "k": "Charged",
+        "v": "Per box, at the 9 PM cut-off"
+      },
+      "limit": {
+        "k": "Mandate limit",
+        "v": "Up to your {amount} monthly Budget Lock",
+        "vNoLock": "Up to {amount} a month"
+      },
+      "notice": {
+        "k": "Notice",
+        "v": "24 hours before every charge"
+      },
+      "cancel": {
+        "k": "Cancel",
+        "v": "Any time, in Profile"
+      }
+    },
+    "confirmTitle": "Set up UPI Autopay up to {amount} a month?",
+    "confirmBody": "Your UPI app asks you to approve the mandate. Nothing is charged today; each box is charged at the cut-off, with a notice 24 hours before.",
+    "confirmCta": "Set up, up to {amount}",
+    "confirmCancel": "Not now",
+    "done": "UPI Autopay is on. Your next box is charged to UPI at the cut-off.",
+    "failed": "Couldn’t set up UPI Autopay. Nothing was charged. Try again.",
+    "cancelCta": "Cancel UPI Autopay",
+    "cancelTitle": "Cancel UPI Autopay?",
+    "cancelBody": "From the next cut-off, boxes are paid from your wallet again. Keep enough money in it.",
+    "cancelConfirm": "Cancel Autopay",
+    "cancelKeep": "Keep Autopay",
+    "cancelled": "UPI Autopay is off. Boxes are paid from your wallet.",
+    "cancelFailed": "Couldn’t cancel UPI Autopay. Try again.",
+    "on": "On",
+    "walletLink": "Pay per box with UPI Autopay"
   }
 }

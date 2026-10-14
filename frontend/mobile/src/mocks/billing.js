@@ -40,6 +40,9 @@ const needsKey = (/** @type {Request} */ r) =>
     ? null
     : problem(400, "platform.idempotency_key_required", "Idempotency-Key header is required");
 
+/** A mandate as the API shows it, without the idempotency key the mock keeps beside it. */
+const shown = (/** @type {any} */ { key, ...m }) => m;
+
 /** Fills a demo household's wallet the first time it is read (designs: ₹1,310). @param {Request} request */
 function seed(request) {
   // A demo household starts with the designs’ wallet (₹1,310); a new one at ₹0.
@@ -153,13 +156,50 @@ export const billingHandlers = [
     return HttpResponse.json({ razorpay_payment_id: `pay_mock_${Date.now()}`, status: "captured" });
   }),
 
-  http.post("*/v1/mandates", ({ request }) => {
+  // POST /v1/mandates (M5, Idempotency-Key): UPI Autopay up to `max_paise` a month. The mock
+  // skips the UPI app's approval and makes the mandate active at once; boxes then charge to UPI.
+  http.post("*/v1/mandates", async ({ request }) => {
     const missing = needsKey(request);
     if (missing) return missing;
     const s = load();
-    s.mandate = { id: `man-${Date.now()}`, status: "active", notice_hours: 24 };
+    const key = /** @type {string} */ (request.headers.get("idempotency-key"));
+    if (s.mandate?.key === key) return HttpResponse.json(shown(s.mandate), { status: 201 });
+    const { max_paise: max = 500000 } = /** @type {{ max_paise?: number }} */ (
+      await request.json().catch(() => ({}))
+    );
+    if (!Number.isInteger(max) || max < 10_000 || max > 1_500_000)
+      return problem(422, "billing.mandate_invalid", "Mandate limit must be ₹100 to ₹15,000");
+    s.mandate = {
+      id: `man-${Date.now()}`,
+      key,
+      status: "active",
+      max_paise: max,
+      notice_hours: 24,
+    };
+    if (s.subscription) s.subscription.payment_mode = "autopay";
     save(s);
-    return HttpResponse.json(s.mandate, { status: 201 });
+    return HttpResponse.json(shown(s.mandate), { status: 201 });
+  }),
+
+  // GET /v1/mandates/current (our proposal beside M5's GET /v1/mandates/{id}): the caller's live
+  // mandate, or 404 when boxes are paid from the wallet.
+  http.get("*/v1/mandates/current", ({ request }) => {
+    seed(request);
+    const m = load().mandate;
+    return m && m.status === "active"
+      ? HttpResponse.json(shown(m))
+      : problem(404, "billing.no_mandate", "No UPI Autopay mandate");
+  }),
+
+  // DELETE /v1/mandates/{id} (M5): cancel; boxes are paid from the wallet again.
+  http.delete("*/v1/mandates/:id", ({ params }) => {
+    const s = load();
+    if (!s.mandate || s.mandate.id !== params.id)
+      return problem(404, "billing.no_mandate", "No such mandate");
+    s.mandate = null;
+    if (s.subscription) s.subscription.payment_mode = "wallet";
+    save(s);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   http.post("*/v1/subscriptions", async ({ request }) => {

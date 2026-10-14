@@ -1504,5 +1504,48 @@
     "saved": "Budget Lock सेव हो गया। यह अगले हफ़्ते के प्लान से लागू होगा।",
     "turnOff": "Budget Lock बंद करें",
     "turnedOff": "अगले हफ़्ते के प्लान से Budget Lock बंद है।"
+  },
+  "autopay": {
+    "title": "UPI Autopay",
+    "pilot": "पायलट",
+    "lead": "हर बॉक्स का पैसा वॉलेट की जगह कट-ऑफ़ पर आपके UPI से कटेगा।",
+    "leadOn": "UPI Autopay चालू है। हर बॉक्स का पैसा वॉलेट की जगह कट-ऑफ़ पर आपके UPI से कटता है।",
+    "upi": "आपका UPI ऐप एक बार मैंडेट मंज़ूर करने को कहेगा। आज कुछ नहीं कटेगा।",
+    "cta": "UPI Autopay चालू करें",
+    "wallet": "वॉलेट ही इस्तेमाल करें",
+    "facts": {
+      "charged": {
+        "k": "कब कटेगा",
+        "v": "हर बॉक्स, रात 9 बजे कट-ऑफ़ पर"
+      },
+      "limit": {
+        "k": "मैंडेट सीमा",
+        "v": "आपके {amount} मासिक Budget Lock तक",
+        "vNoLock": "हर महीने {amount} तक"
+      },
+      "notice": {
+        "k": "सूचना",
+        "v": "हर बार 24 घंटे पहले"
+      },
+      "cancel": {
+        "k": "बंद करें",
+        "v": "कभी भी, प्रोफ़ाइल में"
+      }
+    },
+    "confirmTitle": "हर महीने {amount} तक UPI Autopay चालू करें?",
+    "confirmBody": "आपका UPI ऐप मैंडेट मंज़ूर करने को कहेगा। आज कुछ नहीं कटेगा; हर बॉक्स का पैसा कट-ऑफ़ पर कटेगा, 24 घंटे पहले सूचना के साथ।",
+    "confirmCta": "{amount} तक चालू करें",
+    "confirmCancel": "अभी नहीं",
+    "done": "UPI Autopay चालू हो गया। अगले बॉक्स का पैसा कट-ऑफ़ पर UPI से कटेगा।",
+    "failed": "UPI Autopay चालू नहीं हो पाया। कोई पैसा नहीं कटा। फिर से कोशिश करें।",
+    "cancelCta": "UPI Autopay बंद करें",
+    "cancelTitle": "UPI Autopay बंद करें?",
+    "cancelBody": "अगले कट-ऑफ़ से बॉक्स का पैसा फिर वॉलेट से कटेगा। उसमें काफ़ी पैसा रखें।",
+    "cancelConfirm": "Autopay बंद करें",
+    "cancelKeep": "Autopay चालू रखें",
+    "cancelled": "UPI Autopay बंद हो गया। बॉक्स का पैसा वॉलेट से कटेगा।",
+    "cancelFailed": "UPI Autopay बंद नहीं हो पाया। फिर से कोशिश करें।",
+    "on": "चालू",
+    "walletLink": "हर बॉक्स का पैसा UPI Autopay से दें"
   }
 }
