@@ -1,6 +1,5 @@
 import {
   Button,
-  ErrorState,
   IconButton,
   MoneyText,
   Skeleton,
@@ -12,6 +11,7 @@ import { ArrowLeftIcon, CopyIcon, MedalIcon, WhatsappLogoIcon } from "@phosphor-
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { inviteLink, whatsappChat } from "@/features/community/invite.js";
 import { useImpact, useRecordInvite, useSociety } from "@/features/community/queries.js";
 import { ShareSheet } from "@/features/community/ShareSheet.jsx";
@@ -49,14 +49,7 @@ function Society() {
   });
 
   if (isPending) return <Skeleton lines={6} />;
-  if (isError || !s)
-    return (
-      <ErrorState
-        title={t("onboarding.error")}
-        retryLabel={t("onboarding.retry")}
-        onRetry={() => refetch()}
-      />
-    );
+  if (isError || !s) return <ScreenError onRetry={() => refetch()} />;
   const live = s.status === "live";
   const list = new Intl.ListFormat(lang, { type: "conjunction" });
   // Weekday names from a known Monday (5 Oct 2026), so they come out in the person's language.

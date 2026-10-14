@@ -347,4 +347,15 @@ describe("household edits and pause (M1, M3)", () => {
     ).json();
     expect(on.status).toBe("active");
   });
+
+  it("changes the flat within the society", async () => {
+    await signedIn();
+    const h = await (await call("GET", "/v1/households/me")).json();
+    const res = await call("PATCH", `/v1/addresses/${h.address_id}`, { tower: "c", flat: "701" });
+    expect(await res.json()).toMatchObject({ label: "C-701" });
+    expect((await (await call("GET", "/v1/households/me")).json()).flat).toBe("C-701");
+    expect(
+      (await call("PATCH", `/v1/addresses/${h.address_id}`, { tower: "c", flat: "" })).status,
+    ).toBe(422);
+  });
 });

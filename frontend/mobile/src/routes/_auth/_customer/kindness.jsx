@@ -3,7 +3,6 @@ import {
   Button,
   Chip,
   EmptyState,
-  ErrorState,
   GullakCoin,
   GullakMeter,
   Skeleton,
@@ -13,6 +12,7 @@ import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useKindness } from "@/features/billing/queries.js";
 import {
   DONATION_ITEMS,
@@ -60,9 +60,7 @@ function Kindness() {
     return (
       <div className="flex flex-col gap-4">
         {header}
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
+        <ScreenError
           onRetry={() => {
             balance.refetch();
             donations.refetch();

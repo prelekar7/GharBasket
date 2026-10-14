@@ -1,6 +1,5 @@
 import {
   Button,
-  ErrorState,
   formatPaise,
   ParchiList,
   Sheet,
@@ -13,6 +12,7 @@ import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { AddItemSheet } from "@/features/catalog/AddItemSheet.jsx";
 import { reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { QtySheet } from "@/features/subscriptions/QtySheet.jsx";
@@ -50,14 +50,7 @@ function Box() {
   const subs = useSubstitutes(swapping?.id ?? null, lang);
 
   if (isPending) return <Skeleton lines={8} />;
-  if (isError || !c)
-    return (
-      <ErrorState
-        title={t("onboarding.error")}
-        retryLabel={t("onboarding.retry")}
-        onRetry={() => refetch()}
-      />
-    );
+  if (isError || !c) return <ScreenError onRetry={() => refetch()} />;
 
   // Swaps stay open after approving, until the cut-off (Core-W3).
   const editable = c.status === "ready" || c.status === "approved";
@@ -214,15 +207,7 @@ function Box() {
           onOpenChange={(open) => !open && setSwapping(null)}
           title={t("box.sheetTitle", { item: swapping.name })}
         >
-          {subs.isError ? (
-            <ErrorState
-              title={t("onboarding.error")}
-              retryLabel={t("onboarding.retry")}
-              onRetry={() => subs.refetch()}
-            />
-          ) : (
-            <Skeleton lines={6} />
-          )}
+          {subs.isError ? <ScreenError onRetry={() => subs.refetch()} /> : <Skeleton lines={6} />}
         </Sheet>
       )}
       {swapping && subs.data && (

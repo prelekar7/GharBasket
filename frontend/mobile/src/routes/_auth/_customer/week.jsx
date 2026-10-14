@@ -3,7 +3,6 @@ import {
   Dialog,
   EmptyBasket,
   EmptyState,
-  ErrorState,
   formatPaise,
   MoneyText,
   OrderTimeline,
@@ -16,6 +15,7 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { DaySheet } from "@/features/subscriptions/DaySheet.jsx";
 import {
@@ -68,14 +68,7 @@ function Week() {
   });
 
   if (isPending) return <Skeleton lines={6} />;
-  if (isError || !c)
-    return (
-      <ErrorState
-        title={t("onboarding.error")}
-        retryLabel={t("onboarding.retry")}
-        onRetry={() => refetch()}
-      />
-    );
+  if (isError || !c) return <ScreenError onRetry={() => refetch()} />;
 
   const today = c.meal_plan.days.findIndex(
     (d) => d.date === new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),

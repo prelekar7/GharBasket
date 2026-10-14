@@ -1,8 +1,9 @@
-import { Button, ErrorState, Select, Skeleton, SocietyUnlockBar, TextField } from "@gharbasket/ui";
+import { Button, Select, Skeleton, SocietyUnlockBar, TextField } from "@gharbasket/ui";
 import { MedalIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
+import { ScreenError } from "@/components/ScreenError.jsx";
 import { useSociety } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
@@ -39,11 +40,7 @@ function FlatStep() {
       {isPending ? (
         <Skeleton lines={4} />
       ) : isError || !society ? (
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       ) : (
         <>
           <div className="flex flex-col gap-0.5">

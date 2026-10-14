@@ -3,9 +3,11 @@ import {
   Dialog,
   formatPaise,
   RadioCards,
+  Select,
   Sheet,
   Skeleton,
   Switch,
+  TextField,
   toast,
 } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -14,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
 import {
+  useChangeAddress,
   useDataExport,
   useDeleteAccount,
   useDevices,
@@ -32,7 +35,7 @@ import { useSession } from "@/lib/session.js";
 export const Route = createFileRoute("/_auth/_customer/profile")({ component: Profile });
 
 const LANGUAGE_NAMES = { "en-IN": "English", "hi-IN": "हिन्दी", "mr-IN": "मराठी" };
-/** @typedef {"language" | "household" | "autopilot" | "devices" | "privacy" | null} SheetName */
+/** @typedef {"language" | "household" | "address" | "autopilot" | "devices" | "privacy" | null} SheetName */
 
 /** Household parts Profile can change, each on its onboarding screen in edit mode. */
 const HOUSEHOLD_STEPS_EDIT = [
@@ -60,6 +63,9 @@ function Profile() {
   const wallet = useWallet();
   const update = useUpdateMe();
   const pause = usePause(household.data?.subscription.id);
+  const changeAddress = useChangeAddress(household.data?.address_id);
+  const [tower, setTower] = useState("");
+  const [flatNo, setFlatNo] = useState("");
   const startEdit = useOnboardingDraft((d) => d.startEdit);
   const [weeks, setWeeks] = useState("2");
   const hh = household.data;
@@ -108,6 +114,17 @@ function Profile() {
       label: t("profile.household"),
       value: household.data ? t("profile.people", { n: household.data.size }) : undefined,
       onPress: () => setSheet("household"),
+    },
+    {
+      key: "address",
+      label: t("profile.address.row"),
+      value: where || undefined,
+      onPress: () => {
+        const [w = "", n = ""] = (household.data?.flat ?? "").split("-");
+        setTower(w.toLowerCase());
+        setFlatNo(n);
+        setSheet("address");
+      },
     },
     {
       key: "autopilot",
@@ -260,6 +277,54 @@ function Profile() {
             ))}
           </ul>
         )}
+      </Sheet>
+
+      <Sheet
+        open={sheet === "address"}
+        onOpenChange={(o) => setSheet(o ? "address" : null)}
+        title={t("profile.address.title")}
+        description={t("profile.address.lead", { society: society?.name ?? "" })}
+        footer={
+          <Button
+            variant="primary"
+            size="lg"
+            block
+            isPending={changeAddress.isPending}
+            isDisabled={!tower || !flatNo.trim()}
+            onPress={() =>
+              changeAddress.mutate(
+                { tower, flat: flatNo.trim() },
+                {
+                  onSuccess: () => {
+                    setSheet(null);
+                    toast(t("profile.address.saved"));
+                  },
+                  onError: () => toast(t("profile.saveFailed")),
+                },
+              )
+            }
+          >
+            {t("profile.edit.save")}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Select
+            label={t("onboarding.flat.tower")}
+            placeholder={t("onboarding.flat.towerPh")}
+            value={tower}
+            onChange={setTower}
+            options={(society?.towers ?? []).map((tw) => ({ value: tw.id, label: tw.label }))}
+          />
+          <TextField
+            label={t("onboarding.flat.flat")}
+            inputMode="numeric"
+            autoComplete="off"
+            value={flatNo}
+            onChange={(v) => setFlatNo(v.replace(/[^0-9A-Za-z]/g, "").slice(0, 6))}
+          />
+          <p className="text-sm leading-5 text-fg-secondary">{t("profile.address.move")}</p>
+        </div>
       </Sheet>
 
       <Sheet

@@ -1,7 +1,7 @@
 import { Button, IconButton, TextField } from "@gharbasket/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -9,9 +9,9 @@ import { sendCode } from "@/lib/otp.js";
 import { nextSearch } from "@/lib/search.js";
 
 const MOCK = import.meta.env.VITE_API_MOCK !== "false";
-// The legal pages live on the website, which is not up yet (design Hf02 links them like this).
-const TERMS_HREF = "#terms";
-const PRIVACY_HREF = "#privacy";
+// In-app Terms and Privacy notice (routes/legal.$doc.jsx).
+const TERMS_HREF = "/legal/terms";
+const PRIVACY_HREF = "/legal/privacy";
 
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/login")({ validateSearch: nextSearch, component: Login });
@@ -89,13 +89,13 @@ function Login() {
           {MOCK && <p className="text-sm text-fg-secondary">{t("login.mock")}</p>}
           <p className="text-sm leading-5 text-fg-secondary">
             {t("login.consent.pre")}
-            <a href={TERMS_HREF} className="font-semibold text-link underline">
+            <Link to={TERMS_HREF} className="font-semibold text-link underline">
               {t("login.consent.terms")}
-            </a>
+            </Link>
             {t("login.consent.mid")}
-            <a href={PRIVACY_HREF} className="font-semibold text-link underline">
+            <Link to={PRIVACY_HREF} className="font-semibold text-link underline">
               {t("login.consent.privacy")}
-            </a>
+            </Link>
             {t("login.consent.post")}
           </p>
           <Button

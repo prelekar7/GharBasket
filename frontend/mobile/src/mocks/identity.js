@@ -65,6 +65,7 @@ export const identityHandlers = [
         version: 1,
         society_id: body.society_id,
         flat: null,
+        address_id: null,
         size: body.size,
         // Members arrive one by one (POST …/members) and fill these counts.
         members: { adults: 0, seniors: 0, children: 0, little: 0 },
