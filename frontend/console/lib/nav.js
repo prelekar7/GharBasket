@@ -102,7 +102,7 @@ export const NAV = [
     label: "Buying",
     items: [
       { href: "/procurement", label: "Procurement", ready: true },
-      { href: "/receiving", label: "Receiving and QC" },
+      { href: "/receiving", label: "Receiving and QC", ready: true },
       { href: "/vendors", label: "Vendors" },
       { href: "/waste", label: "Waste and cascade", key: "w" },
     ],
