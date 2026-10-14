@@ -3,7 +3,7 @@
 **Status:** Draft v1.1. §3.1 (`POST /plan/week`, v0) is frozen and built in `backend/ml`; the rest is refined at phase start (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (evaluation review, paper figures)
 **Phase / Sprint:** Simulator and skeleton from P1 / S0; models in P4 / S7–S8
-**Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025; the Space is being set up in PR #115); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`
+**Deployables:** `backend/ml` (FastAPI, stateless; served from a Hugging Face Space with OSRM as a second process, ADR-0025); `backend/training` (training, forecasting, snapshots and data jobs, run in GitHub Actions, ADR-0025); models and the lake on R2 with a `latest.json` pointer per model; MLflow local only; gateway module in the API: `gharbasket.modules.intel_gateway`
 **Postgres schema:** `intel` (written by the ML service through the gateway's contract)
 
 ## 1. Purpose
@@ -130,6 +130,68 @@ How much of a perishable daily-use item (milk, curd) a household goes through in
 - **Use (M3 §3.1 step 2):** only with `PANTRY_TWIN_ENABLED=true` (default off). Then, once a household has one locked box, the twin's `mean` replaces the rule table's daily-use quantity of milk and curd, and that week's recipe need is added on top (`reason_code: pantry_low`, params `mean, p10, p90, weeks, source`). Recorded in `intel.predictions` (kind `pantry`). The weekly job uses it; the customer-facing preview (`GET /v1/cycles/preview`) does not, so it waits on one ML call at most. It is switched on only once the eval harness shows the pre-registered target holds (MAE ≤ 15 % after 4 weeks, `just eval` prints it).
 - **Eval:** scored on the same scope (milk and curd, their daily-use share) next to the rule table and a running mean of the actual daily use, with the 80 % interval's coverage.
 - **v1 (P4):** NumPyro refits the cohort priors per cohort × product in `backend/training` and models stock, so staples can join; the formulas here stay.
+
+### 3.4 `POST /route/solve` (v0, M-F; from spike S-3)
+One delivery slot's van routes for a hub: a stop is a society (the captain does the last 50 metres). Stateless; the API (M7 through `intel_gateway.api.solve_routes`) sends the day's societies with their loads and windows and gets routes with ETAs back, recorded in `intel.predictions` (kind `route`, subject the hub).
+
+```
+  request:
+    "hub": { "lat", "lng" }, "depart_s": 23400, "return_by_s": 41400,      seconds after midnight IST
+    "stops": [ { "id": "<society id>", "lat", "lng", "orders", "kg_tenths", "crates", "empties",
+                 "donation_kg_tenths", "window_start_s": 25200, "window_end_s": 32400 } ],
+    "food_bank": { "lat", "lng", "window_start_s", "window_end_s" } | null,
+    "vans": { "count", "capacity_kg": 400, "capacity_crates": 24, "traffic_factor": 1.5, "reload_s": 1200 },
+    "service": { "drop_s": 240, "per_crate_s": 30 }, "cost": { "fixed_paise_per_van": 25000, "paise_per_km": 60,
+                 "wage_paise_per_s": 3, "late_paise_per_s": 50 }, "time_limit_s": 10, "max_late_s": 1800
+  422:
+    a window that starts after it ends, depart_s not before return_by_s, or donations without a food_bank
+    (the gateway's RouteRequest refuses the same, so M7 sees a ValidationError, not a missing route)
+  200:
+    "status": "solved" | "fallback",                 fallback = nearest neighbour, when the solver found no plan
+    "source": "osrm" | "haversine",                  the road network, or straight lines x 1.3 when OSRM is down or slow
+    "routes": [ { "van", "start_s", "end_s", "stops": [ { "id", "kind": "drop" | "bank", "eta_s", "late_s" } ] } ],
+    "summary": { "vans", "km", "cost_paise", "on_time", "late_min", "problems": [] },   the checker's findings
+    "seconds", "model": "cvrptw-waves-v0"
+```
+- **Model:** OR-Tools CVRPTW with pickups and deliveries (empties and donations ride back; each donation reaches the food bank on the same van), solved in **two waves** (S-3): the earliest-window societies first, then the rest with the same vans from the moment they are back and reloaded, plus only the vans of `vans.count` the first wave left at the hub. The plan never uses more vans than the fleet. Each wave gets half the time limit.
+- **Checker:** every answer is replayed on the matrix; `summary.problems` lists every rule that fails, and **M7 publishes a route only when `problems` is empty**. The rules:
+  - no trip leaves before `depart_s`, and a van's next trip leaves only after it is back plus `reload_s`;
+  - kg and crates within capacity leaving the hub and after every stop (crates out, empties and donation crates in);
+  - each donation on the same van before its food-bank drop, and the food bank reached before its window ends;
+  - a drop more than `max_late_s` (default 30 min) after its window's end; lateness below that only lowers `on_time` and adds to `late_min`;
+  - every society and food-bank drop exactly once (`not served: …` names the ones left out, `visited twice: …` the repeats);
+  - every van back by `return_by_s`, and no more vans than `vans.count`.
+- **Fallbacks:** OSRM down, slow (over `OSRM_TIMEOUT_S`, 2.5 s) or wrong-shaped → haversine distances; a pair OSRM cannot route (`null`) → that pair's haversine estimate, logged. No plan → nearest neighbour within the fleet: each trip goes to the van free first, a van goes out again only if it is back by `return_by_s`, and the societies left over are reported in `problems`. The service down → the gateway returns `None` after `time_limit_s + ML_ROUTE_OVERHEAD_S` (6 s, covering OSRM's 2.5 s) and M7 keeps the previous day's sequence (M7 §6).
+
+### 3.5 `POST /assign/kitchens` (v0, M-G; greedy baseline inside)
+Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` at T-1 21:30, through `intel_gateway.api.assign_kitchens`, recorded in `intel.predictions` kind `assignment`).
+
+```
+  request:
+    "orders": [ { "id": "<order id>", "lat", "lng", "portions", "skills": ["veg", "jain"] } ],   ≤ 2000
+    "kitchens": [ { "id": "<partner id>", "lat", "lng", "max_portions", "skills": [...], "rating": 4.5,
+                    "earnings_paise": 120000 } ],         ≤ 300; rolling earnings before tonight, ≤ 10^12
+    "fairness_lambda": 300,            paise of cost per portion of earnings imbalance; 0 = cost only
+    "rating_floor": 3.8, "max_km": 5, "paise_per_portion": 6000, "quality_paise_per_star": 500,
+    "max_kitchens_per_order": 15,      only the nearest this many eligible kitchens are candidates
+    "time_limit_s": 5                  wall clock, building the model included
+  200:
+    "status": "solved" | "partial" | "fallback" | "infeasible",
+    "assignments": [ { "order_id", "kitchen_id", "portions", "km" } ],
+    "unassigned": [ { "order_id", "reason": "below_rating_floor" | "no_skills" | "too_many_portions"
+                                          | "out_of_reach" | "no_room" } ],
+    "summary": { "portions", "kitchens_used", "km_per_portion", "cost_paise_per_portion",
+                 "gini", "gini_eligible",
+                 "earnings_paise": [ { "kitchen_id", "earnings_paise" } ] } | null,
+    "seconds", "model": "assignment-cpsat-v0" | "greedy-v0"
+```
+- **Model:** CP-SAT; each order to one kitchen within reach that has the skills, the rating and the room; objective = distance (₹3 a portion-km) + quality penalty (₹5 a star below 5) + λ × (the largest deviation of an eligible kitchen's earnings from the fair share + the mean absolute deviation). Earnings are rolling + tonight and counted **in portions** (÷ `paise_per_portion`), so λ trades like for like with the cost per portion; the max is the linear proxy for the Gini in handbook 08 M-G, the mean keeps the objective from going flat when one kitchen pins the max. *Eligible* = a candidate for at least one order tonight: a kitchen with no room, below the floor, without the skills or out of reach is left out of the share and the deviations.
+- **λ default 300:** the knee of a sweep on the test instance (12 orders, 4 kitchens, three seeds: knees at 200-300); on a 60-order, 8-kitchen hub the knee is at 600-700. The eval harness's sweep settles the production value.
+- **Partial plans:** every order has a skip with a penalty per portion larger than any order's cost and fairness effect, so one order no kitchen can take never fails the hub. Skipped orders are listed in `unassigned` with the first reason that rules every kitchen out, or `no_room` when kitchens could cook it but are full; `status` is then `partial` (`infeasible` only when nothing is assigned). `summary` per-portion figures count the assigned portions.
+- **Summary:** `gini` is over every kitchen in the request (the paper metric), `gini_eligible` over the eligible kitchens (what λ balances).
+- **Time:** candidates are the nearest `max_kitchens_per_order` kitchens per order, the variables are grouped by order and kitchen in one pass, and building counts against `time_limit_s` (the solver gets the rest; under 0.05 s left → greedy). Above `max_orders_for_solver` (default 500: a 500-order, 60-kitchen hub ends within ~2 % of optimal in 5 s) greedy answers; so do instances whose objective would not fit in int64. The gateway waits `max(ml_timeout_s, time_limit_s + 5 s)`.
+- **Deterministic mode:** `assign(req, deterministic=True)` (the default for in-process callers such as the eval harness) solves with one worker and a deterministic-time limit, so repeated runs give the same plan; the endpoint passes `False` (eight workers, wall-clock limit).
+- **Fallbacks:** no plan in time, too many orders or numbers too large → greedy nearest kitchen with room (`status: fallback`, or `partial`; `model: greedy-v0`); the service down → the gateway returns `None` and M8's job assigns greedily itself.
 
 ### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.

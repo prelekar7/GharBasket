@@ -42,7 +42,9 @@ export function PriceSwapChip({ fromPaise, toPaise, labels }) {
 
 /**
  * The weekly box as a handwritten-style list ("parchi") on kraft paper, the same in light and dark.
- * @param {{ items: ParchiItem[], title?: string, date?: string, totalPaise?: number, after?: import("react").ReactNode, onSwap?: (item: ParchiItem) => void, labels?: { total?: string, swap?: string, swapChip?: { up?: string, saves?: string } } }} props
+ * With `onItemPress`, each item's name is a button that opens it (quantity sheet, design Core-B3).
+ * With `onUndo`, a swapped-in item offers Undo next to its price chip (Core-B4).
+ * @param {{ items: ParchiItem[], title?: string, date?: string, totalPaise?: number, after?: import("react").ReactNode, onSwap?: (item: ParchiItem) => void, onItemPress?: (item: ParchiItem) => void, onUndo?: (item: ParchiItem) => void, labels?: { total?: string, swap?: string, change?: string, undo?: string, swapChip?: { up?: string, saves?: string } } }} props
  */
 export function ParchiList({
   items,
@@ -51,6 +53,8 @@ export function ParchiList({
   totalPaise,
   after,
   onSwap,
+  onItemPress,
+  onUndo,
   labels,
 }) {
   const total = totalPaise ?? items.reduce((s, i) => s + i.pricePaise, 0);
@@ -67,7 +71,18 @@ export function ParchiList({
         {items.map((it) => (
           <li key={it.name} className="border-b border-dashed border-[#1e1b1633] py-2">
             <div className="flex items-baseline gap-2">
-              <span className="flex-1 font-semibold">{it.name}</span>
+              {onItemPress ? (
+                <button
+                  type="button"
+                  aria-label={fill(labels?.change ?? "Change {name}", { name: it.name })}
+                  onClick={() => onItemPress(it)}
+                  className="flex-1 cursor-pointer rounded-xs text-left font-semibold outline-none focus-visible:shadow-focus"
+                >
+                  {it.name}
+                </button>
+              ) : (
+                <span className="flex-1 font-semibold">{it.name}</span>
+              )}
               <span className="text-sm text-[var(--gb-ink-700)]">{it.qty}</span>
               <MoneyText paise={it.pricePaise} className="min-w-14 text-right" />
             </div>
@@ -81,14 +96,24 @@ export function ParchiList({
                     labels={labels?.swapChip}
                   />
                 )}
-                {onSwap && (
+                {onUndo && it.swappedFromPaise != null ? (
                   <Button
                     variant="quiet"
                     className="min-h-10 px-1 text-[var(--gb-neel-600)] underline"
-                    onPress={() => onSwap(it)}
+                    onPress={() => onUndo(it)}
                   >
-                    {labels?.swap ?? "Swap"}
+                    {labels?.undo ?? "Undo"}
                   </Button>
+                ) : (
+                  onSwap && (
+                    <Button
+                      variant="quiet"
+                      className="min-h-10 px-1 text-[var(--gb-neel-600)] underline"
+                      onPress={() => onSwap(it)}
+                    >
+                      {labels?.swap ?? "Swap"}
+                    </Button>
+                  )
                 )}
               </div>
             )}
@@ -109,9 +134,10 @@ export function ParchiList({
 /**
  * The week as seven thalis: one katori per meal (green cook, saffron tiffin, empty skip).
  * Scrolls sideways on a phone; today is outlined and badged.
- * @param {{ days: { day: string, date: string, meals: ThaliMeal[] }[], today?: number, label?: string, labels?: { today?: string, skip?: string } }} props
+ * With `onDayPress`, a button over each day opens it (design Core-W2); `labels.open` names it.
+ * @param {{ days: { day: string, date: string, meals: ThaliMeal[] }[], today?: number, label?: string, labels?: { today?: string, skip?: string, open?: string }, onDayPress?: (index: number) => void }} props
  */
-export function ThaliWeek({ days, today, label = "This week", labels }) {
+export function ThaliWeek({ days, today, label = "This week", labels, onDayPress }) {
   return (
     <ol
       aria-label={label}
@@ -159,6 +185,14 @@ export function ThaliWeek({ days, today, label = "This week", labels }) {
                 </li>
               ))}
             </ul>
+            {onDayPress && (
+              <button
+                type="button"
+                aria-label={fill(labels?.open ?? "Open {day} {date}", { day: d.day, date: d.date })}
+                onClick={() => onDayPress(i)}
+                className="absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:shadow-focus"
+              />
+            )}
           </li>
         );
       })}
@@ -248,7 +282,7 @@ export function KnowYourCookCard({ name, kitchen, since, specialty, fssai, hygie
 
 /**
  * Bottom sheet with up to three ranked swaps for a box line, each with its price change.
- * @param {{ open: boolean, onOpenChange: (open: boolean) => void, item: { name: string, pricePaise: number }, options: SubstituteOption[], onConfirm: (option: SubstituteOption) => void, labels?: { title?: string, note?: string, cta?: string } }} props
+ * @param {{ open: boolean, onOpenChange: (open: boolean) => void, item: { name: string, pricePaise: number }, options: SubstituteOption[], onConfirm: (option: SubstituteOption) => void, labels?: { title?: string, note?: string, cta?: string } }} props `cta` may name the chosen option with `{name}`.
  */
 export function SubstituteSheet({ open, onOpenChange, item, options, onConfirm, labels }) {
   const ranked = options.slice(0, 3);
@@ -262,7 +296,7 @@ export function SubstituteSheet({ open, onOpenChange, item, options, onConfirm, 
       description={labels?.note ?? "Three good options, best first."}
       footer={
         <Button variant="primary" size="lg" block onPress={() => onConfirm(ranked[Number(choice)])}>
-          {labels?.cta ?? "Use this"}
+          {fill(labels?.cta ?? "Use {name}", { name: ranked[Number(choice)]?.name ?? "" })}
         </Button>
       }
     >

@@ -601,6 +601,7 @@ version = "0.1.0"
 source = { editable = "backend/ml" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "ortools" },
     { name = "pydantic-settings" },
     { name = "scipy" },
@@ -610,6 +611,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "httpx2", specifier = ">=2.13.1" },
     { name = "ortools", specifier = ">=9.15.6755" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "scipy", specifier = ">=1.14" },

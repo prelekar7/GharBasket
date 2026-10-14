@@ -1,24 +1,26 @@
-"""Packing (spec §3.2, ADR-0026 §6): tasks built at T 05:00 in delivery order, the queue, the
-summary per society and a task with its lines.
+"""Packing (spec §3.2, ADR-0026 §6): tasks built at T 05:00 in delivery order, and the packer's
+start, pick, shortage and complete.
 
-Orders belong to M4: tasks are built from `orders.api.orders_for_delivery`, with addresses from
-identity, society names from community and product names from the catalog, all through their
-facades. M6 never writes `orders.*`.
+The order belongs to M4: every move goes through `orders.api` (`transition` with actor `packer`,
+or `hub` for a hub manager, and `mark_shortage`) in the request's transaction, so an order M4
+refuses to move (409 `orders.illegal_transition`) leaves the task unchanged. A task is row-locked
+while it changes; `next` skips tasks another packer is claiming (`FOR UPDATE SKIP LOCKED`).
 """
 
 import re
 import uuid
-from datetime import date, datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import service
-from gharbasket.modules.hub_ops.models import PackingLine, PackingTask
+from gharbasket.modules.hub_ops.models import PackingEvent, PackingLine, PackingTask
 from gharbasket.modules.hub_ops.schemas import (
     Packer,
     PackingLineOut,
@@ -39,6 +41,7 @@ from gharbasket.platform.permissions import Permit
 
 IST = ZoneInfo("Asia/Kolkata")
 PACKED_KINDS = ("box", "addon")  # tiffins are cooked by kitchens (M8), never packed here
+CRATE_BAGS = 3  # bags to a crate (ADR-0026 §6: crates are counted, not tracked)
 DAYS_BACK, DAYS_AHEAD = 7, 2
 
 
@@ -64,6 +67,32 @@ def packing_day(day: date | None) -> date:
             422, "hub_ops.date_out_of_range", "Pick a date from a week ago to 2 days on."
         )
     return day
+
+
+@dataclass(frozen=True)
+class Actor:
+    """Who acts on a task: a packer, or a hub manager (actor `hub` on the order)."""
+
+    user_id: uuid.UUID
+    manager: bool
+
+    @property
+    def order_actor(self) -> str:
+        return "hub" if self.manager else "packer"
+
+
+def actor(permit: Permit, hub_id: uuid.UUID) -> Actor:
+    manager = any(
+        g.role in ("hub_manager", "admin") and g.scope_id in (None, hub_id) for g in permit.grants
+    )
+    return Actor(permit.principal.user_id, manager)
+
+
+async def household_allows_substitutes(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """False for a household that chose "never substitute, refund" (ADR-0026 §6, M1 §3.4), read
+    when the shortage is recorded so a change applies at once; M4's `mark_shortage` checks again."""
+    preferences = await identity_api.shortage_preferences(session, [household_id])
+    return preferences[household_id] != "refund"
 
 
 # --- building the queue ---------------------------------------------------------------------------
@@ -360,3 +389,252 @@ async def bag_for_order(session: AsyncSession, order_id: uuid.UUID) -> PackingTa
     return (
         await session.execute(select(PackingTask).where(PackingTask.order_id == order_id))
     ).scalar_one_or_none()
+
+
+# --- the packer's moves ---------------------------------------------------------------------------
+
+
+def _changed(
+    session: AsyncSession,
+    task: PackingTask,
+    action: str,
+    by: Actor,
+    payload: dict[str, Any] | None,
+    client_at: datetime | None,
+) -> None:
+    task.version += 1
+    session.add(
+        PackingEvent(
+            task_id=task.id, action=action, user_id=by.user_id, payload=payload, client_at=client_at
+        )
+    )
+
+
+def _held(task: PackingTask, by: Actor) -> None:
+    """Pick, shortage and complete need a started task held by the caller (or a hub manager)."""
+    if task.status == "packed":
+        raise _problem(409, "hub_ops.task_packed", "This task is packed.")
+    if task.status == "queued":
+        raise _problem(409, "hub_ops.task_not_started", "Start the task first.")
+    if not by.manager and task.packer_user_id != by.user_id:
+        raise _problem(403, "hub_ops.not_your_task", "Another packer holds this task.")
+
+
+async def _line(session: AsyncSession, task: PackingTask, product_id: uuid.UUID) -> PackingLine:
+    """The line of the ordered product, or of its substitute."""
+    for line in await lines_of(session, task.id):
+        if product_id in (line.product_id, line.substitute_product_id):
+            return line
+    raise _problem(404, "hub_ops.line_not_found", "This product is not on the task.")
+
+
+async def start(
+    session: AsyncSession,
+    task: PackingTask,
+    by: Actor,
+    scanned: str | None = None,
+    client_at: datetime | None = None,
+) -> None:
+    """Take a queued task (the order moves locked → picking) or a released one."""
+    if task.status == "packed":
+        raise _problem(409, "hub_ops.task_packed", "This task is packed.")
+    if scanned is not None and scanned != bag_qr(task.order_id):
+        raise _problem(422, "hub_ops.bag_mismatch", "This bag belongs to another order.")
+    if task.packer_user_id == by.user_id:
+        return
+    if task.packer_user_id is not None:
+        raise _problem(409, "hub_ops.task_taken", "Another packer holds this task.")
+    if task.status == "queued":
+        await orders_api.transition(
+            session, task.order_id, "picking", actor=by.order_actor, actor_user_id=by.user_id
+        )
+        task.status, task.started_at = "picking", datetime.now(UTC)
+    task.packer_user_id = by.user_id
+    _changed(session, task, "start", by, {"bag_qr": scanned} if scanned else None, client_at)
+    await session.flush()
+
+
+async def claim_next(
+    session: AsyncSession, hub_id: uuid.UUID, by: Actor, day: date
+) -> PackingTask | None:
+    """The caller's task in picking, else the first queued (or released) task by seq, started for
+    them. Tasks whose order M4 will not move (packed in the console, say) are passed over."""
+    mine = await session.scalar(
+        select(PackingTask)
+        .where(
+            PackingTask.hub_id == hub_id,
+            PackingTask.delivery_date == day,
+            PackingTask.status == "picking",
+            PackingTask.packer_user_id == by.user_id,
+        )
+        .order_by(PackingTask.seq)
+        .limit(1)
+    )
+    if mine is not None:
+        return mine
+    passed: list[uuid.UUID] = []
+    while True:
+        task = await session.scalar(
+            select(PackingTask)
+            .where(
+                PackingTask.hub_id == hub_id,
+                PackingTask.delivery_date == day,
+                or_(
+                    PackingTask.status == "queued",
+                    and_(PackingTask.status == "picking", PackingTask.packer_user_id.is_(None)),
+                ),
+                PackingTask.id.not_in(passed),
+            )
+            .order_by(PackingTask.seq)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        if task is None:
+            return None
+        try:
+            async with session.begin_nested():
+                await start(session, task, by)
+        except ProblemError as refused:
+            if refused.code != "orders.illegal_transition":
+                raise
+            await session.refresh(task)
+            passed.append(task.id)
+            continue
+        return task
+
+
+async def pick(
+    session: AsyncSession,
+    task: PackingTask,
+    by: Actor,
+    product_id: uuid.UUID,
+    picked_qty: int,
+    client_at: datetime | None = None,
+) -> None:
+    """Set the steps in the bag (absolute, so a repeat changes nothing)."""
+    _held(task, by)
+    line = await _line(session, task, product_id)
+    if not 0 <= picked_qty <= line.qty - line.short_qty:
+        raise _problem(
+            422, "hub_ops.qty_invalid", "Picked steps are from 0 to the line's quantity less short."
+        )
+    if line.picked_qty == picked_qty:
+        return
+    line.picked_qty = picked_qty
+    payload = {"product_id": str(product_id), "picked_qty": picked_qty}
+    _changed(session, task, "pick", by, payload, client_at)
+    await session.flush()
+
+
+def _substitute_invalid(reason: str) -> ProblemError:
+    return _problem(
+        422, "hub_ops.substitute_invalid", "This product cannot replace the line.", reason=reason
+    )
+
+
+async def shortage(
+    session: AsyncSession,
+    task: PackingTask,
+    by: Actor,
+    product_id: uuid.UUID,
+    short_qty: int,
+    substitute_id: uuid.UUID | None,
+    client_at: datetime | None = None,
+) -> None:
+    """Refund short steps, or replace the whole line with a substitute, through
+    `orders.api.mark_shortage` (which checks the substitute list and price, and refunds)."""
+    _held(task, by)
+    line = await _line(session, task, product_id)
+    if line.short_qty or line.substitute_product_id:
+        raise _problem(409, "hub_ops.shortage_recorded", "This line already has its shortage.")
+    if substitute_id is None:
+        if not 1 <= short_qty <= line.qty - line.picked_qty:
+            raise _problem(
+                422, "hub_ops.qty_invalid", "Short steps are from 1 to what is not picked yet."
+            )
+    else:
+        if short_qty != line.qty or line.picked_qty:
+            raise _substitute_invalid("partial")
+        order = await orders_api.get(session, task.order_id)
+        if not await household_allows_substitutes(session, order.household_id):
+            raise _substitute_invalid("refund_preferred")
+    try:
+        await orders_api.mark_shortage(
+            session, task.order_id, line.product_id, short_qty, substitute_id
+        )
+    except ProblemError as refused:
+        if refused.code == "orders.shortage_recorded":
+            raise _problem(
+                409, "hub_ops.shortage_recorded", "This line already has its shortage."
+            ) from refused
+        if refused.code in ("orders.substitute_invalid", "orders.product_unknown"):
+            reason = (refused.extra or {}).get("reason", "unknown")
+            raise _substitute_invalid(str(reason)) from refused
+        raise
+    if substitute_id is None:
+        line.short_qty = short_qty
+    else:
+        line.substitute_product_id = substitute_id
+    payload = {
+        "product_id": str(line.product_id),
+        "short_qty": short_qty,
+        "substitute_product_id": None if substitute_id is None else str(substitute_id),
+    }
+    _changed(session, task, "shortage", by, payload, client_at)
+    await session.flush()
+
+
+async def complete(
+    session: AsyncSession,
+    task: PackingTask,
+    by: Actor,
+    bags: int | None,
+    crate_no: int | None,
+    client_at: datetime | None = None,
+) -> None:
+    """Every line done: the bag is packed (the order moves picking → packed). Without
+    `crate_no` the bag goes into the society's current crate, three bags to a crate."""
+    _held(task, by)
+    lines = await lines_of(session, task.id)
+    open_lines = [str(ln.product_id) for ln in lines if ln.picked_qty + ln.short_qty < ln.qty]
+    if open_lines:
+        raise _problem(
+            409,
+            "hub_ops.lines_open",
+            "Pick or mark short every line first.",
+            product_ids=open_lines,
+        )
+    if crate_no is None:
+        packed_bags = await session.scalar(
+            select(func.coalesce(func.sum(PackingTask.bags), 0)).where(
+                PackingTask.hub_id == task.hub_id,
+                PackingTask.delivery_date == task.delivery_date,
+                PackingTask.society_id == task.society_id,
+                PackingTask.status == "packed",
+            )
+        )
+        crate_no = min(int(packed_bags or 0) // CRATE_BAGS + 1, 99)
+    await orders_api.transition(
+        session, task.order_id, "packed", actor=by.order_actor, actor_user_id=by.user_id
+    )
+    task.bags = bags or task.bags
+    task.crate_no, task.status, task.packed_at = crate_no, "packed", datetime.now(UTC)
+    _changed(session, task, "complete", by, {"bags": task.bags, "crate_no": crate_no}, client_at)
+    await session.flush()
+
+
+async def release(
+    session: AsyncSession, task: PackingTask, by: Actor, client_at: datetime | None = None
+) -> None:
+    """A hub manager frees a started task: any packer of the hub may start it again; the order
+    stays in picking."""
+    if task.status == "packed":
+        raise _problem(409, "hub_ops.task_packed", "This task is packed.")
+    if task.status == "queued":
+        raise _problem(409, "hub_ops.task_not_started", "Nobody holds this task.")
+    if task.packer_user_id is None:
+        return
+    payload = {"packer_user_id": str(task.packer_user_id)}
+    task.packer_user_id = None
+    _changed(session, task, "release", by, payload, client_at)
+    await session.flush()

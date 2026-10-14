@@ -12,9 +12,18 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, pantry, registry
+from gharbasket_ml import __version__, assignment, pantry, registry, routing
 from gharbasket_ml.planner import plan_week
-from gharbasket_ml.schemas import PantryRequest, PantryResponse, PlanRequest, PlanResponse
+from gharbasket_ml.schemas import (
+    AssignRequest,
+    AssignResponse,
+    PantryRequest,
+    PantryResponse,
+    PlanRequest,
+    PlanResponse,
+    RouteRequest,
+    RouteResponse,
+)
 from gharbasket_ml.settings import Settings, get_settings
 
 _bearer = HTTPBearer(auto_error=False)
@@ -77,7 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Health with the served models and the road network",
     )
     async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
-        return registry.health(settings.models_manifest)
+        return await registry.health(settings.models_manifest, settings.osrm_url)
 
     @app.post(
         "/pantry/quantities",
@@ -86,6 +95,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def pantry_quantities(body: PantryRequest) -> PantryResponse:
         return pantry.quantities(body)
+
+    @app.post(
+        "/assign/kitchens",
+        dependencies=[Depends(require_service_token)],
+        summary="Tomorrow's tiffin portions to home kitchens, fairly (CP-SAT, M10 §3.5)",
+    )
+    async def assign_kitchens(body: AssignRequest) -> AssignResponse:
+        return await run_in_threadpool(assignment.assign, body, deterministic=False)
+
+    @app.post(
+        "/route/solve",
+        dependencies=[Depends(require_service_token)],
+        summary="One delivery slot's van routes in two waves (CVRPTW with pickups, M10 §3.4)",
+    )
+    async def route_solve(
+        body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> RouteResponse:
+        return await routing.solve(body, settings.osrm_url, settings.osrm_timeout_s)
 
     @app.post(
         "/plan/week",
