@@ -5,8 +5,12 @@ import { HttpResponse } from "msw";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { problem, roleOf } from "./util.js";
 
-/** The IST calendar date the mock hub is living in (the Receiving and Waste designs are drawn on it). */
-export const MOCK_TODAY = "2026-10-06";
+/** Today in India as `YYYY-MM-DD`: the mock hub lives on the real calendar, so the pages' own "today" matches. */
+export const mockToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+
+/** An Indian wall-clock time as the UTC instant the API sends. @param {string} date `YYYY-MM-DD` @param {string} hhmm */
+export const istAt = (date, hhmm) => new Date(`${date}T${hhmm}:00+05:30`).toISOString();
 
 /** @param {string} iso a date, `YYYY-MM-DD` @param {number} n days to add */
 export function addDays(iso, n) {
@@ -38,10 +42,11 @@ export function hubGuard(request, hubId, { write = false } = {}) {
  * @returns {{ date: string } | { error: Response }}
  */
 export function dateParam(value, { min = -7, max = 2 } = {}) {
-  const date = value || MOCK_TODAY;
+  const today = mockToday();
+  const date = value || today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)))
     return { error: problem(422, "request.invalid", "Check the date") };
-  if (date < addDays(MOCK_TODAY, min) || date > addDays(MOCK_TODAY, max))
+  if (date < addDays(today, min) || date > addDays(today, max))
     return {
       error: problem(422, "hub_ops.date_out_of_range", "That date is outside the range M6 serves"),
     };
