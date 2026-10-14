@@ -4,7 +4,6 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { useMyHousehold } from "@/features/identity/profile.js";
 import { useApply, useMyApplication } from "@/features/partners/queries.js";
 import { shortDate } from "@/features/subscriptions/format.js";
 
@@ -23,15 +22,13 @@ export const Route = createFileRoute("/_auth/_customer/partner")({
 });
 
 const STEPS = ["apply", "kyc", "training", "verified"];
-/** Which step an application is on (M8 §6.6); REJECTED shows as a problem at KYC. */
+/** Which step an application is on (M8 §3.1); rejected shows as a problem at KYC. */
 const STEP_OF = /** @type {Record<string, number>} */ ({
-  APPLIED: 1,
-  KYC_PENDING: 1,
-  REJECTED: 1,
-  TRAINING: 2,
-  VERIFIED: 4,
-  ACTIVE: 4,
-  PAUSED: 4,
+  applied: 1,
+  kyc_pending: 1,
+  rejected: 1,
+  training: 2,
+  verified: 4,
 });
 
 function Partner() {
@@ -42,7 +39,6 @@ function Partner() {
   const { role } = Route.useSearch();
   const [kind, setKind] = useState(/** @type {PartnerKind} */ (role ?? "captain"));
   const application = useMyApplication();
-  const household = useMyHousehold();
   const apply = useApply();
 
   const header = (
@@ -74,12 +70,14 @@ function Partner() {
       </div>
     );
 
-  const app = application.data;
-  const at = app ? (STEP_OF[app.status] ?? 1) : 0;
+  // A rejected or withdrawn application is final: the person may apply again with a new one.
+  const last = application.data;
+  const app = last && !["rejected", "withdrawn"].includes(last.status) ? last : null;
+  const at = app ? (STEP_OF[app.status] ?? 1) : last?.status === "rejected" ? 1 : 0;
   const steps = STEPS.map((s, i) => ({
     label: t(`partner.steps.${s}`),
     state: /** @type {"done" | "current" | "issue" | "todo"} */ (
-      i < at ? "done" : i === at ? (app?.status === "REJECTED" ? "issue" : "current") : "todo"
+      i < at ? "done" : i === at ? (last?.status === "rejected" ? "issue" : "current") : "todo"
     ),
   }));
 
@@ -88,13 +86,19 @@ function Partner() {
       {header}
       {app ? (
         <p className="text-sm leading-[22px] text-fg-secondary">
-          {t(app.status === "REJECTED" ? "partner.rejected" : "partner.applied", {
+          {t(app.next_step === "review" ? "partner.inReview" : "partner.applied", {
             role: t(`partner.roles.${app.kind}.title`),
             date: shortDate(app.submitted_at.slice(0, 10), lang),
           })}
         </p>
       ) : (
         <>
+          {last?.status === "rejected" && (
+            <p className="text-sm leading-[22px] text-fg-secondary">
+              {t("partner.rejected", { role: t(`partner.roles.${last.kind}.title`) })}
+              {last.reason ? ` ${last.reason}` : ""}
+            </p>
+          )}
           <p className="text-sm leading-[22px] text-fg-secondary">{t("partner.intro")}</p>
           {/* Compact cards, as in the design, so the steps and the button fit on one screen. */}
           <div className="[&_label]:min-h-0 [&_label]:py-2">
@@ -124,7 +128,7 @@ function Partner() {
           }}
         />
       </section>
-      {app && at === 1 && (
+      {app?.next_step === "documents" && (
         <div className="mt-auto">
           <Button
             variant="primary"
@@ -136,7 +140,7 @@ function Partner() {
           </Button>
         </div>
       )}
-      {app && at === 2 && (
+      {(app?.next_step === "training" || app?.next_step === "review") && (
         <div className="mt-auto">
           <Button variant="primary" size="lg" block onPress={() => navigate({ to: "/training" })}>
             {t("partner.trainingCta")}
@@ -151,12 +155,9 @@ function Partner() {
             block
             isPending={apply.isPending}
             onPress={() =>
+              // The server fills the society (a captain's own) or the hub from the household.
               apply.mutate(
-                {
-                  kind,
-                  // A captain serves their own society; the other roles work from the hub.
-                  scopeId: kind === "captain" ? household.data?.society_id : undefined,
-                },
+                { kind },
                 {
                   onSuccess: () => toast(t("partner.sent")),
                   onError: () => toast(t("partner.failed")),

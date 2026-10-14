@@ -1,12 +1,13 @@
 import { Button, IconButton, ProgressBar, RadioCards, toast } from "@gharbasket/ui";
-import { CheckCircleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useCompleteTraining } from "@/features/partners/queries.js";
+import { ApiError } from "@/lib/api.js";
 
 /**
- * One training module as a quiz: one question at a time, with the reason after each answer
- * (design HcPartnerQuiz, M8 US-3). Used for applicants and for verified partners' refreshers; the
+ * One training module as a quiz: one question at a time; the server scores all the answers at the
+ * end, because it never sends the right ones (design HcPartnerQuiz, M8 §3.2). Used for applicants and for verified partners' refreshers; the
  * screen around it supplies the page (side padding of 20px) and decides where "close" and a pass
  * go. Give it `key={module.code}` so a new module starts clean.
  * @param {{ module: import("@/features/partners/queries.js").TrainingModule, position: { n: number, total: number }, onClose: () => void, onPassed?: () => void }} props
@@ -17,7 +18,7 @@ export function TrainingQuiz({ module: m, position, onClose, onPassed }) {
   const [q, setQ] = useState(0);
   const [answers, setAnswers] = useState(/** @type {Record<string, string>} */ ({}));
   const [failed, setFailed] = useState(
-    /** @type {{ score: number, total: number } | null} */ (null),
+    /** @type {{ correct: number, total: number } | null} */ (null),
   );
   // One key per try at a module, so a retry after a dropped connection is not scored twice.
   const attempt = useRef(crypto.randomUUID());
@@ -47,7 +48,11 @@ export function TrainingQuiz({ module: m, position, onClose, onPassed }) {
       <>
         {header}
         <p role="status" className="rounded-md bg-danger-soft px-3.5 py-3 font-semibold">
-          {t("training.failed", failed)}
+          {t("training.failed", {
+            score: failed.correct,
+            total: failed.total,
+            pass: Math.round(m.pass_score * 100),
+          })}
         </p>
         <div className="mt-auto">
           <Button variant="primary" size="lg" block onPress={restart}>
@@ -59,21 +64,34 @@ export function TrainingQuiz({ module: m, position, onClose, onPassed }) {
 
   const question = m.questions[q];
   const picked = answers[question.id];
-  const right = picked === question.answer;
-  const answer = question.options.find((o) => o.value === question.answer)?.title ?? "";
   const last = q === m.questions.length - 1;
   const finish = () =>
     complete.mutate(
-      { code: m.code, answers, key: attempt.current },
+      { code: m.code, version: m.version, answers, key: attempt.current },
       {
         onSuccess: (r) => {
           if (r.passed) {
             restart();
-            toast(t("training.passed", r));
+            toast(t("training.passed", { score: r.correct, total: r.total }));
             onPassed?.();
-          } else setFailed(r);
+          } else {
+            attempt.current = crypto.randomUUID();
+            setFailed(r);
+          }
         },
-        onError: () => toast(t("training.saveFailed")),
+        onError: (e) => {
+          // A newer version reloads the module (the screen swaps it in); five tries a day is a hard stop.
+          if (e instanceof ApiError && e.code === "partners.training_version_stale") restart();
+          toast(
+            t(
+              e instanceof ApiError && e.status === 429
+                ? "training.tooMany"
+                : e instanceof ApiError && e.code === "partners.training_version_stale"
+                  ? "training.updated"
+                  : "training.saveFailed",
+            ),
+          );
+        },
       },
     );
 
@@ -91,39 +109,9 @@ export function TrainingQuiz({ module: m, position, onClose, onPassed }) {
         key={question.id}
         label={question.text}
         value={picked ?? ""}
-        // The first answer counts; the feedback below explains it.
-        onChange={(v) => !picked && setAnswers((a) => ({ ...a, [question.id]: v }))}
+        onChange={(v) => setAnswers((a) => ({ ...a, [question.id]: v }))}
         options={question.options}
       />
-      {picked && (
-        <div role="status" className="flex flex-col gap-2">
-          <p
-            className={`flex gap-2.5 rounded-md px-3.5 py-3 ${right ? "bg-primary-soft" : "bg-danger-soft"}`}
-          >
-            {right ? (
-              <CheckCircleIcon
-                aria-hidden
-                size={24}
-                weight="fill"
-                className="shrink-0 text-primary"
-              />
-            ) : (
-              <WarningCircleIcon
-                aria-hidden
-                size={24}
-                weight="fill"
-                className="shrink-0 text-danger"
-              />
-            )}
-            <strong>
-              {t(right ? "training.right" : "training.wrong", {
-                answer: answer.replace(/\.$/, ""),
-              })}
-            </strong>
-          </p>
-          <p className="text-sm leading-5 text-fg-secondary">{question.why}</p>
-        </div>
-      )}
       <div className="mt-auto">
         <Button
           variant="primary"
