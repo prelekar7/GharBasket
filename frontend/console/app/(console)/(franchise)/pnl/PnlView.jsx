@@ -4,24 +4,41 @@ import { Button, formatPaise, Select } from "@gharbasket/ui";
 import { ChartCard, DataTable, KpiTile } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
 import { useTransition } from "react";
+import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
-import { toDecimalText } from "@/lib/money.js";
+import { shortDate } from "@/lib/dates.js";
+import { toDecimalText, toWholeRupee } from "@/lib/money.js";
+import { monthLabel } from "./months.js";
 
 /** @typedef {import("./data.js").Pnl} Pnl */
-/** @typedef {import("./data.js").Basis} Basis */
+/** @typedef {import("./data.js").PnlLine} PnlLine */
+
+/** @type {Record<import("./data.js").LineKey, string>} */
+const LABELS = {
+  box_revenue: "Box revenue",
+  delivery_fee_revenue: "Delivery fees",
+  tiffin_revenue: "Tiffin revenue",
+  produce: "Produce cost",
+  kitchen: "Kitchen payouts",
+  delivery: "Delivery",
+  packing: "Packing",
+  captain: "Captain commission",
+  fees: "Payment fees",
+  acquisition: "Customer acquisition",
+};
 
 /**
- * "702 boxes × ₹620 average" or "76% of box revenue".
- * @param {Basis} basis
+ * "702 boxes × ₹641.50 average" or "76% of box revenue".
+ * @param {PnlLine} line
  */
-function howText(basis) {
+function howText({ key, basis }) {
   if (basis.kind === "share") {
     // 7599 bp reads as 76%, 120 bp as 1.2%.
     const pct = toDecimalText(basis.bp % 100 === 0 ? basis.bp : Math.round(basis.bp / 10) * 10);
-    return `${pct}% of ${basis.of}`;
+    return `${pct}% of ${basis.of.replaceAll("_", " ")}`;
   }
-  const qty = basis.unit ? `${basis.qty} ${basis.unit}` : String(basis.qty);
-  return `${qty} × ${formatPaise(basis.rate_paise)}${basis.note ? ` ${basis.note}` : ""}`;
+  const unit = basis.qty === 1 ? basis.unit : basis.unit === "box" ? "boxes" : `${basis.unit}s`;
+  return `${basis.qty} ${unit} × ${formatPaise(basis.rate_paise)}${key === "box_revenue" ? " average" : ""}`;
 }
 
 /** Whole rupees as plain digits for the CSV: -33078000 → "-330780". @param {number} paise */
@@ -31,7 +48,7 @@ const csvRupees = (paise) => `${paise < 0 ? "-" : ""}${toDecimalText(Math.abs(pa
 function downloadCsv(pnl) {
   const rows = [
     ["Line", "How it is worked out", "Amount (INR)"],
-    ...pnl.lines.map((l) => [l.label, howText(l.basis), csvRupees(l.amount_paise)]),
+    ...pnl.lines.map((l) => [LABELS[l.key], howText(l), csvRupees(l.amount_paise)]),
     ["Contribution", "Revenue minus the lines above", csvRupees(pnl.contribution_paise)],
   ];
   const text = rows.map((r) => r.map((c) => `"${c.replaceAll('"', '""')}"`).join(",")).join("\n");
@@ -46,7 +63,7 @@ function downloadCsv(pnl) {
 /**
  * The franchise P&L for one month: headline tiles, the line-by-line table and contribution by week.
  * The month lives in the URL; changing it re-runs the page on the server.
- * @param {{ pnl: Pnl }} props
+ * @param {{ pnl: Pnl & { periods: { value: string, label: string }[] } }} props
  */
 export function PnlView({ pnl }) {
   const [pending, startTransition] = useTransition();
@@ -59,28 +76,34 @@ export function PnlView({ pnl }) {
       ? null
       : pnl.contribution_paise - pnl.previous_contribution_paise;
   const earlier = pnl.periods.find((p) => p.value < pnl.period);
+  const partners = pnl.partners_paise;
+  const partnersTotal = partners.captains + partners.kitchens + partners.riders + partners.packers;
+  const label = monthLabel(pnl.period);
 
   const rows = [
     ...pnl.lines.map((l) => ({
       id: l.key,
-      line: { text: l.label },
-      how: howText(l.basis),
-      amount: { money: l.amount_paise },
+      line: { text: LABELS[l.key] },
+      how: howText(l),
+      source: l.source === "measured" ? "Measured" : "Assumed",
+      amount: { money: toWholeRupee(l.amount_paise) },
     })),
     {
       id: "contribution",
       line: { text: "Contribution", strong: true },
       how: "Revenue minus the lines above",
-      amount: { money: pnl.contribution_paise },
+      source: "",
+      amount: { money: toWholeRupee(pnl.contribution_paise) },
     },
   ];
 
   return (
     <div aria-busy={pending} className={`flex flex-col gap-4 ${pending ? "opacity-60" : ""}`}>
       <PageHeader
-        title={`P&L · ${pnl.period_label}`}
+        title={`P&L · ${label}`}
         actions={
           <div className="flex flex-wrap items-end gap-3">
+            <DataSourceControl />
             <div className="w-[200px]">
               <Select
                 label="Month"
@@ -100,17 +123,17 @@ export function PnlView({ pnl }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiTile
           label="Revenue"
-          value={formatPaise(pnl.revenue_paise)}
+          value={formatPaise(toWholeRupee(pnl.revenue_paise))}
           hint={`${pnl.boxes} boxes · ${pnl.tiffins} tiffins`}
         />
         <KpiTile
           label="Contribution"
-          value={formatPaise(pnl.contribution_paise)}
+          value={formatPaise(toWholeRupee(pnl.contribution_paise))}
           delta={
             change == null || !earlier
               ? undefined
               : {
-                  value: `${change > 0 ? "+" : ""}${formatPaise(change)}`,
+                  value: `${change > 0 ? "+" : ""}${formatPaise(toWholeRupee(change))}`,
                   direction: change > 0 ? "up" : change < 0 ? "down" : "flat",
                   note: `vs ${earlier.label.split(" ")[0]}`,
                 }
@@ -120,18 +143,19 @@ export function PnlView({ pnl }) {
         <KpiTile label="Per box" value={formatPaise(pnl.per_box_paise)} hint="See Unit economics" />
         <KpiTile
           label="Paid to local partners"
-          value={formatPaise(pnl.captains_paise + pnl.kitchens_paise)}
-          hint={`Captains ${formatPaise(pnl.captains_paise)} · kitchens ${formatPaise(pnl.kitchens_paise)}`}
+          value={formatPaise(toWholeRupee(partnersTotal))}
+          hint={`Captains ${formatPaise(toWholeRupee(partners.captains))} · kitchens ${formatPaise(toWholeRupee(partners.kitchens))} · riders ${formatPaise(toWholeRupee(partners.riders))} · packers ${formatPaise(toWholeRupee(partners.packers))}`}
         />
       </div>
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <DataTable
           dense
-          caption={`Profit and loss, ${pnl.period_label}`}
+          caption={`Profit and loss, ${label}`}
           columns={[
             { key: "line", label: "Line" },
             { key: "how", label: "How it’s worked out" },
+            { key: "source", label: "Source" },
             { key: "amount", label: "Amount", align: "end" },
           ]}
           rows={rows}
@@ -141,7 +165,7 @@ export function PnlView({ pnl }) {
           title="Contribution by week"
           subtitle="Rupees, weeks starting Monday"
           format="money"
-          labels={pnl.weeks.map((w) => w.label)}
+          labels={pnl.weeks.map((w) => shortDate(w.week))}
           series={[{ name: "Contribution", values: pnl.weeks.map((w) => w.contribution_paise) }]}
         />
       </div>

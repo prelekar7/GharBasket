@@ -3,8 +3,8 @@ import { PnlView } from "./PnlView.jsx";
 
 export const metadata = { title: "P&L" };
 
-/** @param {{ searchParams: Promise<{ period?: string }> }} props */
+/** @param {{ searchParams: Promise<{ period?: string, source?: string }> }} props */
 export default async function Page({ searchParams }) {
-  const { period } = await searchParams;
-  return <PnlView pnl={await loadPnl(period)} />;
+  const { period, source } = await searchParams;
+  return <PnlView pnl={await loadPnl(period, source)} />;
 }

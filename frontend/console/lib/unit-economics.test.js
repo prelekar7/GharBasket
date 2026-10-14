@@ -10,34 +10,41 @@ import {
 } from "./money.js";
 import { boxEconomics, sensitivities } from "./unit-economics.js";
 
-/** The seed assumptions of the Kharghar hub (docs/modules/M12: the franchise owner's calculator). */
+/** The defaults of M12 section 3.4 (the captain's ₹6 a bag is the decided rate, not the mock's old ₹10). */
 const SEED = {
   aov_paise: 62_000,
   margin_bp: 2400,
   delivery_paise: 4000,
   packing_paise: 3000,
-  captain_paise: 1000,
+  captain_paise: 600,
   payment_fee_bp: 120,
   cac_paise: 1300,
 };
 
 describe("boxEconomics", () => {
-  test("one seed box earns exactly ₹48.36", () => {
+  test("one seed box earns exactly ₹52.36", () => {
     const e = boxEconomics(SEED);
     assert.equal(e.margin_paise, 14_880); // ₹620 × 24%
     assert.equal(e.fee_paise, 744); // ₹620 × 1.2%
-    assert.equal(e.contribution_paise, 4836);
+    assert.equal(e.delivery_fee_paise, 0);
+    assert.equal(e.contribution_paise, 5236);
+  });
+
+  test("the pre-live delivery fee is revenue on top of the margin", () => {
+    const e = boxEconomics(SEED, 410);
+    assert.equal(e.delivery_fee_paise, 410);
+    assert.equal(e.contribution_paise, 5236 + 410);
   });
 
   test("contribution is AOV × margin minus the five per-box costs", () => {
     const e = boxEconomics({ ...SEED, aov_paise: 70_000, margin_bp: 2000, cac_paise: 0 });
-    assert.equal(e.contribution_paise, 14_000 - 4000 - 3000 - 1000 - 840);
+    assert.equal(e.contribution_paise, 14_000 - 4000 - 3000 - 600 - 840);
   });
 
   test("a loss is a negative number, not zero", () => {
     assert.equal(
       boxEconomics({ ...SEED, margin_bp: 0 }).contribution_paise,
-      -(4000 + 3000 + 1000 + 744 + 1300),
+      -(4000 + 3000 + 600 + 744 + 1300),
     );
   });
 
@@ -50,6 +57,11 @@ describe("boxEconomics", () => {
 describe("sensitivities", () => {
   test("match the rows of the design for the seed assumptions", () => {
     const byKey = Object.fromEntries(sensitivities(SEED).map((s) => [s.key, s.change_paise]));
+    assert.deepEqual(byKey, { margin: 1240, aov: 1368, delivery: 1000, cac: -700 });
+  });
+
+  test("the delivery fee does not move a what-if", () => {
+    const byKey = Object.fromEntries(sensitivities(SEED, 410).map((s) => [s.key, s.change_paise]));
     assert.deepEqual(byKey, { margin: 1240, aov: 1368, delivery: 1000, cac: -700 });
   });
 });
