@@ -1,4 +1,4 @@
-import { EmptyState, IconButton, MoneyText, SegmentedControl, Skeleton } from "@gharbasket/ui";
+import { EmptyState, IconButton, MoneyText, Select, Skeleton } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
@@ -54,7 +54,7 @@ function Statement() {
           {t("wallet.statementTitle")}
         </h1>
       </header>
-      <SegmentedControl
+      <Select
         label={t("wallet.month")}
         value={period}
         onChange={setPeriod}

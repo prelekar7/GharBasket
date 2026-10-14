@@ -27,6 +27,7 @@ import { Route as LegalDocRouteImport } from "./routes/legal.$doc"
 import { Route as AuthCustomerAutopayRouteImport } from "./routes/_auth/_customer/autopay"
 import { Route as AuthCustomerBoxRouteImport } from "./routes/_auth/_customer/box"
 import { Route as AuthCustomerBudgetRouteImport } from "./routes/_auth/_customer/budget"
+import { Route as AuthCustomerHouseholdRouteImport } from "./routes/_auth/_customer/household"
 import { Route as AuthCustomerKindnessRouteImport } from "./routes/_auth/_customer/kindness"
 import { Route as AuthCustomerNotificationsRouteImport } from "./routes/_auth/_customer/notifications"
 import { Route as AuthCustomerOrdersRouteImport } from "./routes/_auth/_customer/orders"
@@ -159,6 +160,11 @@ const AuthCustomerBoxRoute = AuthCustomerBoxRouteImport.update({
 const AuthCustomerBudgetRoute = AuthCustomerBudgetRouteImport.update({
   id: "/budget",
   path: "/budget",
+  getParentRoute: () => AuthCustomerRoute,
+})
+const AuthCustomerHouseholdRoute = AuthCustomerHouseholdRouteImport.update({
+  id: "/household",
+  path: "/household",
   getParentRoute: () => AuthCustomerRoute,
 })
 const AuthCustomerKindnessRoute = AuthCustomerKindnessRouteImport.update({
@@ -400,6 +406,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerAutopayRoute: AuthCustomerAutopayRoute,
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
   AuthCustomerBudgetRoute: AuthCustomerBudgetRoute,
+  AuthCustomerHouseholdRoute: AuthCustomerHouseholdRoute,
   AuthCustomerKindnessRoute: AuthCustomerKindnessRoute,
   AuthCustomerNotificationsRoute: AuthCustomerNotificationsRoute,
   AuthCustomerOrdersRoute: AuthCustomerOrdersRoute,

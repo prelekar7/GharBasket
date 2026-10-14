@@ -80,7 +80,10 @@
       "minutes": "{n} min on weekdays",
       "save": "Save",
       "saved": "Saved. Next week’s plan uses it.",
-      "conflict": "Your household changed on another phone. Open it again."
+      "conflict": "Your household changed on another phone. Open it again.",
+      "familyOf": "Family of {n}",
+      "noOnionFast": "no onion-garlic on fast days",
+      "noOnionSome": "no onion-garlic on some days"
     },
     "pause": {
       "row": "Autopilot",
@@ -460,7 +463,9 @@
     },
     "pauseLead": "Away for longer?",
     "pauseLink": "Pause Autopilot in Profile",
-    "thisBox": "This week’s box: "
+    "thisBox": "This week’s box: ",
+    "paidFromWallet": "Paid from wallet",
+    "atCutoff": "At the cut-off"
   },
   "reasons": {
     "in_season": "{item} is in season",

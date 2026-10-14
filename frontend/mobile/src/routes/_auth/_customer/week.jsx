@@ -198,7 +198,7 @@ function Week() {
             {t("week.pauseLead")}{" "}
             <button
               type="button"
-              onClick={() => navigate({ to: "/profile" })}
+              onClick={() => navigate({ to: "/household" })}
               className="font-semibold text-link underline outline-none focus-visible:shadow-focus"
             >
               {t("week.pauseLink")}
@@ -253,13 +253,26 @@ function Week() {
                         : undefined,
                       state: "done",
                     },
-                    { label: t("orders.stage.LOCKED"), time: cutoffWhen, state: "todo" },
+                    {
+                      label: t("week.paidFromWallet"),
+                      time: cutoffWhen,
+                      note: t("week.atCutoff"),
+                      state: "current",
+                    },
                     { label: t("orders.stage.PACKED", { hub: c.hub.name }), state: "todo" },
                     {
                       label: t("orders.stage.AT_SOCIETY", { captain: c.captain?.name ?? "" }),
                       time: `${weekdayName(c.delivery_date, lang)} ${timeRange(c.delivery_window, lang)}`,
                       state: "todo",
                     },
+                    ...(c.captain
+                      ? [
+                          {
+                            label: t("track.stage.door", { flat: c.captain.flat }),
+                            state: /** @type {const} */ ("todo"),
+                          },
+                        ]
+                      : []),
                   ]}
                 />
               </div>
