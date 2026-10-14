@@ -2,6 +2,7 @@
 import { catalogHandlers } from "./catalog.js";
 import { communityHandlers } from "./community.js";
 import { hubsHandlers } from "./hubs.js";
+import { impactHandlers } from "./impact.js";
 import { intelHandlers } from "./intel.js";
 import { publicHandlers } from "./public.js";
 
@@ -9,6 +10,7 @@ export const handlers = [
   ...hubsHandlers,
   ...catalogHandlers,
   ...communityHandlers,
+  ...impactHandlers,
   ...intelHandlers,
   ...publicHandlers,
 ];
