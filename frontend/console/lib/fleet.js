@@ -63,3 +63,14 @@ export const KINDS = [
   { value: "ev3w", label: "Electric three-wheeler" },
   { value: "bike", label: "Two-wheeler with box" },
 ];
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * "12 Sep" for an ISO date or timestamp (always three-letter months, whatever the browser's locale data says).
+ * @param {string} iso
+ */
+export function formatDate(iso) {
+  const [, month, day] = new Date(iso).toLocaleDateString("en-CA", { timeZone: TZ }).split("-");
+  return `${Number(day)} ${MONTHS[Number(month) - 1]}`;
+}
