@@ -20,7 +20,7 @@ const uid = (ns, n) => `0199${ns}000-0000-7000-8000-${n.toString(16).padStart(12
 const SOCIETY = { id: uid("e", 1), name: "Sunrise Towers" };
 const STOP_ID = uid("5", 1);
 const ROUTE_ID = uid("4", 1);
-const SLOT = { label: "7-9 am", start: "07:00", end: "09:00" };
+const SLOT = { label: "8-10 am", start: "08:00", end: "10:00" }; // the rider mock's slot
 
 /** Flats in walking order per tower. The first six are the packer's queue (mocks/packer.js seq 1 to 6). */
 const TOWERS = {
@@ -71,7 +71,7 @@ function seedDay() {
         stop_id: STOP_ID,
         route_id: ROUTE_ID,
         slot: SLOT,
-        eta_now: "07:20",
+        eta_now: "08:05",
         status: "pending",
         expected: { crates: Math.ceil(bags / 3), bags, redelivery_bags: 1 },
       },
@@ -248,9 +248,9 @@ export const captainHandlers = [
             seq: 1,
             kind: "drop",
             society: { ...s.day.society, location: { lat: 19.0335, lng: 73.0629 } },
-            slot: { id: uid("f", 1), ...stop.slot },
-            eta: "07:12",
-            late_min: 8,
+            slot: { id: uid("f", 2), ...stop.slot },
+            eta: "08:05",
+            late_min: 0,
             eta_now: stop.eta_now,
             status: "handed_over",
             crates: stop.expected.crates,
