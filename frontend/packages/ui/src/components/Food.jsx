@@ -248,7 +248,7 @@ export function KnowYourCookCard({ name, kitchen, since, specialty, fssai, hygie
 
 /**
  * Bottom sheet with up to three ranked swaps for a box line, each with its price change.
- * @param {{ open: boolean, onOpenChange: (open: boolean) => void, item: { name: string, pricePaise: number }, options: SubstituteOption[], onConfirm: (option: SubstituteOption) => void, labels?: { title?: string, note?: string, cta?: string } }} props
+ * @param {{ open: boolean, onOpenChange: (open: boolean) => void, item: { name: string, pricePaise: number }, options: SubstituteOption[], onConfirm: (option: SubstituteOption) => void, labels?: { title?: string, note?: string, cta?: string } }} props `cta` may name the chosen option with `{name}`.
  */
 export function SubstituteSheet({ open, onOpenChange, item, options, onConfirm, labels }) {
   const ranked = options.slice(0, 3);
@@ -262,7 +262,7 @@ export function SubstituteSheet({ open, onOpenChange, item, options, onConfirm, 
       description={labels?.note ?? "Three good options, best first."}
       footer={
         <Button variant="primary" size="lg" block onPress={() => onConfirm(ranked[Number(choice)])}>
-          {labels?.cta ?? "Use this"}
+          {fill(labels?.cta ?? "Use {name}", { name: ranked[Number(choice)]?.name ?? "" })}
         </Button>
       }
     >

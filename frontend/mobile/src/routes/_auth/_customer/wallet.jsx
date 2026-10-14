@@ -126,7 +126,9 @@ function Wallet() {
         </section>
       )}
       <section className="flex flex-col">
-        <span className="text-sm leading-5 font-semibold">{t("wallet.recent")}</span>
+        <span className="text-xs leading-[18px] font-semibold tracking-[0.04em] text-fg-secondary uppercase">
+          {t("wallet.recent")}
+        </span>
         {wallet.data.entries.length === 0 ? (
           <p className="py-3 text-sm text-fg-secondary">{t("wallet.noEntries")}</p>
         ) : (
@@ -143,7 +145,7 @@ function Wallet() {
           </ul>
         )}
       </section>
-      <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.payment.rules")}</p>
+      <p className="text-sm leading-[22px] text-fg-secondary">{t("wallet.rules")}</p>
       <Sheet
         open={open}
         onOpenChange={setOpen}
