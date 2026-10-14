@@ -166,16 +166,16 @@ export const NAV = [
 ];
 
 /**
- * Quick actions for the ⌘K palette. Each opens the page at `href`; the area label, the readiness
- * and who may use it come from the nav item that page belongs to.
- * @type {{ label: string, href: string }[]}
+ * Quick actions for the ⌘K palette. Each opens the page at `href`; whether it is built and who may
+ * use it come from the nav item that page belongs to. `area` is the label shown beside it.
+ * @type {{ label: string, href: string, area: string }[]}
  */
 export const ACTIONS = [
-  { label: "Publish a new price list", href: "/prices/publish" },
-  { label: "Review society requests", href: "/societies/requests" },
-  { label: "Give someone a staff role", href: "/users" },
-  { label: "Review partner applications", href: "/partners" },
-  { label: "Check yesterday's waste", href: "/waste" },
+  { label: "Publish a new price list", href: "/prices/publish", area: "Prices" },
+  { label: "Review society requests", href: "/societies/requests", area: "Societies" },
+  { label: "Give someone a staff role", href: "/users", area: "Users" },
+  { label: "Review partner applications", href: "/partners", area: "Partners" },
+  { label: "Check yesterday's waste", href: "/waste", area: "Waste" },
 ];
 
 /** @typedef {NavItem & { section: Section, group: string, pattern: RegExp }} FlatItem */
@@ -249,4 +249,30 @@ export function navFor(role) {
   }))
     .filter((g) => g.items.length > 0)
     .sort((a, b) => rank(a.section) - rank(b.section));
+}
+
+/**
+ * What the ⌘K palette lists for a role: pages it may open ("Go to", built ones first) and quick
+ * actions. Pages not built yet are included with `ready: false`, so the palette can show them as
+ * "Soon" like the sidebar does.
+ * @param {ConsoleRole} role
+ */
+export function paletteEntries(role) {
+  const goTo = navFor(role)
+    .flatMap((g) =>
+      g.items.map((i) => ({
+        href: i.href,
+        label: i.label,
+        group: g.label,
+        ready: i.ready === true,
+        key: i.key,
+      })),
+    )
+    .sort((a, b) => Number(b.ready) - Number(a.ready));
+  const actions = ACTIONS.flatMap((a) => {
+    const item = itemFor(a.href);
+    if (!item || !canAccess(role, item)) return [];
+    return [{ label: a.label, href: a.href, area: a.area, ready: item.ready === true }];
+  }).sort((a, b) => Number(b.ready) - Number(a.ready));
+  return { goTo, actions };
 }
