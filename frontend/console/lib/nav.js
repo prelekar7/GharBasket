@@ -121,8 +121,8 @@ export const NAV = [
     section: "intelligence",
     label: "Intelligence",
     items: [
-      { href: "/ai-health", label: "AI health" },
-      { href: "/experiments", label: "Experiments" },
+      { href: "/ai-health", label: "AI health", ready: true },
+      { href: "/experiments", label: "Experiments", ready: true },
     ],
   },
   {
