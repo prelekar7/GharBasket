@@ -93,6 +93,8 @@ missing route.
 | `cycles.js` | `GET` and `PUT /v1/societies/{id}/delivery-days` (weekday 0 = Monday, 1 to 3 items) and the proposed `GET /v1/hubs/{id}/delivery-days` |
 | `plans.js` | `GET /v1/plans` (PlanOut), and the proposed `GET /v1/admin/plans`, `POST /v1/admin/plans`, `PATCH /v1/admin/plans/{code}` |
 | `festivals.js` | `GET /v1/festivals` (FestivalOut, one row per date), and the proposed `POST /v1/admin/festivals`, `PATCH /v1/admin/festivals/{id}` |
+| `partners.js` | The real M8: `GET /v1/hubs/{id}/partners` and `GET /v1/partners/{id}` (PartnerStaff), `POST …/suspend` (`reason_code`, `note`) and `…/reinstate`, `GET /v1/partners/{id}/card`, `GET /v1/hubs/{id}/partner-applications` (ApplicationReview, `status` defaults to `kyc_pending`), `POST /v1/partner-applications/{id}/decision` (approve, resubmit, reject), `POST /v1/kyc-documents/{id}/file-links`, `POST /v1/kitchens/{id}/inspection`, `GET /v1/hubs/{id}/partner-rates`; the proposed fairness dashboard (`GET /v1/hubs/{id}/fairness`, `PUT …/fairness-weight`) stays here. Seed partner ids are in `partner-ids.js`. |
+| `payouts.js` | The real M5 §3.5: `GET /v1/admin/payouts?week=&status=&hub_id=` (ISO weeks relative to today; admin and hub_manager) and `POST /v1/admin/payouts/{id}/retry` (admin, a held or failed payout goes to `pending`) |
 
 Proposals (marked `@proposal (not in the contract yet)` in the mocks; in real mode they 404 and the page says "not available yet",
 see `lib/proposal.js`): `GET /v1/admin/products` (`?active=false`), `GET /v1/admin/products/{id}`, `POST/PATCH /v1/admin/products`,
