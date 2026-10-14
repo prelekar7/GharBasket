@@ -1,35 +1,44 @@
-import { apiGet } from "@/lib/api.js";
+import { apiAll } from "@/lib/api-pages.js";
+import { getRole } from "@/lib/auth.js";
 import { currentHub } from "@/lib/hub.js";
+import { istDate } from "@/lib/payout-weeks.js";
 
 /**
- * Shapes of GET /v1/deliveries?hub_id= (a proposal: docs/modules/M7-logistics.md lists only the per-order proof and
- * undelivered writes). One row per bag; the payload never carries a customer name or phone number.
- * @typedef {"door" | "lobby" | "with_captain" | "issue"} BagState
- *
+ * One delivery of the exceptions board (`GET /v1/hubs/{id}/deliveries?date=`, docs/modules/M7-logistics.md §3.4): an
+ * order's delivery, its status and how it was proven. There is no flat, name or phone in it, and the society is an id,
+ * named here from `GET /v1/societies`.
  * @typedef {object} Delivery
- * @property {string} bag  bag label, e.g. "B-218"
- * @property {string} flat  e.g. "B-1104"
+ * @property {string} order_id
+ * @property {1 | 2} attempt  2 is the free redelivery
+ * @property {string} delivery_date
  * @property {string} society_id
- * @property {string} society
- * @property {BagState} state
- * @property {string} state_text  the state in words, e.g. "Eggs broken"
- * @property {string} proof  how the handover was proven, in words
- * @property {string} at  ISO time of the last scan
- * @property {{ text: string, href?: string } | null} next  what happens next, if anything
- *
- * @typedef {object} DeliverySummary
- * @property {number} at_door
- * @property {number} in_lobby
- * @property {number} problems
- * @property {string} lobby_collect_by  ISO time the lobby bags go back to the hub
- * @property {{ society_id: string, society: string, bags: number, handed_over_at: string }[]} with_captain  handed over, not yet at doors
+ * @property {"scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage"} status
+ * @property {"not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed" | null} reason
+ * @property {string | null} hold_until  IST "HH:MM", while a captain holds the bag
+ * @property {"scan" | "otp" | "photo" | null} proof
+ * @property {"captain" | "rider" | "hub" | "system" | null} by
+ * @property {string | null} at  ISO, the last change
  */
 
 /**
- * Today's bags at the selected hub.
- * @returns {Promise<{ date: string, as_of: string, summary: DeliverySummary, items: Delivery[] }>}
+ * Today's deliveries at the selected hub, with the societies' names.
+ * @returns {Promise<{ date: string, now: number, items: Delivery[], societies: Record<string, string>, canResolve: boolean }>}
  */
 export async function getDeliveries() {
-  const hub = await currentHub();
-  return apiGet("/v1/deliveries", { searchParams: { hub_id: hub.id } });
+  const [hub, role] = await Promise.all([currentHub(), getRole()]);
+  const now = Date.now(); // after the cookies are read, as cacheComponents requires
+  const date = istDate(now);
+  const [list, societies] = await Promise.all([
+    apiAll(`/v1/hubs/${encodeURIComponent(hub.id)}/deliveries`, { date }),
+    apiAll("/v1/societies", {}, { limit: 50 }),
+  ]);
+  return {
+    date,
+    now,
+    items: list.items,
+    societies: Object.fromEntries(
+      societies.items.map((/** @type {{ id: string, name: string }} */ s) => [s.id, s.name]),
+    ),
+    canResolve: role === "hub_manager" || role === "admin",
+  };
 }

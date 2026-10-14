@@ -19,7 +19,6 @@ import { HttpResponse, http } from "msw";
 import { deny, istDay } from "./adminShared.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { SLOT_ID, SOCIETY_ID } from "./ids.js";
-import { legacyDeliveryHandlers } from "./logistics-legacy-deliveries.js";
 import { legacyRouteHandlers } from "./logistics-legacy-routes.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem } from "./util.js";
 
@@ -438,9 +437,8 @@ const deliveries = () => mockStore("logistics-deliveries-v2", buildDeliveries);
 const whole = (v, min, max) => Number.isInteger(v) && Number(v) >= min && Number(v) <= max;
 
 export const logisticsHandlers = [
-  // Old proposals still used by the old Routes and Deliveries pages; each is deleted with the commit that moves its page.
+  // Old proposals still used by the old Routes page; deleted with the commit that moves it.
   ...legacyRouteHandlers,
-  ...legacyDeliveryHandlers,
 
   // ---- Vehicles
   http.get("*/v1/hubs/:hub/vehicles", ({ request, params }) => {
