@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { request } from "@/lib/api.js";
+import { ApiError, request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 
 /**
@@ -7,13 +7,26 @@ import { useSession } from "@/lib/session.js";
  * @typedef {{ id: string, platform: "android" | "web", label: string, last_seen_at: string, current: boolean }} Device
  */
 
-/** Your household for the Profile summary (GET /v1/households/me, our proposal for M1). */
+/**
+ * Your household, or null while you have none yet (GET /v1/households/me, our proposal for M1).
+ * Shared by the Profile summary and the customer shell's onboarding check.
+ */
+export const householdQuery = {
+  queryKey: ["household", "me"],
+  queryFn: async () => {
+    try {
+      return /** @type {HouseholdSummary} */ (await request("/v1/households/me"));
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+  retry: false,
+};
+
+/** Your household for the Profile summary. */
 export function useMyHousehold() {
-  return useQuery({
-    queryKey: ["household", "me"],
-    queryFn: () => /** @type {Promise<HouseholdSummary>} */ (request("/v1/households/me")),
-    retry: false,
-  });
+  return useQuery(householdQuery);
 }
 
 /**

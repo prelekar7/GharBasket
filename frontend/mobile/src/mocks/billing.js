@@ -3,7 +3,7 @@
 // integer paise. A top-up order is only "paid" through the mock-only /v1/dev/razorpay/pay, which
 // stands in for Razorpay Checkout and its webhook until spike S-1.
 import { HttpResponse, http } from "msw";
-import { caller } from "./handlers.js";
+import { caller, isNewUser } from "./handlers.js";
 
 const KEY = "gb-mock-billing";
 const MAX_BALANCE_PAISE = 1_000_000; // ₹10,000 wallet cap
@@ -51,8 +51,8 @@ export const billingHandlers = [
   ),
 
   http.get("*/v1/wallet", ({ request }) => {
-    // An existing household starts with the designs' wallet (₹1,310); a new one (…00005) at ₹0.
-    if (!localStorage.getItem(KEY) && caller(request) !== "+919800000005") {
+    // A demo household starts with the designs’ wallet (₹1,310); a new one at ₹0.
+    if (!localStorage.getItem(KEY) && !isNewUser(caller(request) ?? "")) {
       save({
         balance_paise: 131000,
         entries: [

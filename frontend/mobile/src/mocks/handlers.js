@@ -36,13 +36,25 @@ function rolesFor(/** @type {string} */ phone) {
   return roles;
 }
 
+/**
+ * Who has a household already, like the real server: the designs' demo households (…00001 to
+ * …00004) do, every other number is new until it finishes onboarding (POST /v1/households, see
+ * mocks/identity.js). …00005 always starts fresh, to walk through onboarding again.
+ */
+const DEMO_HOUSEHOLD = /^\+9198000000(0[1-4])$/;
+export const HOUSEHOLDS_KEY = "gb-mock-households";
+export const isNewUser = (/** @type {string} */ phone) =>
+  phone === "+919800000005" ||
+  (!DEMO_HOUSEHOLD.test(phone) &&
+    !JSON.parse(localStorage.getItem(HOUSEHOLDS_KEY) ?? "[]").includes(phone));
+
 /** Profile edits from PATCH /v1/me (mocks/profile.js), by phone; they survive reloads. */
 export const PROFILE_KEY = "gb-mock-me";
 export const userFor = (/** @type {string} */ phone) => ({
   id: `0190f0aa-0000-7000-8000-${phone.replace(/\D/g, "").slice(-12).padStart(12, "0")}`,
   phone_e164: phone,
-  // The designs' household is Priya's; a brand-new user (…00005) has no name yet.
-  name: phone === "+919800000005" ? null : "Priya",
+  // The designs' household is Priya's; anyone else has not told us a name yet.
+  name: DEMO_HOUSEHOLD.test(phone) ? "Priya" : null,
   locale: /** @type {"en-IN" | "hi-IN" | "mr-IN"} */ ("en-IN"),
   senior_mode: false,
   ...JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "{}")[phone],
@@ -111,10 +123,9 @@ export const handlers = [
     const pair = issue(phone);
     if (request.headers.get("x-gb-client") === "web")
       webSession.set({ phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
-    // +91 98000 00005 is a brand-new household, to walk through onboarding.
     return HttpResponse.json({
       ...pair,
-      is_new_user: phone === "+919800000005",
+      is_new_user: isNewUser(phone),
       user: userFor(phone),
     });
   }),

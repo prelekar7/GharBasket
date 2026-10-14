@@ -6,7 +6,7 @@
     "invalid": "Enter the 10-digit mobile number",
     "failed": "We couldn’t sign you in. Check your internet and try again.",
     "cta": "Continue",
-    "mock": "Test mode: no SMS is sent. Use code 123456.",
+    "mock": "Test mode: no SMS is sent. Use code 123456. Any number starts as a new household and goes through setup; 98000 00001 is a household that’s already set up.",
     "sendFailed": "We couldn’t send the code. Check your internet and try again.",
     "sendCode": "Send code",
     "foot": "Same number on a new phone? Your household comes back with it.",

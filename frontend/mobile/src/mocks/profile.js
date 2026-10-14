@@ -2,7 +2,7 @@
 // account deletion, plus GET /v1/households/me for the Profile summary (our proposal; M1 lists
 // households but no read endpoint yet). Shapes beyond the frozen UserOut are our proposal.
 import { HttpResponse, http } from "msw";
-import { caller, PROFILE_KEY, userFor } from "./handlers.js";
+import { caller, isNewUser, PROFILE_KEY, userFor } from "./handlers.js";
 import { identityStore } from "./identity.js";
 
 const problem = (
@@ -68,8 +68,7 @@ export const profileHandlers = [
         society_id: made.society_id,
         flat: address ? `${String(address.tower ?? "").toUpperCase()}-${address.flat}` : null,
       });
-    if (phone === "+919800000005")
-      return problem(404, "identity.household_not_found", "No household yet");
+    if (isNewUser(phone)) return problem(404, "identity.household_not_found", "No household yet");
     return HttpResponse.json({ id: "hh-1", size: 4, society_id: "sunrise-towers", flat: "B-402" });
   }),
 

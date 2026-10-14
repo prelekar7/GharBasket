@@ -2,6 +2,7 @@
 // auth calls are frozen in §3.1; these request and response shapes are our proposal, built from
 // the M1 tables, for the backend to confirm.
 import { HttpResponse, http } from "msw";
+import { caller, HOUSEHOLDS_KEY } from "./handlers.js";
 
 const problem = (
   /** @type {number} */ status,
@@ -47,6 +48,11 @@ export const identityHandlers = [
       ...body,
     };
     identityStore.households[household.id] = household;
+    // From now on this number signs in as an existing household (…00005 stays new for demos).
+    const phone = caller(request);
+    const known = JSON.parse(localStorage.getItem(HOUSEHOLDS_KEY) ?? "[]");
+    if (phone && phone !== "+919800000005" && !known.includes(phone))
+      localStorage.setItem(HOUSEHOLDS_KEY, JSON.stringify([...known, phone]));
     identityStore.byIdempotencyKey[key] = household;
     return HttpResponse.json(household, { status: 201 });
   }),
