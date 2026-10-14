@@ -695,6 +695,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/packing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tasks by status and bags and crates per society for a date */
+        get: operations["packing_summary_v1_hubs__hub_id__packing_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's packing queue for a date, by seq */
+        get: operations["list_packing_tasks_v1_hubs__hub_id__packing_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key) */
+        post: operations["build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim the next task: the caller's own in picking, else the first queued one */
+        post: operations["next_packing_task_v1_hubs__hub_id__packing_tasks_next_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/partner-applications": {
         parameters: {
             query?: never;
@@ -759,6 +827,23 @@ export interface paths {
         put?: never;
         /** Add a vendor to a hub (Idempotency-Key required) */
         post: operations["create_vendor_v1_hubs__hub_id__vendors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/feature-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store point-in-time features as of a cut-off (the snapshot job; operator token) */
+        post: operations["put_feature_snapshots_v1_internal_intel_feature_snapshots_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1140,6 +1225,108 @@ export interface paths {
          * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
          */
         post: operations["pay_order_v1_orders__order_id__pay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A packing task with its lines */
+        get: operations["get_packing_task_v1_packing_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pack the bag (the order moves picking → packed; Idempotency-Key) */
+        post: operations["complete_packing_v1_packing_tasks__task_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the steps picked for a line (absolute; Idempotency-Key) */
+        post: operations["pick_line_v1_packing_tasks__task_id__pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Free a started task so another packer can take it (hub manager; Idempotency-Key) */
+        post: operations["release_packing_v1_packing_tasks__task_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/shortage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund short steps, or substitute the whole line (Idempotency-Key) */
+        post: operations["record_shortage_v1_packing_tasks__task_id__shortage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a task (the order moves locked → picking; Idempotency-Key) */
+        post: operations["start_packing_v1_packing_tasks__task_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2195,6 +2382,21 @@ export interface components {
             /** Spent Paise */
             spent_paise: number;
         };
+        /** BuildIn */
+        BuildIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** BuildOut */
+        BuildOut: {
+            /** Created */
+            created: number;
+            /** Existing */
+            existing: number;
+        };
         /** CaptainCard */
         CaptainCard: {
             /**
@@ -2263,6 +2465,18 @@ export interface components {
              * @example leafy-greens
              */
             slug: string;
+        };
+        /** CompleteIn */
+        CompleteIn: {
+            /** Bags */
+            bags?: number | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /** Crate No */
+            crate_no?: number | null;
         };
         /** ConsentIn */
         ConsentIn: {
@@ -2669,6 +2883,38 @@ export interface components {
              * @default false
              */
             no_onion_garlic_on_fast_days: boolean;
+        };
+        /** FeatureSnapshotIn */
+        FeatureSnapshotIn: {
+            /** Features */
+            features: {
+                [key: string]: unknown;
+            };
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "household" | "hub" | "society" | "order" | "partner" | "product";
+        };
+        /** FeatureSnapshotsIn */
+        FeatureSnapshotsIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items: components["schemas"]["FeatureSnapshotIn"][];
+        };
+        /** FeatureSnapshotsOut */
+        FeatureSnapshotsOut: {
+            /** Accepted */
+            accepted: number;
         };
         /** FeedbackIn */
         FeedbackIn: {
@@ -4248,6 +4494,298 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Packer */
+        Packer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** PackingLineOut */
+        PackingLineOut: {
+            /**
+             * Done
+             * @description picked_qty + short_qty = qty
+             */
+            done: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Picked Qty
+             * @description Steps in the bag (of the substitute, if any)
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description The ordered product
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps ordered
+             */
+            qty: number;
+            /**
+             * Short Qty
+             * @description Steps refunded
+             */
+            short_qty: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+        };
+        /** PackingRoute */
+        PackingRoute: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /**
+             * Stop Seq
+             * @example 3
+             */
+            stop_seq: number;
+        };
+        /** PackingSlot */
+        PackingSlot: {
+            /**
+             * End
+             * @example 09:00
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @example 7-9 am
+             */
+            label: string;
+            /**
+             * Start
+             * @description IST HH:MM
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** PackingSociety */
+        PackingSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
+        /** PackingStep */
+        PackingStep: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @example g
+             */
+            unit: string;
+        };
+        /** PackingSubstitute */
+        PackingSubstitute: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
+        /** PackingSummary */
+        PackingSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Packed */
+            packed: number;
+            /** Picking */
+            picking: number;
+            /** Queued */
+            queued: number;
+            /** Societies */
+            societies: components["schemas"]["SocietyLoad"][];
+        };
+        /** PackingTaskDetail */
+        PackingTaskDetail: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By catalog category, then name
+             */
+            lines: components["schemas"]["PackingLineOut"][];
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
+        /** PackingTaskOut */
+        PackingTaskOut: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
         /** Page[ApplicationReviewOut] */
         Page_ApplicationReviewOut_: {
             /** Items */
@@ -4273,6 +4811,13 @@ export interface components {
         Page_OrderSummaryOut_: {
             /** Items */
             items: components["schemas"]["OrderSummaryOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PackingTaskOut] */
+        Page_PackingTaskOut_: {
+            /** Items */
+            items: components["schemas"]["PackingTaskOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -4453,6 +4998,24 @@ export interface components {
              * @description The wallet's balance now
              */
             wallet_paise: number;
+        };
+        /** PickIn */
+        PickIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Picked Qty
+             * @description Absolute, not a delta: 0 to qty - short_qty
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
         };
         /** PlanOut */
         PlanOut: {
@@ -5090,6 +5653,26 @@ export interface components {
             /** Items */
             items: components["schemas"]["SearchItem"][];
         };
+        /** ShortageIn */
+        ShortageIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Short Qty
+             * @example 1
+             */
+            short_qty: number;
+            /** Substitute Product Id */
+            substitute_product_id?: string | null;
+        };
         /** SlotIn */
         SlotIn: {
             /**
@@ -5224,6 +5807,22 @@ export interface components {
             /** Items */
             items: components["schemas"]["SlotOut"][];
         };
+        /** SocietyLoad */
+        SocietyLoad: {
+            /** Bags */
+            bags: number;
+            /** Crates */
+            crates: number;
+            /** Name */
+            name: string;
+            /** Packed Bags */
+            packed_bags: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
         /** SocietyOut */
         SocietyOut: {
             /**
@@ -5351,6 +5950,19 @@ export interface components {
              * @enum {string}
              */
             status: "prospect" | "unlocking" | "live" | "paused";
+        };
+        /** StartIn */
+        StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
         };
         /** StatementEntry */
         StatementEntry: {
@@ -9240,6 +9852,280 @@ export interface operations {
             };
         };
     };
+    packing_summary_v1_hubs__hub_id__packing_summary_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingSummary"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_packing_tasks_v1_hubs__hub_id__packing_tasks_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                status?: ("queued" | "picking" | "packed") | null;
+                society_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackingTaskOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    next_packing_task_v1_hubs__hub_id__packing_tasks_next_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description Nothing queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     review_queue_v1_hubs__hub_id__partner_applications_get: {
         parameters: {
             query?: {
@@ -9640,6 +10526,57 @@ export interface operations {
                 };
             };
             /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_feature_snapshots_v1_internal_intel_feature_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureSnapshotsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureSnapshotsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -11062,6 +11999,483 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_packing_task_v1_packing_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    complete_packing_v1_packing_tasks__task_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CompleteIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pick_line_v1_packing_tasks__task_id__pick_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PickIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    release_packing_v1_packing_tasks__task_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_shortage_v1_packing_tasks__task_id__shortage_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShortageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_packing_v1_packing_tasks__task_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

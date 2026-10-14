@@ -2,11 +2,12 @@
 token (ADR-0025). Customers never call these.
 """
 
+import uuid
 from datetime import date
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.intel_gateway import service
@@ -84,3 +85,37 @@ async def put_model_metrics(body: ModelMetricsIn, session: DbSession) -> ModelMe
         accepted += len(rows)
     await session.commit()
     return ModelMetricsOut(accepted=accepted)
+
+
+class FeatureSnapshotIn(BaseModel):
+    subject_type: Literal["household", "hub", "society", "order", "partner", "product"]
+    subject_id: uuid.UUID
+    features: dict[str, Any]
+
+
+class FeatureSnapshotsIn(BaseModel):
+    as_of: AwareDatetime  # an instant: a naive time would be read in the server's zone
+    items: list[FeatureSnapshotIn] = Field(min_length=1, max_length=5000)
+
+
+class FeatureSnapshotsOut(BaseModel):
+    accepted: int
+
+
+@router.post(
+    "/internal/intel/feature-snapshots",
+    summary="Store point-in-time features as of a cut-off (the snapshot job; operator token)",
+)
+async def put_feature_snapshots(
+    body: FeatureSnapshotsIn, session: DbSession
+) -> FeatureSnapshotsOut:
+    for item in body.items:
+        await service.save_features(
+            session,
+            subject_type=item.subject_type,
+            subject_id=item.subject_id,
+            as_of=body.as_of,
+            features=item.features,
+        )
+    await session.commit()
+    return FeatureSnapshotsOut(accepted=len(body.items))

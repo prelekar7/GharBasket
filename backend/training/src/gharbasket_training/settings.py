@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     api_url: str | None = None
     jobs_token: SecretStr | None = None
 
+    # The database, read with a read-only role in Actions (snapshots, features).
+    database_url_ro: SecretStr | None = None
+    database_url: SecretStr | None = None
+
     http_timeout_s: float = Field(default=60.0, gt=0)
 
     @property
