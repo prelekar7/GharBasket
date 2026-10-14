@@ -2,6 +2,7 @@
 
 import { DataTable, FilterBar, KpiTile } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
+import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
 import { mulDivRound } from "@/lib/money.js";
 
@@ -12,10 +13,12 @@ const STATUS = {
   live: { tone: "primary", label: "Live" },
   unlocking: { tone: "accent", label: "Unlocking" },
   prospect: { tone: "outline", label: "Prospect" },
+  paused: { tone: "outline", label: "Paused" },
 };
 
 /** 9069 bp → "91%". @param {number} bp */
-const percent = (bp) => `${mulDivRound(bp, 1, 100)}%`;
+const percent = (/** @type {number | null} */ bp) =>
+  bp == null ? "—" : `${mulDivRound(bp, 1, 100)}%`;
 
 /**
  * Households by society, with no names or phone numbers. The status filter lives in the URL (`status`).
@@ -28,7 +31,7 @@ export function CustomersView({ summary }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Customers">
+      <PageHeader title="Customers" actions={<DataSourceControl />}>
         Households by society, without names or phone numbers. A franchise owner sees how the hub’s
         families are doing, not who they are.
       </PageHeader>
@@ -37,11 +40,15 @@ export function CustomersView({ summary }) {
         <KpiTile
           label="Active households"
           value={String(summary.active_households)}
-          delta={{
-            value: `${change > 0 ? "+" : ""}${change}`,
-            direction: change > 0 ? "up" : change < 0 ? "down" : "flat",
-            note: "this month",
-          }}
+          delta={
+            change == null
+              ? undefined
+              : {
+                  value: `${change > 0 ? "+" : ""}${change}`,
+                  direction: change > 0 ? "up" : change < 0 ? "down" : "flat",
+                  note: "vs last week",
+                }
+          }
           hint="Got a box in the last 2 weeks"
         />
         <KpiTile
@@ -89,15 +96,15 @@ export function CustomersView({ summary }) {
           { key: "box", label: "Average box", align: "end" },
         ]}
         rows={shown.map((s) => ({
-          id: s.id,
+          id: s.society_id,
           s: { text: s.name, strong: true },
           status: { badge: STATUS[s.status] },
           active: {
-            text: s.active_households == null ? "—" : String(s.active_households),
-            sort: s.active_households ?? 0,
+            text: s.status === "live" ? String(s.active_households) : "—",
+            sort: s.active_households,
           },
-          paused: s.paused_households == null ? "—" : String(s.paused_households),
-          approve: s.approved_on_time_bp == null ? "—" : percent(s.approved_on_time_bp),
+          paused: s.status === "live" ? String(s.paused_households) : "—",
+          approve: percent(s.approved_on_time_bp),
           box:
             s.average_box_paise != null
               ? { money: s.average_box_paise }

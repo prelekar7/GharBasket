@@ -1,97 +1,85 @@
-// Ops board mock (M12 US-1, "live counts per stage; links to each workflow"). The spec has no
-// endpoint for it; GET /v1/hubs/{id}/ops-board?date= is our proposal. It would read the other M6
-// views (packing, receiving, waste) and M7 (routes); here it is a fixed 8:20 AM snapshot of the
-// shared story: Tue 6 Oct 2026, Kharghar hub, 58 boxes (46 Sunrise Towers + 12 Krishna Kunj),
-// methi 26 of 34 received (30 needed, 4 bags short), van out at 7.
+// Today board mock (M12 section 3.3): GET /v1/analytics/hubs/{hub_id}/today?date=, the live counts per stage
+// the hub manager runs the morning from. It is a fixed 8:20 AM snapshot of the shared story: Tue 6 Oct 2026,
+// Kharghar hub, 58 boxes (46 Sunrise Towers + 12 Krishna Kunj), methi 26 of 34 received (30 needed, 4 bags
+// short), van out at 7. Timestamps are ISO with the +05:30 offset and the step times are "HH:MM"; the console
+// formats them. There is no map on the board: the console reads M7's route endpoints for that.
 import { HttpResponse, http } from "msw";
-import { KHARGHAR_HUB_ID } from "./hubs.js";
-import { problem } from "./util.js";
+import { catalogStore } from "./catalog.js";
+import { KHARGHAR_HUB_ID, visibleHubs } from "./hubs.js";
+import { SOCIETY_ID } from "./ids.js";
+import { problem, roleOf } from "./util.js";
 
 export const TODAY = "2026-10-06";
 
-/** Schematic hub-and-stops layout around Kharghar (the design drew x/y percentages). */
-const at = (/** @type {number} */ x, /** @type {number} */ y) => ({
-  lng: +(73.04 + x * 0.0004).toFixed(5),
-  lat: +(19.06 - y * 0.0003).toFixed(5),
-});
+/** @param {string} time "HH:MM" on the story day */
+const at = (time, day = TODAY) => `${day}T${time}:00+05:30`;
 
-const BOARD = {
+const board = () => ({
   hub_id: KHARGHAR_HUB_ID,
   date: TODAY,
-  as_of: "8:20 AM",
-  status_line: "Packing finished, the van is out, and Meena tai has Sunrise Towers’ crates.",
+  as_of: at("08:20"),
   boxes: {
     total: 58,
+    locked: 58,
+    cutoff_at: at("21:00", "2026-10-05"),
     by_society: [
-      { name: "Sunrise Towers", short_name: "Sunrise", boxes: 46 },
-      { name: "Krishna Kunj", short_name: "Krishna Kunj", boxes: 12 },
+      { society_id: SOCIETY_ID["sunrise-towers"], name: "Sunrise Towers", boxes: 46 },
+      { society_id: SOCIETY_ID["krishna-kunj"], name: "Krishna Kunj", boxes: 12 },
     ],
-    locked_at: "9 PM cut-off",
   },
-  bags: { packed: 58, total: 58, finished_at: "6:40 AM", packers: "Kavita More and team" },
-  short: { items: [{ product: "Methi", bags: 4 }] },
-  waste: { kg: 0.7, change_kg: -0.3, versus: "Fri" },
+  packing: { bags_total: 58, bags_packed: 58, finished_at: at("06:40") },
+  shortages: [
+    {
+      product_id: catalogStore().products.find((p) => p.slug === "methi")?.id ?? null,
+      name: "Methi",
+      bags: 4,
+    },
+  ],
+  routes: { planned: 2, started: 2, completed: 1, stops_total: 6, stops_done: 4, late_stops: 0 },
+  deliveries: { at_society: 17, delivered: 40, held: 1, undelivered: 0 },
+  waste: { kg: 0.7, previous_kg: 1.0, previous_date: "2026-10-02" },
   steps: [
-    { label: "Cut-off and lock", time: "Mon 9:00 PM", state: "done" },
-    { label: "Procurement plan sent", time: "Mon 9:15 PM", state: "done" },
-    { label: "Kitchen tiffins assigned", time: "Mon 9:30 PM", state: "done" },
-    {
-      label: "Goods received and graded",
-      time: "4:30 AM",
-      note: "Methi short: 26 of 34 bunches",
-      state: "issue",
-    },
-    { label: "Packing", time: "5:00 to 6:40 AM", state: "done" },
-    { label: "Routes published", time: "7:00 AM", state: "done" },
-    {
-      label: "Handovers through captains",
-      time: "8 to 10 AM",
-      note: "Sunrise Towers handed over 8:07",
-      state: "current",
-    },
-    { label: "Return leg pickups", time: "10 AM to 12", state: "todo" },
-    { label: "Surplus cascade", time: "12:30 PM", state: "todo" },
+    { key: "cutoff", due_at: "21:00", state: "done", note: null },
+    { key: "procurement", due_at: "21:15", state: "done", note: null },
+    { key: "receiving", due_at: "04:30", state: "issue", note: "Methi short: 26 of 34 bunches" },
+    { key: "packing", due_at: "06:30", state: "done", note: null },
+    { key: "dispatch", due_at: "07:00", state: "done", note: null },
+    { key: "delivery", due_at: "10:00", state: "current", note: "Sunrise Towers handed over 8:07" },
+    { key: "surplus", due_at: "12:30", state: "todo", note: null },
   ],
-  markers: [
-    { id: "hub", kind: "hub", label: "Kharghar hub", ...at(50, 56) },
-    { id: "sunrise", kind: "society", status: "live", label: "Sunrise Towers", ...at(54, 26) },
-    { id: "krishna", kind: "society", status: "live", label: "Krishna Kunj", ...at(20, 66) },
-    { id: "van", kind: "van", label: "Arjun · to Krishna Kunj", ...at(33, 48) },
-  ],
-  route: ["hub", "sunrise", "krishna", "hub"],
   attention: [
     {
-      id: "methi-short",
-      what: "Methi short by 4 bunches",
-      where: "4 bags · Sunrise Towers, Krishna Kunj",
-      state: { tone: "primary", label: "Applied" },
-      next: { text: "2 swaps, 2 refunds of ₹20" },
-      severity: "info",
+      kind: "issue_open",
+      count: 2,
+      oldest_at: at("07:52"),
+      due_at: at("10:30"),
+      link: "/hub/issues?status=open",
     },
+    { kind: "shortage", count: 1, oldest_at: at("04:48"), due_at: null, link: "/hub/receiving" },
     {
-      id: "eggs-broken",
-      what: "Eggs broken in a bag",
-      where: "Sunrise Towers · B-1104",
-      state: { tone: "danger", label: "Check photo" },
-      next: { text: "Approve the refund", href: "/refunds" },
-      severity: "danger",
-    },
-    {
-      id: "no-one-home",
-      what: "No one home",
-      where: "Sunrise Towers · C-302",
-      state: { tone: "accent", label: "In lobby" },
-      next: { text: "Back to hub if not collected by 7 PM" },
-      severity: "info",
+      kind: "delivery_held",
+      count: 1,
+      oldest_at: at("08:05"),
+      due_at: at("19:00"),
+      link: "/hub/deliveries",
     },
   ],
-};
+});
 
 export const opsBoardHandlers = [
-  // GET /v1/hubs/{id}/ops-board?date=  (proposal)
-  http.get("*/v1/hubs/:id/ops-board", ({ params, request }) => {
-    if (params.id !== BOARD.hub_id) return problem(404, "hubs.not_found", "No such hub");
+  http.get("*/v1/analytics/hubs/:hubId/today", ({ params, request }) => {
+    const role = roleOf(request);
+    if (!role) return problem(401, "auth.unauthenticated", "Sign in again");
+    if (role === "ngo_coordinator") {
+      return problem(403, "auth.forbidden", "You do not have access to this hub");
+    }
+    if (!visibleHubs(request).some((h) => h.id === params.hubId)) {
+      return problem(403, "auth.forbidden", "You do not have access to this hub");
+    }
     const date = new URL(request.url).searchParams.get("date") ?? TODAY;
-    return HttpResponse.json({ ...BOARD, date });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return problem(422, "analytics.range_invalid", "date is YYYY-MM-DD");
+    }
+    return HttpResponse.json({ ...board(), date }, { headers: { "cache-control": "no-store" } });
   }),
 ];

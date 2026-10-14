@@ -1,13 +1,16 @@
+import { shortDate } from "../../../../lib/dates.js";
 import { formatRupees, mulDivRound, toDecimalText } from "../../../../lib/money.js";
 
 /**
- * GET /v1/analytics/kpis?hub_id=&from=&to= (M12 section 3): one value per delivery week, oldest first.
- * `hub_id` is null for all hubs added up. Rates are basis points, waste is grams per 100 kg sold, money is paise.
- * @typedef {{ hub_id: string | null, data_source: "simulator" | "pilot", weeks: string[],
- *   active_households: number[], weeks_accepted_bp: number[], waste_g_per_100kg: number[],
- *   on_time_bp: number[], partner_earnings_paise: number[] }} Kpis
+ * GET /v1/analytics/kpis?hub_id=&from=&to=&grain=week&data_source= (M12 section 3.3): one integer per period in
+ * `series.<key>`, oldest first, or null where the KPI is undefined. `periods` are the first days of the
+ * weeks (ISO dates). Rates are basis points, waste is grams per 100 kg packed, money is paise.
+ * @typedef {"active_households" | "weeks_accepted_bp" | "waste_g_per_100kg" | "on_time_bp" | "partner_earnings_paise"} KpiKey
+ * @typedef {{ hub_id: string | null, data_source: "real" | "synthetic", grain: "day" | "week",
+ *   as_of: string, stale: boolean, periods: string[],
+ *   series: Record<KpiKey, (number | null)[]>, totals: Record<KpiKey, number | null> }} Kpis
  * @typedef {{ label: string, value: string, hint?: string, spark: number[],
- *   delta: { value: string, direction: "up" | "down" | "flat", good?: boolean } }} Tile
+ *   delta?: { value: string, direction: "up" | "down" | "flat", good?: boolean } }} Tile
  */
 
 /**
@@ -26,11 +29,39 @@ function delta(diff, text, upIsGood = true) {
   };
 }
 
-/** @param {number[]} a @returns {[number, number]} the latest value and the one before it */
-const lastTwo = (a) => [a[a.length - 1], a[a.length - 2] ?? a[a.length - 1]];
+/**
+ * The latest value and the one before it. Null when the latest week is undefined (the pilot has no data).
+ * @param {(number | null)[]} a
+ * @returns {[number, number] | null}
+ */
+function lastTwo(a) {
+  const latest = a[a.length - 1];
+  if (latest == null) return null;
+  return [latest, a[a.length - 2] ?? latest];
+}
+
+/** A series for a sparkline or chart: an undefined week is drawn as zero. @param {(number | null)[]} a */
+export const plotted = (a) => a.map((v) => v ?? 0);
 
 /** 9100 bp → 91. @param {number} bp */
 const wholePercent = (bp) => mulDivRound(bp, 1, 100);
+
+/**
+ * @param {string} label
+ * @param {(number | null)[]} series
+ * @param {(latest: number, previous: number) => Pick<Tile, "value" | "delta">} make
+ * @param {string} [hint]
+ * @returns {Tile}
+ */
+function tile(label, series, make, hint) {
+  const two = lastTwo(series);
+  return {
+    label,
+    ...(two ? make(two[0], two[1]) : { value: "—" }),
+    spark: plotted(series),
+    hint,
+  };
+}
 
 /**
  * The five KPI tiles: the latest week's value, its change on the week before, and the trend over the
@@ -39,44 +70,42 @@ const wholePercent = (bp) => mulDivRound(bp, 1, 100);
  * @returns {Tile[]}
  */
 export function buildTiles(k) {
-  const [hh, hhPrev] = lastTwo(k.active_households);
-  const [acc, accPrev] = lastTwo(k.weeks_accepted_bp);
-  const [waste, wastePrev] = lastTwo(k.waste_g_per_100kg);
-  const [onTime, onTimePrev] = lastTwo(k.on_time_bp);
-  const [earn, earnPrev] = lastTwo(k.partner_earnings_paise);
+  const s = k.series;
+  const week = k.periods.length
+    ? `Week of ${shortDate(k.periods[k.periods.length - 1])}`
+    : undefined;
   return [
-    {
-      label: "Active households",
+    tile("Active households", s.active_households, (hh, prev) => ({
       value: String(hh),
-      delta: delta(hh - hhPrev, String),
-      spark: k.active_households,
-    },
-    {
-      label: "Weeks accepted",
-      value: `${wholePercent(acc)}%`,
-      delta: delta(wholePercent(acc) - wholePercent(accPrev), (n) => `${n} pts`),
-      spark: k.weeks_accepted_bp,
-      hint: "Approved or auto-approved",
-    },
-    {
-      label: "Waste per 100 kg sold",
+      delta: delta(hh - prev, String),
+    })),
+    tile(
+      "Weeks accepted",
+      s.weeks_accepted_bp,
+      (acc, prev) => ({
+        value: `${wholePercent(acc)}%`,
+        delta: delta(wholePercent(acc) - wholePercent(prev), (n) => `${n} pts`),
+      }),
+      "Approved or auto-approved",
+    ),
+    tile("Waste per 100 kg sold", s.waste_g_per_100kg, (waste, prev) => ({
       value: `${toDecimalText(waste, 3)} kg`,
-      delta: delta(waste - wastePrev, (n) => `${toDecimalText(n, 3)} kg`, false),
-      spark: k.waste_g_per_100kg,
-    },
-    {
-      label: "Delivered on time",
-      value: `${wholePercent(onTime)}%`,
-      delta: delta(wholePercent(onTime) - wholePercent(onTimePrev), (n) => `${n} pts`),
-      spark: k.on_time_bp,
-      hint: "Inside the slot",
-    },
-    {
-      label: "Partner earnings",
-      value: formatRupees(earn),
-      delta: delta(earn - earnPrev, formatRupees),
-      spark: k.partner_earnings_paise,
-      hint: `Week of ${k.weeks[k.weeks.length - 1]}`,
-    },
+      delta: delta(waste - prev, (n) => `${toDecimalText(n, 3)} kg`, false),
+    })),
+    tile(
+      "Delivered on time",
+      s.on_time_bp,
+      (onTime, prev) => ({
+        value: `${wholePercent(onTime)}%`,
+        delta: delta(wholePercent(onTime) - wholePercent(prev), (n) => `${n} pts`),
+      }),
+      "Inside the slot",
+    ),
+    tile(
+      "Partner earnings",
+      s.partner_earnings_paise,
+      (earn, prev) => ({ value: formatRupees(earn), delta: delta(earn - prev, formatRupees) }),
+      week,
+    ),
   ];
 }

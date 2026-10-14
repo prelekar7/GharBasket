@@ -1,7 +1,7 @@
 /**
  * Simulator versus pilot data (ADR-0008). Every household and order carries a `data_source`, and the
  * console never mixes the two: a page shows one source at a time, chosen with the "Data source"
- * control (`?source=` in the URL, default the simulator). The API calls them `synthetic` and `pilot`.
+ * control (`?source=` in the URL, default the simulator). The API calls them `synthetic` and `real` (M12 section 3.3; the console labels `real` "Pilot" until launch).
  *
  * @typedef {"simulator" | "pilot"} DataSource
  */
@@ -22,9 +22,10 @@ export function parseSource(raw) {
 }
 
 /**
- * The `data_source` value the API expects.
+ * The `data_source` value the API expects: `synthetic` or `real`.
  * @param {DataSource} source
+ * @returns {"synthetic" | "real"}
  */
 export function apiSource(source) {
-  return source === "pilot" ? "pilot" : "synthetic";
+  return source === "pilot" ? "real" : "synthetic";
 }
