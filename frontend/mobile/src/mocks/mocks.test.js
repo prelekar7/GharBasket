@@ -251,3 +251,33 @@ describe("wallet statement (M5)", () => {
     );
   });
 });
+
+describe("society invites and unlock (M9, Core-S1/S4)", () => {
+  const society = async (/** @type {string} */ id) =>
+    (await mockFetch(new Request(`http://localhost/v1/societies/${id}`))).json();
+
+  it("unlocks a society when invites bring it to the threshold, with its captain", async () => {
+    expect(await society("green-valley")).toMatchObject({
+      status: "prospect",
+      unlock: { joined: 14 },
+    });
+    for (let i = 0; i < 6; i++)
+      await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, `ref-${i}`);
+    // The same key again changes nothing.
+    await post("/v1/referrals", { society_id: "green-valley", channel: "copy" }, "ref-0");
+    const s = await society("green-valley");
+    expect(s).toMatchObject({
+      status: "live",
+      unlock: { joined: 20 },
+      captain: { name: "Asha tai" },
+    });
+    expect(s.unlocked_at).toBeTruthy();
+  });
+
+  it("reports a live society's impact this month", async () => {
+    const r = await mockFetch(
+      new Request("http://localhost/v1/impact?scope=society&id=sunrise-towers"),
+    );
+    expect(await r.json()).toMatchObject({ food_saved_kg: 42, items_donated: 18 });
+  });
+});

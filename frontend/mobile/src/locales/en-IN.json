@@ -557,7 +557,34 @@
     "becomeCaptain": "Become the captain",
     "planTitle": "Your plan is ready",
     "planBody": "Your Autopilot week starts as soon as the society unlocks.",
-    "progress": "Homes joined"
+    "progress": "Homes joined",
+    "free": "Free delivery",
+    "delivery": "{area} · Delivery on {days}",
+    "captainDoes": "{flat}. Receives the drop and brings your box to your door.",
+    "whatsapp": "Message on WhatsApp",
+    "share": {
+      "title": "Invite to {society}",
+      "preview": "Message preview",
+      "message": "Hum GharBasket use karte hain. Hafte ka khana aur sabzi pehle se plan ho jaata hai, aur {captain} ghar tak laati hain. Join karo: {link}",
+      "messageUnlocking": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan, aur {society} mein {n} aur ghar jud gaye toh delivery free shuru. Join karo: {link}",
+      "reward": "You get a reward when their first box is delivered. One reward per neighbour.",
+      "whatsapp": "Share on WhatsApp",
+      "copy": "Copy link",
+      "copyShort": "Copy",
+      "copyFailed": "Couldn’t copy. Long-press the link to copy it."
+    },
+    "impact": {
+      "title": "This month in {society}",
+      "body": "{kg} kg food not wasted · {n} items donated ·",
+      "cooks": "earned by home cooks"
+    },
+    "unlock": {
+      "title": "{society} is unlocked",
+      "body": "{n} homes joined. Deliveries start {start}, and delivery is free for everyone here.",
+      "days": "Delivery days",
+      "captain": "Your captain",
+      "cta": "See my first week"
+    }
   },
   "orders": {
     "today": "Today, {day}",
