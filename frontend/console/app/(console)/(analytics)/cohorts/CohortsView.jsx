@@ -6,13 +6,16 @@ import { parseAsString, useQueryState } from "nuqs";
 import { useTransition } from "react";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
 import { averageCurve } from "@/lib/cohorts.js";
+import { DATA_SOURCES } from "@/lib/data-source.js";
 import { shortDate } from "@/lib/dates.js";
 import { mulDivRound, toDecimalText } from "@/lib/money.js";
 
-const SOURCES = [
-  { value: "sim", label: "Simulator" },
-  { value: "pilot", label: "Pilot" },
-];
+/** The control's values (`?source=`) and the API's `data_source` they ask for. */
+const SOURCES = DATA_SOURCES.map((s) => ({
+  ...s,
+  api: s.value === "pilot" ? "real" : "synthetic",
+  label: s.value === "pilot" ? "Pilot" : "Simulator",
+}));
 
 /** 9450 bp → "94.5%" in the curve, "94%" in the table (cells show whole percent). @param {number | null} bp */
 const cell = (bp) => (bp == null ? "—" : `${mulDivRound(bp, 1, 100)}%`);
@@ -28,7 +31,7 @@ export function CohortsView({ report }) {
     "source",
     parseAsString.withOptions({ shallow: false, startTransition }),
   );
-  const source = SOURCES.find((s) => s.value === report.data_source) ?? SOURCES[0];
+  const source = SOURCES.find((s) => s.api === report.data_source) ?? SOURCES[0];
   const weeks = Array.from({ length: report.weeks }, (_, i) => i + 1);
   const curve = averageCurve(report.cohorts, report.weeks);
 
@@ -61,7 +64,7 @@ export function CohortsView({ report }) {
             <SegmentedControl
               label="Data source"
               options={SOURCES}
-              value={report.data_source}
+              value={source.value}
               onChange={setSource}
             />
             <Button isDisabled={report.cohorts.length === 0} onPress={download}>
@@ -97,13 +100,13 @@ export function CohortsView({ report }) {
             rows={report.cohorts.map((c) => ({
               id: c.week,
               week: { text: shortDate(c.week), strong: true },
-              n: String(c.households),
+              n: c.small ? `${c.households} (under 5)` : String(c.households),
               ...Object.fromEntries(
                 weeks.map((w) => [`w${w}`, cell(c.retention_bp[w - 1] ?? null)]),
               ),
             }))}
             footer={
-              report.data_source === "sim"
+              report.data_source === "synthetic"
                 ? "Simulator cohorts: simulated households, not real families. Pilot cohorts appear here from the first pilot week."
                 : "Pilot cohorts: real households of the pilot societies."
             }

@@ -1,27 +1,16 @@
-// Analytics mocks (M12): KPIs and weekly cohorts. Both paths are in the spec (section 3):
-// GET /v1/analytics/kpis?hub_id=&from=&to= and GET /v1/analytics/cohorts?data_source=. Leaving `hub_id` out asks
-// for all hubs together (our proposal): admins only; everyone else gets analytics.forbidden.
-// The numbers are simulator output; the pilot has no data yet, so the pilot source answers empty.
-// Simulator and pilot are separate sources and the handlers never merge them.
+// Analytics mocks (M12 section 3.3 and 3.5): KPIs, weekly cohorts and the per-society aggregates, as the
+// frozen contract has them. `data_source` is required and is `real` or `synthetic`; the numbers are simulator
+// output (`synthetic`), the pilot has no data yet, so `real` answers empty. The two are never merged.
+// Leaving `hub_id` out asks for every hub: admins only (403 auth.forbidden for anyone else).
 import { HttpResponse, http } from "msw";
 import { KHARGHAR_HUB_ID, TALOJA_HUB_ID, visibleHubs } from "./hubs.js";
+import { SOCIETY_ID } from "./ids.js";
 import { problem, roleOf } from "./util.js";
 
-/** The last 12 delivery weeks (Mondays) up to the week of 28 Sep 2026, oldest first. */
-const WEEKS = [
-  "13 Jul",
-  "20 Jul",
-  "27 Jul",
-  "3 Aug",
-  "10 Aug",
-  "17 Aug",
-  "24 Aug",
-  "31 Aug",
-  "7 Sep",
-  "14 Sep",
-  "21 Sep",
-  "28 Sep",
-];
+/** The last 12 delivery weeks (ISO Mondays) up to the week of 28 Sep 2026, oldest first. */
+const WEEKS = Array.from({ length: 12 }, (_, i) =>
+  new Date(Date.UTC(2026, 6, 13) + i * 7 * 86_400_000).toISOString().slice(0, 10),
+);
 
 /** One week per entry, oldest first; Kharghar's last four are the figures of the KPI design. */
 const KHARGHAR = {
@@ -81,63 +70,169 @@ function allHubs() {
   };
 }
 
-/** @type {import("../lib/cohorts.js").Cohort[]} */
-const SIMULATOR_COHORTS = [
-  { week: "2026-09-07", households: 200, retention_bp: [9400, 8800, 8400, 8100] },
-  { week: "2026-09-14", households: 200, retention_bp: [9500, 8900, 8500, null] },
-  { week: "2026-09-21", households: 200, retention_bp: [9300, 8700, null, null] },
-  { week: "2026-09-28", households: 200, retention_bp: [9600, null, null, null] },
-];
+/** The refresh job's last finish, for `as_of`. */
+const AS_OF = "2026-10-06T08:15:00+05:30";
 
-/** @param {Request} request */
-const signedOut = (request) =>
-  roleOf(request) ? null : problem(401, "auth.unauthenticated", "Sign in again");
+/** The cohort curve of the simulator, then a little spread per cohort. 8 weeks wide. */
+const CURVE = [9400, 8800, 8400, 8100, 7900, 7700, 7600, 7500];
+
+/**
+ * Weekly signup cohorts, oldest first: 17 Aug to 28 Sep, as of the week of 5 Oct. A cohort has a value
+ * for week n only when n weeks have passed since it joined; later weeks are null.
+ * @param {number} weeks how many offsets each cohort carries
+ */
+function simulatorCohorts(weeks) {
+  return Array.from({ length: 8 }, (_, k) => {
+    const reached = 7 - k;
+    return {
+      week: new Date(Date.UTC(2026, 7, 17) + k * 7 * 86_400_000).toISOString().slice(0, 10),
+      households: 200,
+      small: false,
+      retention_bp: Array.from({ length: weeks }, (_, i) =>
+        i < reached ? Math.min(9900, (CURVE[i] ?? 7500) + ((k * 37 + i * 11) % 200) - 60) : null,
+      ),
+    };
+  });
+}
+
+/** The KPI keys this mock carries (the five tiles); every one is null for the pilot. */
+const KEYS = /** @type {const} */ ([
+  "active_households",
+  "weeks_accepted_bp",
+  "waste_g_per_100kg",
+  "on_time_bp",
+  "partner_earnings_paise",
+]);
+
+/** @param {string | null} text a YYYY-MM-DD date, or null @returns {number | null} */
+const dayOf = (text) => (text && /^\d{4}-\d{2}-\d{2}$/.test(text) ? Date.parse(text) : null);
+
+/**
+ * The query rules every analytics read shares: a data source, and a hub within the caller's grants.
+ * @param {Request} request
+ * @param {{ staff?: boolean }} [options] hub staff (hub manager, franchise owner) may read; false = admin only
+ * @returns {{ denied: Response } | { hubId: string | null, source: "real" | "synthetic", q: URLSearchParams }}
+ */
+function scope(request, { staff = true } = {}) {
+  const q = new URL(request.url).searchParams;
+  const role = roleOf(request);
+  if (!role) return { denied: problem(401, "auth.unauthenticated", "Sign in again") };
+  if (role === "ngo_coordinator" || (!staff && role !== "admin")) {
+    return { denied: problem(403, "auth.forbidden", "You do not have access to this") };
+  }
+  const source = q.get("data_source");
+  if (source !== "real" && source !== "synthetic") {
+    return {
+      denied: problem(422, "analytics.data_source_required", "Choose real or synthetic data", {
+        errors: [{ loc: ["query", "data_source"], message: "Field required", type: "missing" }],
+      }),
+    };
+  }
+  const hubId = q.get("hub_id");
+  if (hubId === null) {
+    if (role !== "admin") {
+      return { denied: problem(403, "auth.forbidden", "Choose a hub") };
+    }
+  } else if (!BY_HUB[hubId]) {
+    return { denied: problem(404, "hub_ops.hub_not_found", "No such hub") };
+  } else if (!visibleHubs(request).some((h) => h.id === hubId)) {
+    return { denied: problem(403, "auth.forbidden", "You do not have access to this hub") };
+  }
+  return { hubId, source, q };
+}
+
+/** The societies of the Kharghar hub, as `GET /v1/analytics/societies` lists them. */
+const SOCIETIES = [
+  ["sunrise-towers", "Sunrise Towers", "live", 54, 20, 50, 4, 9200, 64_000],
+  ["krishna-kunj", "Krishna Kunj", "live", 15, 10, 14, 1, 8600, 56_000],
+  ["green-valley-heights", "Green Valley Heights", "unlocking", 12, 20, 0, 0, null, null],
+  ["shree-ganesh-chs", "Shree Ganesh CHS", "unlocking", 9, 20, 0, 0, null, null],
+  ["panchavati-residency", "Panchavati Residency", "prospect", 0, 20, 0, 0, null, null],
+].map(([slug, name, status, joined, threshold, active, paused, onTime, box]) => ({
+  society_id: SOCIETY_ID[/** @type {keyof typeof SOCIETY_ID} */ (slug)],
+  name,
+  status,
+  joined,
+  threshold,
+  active_households: active,
+  paused_households: paused,
+  approved_on_time_bp: onTime,
+  average_box_paise: box,
+}));
 
 export const analyticsHandlers = [
+  // GET /v1/analytics/kpis?hub_id=&from=&to=&grain=week&data_source=
   http.get("*/v1/analytics/kpis", ({ request }) => {
-    const denied = signedOut(request);
-    if (denied) return denied;
-    const q = new URL(request.url).searchParams;
-    const hubId = q.get("hub_id");
-    if (hubId === null) {
-      if (roleOf(request) !== "admin")
-        return problem(403, "analytics.forbidden", "Only admins can see all hubs together");
-    } else if (!BY_HUB[hubId]) {
-      return problem(404, "hubs.not_found", "No such hub");
-    } else if (!visibleHubs(request).some((h) => h.id === hubId)) {
-      return problem(403, "analytics.forbidden", "You do not have access to this hub");
+    const s = scope(request);
+    if ("denied" in s) return s.denied;
+    const { q } = s;
+    const grain = q.get("grain") ?? "week";
+    if (grain !== "week") {
+      return problem(422, "request.invalid", "Only the week grain is mocked", {
+        errors: [{ loc: ["query", "grain"], message: "Only week is mocked", type: "value_error" }],
+      });
     }
-    const series = hubId === null ? allHubs() : BY_HUB[hubId];
-    const from = q.get("from");
-    const to = q.get("to");
+    const from = dayOf(q.get("from"));
+    const to = dayOf(q.get("to"));
+    if (from !== null && to !== null && to < from) {
+      return problem(422, "analytics.range_invalid", "The end date is before the start");
+    }
     // The window is `from`..`to`; the mock only uses its length, in whole weeks, ending at the latest week.
-    const days = from && to ? (Date.parse(to) - Date.parse(from)) / 86_400_000 : 28;
+    const days = from !== null && to !== null ? (to - from) / 86_400_000 : 84;
+    if (days / 7 > 104) {
+      return problem(422, "analytics.range_too_long", "Pick a shorter range");
+    }
     const count = Math.min(WEEKS.length, Math.max(2, Math.round(days / 7)));
-    const last = /** @type {<T>(a: T[]) => T[]} */ ((a) => a.slice(-count));
+    const periods = WEEKS.slice(-count);
+    const series = s.source === "real" ? null : s.hubId === null ? allHubs() : BY_HUB[s.hubId];
     return HttpResponse.json({
-      hub_id: hubId,
-      data_source: "simulator",
-      weeks: last(WEEKS),
-      active_households: last(series.active_households),
-      weeks_accepted_bp: last(series.weeks_accepted_bp),
-      waste_g_per_100kg: last(series.waste_g_per_100kg),
-      on_time_bp: last(series.on_time_bp),
-      partner_earnings_paise: last(series.partner_earnings_paise),
+      hub_id: s.hubId,
+      data_source: s.source,
+      grain,
+      as_of: AS_OF,
+      stale: false,
+      periods,
+      series: Object.fromEntries(
+        KEYS.map((k) => [k, series ? series[k].slice(-count) : periods.map(() => null)]),
+      ),
+      totals: Object.fromEntries(KEYS.map((k) => [k, series ? series[k].at(-1) : null])),
     });
   }),
 
+  // GET /v1/analytics/societies?hub_id=&data_source=
+  http.get("*/v1/analytics/societies", ({ request }) => {
+    const s = scope(request);
+    if ("denied" in s) return s.denied;
+    if (s.hubId === null) return problem(403, "auth.forbidden", "Choose a hub");
+    return HttpResponse.json({
+      hub_id: s.hubId,
+      as_of: AS_OF,
+      items: s.source === "real" || s.hubId !== KHARGHAR_HUB_ID ? [] : SOCIETIES,
+    });
+  }),
+
+  // GET /v1/analytics/cohorts?data_source=&hub_id=&weeks=12 (admin)
   http.get("*/v1/analytics/cohorts", ({ request }) => {
-    if (roleOf(request) !== "admin") {
-      return problem(403, "analytics.forbidden", "Cohorts are for admins");
-    }
-    const source = new URL(request.url).searchParams.get("data_source") ?? "sim";
-    if (source !== "sim" && source !== "pilot") {
-      return problem(422, "request.invalid", "data_source is sim or pilot");
+    const s = scope(request, { staff: false });
+    if ("denied" in s) return s.denied;
+    const weeks = Number(s.q.get("weeks") ?? 12);
+    if (!Number.isInteger(weeks) || weeks < 4 || weeks > 26) {
+      return problem(422, "analytics.range_invalid", "weeks is 4 to 26", {
+        errors: [
+          {
+            loc: ["query", "weeks"],
+            message: "Input should be between 4 and 26",
+            type: "value_error",
+          },
+        ],
+      });
     }
     return HttpResponse.json({
-      data_source: source,
-      weeks: 4,
-      cohorts: source === "sim" ? SIMULATOR_COHORTS : [],
+      data_source: s.source,
+      hub_id: s.hubId,
+      weeks,
+      as_of: AS_OF,
+      cohorts: s.source === "real" ? [] : simulatorCohorts(weeks),
     });
   }),
 ];

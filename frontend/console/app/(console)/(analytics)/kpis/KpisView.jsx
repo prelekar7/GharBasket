@@ -1,11 +1,13 @@
 "use client";
 
-import { Badge, Select } from "@gharbasket/ui";
+import { EmptyState, Select } from "@gharbasket/ui";
 import { ChartCard, KpiTile } from "@gharbasket/ui/console";
 import { parseAsString, useQueryState } from "nuqs";
 import { useTransition } from "react";
+import { DataSourceControl } from "@/components/DataSourceControl.jsx";
 import { PageHeader } from "@/components/franchise/PageHeader.jsx";
-import { buildTiles } from "./tiles.js";
+import { shortDate } from "@/lib/dates.js";
+import { buildTiles, plotted } from "./tiles.js";
 
 const PERIODS = [
   { value: "4w", label: "Last 4 weeks" },
@@ -32,6 +34,8 @@ export function KpisView({ kpis }) {
   const tiles = buildTiles(kpis);
   const hubName = kpis.hubs.find((h) => h.id === kpis.hub)?.name ?? "";
   const label = PERIODS.find((p) => p.value === kpis.period)?.label ?? "Last 4 weeks";
+  const labels = kpis.periods.map(shortDate);
+  const noData = kpis.series.active_households.every((v) => v == null);
 
   return (
     <div aria-busy={pending} className={`flex flex-col gap-4 ${pending ? "opacity-60" : ""}`}>
@@ -39,9 +43,7 @@ export function KpisView({ kpis }) {
         title={`KPIs · ${label.toLowerCase()}`}
         actions={
           <div className="flex flex-wrap items-end gap-3">
-            <Badge tone="accent">
-              Data source: {kpis.data_source === "simulator" ? "household simulator" : "pilot"}
-            </Badge>
+            <DataSourceControl />
             {kpis.hubs.length > 1 && (
               <div className="w-[220px] max-w-full">
                 <Select
@@ -62,28 +64,43 @@ export function KpisView({ kpis }) {
         detail.
       </PageHeader>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {tiles.map((t) => (
-          <KpiTile key={t.label} {...t} />
-        ))}
-      </div>
+      {noData ? (
+        <div className="rounded-md bg-surface p-4">
+          <EmptyState
+            title="No pilot numbers yet"
+            body="Pilot KPIs appear here from the first pilot week. Until then, switch to the household simulator."
+          />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {tiles.map((t) => (
+              <KpiTile key={t.label} {...t} />
+            ))}
+          </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <ChartCard
-          title="Active households"
-          subtitle={`By week · ${hubName}`}
-          labels={kpis.weeks}
-          series={[{ name: "Active households", values: kpis.active_households }]}
-        />
-        <ChartCard
-          title="Partner earnings"
-          subtitle="Rupees per week, from the ledger"
-          format="money"
-          kind="line"
-          labels={kpis.weeks}
-          series={[{ name: "Partner earnings", values: kpis.partner_earnings_paise }]}
-        />
-      </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ChartCard
+              title="Active households"
+              subtitle={`By week · ${hubName}`}
+              labels={labels}
+              series={[
+                { name: "Active households", values: plotted(kpis.series.active_households) },
+              ]}
+            />
+            <ChartCard
+              title="Partner earnings"
+              subtitle="Rupees per week, from the ledger"
+              format="money"
+              kind="line"
+              labels={labels}
+              series={[
+                { name: "Partner earnings", values: plotted(kpis.series.partner_earnings_paise) },
+              ]}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,26 +1,12 @@
 "use client";
 
 import { OrderTimeline } from "@gharbasket/ui";
-import { DataTable, KpiTile, MapPanel } from "@gharbasket/ui/console";
+import { DataTable, KpiTile } from "@gharbasket/ui/console";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { formatDay, plural } from "@/lib/format.js";
-import "@/lib/maps.js";
-
-/**
- * GET /v1/hubs/{id}/ops-board?date= (our proposal; M12 US-1 asks for live counts per stage).
- * @typedef {{
- *   hub_id: string, date: string, as_of: string, status_line: string,
- *   boxes: { total: number, by_society: { name: string, short_name: string, boxes: number }[], locked_at: string },
- *   bags: { packed: number, total: number, finished_at: string | null, packers: string },
- *   short: { items: { product: string, bags: number }[] },
- *   waste: { kg: number, change_kg: number, versus: string },
- *   steps: { label: string, time?: string, note?: string, state?: "done" | "current" | "issue" | "todo" }[],
- *   markers: { id: string, kind: "hub" | "society" | "van" | "stop", label: string, lng: number, lat: number, status?: "live" | "unlocking" | "prospect" }[],
- *   route: string[],
- *   attention: { id: string, what: string, where: string, state: { tone: "neutral" | "accent" | "primary" | "danger" | "outline", label: string }, next: { text: string, href?: string } }[],
- * }} OpsBoard
- */
+import { formatDay, formatTime, plural } from "@/lib/format.js";
+import { attentionRows, statusLine, timelineSteps, wasteChange } from "./board.js";
 
 const COLUMNS = [
   { key: "what", label: "What" },
@@ -32,7 +18,11 @@ const COLUMNS = [
 /** How often the board asks the server for fresh counts. */
 const REFRESH_MS = 60_000;
 
-/** @param {{ board: OpsBoard }} props */
+/**
+ * The hub manager's morning in one place: the day's counts, the steps so far and what needs them. The
+ * counts come from GET /v1/analytics/hubs/{id}/today and the page asks again every minute.
+ * @param {{ board: import("./board.js").Today }} props
+ */
 export function OpsBoardView({ board }) {
   const router = useRouter();
   useEffect(() => {
@@ -40,15 +30,9 @@ export function OpsBoardView({ board }) {
     return () => clearInterval(timer);
   }, [router]);
 
-  const { boxes, bags, short, waste } = board;
-  const shortBags = short.items.reduce((n, i) => n + i.bags, 0);
-  const rows = board.attention.map((a) => ({
-    id: a.id,
-    what: { text: a.what, strong: true },
-    where: a.where,
-    state: { badge: a.state },
-    next: a.next.href ? { text: a.next.text, href: a.next.href } : a.next.text,
-  }));
+  const { boxes, packing, shortages, routes, waste } = board;
+  const shortBags = shortages.reduce((n, i) => n + i.bags, 0);
+  const { change_kg, versus } = wasteChange(waste);
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,7 +41,7 @@ export function OpsBoardView({ board }) {
           Today · {formatDay(board.date)}
         </h1>
         <p className="m-0 text-sm text-fg-secondary">
-          {board.as_of}. {board.status_line}
+          {formatTime(board.as_of)}. {statusLine(board.steps)}
         </p>
       </div>
 
@@ -66,25 +50,27 @@ export function OpsBoardView({ board }) {
           label="Boxes today"
           value={String(boxes.total)}
           delta={{
-            value: boxes.by_society.map((s) => `${s.boxes} ${s.short_name}`).join(" · "),
+            value: boxes.by_society.map((s) => `${s.boxes} ${s.name}`).join(" · "),
             direction: "flat",
           }}
-          hint={`Locked at the ${boxes.locked_at}`}
+          hint={`${boxes.locked} locked at the ${formatTime(boxes.cutoff_at)} cut-off`}
         />
         <KpiTile
           label="Bags packed"
-          value={`${bags.packed} of ${bags.total}`}
+          value={`${packing.bags_packed} of ${packing.bags_total}`}
           delta={{
-            value: bags.finished_at ? `done ${bags.finished_at}` : "still packing",
+            value: packing.finished_at
+              ? `done ${formatTime(packing.finished_at)}`
+              : "still packing",
             direction: "flat",
           }}
-          hint={bags.packers}
+          hint={packing.finished_at ? "Packing finished" : "Packing in progress"}
         />
         <KpiTile
           label="Short items"
-          value={String(short.items.length)}
+          value={String(shortages.length)}
           delta={{
-            value: short.items.map((i) => `${i.product} · ${plural(i.bags, "bag")}`).join(", "),
+            value: shortages.map((i) => `${i.name} · ${plural(i.bags, "bag")}`).join(", "),
             direction: "flat",
           }}
           hint={shortBags > 0 ? "Swaps or wallet refunds applied" : "Nothing short today"}
@@ -92,12 +78,16 @@ export function OpsBoardView({ board }) {
         <KpiTile
           label="Waste so far"
           value={`${waste.kg} kg`}
-          delta={{
-            value: `${waste.change_kg > 0 ? "+" : "−"}${Math.abs(waste.change_kg)} kg`,
-            direction: waste.change_kg > 0 ? "up" : "down",
-            good: waste.change_kg <= 0,
-            note: `vs ${waste.versus}`,
-          }}
+          delta={
+            versus
+              ? {
+                  value: `${change_kg > 0 ? "+" : "−"}${Math.abs(change_kg)} kg`,
+                  direction: change_kg > 0 ? "up" : change_kg < 0 ? "down" : "flat",
+                  good: change_kg <= 0,
+                  note: `vs ${versus}`,
+                }
+              : undefined
+          }
           hint="Spoiled at receiving; cascade runs at 12:30"
         />
       </div>
@@ -105,20 +95,27 @@ export function OpsBoardView({ board }) {
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 min-[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         <section className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4">
           <h2 className="m-0 text-[17px] leading-6 font-bold">The day so far</h2>
-          <OrderTimeline steps={board.steps} label="Hub day" />
+          <OrderTimeline steps={timelineSteps(board.steps)} label="Hub day" />
         </section>
         <div className="flex min-w-0 flex-col gap-4">
-          <MapPanel
-            label="Van and stops now"
-            height={260}
-            markers={board.markers}
-            route={board.route}
-          />
+          <section className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4">
+            <h2 className="m-0 text-[17px] leading-6 font-bold">Vans and stops now</h2>
+            <p className="m-0 text-sm leading-5 text-fg-secondary">
+              {plural(routes.started, "route")} out of {routes.planned} planned, {routes.completed}{" "}
+              completed. {routes.stops_done} of {plural(routes.stops_total, "stop")} done
+              {routes.late_stops > 0 ? `, ${routes.late_stops} late` : ", none late"}. The map of
+              the vans is on{" "}
+              <Link href="/routes" className="underline">
+                Routes
+              </Link>
+              .
+            </p>
+          </section>
           <section className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4">
             <h2 className="m-0 text-[17px] leading-6 font-bold">Needs you</h2>
             <DataTable
               columns={COLUMNS}
-              rows={rows}
+              rows={attentionRows(board.attention)}
               dense
               caption="Items that need the hub manager"
               labels={{ empty: "Nothing needs you right now." }}

@@ -6,7 +6,7 @@ export const metadata = { title: "Ops board" };
 
 export default async function Page() {
   const hub = await currentHub();
-  /** @type {import("./OpsBoardView.jsx").OpsBoard} */
-  const board = await apiGet(`/v1/hubs/${hub.id}/ops-board`);
+  /** @type {import("./board.js").Today} */
+  const board = await apiGet(`/v1/analytics/hubs/${hub.id}/today`);
   return <OpsBoardView board={board} />;
 }
