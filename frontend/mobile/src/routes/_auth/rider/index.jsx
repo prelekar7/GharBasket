@@ -8,12 +8,15 @@ import {
   Skeleton,
 } from "@gharbasket/ui";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { clock, dayLabel, mapsLink, nextStop } from "@/features/logistics/format.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 import { clockTime, istClock, timeRange, todayIst } from "@/features/subscriptions/format.js";
 import { useWaitingCount } from "@/lib/outbox.js";
+
+const RouteMap = lazy(() => import("@/features/logistics/RouteMap.jsx"));
 
 /** Today's route: map, stops in order, the way back, start and finish (designs RiderRoute, RiderNoRoute, RiderError; M7 US-2). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -94,11 +97,19 @@ function RiderRoute() {
         })}
         title={t("rider.title")}
       />
-      <figure className="m-0 grid h-[180px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center">
-        <figcaption className="text-[15px] leading-[22px] text-fg-secondary">
-          {t("rider.map.fallback")}
-        </figcaption>
-      </figure>
+      <Suspense fallback={<Skeleton className="h-[180px] w-full" />}>
+        <RouteMap
+          route={route}
+          label={t("rider.map.label", { count: route.stops.length })}
+          fallback={
+            <figure className="m-0 grid h-[180px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center">
+              <figcaption className="text-[15px] leading-[22px] text-fg-secondary">
+                {t("rider.map.fallback")}
+              </figcaption>
+            </figure>
+          }
+        />
+      </Suspense>
       <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
         {route.stops.map((s) => {
           const status = s.status === "done" ? "done" : s.id === current?.id ? "current" : "todo";

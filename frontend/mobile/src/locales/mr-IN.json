@@ -1020,11 +1020,13 @@
   },
   "rider": {
     "tabs": {
-      "route": "रूट"
+      "route": "रूट",
+      "earnings": "कमाई"
     },
     "title": "तुमचा रूट",
     "when": "{day} · {slot} · व्हॅन {plate}",
     "map": {
+      "label": "रूट नकाशा: व्हॅन, {count, plural, one {{count} सोसायटी} other {{count} सोसायट्या}} आणि हबकडे परतीचा रस्ता",
       "fallback": "या फोनवर आत्ता नकाशा दिसू शकत नाही. तुमचे स्टॉप खाली क्रमाने आहेत."
     },
     "card": {
@@ -1061,6 +1063,18 @@
     "stop": {
       "navigate": "नकाशात उघडा",
       "call": "{name} यांना फोन करा"
+    },
+    "earnings": {
+      "who": "{name} · रायडर",
+      "title": "कमाई",
+      "recent": "{count, plural, =0 {अजून रूट नाहीत} one {तुमचा मागचा रूट} other {मागचे {count} रूट}}",
+      "summary": "{routes} रूट · {runs, plural, one {{runs} पिकअप फेरी} other {{runs} पिकअप फेऱ्या}}",
+      "line": "{routes} रूट · {societies, plural, one {{societies} सोसायटी} other {{societies} सोसायट्या}}",
+      "lineWithPickups": "{routes} रूट · {societies, plural, one {{societies} सोसायटी} other {{societies} सोसायट्या}} · पिकअप",
+      "payout": "दर आठवड्याला {day} रोजी तुमच्या बँक खात्यात जमा, त्याच खातेवहीतून ज्यात GharBasket चा प्रत्येक रुपया नोंदलेला असतो.",
+      "cert": "उत्पन्न प्रमाणपत्र डाउनलोड करा",
+      "certFailed": "प्रमाणपत्र डाउनलोड झाले नाही. पुन्हा प्रयत्न करा.",
+      "none": "पहिल्या रूटनंतर तुमची कमाई इथे दिसेल."
     }
   }
 }

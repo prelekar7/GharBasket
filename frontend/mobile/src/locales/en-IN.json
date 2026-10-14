@@ -1024,11 +1024,13 @@
   },
   "rider": {
     "tabs": {
-      "route": "Route"
+      "route": "Route",
+      "earnings": "Earnings"
     },
     "title": "Your route",
     "when": "{day} · {slot} slot · van {plate}",
     "map": {
+      "label": "Route map: the van, {count, plural, one {# society} other {# societies}} and the way back to the hub",
       "fallback": "The map can’t show on this phone right now. Your stops are below, in order."
     },
     "card": {
@@ -1065,6 +1067,18 @@
     "stop": {
       "navigate": "Open in Maps",
       "call": "Call {name}"
+    },
+    "earnings": {
+      "who": "{name} · Rider",
+      "title": "Earnings",
+      "recent": "{count, plural, =0 {No routes yet} one {Your last route} other {Last # routes}}",
+      "summary": "{routes, plural, one {# route} other {# routes}} · {runs, plural, =0 {no pickup runs} one {# pickup run} other {# pickup runs}}",
+      "line": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}}",
+      "lineWithPickups": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}} · pickups",
+      "payout": "Paid every {day} to your bank account, from the same ledger as every rupee in GharBasket.",
+      "cert": "Download income certificate",
+      "certFailed": "The certificate didn’t download. Try again.",
+      "none": "Your earnings show here after your first route."
     }
   }
 }

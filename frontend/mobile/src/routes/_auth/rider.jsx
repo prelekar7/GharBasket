@@ -1,4 +1,4 @@
-import { TruckIcon } from "@phosphor-icons/react";
+import { ReceiptIcon, TruckIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FieldFrame } from "@/components/FieldFrame.jsx";
@@ -19,7 +19,10 @@ function RiderShell() {
   return (
     <FieldFrame
       userRole="rider"
-      tabs={[{ value: "", label: t("rider.tabs.route"), Icon: TruckIcon }]}
+      tabs={[
+        { value: "", label: t("rider.tabs.route"), Icon: TruckIcon },
+        { value: "earnings", label: t("rider.tabs.earnings"), Icon: ReceiptIcon },
+      ]}
     />
   );
 }
