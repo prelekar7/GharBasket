@@ -1,0 +1,19 @@
+{
+  "name": "spike-s1-razorpay-capacitor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "server": "node --env-file=.env server.js",
+    "android": "vite build && cap sync android && cap run android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "vite": "8.3.2"
+  }
+}

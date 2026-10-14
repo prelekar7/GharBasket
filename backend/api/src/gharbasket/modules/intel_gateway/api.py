@@ -12,11 +12,15 @@ from typing import Any
 
 import httpx2
 import structlog
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
+from gharbasket.modules.intel_gateway.models import FeatureSnapshot, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
+    AssignRequest,
+    KitchenAssignment,
     PantryItem,
     PantryObservation,
     PantryQuantities,
@@ -36,8 +40,12 @@ from gharbasket.platform.settings import Settings
 
 log = structlog.get_logger("gharbasket.intel_gateway")
 
+ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a cold start
+
 __all__ = [
+    "AssignRequest",
     "HardRule",
+    "KitchenAssignment",
     "PantryItem",
     "PantryObservation",
     "PantryQuantities",
@@ -46,6 +54,8 @@ __all__ = [
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
+    "assign_kitchens",
+    "delete_for_user",
     "latest_metrics",
     "latest_prediction",
     "next_recipe",
@@ -129,6 +139,50 @@ async def pantry_quantities(
             model_name=answer.model,
         )
     return answer
+
+
+async def assign_kitchens(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: AssignRequest,
+    *,
+    session: AsyncSession | None = None,
+    hub_id: uuid.UUID | None = None,
+    for_date: date | None = None,
+) -> KitchenAssignment | None:
+    """Tomorrow's tiffin portions to kitchens from the ML service (M10 §3.5), kept in
+    `intel.predictions` (kind `assignment`, subject the hub). `status: partial` lists the orders
+    no kitchen could take in `unassigned`. None when the service does not answer within
+    `time_limit_s` plus a margin: M8's job assigns greedily by distance itself (M8 §6)."""
+    if not settings.ml_service_url:
+        return None
+    headers = {}
+    if settings.ml_service_token is not None:
+        headers["Authorization"] = f"Bearer {settings.ml_service_token.get_secret_value()}"
+    try:
+        response = await http.post(
+            f"{settings.ml_service_url.rstrip('/')}/assign/kitchens",
+            json=request.model_dump(mode="json"),
+            headers=headers,
+            timeout=max(settings.ml_timeout_s, request.time_limit_s + ASSIGN_MARGIN_S),
+        )
+        response.raise_for_status()
+        plan = KitchenAssignment.model_validate(response.json())
+    except (httpx2.HTTPError, ValueError) as exc:
+        log.warning("ml_fallback", call="assign_kitchens", reason=type(exc).__name__)
+        return None
+    if session is not None and hub_id is not None and for_date is not None:
+        await service.record_prediction(
+            session,
+            kind="assignment",
+            subject_type="hub",
+            subject_id=hub_id,
+            for_date=for_date,
+            source="ml",
+            payload=plan.model_dump(mode="json"),
+            model_name=plan.model,
+        )
+    return plan
 
 
 def route_timeout_s(settings: Settings, request: RouteRequest) -> float:
@@ -224,3 +278,19 @@ SOLVER_SHARE_OF_TIMEOUT = 0.5
 def _solver_budget(settings: Settings, request: PlanRequest) -> float:
     """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
     return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))
+
+
+async def delete_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 3): predictions and feature snapshots about the household.
+    Model metrics are aggregates and stay."""
+    if household_id is None:
+        return {"predictions": 0, "feature_snapshots": 0}
+    counts = {}
+    for model in (Prediction, FeatureSnapshot):
+        gone = await session.execute(
+            delete(model).where(model.subject_type == "household", model.subject_id == household_id)
+        )
+        counts[model.__tablename__] = gone.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+    return counts
