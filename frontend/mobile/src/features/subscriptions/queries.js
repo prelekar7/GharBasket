@@ -3,7 +3,7 @@ import { request } from "@/lib/api.js";
 
 /**
  * @typedef {{ slot: "lunch" | "dinner", name: string, tiffin: boolean, skip?: boolean, reason_code?: string | null, reason_params?: Record<string, string | number> | null }} PlannedMeal
- * @typedef {{ kitchen_id: string, slot: "lunch" | "dinner", cook: { name: string }, dish: { name: string }, price_paise: number, order_by: string }} TiffinOffer
+ * @typedef {{ kitchen_id: string, slot: "lunch" | "dinner", cook: { name: string }, dish: { name: string, items?: string }, price_paise: number, order_by: string }} TiffinOffer
  * @typedef {{ product_id: string, name: string, qty_label: string, qty?: number, step?: { label: string, price_paise: number }, used_in?: { date: string, slot: "lunch" | "dinner", dish: string }[], price_paise: number, reason_code: string | null, reason_params: Record<string, string | number> | null, swapped_from_paise: number | null }} BoxLine
  * @typedef {{ code: string, params: Record<string, string | number> }} Highlight
  * @typedef {object} Cycle

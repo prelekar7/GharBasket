@@ -56,8 +56,10 @@ function CustomerShell() {
   const segment = pathname.split("/")[1] || "week";
   // Wallet, Society and Become a partner open from Profile (HcWallet, HcSociety, HcPartner).
   const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
-  // The designs leave the assistant button off Profile and Become a partner.
-  const showAssistant = segment !== "profile" && segment !== "partner";
+  // The designs leave the assistant button off Profile, Become a partner, and the screens that
+  // end in one big button (HcTiffin, HcRate).
+  const showAssistant =
+    segment !== "profile" && segment !== "partner" && !/\/(tiffin|rate)(\/|$)/.test(pathname);
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">

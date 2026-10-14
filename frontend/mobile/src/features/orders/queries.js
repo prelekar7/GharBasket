@@ -7,7 +7,7 @@ import { request } from "@/lib/api.js";
  *   id: string, kind: "box" | "tiffin" | "addon", status: string, delivery_date: string, eta_by?: string,
  *   items_count?: number, total_paise: number, paid_from?: "wallet" | "upi_autopay", plan_ready_on?: string,
  *   address: { flat: string, society: string }, hub?: { name: string }, captain?: { name: string, phone_e164: string },
- *   cook?: { name: string }, dish?: { name: string }, events: { to_status: string, at: string }[], version: number,
+ *   cook?: { name: string }, dish?: { name: string }, slot?: "lunch" | "dinner", qty?: number, events: { to_status: string, at: string }[], version: number,
  * }} Order
  */
 
@@ -71,19 +71,27 @@ export function useReportIssue(orderId) {
 }
 
 /**
- * Book a home kitchen's tiffin for a day (POST /v1/orders, kind "tiffin", M4). One key per day and
- * meal, so a retry never books twice; it is paid at the cut-off with the box.
+ * Book a home kitchen's tiffins for a meal (POST /v1/orders, kind "tiffin", M4). One key per day,
+ * meal and count, so a retry never books twice; it is paid at the cut-off with the box.
  */
 export function useAddTiffin() {
   const client = useQueryClient();
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
-    mutationFn: (/** @type {{ date: string, slot: string, kitchenId: string }} */ v) => {
-      const id = `${v.date}:${v.slot}`;
+    mutationFn: (
+      /** @type {{ date: string, slot: string, kitchenId: string, qty: number }} */ v,
+    ) => {
+      const id = `${v.date}:${v.slot}:${v.qty}`;
       keys.current[id] ??= crypto.randomUUID();
       return request("/v1/orders", {
         method: "POST",
-        body: { kind: "tiffin", delivery_date: v.date, slot: v.slot, kitchen_id: v.kitchenId },
+        body: {
+          kind: "tiffin",
+          delivery_date: v.date,
+          slot: v.slot,
+          kitchen_id: v.kitchenId,
+          qty: v.qty,
+        },
         headers: { "idempotency-key": keys.current[id] },
       });
     },

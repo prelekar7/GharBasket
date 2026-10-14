@@ -1427,5 +1427,21 @@
       "captain": "With {captain}",
       "door": "At your door, {flat}"
     }
+  },
+  "tiffin": {
+    "when": "{day} · {slot}",
+    "title": "Tiffin",
+    "knowCook": "Know your cook",
+    "fssai": "FSSAI registered",
+    "hygiene": "Hygiene trained",
+    "cookedBy": "Cooked by",
+    "how": "How many tiffins",
+    "unit": "{n, plural, one {tiffin} other {tiffins}}",
+    "note": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh; {captain} brings it to your door.",
+    "cta": "Book {n, plural, one {# tiffin} other {# tiffins}} · {total}",
+    "already": "A tiffin is already booked for that meal.",
+    "goneTitle": "This tiffin can’t be booked now",
+    "goneBody": "It may be booked already, or this week’s orders have closed.",
+    "backToWeek": "Back to the week"
   }
 }

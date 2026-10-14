@@ -122,6 +122,24 @@ describe("week day: meal swap and tiffin", () => {
     expect(day.meals[1].tiffin).toBe(true);
     expect(day.tiffin_offer).toBeNull();
   });
+
+  it("books several tiffins for a meal and prices them by count (HcTiffin)", async () => {
+    const offer = (await cycleNow()).meal_plan.days[3].tiffin_offer;
+    expect(offer).toMatchObject({ slot: "lunch", kitchen_id: "kit-lata", price_paise: 11000 });
+    const body = {
+      kind: "tiffin",
+      delivery_date: "2026-10-08",
+      slot: "lunch",
+      kitchen_id: "kit-lata",
+    };
+    const res = await post("/v1/orders", { ...body, qty: 2 }, "tif-3");
+    expect(await res.json()).toMatchObject({ qty: 2, total_paise: 22000 });
+    expect((await post("/v1/orders", { ...body, qty: 9 }, "tif-4")).status).toBe(422);
+    const cook = await (
+      await mockFetch(new Request("http://localhost/v1/partners/kit-lata/public"))
+    ).json();
+    expect(cook).toMatchObject({ name: "Lata Shinde", fssai_registered: true });
+  });
 });
 
 describe("box line quantity (Core-B3)", () => {

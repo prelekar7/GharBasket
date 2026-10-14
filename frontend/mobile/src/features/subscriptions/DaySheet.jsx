@@ -1,19 +1,19 @@
 import { Button, Chip, formatPaise, Sheet, toast } from "@gharbasket/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAddTiffin } from "@/features/orders/queries.js";
 import { clockTime, istClock, reasonText, shortDate, weekdayName, weekdayOf } from "./format.js";
 import { useSwapMeal } from "./queries.js";
 
 /**
  * One day of the week: each meal with why it was planned and "Swap meal", and a home cook's
- * tiffin to add while the week is still open (design Core-W2, M3, M4).
+ * tiffin to book while the week is still open (designs Core-W2, HcTiffin; M3, M4).
  * @param {{ cycle: import("./queries.js").Cycle, index: number | null, onClose: () => void, editable: boolean, onError: (e: unknown) => void }} props
  */
 export function DaySheet({ cycle, index, onClose, editable, onError }) {
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const swap = useSwapMeal();
-  const tiffin = useAddTiffin();
+  const navigate = useNavigate();
   const day = index === null ? null : cycle.meal_plan.days[index];
   const offer = day?.tiffin_offer;
   const orderBy = `${weekdayName(cycle.cutoff_at, lang)} ${clockTime(istClock(cycle.cutoff_at), lang)}`;
@@ -77,19 +77,10 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
               <div>
                 <Button
                   variant="secondary"
-                  isPending={tiffin.isPending}
-                  onPress={() =>
-                    tiffin.mutate(
-                      { date: day.date, slot: offer.slot, kitchenId: offer.kitchen_id },
-                      {
-                        onSuccess: () =>
-                          toast(
-                            t("week.day.added", { dish: offer.dish.name, cook: offer.cook.name }),
-                          ),
-                        onError,
-                      },
-                    )
-                  }
+                  onPress={() => {
+                    onClose();
+                    navigate({ to: "/week/tiffin/$date", params: { date: day.date } });
+                  }}
                 >
                   {t("week.day.addTiffin")}
                 </Button>

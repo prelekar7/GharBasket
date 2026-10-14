@@ -64,6 +64,7 @@ import { Route as AuthCaptainFlatsIndexRouteImport } from "./routes/_auth/captai
 import { Route as AuthCaptainFlatsExceptionsRouteImport } from "./routes/_auth/captain/flats.exceptions"
 import { Route as AuthCaptainFlatsManualRouteImport } from "./routes/_auth/captain/flats.manual"
 import { Route as AuthCustomerOrdersOrderIdTrackRouteImport } from "./routes/_auth/_customer/orders_.$orderId.track"
+import { Route as AuthCustomerWeekTiffinDateRouteImport } from "./routes/_auth/_customer/week_.tiffin.$date"
 
 const IndexRoute = IndexRouteImport.update({
   id: "/",
@@ -343,6 +344,12 @@ const AuthCustomerOrdersOrderIdTrackRoute =
     path: "/orders/$orderId/track",
     getParentRoute: () => AuthCustomerRoute,
   })
+const AuthCustomerWeekTiffinDateRoute =
+  AuthCustomerWeekTiffinDateRouteImport.update({
+    id: "/week_/tiffin/$date",
+    path: "/week/tiffin/$date",
+    getParentRoute: () => AuthCustomerRoute,
+  })
 
 const AuthCustomerRouteChildren = {
   AuthCustomerBoxRoute: AuthCustomerBoxRoute,
@@ -356,6 +363,7 @@ const AuthCustomerRouteChildren = {
   AuthCustomerSocietySocietyIdRoute: AuthCustomerSocietySocietyIdRoute,
   AuthCustomerWalletStatementRoute: AuthCustomerWalletStatementRoute,
   AuthCustomerOrdersOrderIdTrackRoute: AuthCustomerOrdersOrderIdTrackRoute,
+  AuthCustomerWeekTiffinDateRoute: AuthCustomerWeekTiffinDateRoute,
 }
 
 const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
