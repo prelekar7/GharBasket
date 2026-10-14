@@ -16,6 +16,7 @@ import { clearLocalData } from "@/lib/localData.js";
  * @property {FieldRole | null} activeRole Last choice is remembered (handbook ch. 03 §2); sent as X-Active-Role.
  * @property {(profile: UserOut & { roles: RoleGrant[] }) => void} signIn
  * @property {(role: FieldRole) => void} setActiveRole
+ * @property {(user: UserOut) => void} setUser After PATCH /v1/me (name, language, senior mode).
  * @property {() => Promise<boolean>} restore Restores the session from the API (cookie on web, stored refresh token on native).
  * @property {(options?: { everywhere?: boolean }) => Promise<void>} signOut
  * @property {() => void} clear Forget the session locally (after it expired).
@@ -55,6 +56,7 @@ export const useSession = create(
           setActiveRoleHeader(headerFor(grants, activeRole));
           set({ signedIn: true, user, grants, roles, activeRole });
         },
+        setUser: (user) => set({ user }),
         setActiveRole: (activeRole) => {
           setActiveRoleHeader(headerFor(get().grants, activeRole));
           set({ activeRole });

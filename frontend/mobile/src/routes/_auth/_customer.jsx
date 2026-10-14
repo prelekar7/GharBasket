@@ -41,31 +41,37 @@ function CustomerShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const senior = useSession((s) => !!s.user?.senior_mode);
   // Wallet and Society live under Profile in the designs (HcWallet, HcSociety).
   const segment = pathname.split("/")[1] || "week";
   const current = segment === "wallet" || segment === "society" ? "profile" : segment;
+  // The designs leave the assistant button off Profile (HcProfile).
+  const showAssistant = segment !== "profile";
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">
         <InstallBanner />
         <Outlet />
       </main>
-      <button
-        type="button"
-        aria-label={t("assistant")}
-        className="fixed right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] grid size-14 place-items-center rounded-full bg-primary text-on-primary shadow-sheet outline-none focus-visible:shadow-focus"
-      >
-        <ChatCircleTextIcon size={26} />
-      </button>
+      {showAssistant && (
+        <button
+          type="button"
+          aria-label={t("assistant")}
+          className="fixed right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] grid size-14 place-items-center rounded-full bg-primary text-on-primary shadow-sheet outline-none focus-visible:shadow-focus"
+        >
+          <ChatCircleTextIcon size={26} />
+        </button>
+      )}
       <div className="fixed inset-x-0 bottom-0">
         <TabBar
           label={t("tabs.main")}
+          senior={senior}
           value={current}
           onChange={(value) => navigate({ to: `/${value}` })}
           items={TABS.map(({ value, Icon }) => ({
             value,
             label: t(`tabs.${value}`),
-            icon: <Icon size={24} />,
+            icon: <Icon size={senior ? 28 : 24} />,
           }))}
         />
       </div>
