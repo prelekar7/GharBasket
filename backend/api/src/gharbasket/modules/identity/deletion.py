@@ -2,28 +2,34 @@
 
 `DELETE /v1/me` marks the account `deleting`, signs out every device, deletes pending data
 exports and publishes `identity.deletion_requested`. Signing in again within 30 days, confirmed on
-the app's "Keep my account?" screen, cancels it. The purge after the 30 days comes next.
+the app's "Keep my account?" screen, cancels it. After that, `purge_deleted_users` (jobs.py) has
+each module erase its own data; `erase_platform` and `erase_identity` below are the last two
+steps (spec §3.5 order 10 and 11).
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import events, service
 from gharbasket.modules.identity.models import (
+    Address,
+    Consent,
     DataExport,
     Deletion,
     Household,
+    HouseholdMember,
     LoginSession,
+    RefreshToken,
     User,
     UserRole,
 )
-from gharbasket.platform import audit, files
+from gharbasket.platform import audit, files, idempotency
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 
@@ -164,3 +170,74 @@ async def cancel(session: AsyncSession, user: User, deletion: Deletion) -> None:
         entity_type="user",
         entity_id=str(user.id),
     )
+
+
+def purge_due(today: date) -> Any:
+    """The open deletions whose grace period is over and that were not tried yet today: never
+    tried first, then the least recently tried, oldest first. A blocked or failing account is
+    tried once a night, so it cannot starve newer ones."""
+    return (
+        select(Deletion)
+        .where(
+            Deletion.purge_on <= today,
+            Deletion.cancelled_at.is_(None),
+            Deletion.purged_at.is_(None),
+            or_(Deletion.last_attempt_on.is_(None), Deletion.last_attempt_on < today),
+        )
+        .order_by(Deletion.last_attempt_on.asc().nulls_first(), Deletion.requested_at)
+    )
+
+
+def _rows(result: Any) -> int:
+    return result.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+
+
+async def erase_platform(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M0's part (spec §3.5 order 10): the user's stored idempotent responses go, and every
+    upload under */<user_id>/ is due, so tonight's sweep_uploads deletes the objects and rows.
+    The audit log stays (3 years; it holds no personal data)."""
+    return {
+        "idempotency_keys": await idempotency.forget_scope(session, str(user_id)),
+        "uploads": await files.expire_for_user(session, user_id, datetime.now(UTC)),
+    }
+
+
+async def erase_identity(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's own rows, last (spec §3.5 order 11); children first, so each count is real."""
+    sessions = select(LoginSession.id).where(LoginSession.user_id == user_id)
+    counts = {
+        "refresh_tokens": _rows(
+            await session.execute(delete(RefreshToken).where(RefreshToken.session_id.in_(sessions)))
+        ),
+        "sessions": _rows(
+            await session.execute(delete(LoginSession).where(LoginSession.user_id == user_id))
+        ),
+        "user_roles": _rows(
+            await session.execute(delete(UserRole).where(UserRole.user_id == user_id))
+        ),
+        "consents": _rows(await session.execute(delete(Consent).where(Consent.user_id == user_id))),
+        "data_exports": _rows(
+            await session.execute(delete(DataExport).where(DataExport.user_id == user_id))
+        ),
+        "household_members": 0,
+        "addresses": 0,
+        "households": 0,
+    }
+    if household_id is not None:
+        counts["household_members"] = _rows(
+            await session.execute(
+                delete(HouseholdMember).where(HouseholdMember.household_id == household_id)
+            )
+        )
+        counts["addresses"] = _rows(
+            await session.execute(delete(Address).where(Address.household_id == household_id))
+        )
+        counts["households"] = _rows(
+            await session.execute(delete(Household).where(Household.id == household_id))
+        )
+    counts["users"] = _rows(await session.execute(delete(User).where(User.id == user_id)))
+    return counts
