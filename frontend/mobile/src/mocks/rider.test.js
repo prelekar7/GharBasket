@@ -32,12 +32,19 @@ describe("rider route (M7)", () => {
     expect((await route("hi-IN")).stops[0].society.name).toBe("सनराइज़ टावर्स");
   });
 
+  it("answers any day asked with the demo day the other field roles use (Tue 6 Oct, 8-10 AM)", async () => {
+    const monday = (await (await get("/v1/routes?date=2026-10-05")).json()).items[0];
+    expect(monday.date).toBe(DATE);
+    expect(monday.slot).toMatchObject({ from: "08:00", to: "10:00" });
+    expect(monday.id).toBe((await route()).id);
+  });
+
   it("has no route for the Thane rider, and says when the next one is", async () => {
     localStorage.setItem(
       "gb-mock-web-session",
       JSON.stringify({ phone: "+919800000003", exp: Date.now() + 60_000 }),
     );
-    const list = await (await get(`/v1/routes?date=${DATE}`)).json();
+    const list = await (await get("/v1/routes?date=2026-10-05")).json();
     expect(list.items).toEqual([]);
     expect(list.next.date).toBe("2026-10-08");
   });
