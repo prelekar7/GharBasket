@@ -24,7 +24,7 @@ import {
   weekdayName,
   weekdayOf,
 } from "@/features/subscriptions/format.js";
-import { useCurrentCycle } from "@/features/subscriptions/queries.js";
+import { isEditable, useCurrentCycle, useTiffinOffers } from "@/features/subscriptions/queries.js";
 import { ApiError } from "@/lib/api.js";
 
 /** Book a home cook's tiffin for one day: who cooks it, the meal, how many, the total (design HcTiffin; M4, M8). */
@@ -40,11 +40,12 @@ function Tiffin() {
   const navigate = useNavigate();
   const { date } = Route.useParams();
   const { data: c, isPending, isError, refetch } = useCurrentCycle(lang);
-  const offer = c?.meal_plan.days.find((d) => d.date === date)?.tiffin_offer ?? null;
+  const offers = useTiffinOffers(c);
+  const offer = offers.data?.find((o) => o.date === date) ?? null;
   const cook = usePublicPartner(offer?.kitchen_id, lang);
   const book = useAddTiffin();
   const [qty, setQty] = useState(2);
-  const editable = c?.status === "ready" || c?.status === "approved";
+  const editable = isEditable(c);
 
   const header = (
     <header className="-ml-3 flex items-center gap-1">
@@ -69,14 +70,14 @@ function Tiffin() {
     </header>
   );
 
-  if (isPending || (offer && cook.isPending))
+  if (isPending || offers.isLoading || (offer && cook.isPending))
     return (
       <div className="flex flex-col gap-4">
         {header}
         <Skeleton lines={8} />
       </div>
     );
-  if (isError || cook.isError || !c)
+  if (isError || cook.isError)
     return (
       <div className="flex flex-col gap-4">
         {header}
@@ -88,8 +89,8 @@ function Tiffin() {
         />
       </div>
     );
-  // Booked already, or the week closed at the cut-off.
-  if (!offer || !editable || !cook.data)
+  // No week yet, booked already, or the week closed at the cut-off.
+  if (!c || !offer || !editable || !cook.data)
     return (
       <div className="flex flex-col gap-4">
         {header}
@@ -104,7 +105,7 @@ function Tiffin() {
     );
 
   const k = cook.data;
-  const orderBy = `${weekdayName(c.cutoff_at, lang)} ${clockTime(istClock(c.cutoff_at), lang)}`;
+  const orderBy = `${weekdayName(offer.order_by, lang)} ${clockTime(istClock(offer.order_by), lang)}`;
   const total = qty * offer.price_paise;
 
   return (

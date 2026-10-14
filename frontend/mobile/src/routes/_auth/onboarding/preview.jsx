@@ -5,9 +5,14 @@ import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { nextStep } from "@/features/onboarding/draft.js";
 import { reasonText, shortDate, timeRange, weekdayOf } from "@/features/subscriptions/format.js";
-import { useCurrentCycle } from "@/features/subscriptions/queries.js";
+import { usePreviewCycle } from "@/features/subscriptions/queries.js";
+import { ApiError } from "@/lib/api.js";
 
-/** Here's your first week: the planned thali week, why, and the first box (design Hf13, M3). */
+/**
+ * Here's your first week: the planned thali week, why, and the first box (design Hf13, M3), from
+ * GET /v1/cycles/preview. A society with no delivery day yet has no first week to show; the
+ * screen says so and lets onboarding go on.
+ */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/onboarding/preview")({ component: Preview });
 
@@ -15,12 +20,16 @@ function Preview() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const lang = i18n.resolvedLanguage ?? "en-IN";
-  const { data: cycle, isPending, isError, refetch } = useCurrentCycle(lang);
+  const { data: cycle, isPending, error, refetch } = usePreviewCycle(lang);
+  // No delivery day yet, or no household to plan for: nothing to preview, but nothing broken.
+  const later =
+    error instanceof ApiError &&
+    (error.code === "subscriptions.no_delivery_day" || error.code === "subscriptions.not_found");
 
   return (
     <OnboardingFrame
       footer={
-        cycle && (
+        (cycle || later) && (
           <>
             <Button
               variant="primary"
@@ -30,9 +39,11 @@ function Preview() {
             >
               {t("onboarding.preview.cta")}
             </Button>
-            <Button variant="quiet" block onPress={() => navigate({ to: "/box" })}>
-              {t("onboarding.preview.edit")}
-            </Button>
+            {cycle?.id && (
+              <Button variant="quiet" block onPress={() => navigate({ to: "/box" })}>
+                {t("onboarding.preview.edit")}
+              </Button>
+            )}
           </>
         )
       }
@@ -48,7 +59,11 @@ function Preview() {
       </div>
       {isPending ? (
         <Skeleton lines={5} />
-      ) : isError || !cycle ? (
+      ) : later ? (
+        <p className="rounded-md bg-surface p-4 text-fg-secondary">
+          {t("onboarding.preview.later")}
+        </p>
+      ) : error || !cycle ? (
         <ScreenError onRetry={() => refetch()} />
       ) : (
         <>
@@ -62,9 +77,8 @@ function Preview() {
                 date: shortDate(d.date, lang),
                 meals: d.meals.map((m) => ({
                   slot: t(`week.slot.${m.slot}`),
-                  name: m.name,
+                  name: m.name ?? t("week.day.tiffinSlot"),
                   tiffin: m.tiffin,
-                  skip: m.skip,
                 })),
               }))}
             />
@@ -74,7 +88,7 @@ function Preview() {
             <div className="flex flex-wrap gap-2">
               {cycle.highlights.map((hl) => (
                 <Chip key={hl.code} kind="reason">
-                  {reasonText(t, hl)}
+                  {reasonText(t, hl, lang)}
                 </Chip>
               ))}
             </div>
@@ -85,7 +99,7 @@ function Preview() {
               <p className="text-sm leading-5 text-fg-secondary">
                 {t("onboarding.preview.when", {
                   day: t(`days.long.d${weekdayOf(cycle.delivery_date)}`),
-                  range: timeRange(cycle.delivery_window, lang),
+                  range: timeRange(cycle.slot, lang),
                 })}
                 {cycle.budget_lock &&
                   ` · ${t("onboarding.preview.within", { budget: formatPaise(cycle.budget_lock.budget_paise) })}`}

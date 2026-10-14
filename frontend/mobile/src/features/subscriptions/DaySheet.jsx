@@ -11,13 +11,14 @@ import { PlusIcon } from "@phosphor-icons/react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { usePublicPartner } from "@/features/partners/queries.js";
-import { clockTime, istClock, reasonText, shortDate, weekdayName, weekdayOf } from "./format.js";
-import { useSwapMeal } from "./queries.js";
+import { clockTime, humanize, istClock, shortDate, weekdayName, weekdayOf } from "./format.js";
+import { useSwapMeal, useTiffinOffers } from "./queries.js";
 
 /**
- * One day of the week: each meal with why it was planned and "Swap meal", and a home cook's
- * tiffin to book while the week is still open (designs Core-W2, HcTiffin; M3, M4).
- * @param {{ cycle: import("./queries.js").Cycle, index: number | null, onClose: () => void, editable: boolean, onError: (e: unknown) => void }} props
+ * One day of the week: each meal with its sides and "Swap meal", and a home cook's tiffin to book
+ * while the week is still open (designs Core-W2, HcTiffin; M3, M4). The API gives no reason per
+ * meal, so none is shown; the tiffin offer comes from its own (proposed) read.
+ * @param {{ cycle: import("./queries.js").Cycle, index: number | null, onClose: () => void, editable: boolean, onError: (e: unknown, retry?: () => void) => void }} props
  */
 export function DaySheet({ cycle, index, onClose, editable, onError }) {
   const { t, i18n } = useTranslation();
@@ -25,9 +26,22 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
   const swap = useSwapMeal();
   const navigate = useNavigate();
   const day = index === null ? null : cycle.meal_plan.days[index];
-  const offer = day?.tiffin_offer;
+  const offers = useTiffinOffers(cycle);
+  // Only a day still cooked at home takes a tiffin in the offered slot.
+  const offer = day?.meals.some((m) => m.slot === "lunch" && m.tiffin)
+    ? undefined
+    : offers.data?.find((o) => o.date === day?.date);
   const cook = usePublicPartner(editable ? offer?.kitchen_id : undefined, lang);
-  const orderBy = `${weekdayName(cycle.cutoff_at, lang)} ${clockTime(istClock(cycle.cutoff_at), lang)}`;
+  /** @param {string} date @param {import("./queries.js").PlannedMeal["slot"]} slot */
+  const swapMeal = (date, slot) =>
+    swap.mutate(
+      { cycle, date, slot },
+      {
+        onSuccess: () => toast(t("week.day.swapped")),
+        onError: (e) => onError(e, () => swapMeal(date, slot)),
+      },
+    );
+  const orderBy = `${weekdayName(offer?.order_by ?? cycle.cutoff_at, lang)} ${clockTime(istClock(offer?.order_by ?? cycle.cutoff_at), lang)}`;
 
   return (
     <Sheet
@@ -48,30 +62,27 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
                 {t(`week.slot.${m.slot}`)}
               </span>
               <div className="flex items-center justify-between gap-3">
-                <strong>{m.name}</strong>
+                <strong>{m.name ?? t("week.day.tiffinSlot")}</strong>
                 {editable && !m.tiffin && (
                   <Button
                     variant="quiet"
                     isPending={swap.isPending && swap.variables?.slot === m.slot}
-                    onPress={() =>
-                      swap.mutate(
-                        { cycle, date: day.date, slot: m.slot },
-                        { onSuccess: () => toast(t("week.day.swapped")), onError },
-                      )
-                    }
+                    onPress={() => swapMeal(day.date, m.slot)}
                   >
                     {t("week.day.swap")}
                   </Button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {m.tiffin && <Chip kind="reason">{t("week.day.tiffin")}</Chip>}
-                {m.reason_code && !m.tiffin && (
-                  <Chip kind="reason">
-                    {reasonText(t, { code: m.reason_code, params: m.reason_params ?? null })}
-                  </Chip>
-                )}
-              </div>
+              {(m.tiffin || m.sides.length > 0) && (
+                <div className="flex flex-wrap gap-2">
+                  {m.tiffin && <Chip kind="reason">{t("week.day.tiffin")}</Chip>}
+                  {m.sides.length > 0 && (
+                    <Chip kind="reason">
+                      {t("week.day.with", { sides: m.sides.map(humanize).join(", ") })}
+                    </Chip>
+                  )}
+                </div>
+              )}
             </section>
           ))}
           {editable && offer && (

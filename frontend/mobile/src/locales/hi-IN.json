@@ -342,7 +342,8 @@
       "when": "{day}, {range}",
       "within": "{budget} के Budget Lock में",
       "cta": "ठीक है, आगे बढ़ें",
-      "edit": "पहले कुछ बदलना है"
+      "edit": "पहले कुछ बदलना है",
+      "later": "आपकी सोसाइटी का डिलीवरी दिन अभी तय नहीं है, इसलिए नमूना हफ़्ता नहीं दिखा सकते। प्लान होते ही आपका पहला असली हफ़्ता यहाँ दिखेगा।"
     },
     "payment": {
       "title": "आप कैसे भुगतान करेंगे?",
@@ -411,22 +412,27 @@
     "today": "आज",
     "skip": "छुट्टी",
     "slot": {
+      "breakfast": "नाश्ता",
       "lunch": "दोपहर",
       "dinner": "रात"
     },
     "title": "आपका हफ़्ता",
     "status": {
-      "ready": "देखने के लिए तैयार",
+      "awaiting_approval": "देखने के लिए तैयार",
       "approved": "मंज़ूर",
       "skipped": "छोड़ा गया",
       "locked": "पैक हो रहा है",
-      "payment_failed": "भुगतान बाकी"
+      "payment_failed": "भुगतान बाकी",
+      "draft": "तैयार हो रहा है",
+      "cancelled": "रद्द"
     },
     "lead": {
-      "ready": "आपके हफ़्ते का खाना तैयार है। बदलाव {when} तक।",
+      "awaiting_approval": "आपके हफ़्ते का खाना तैयार है। बदलाव {when} तक।",
       "approved": "मंज़ूर हो गया। आपका बॉक्स {day} को आएगा।",
       "skipped": "यह हफ़्ता छोड़ा गया। न बॉक्स, न पैसे।",
-      "locked": "बदलाव बंद हो गए। आपका बॉक्स पैक हो रहा है।"
+      "locked": "बदलाव बंद हो गए। आपका बॉक्स पैक हो रहा है।",
+      "draft": "इस हफ़्ते का खाना अभी तैयार हो रहा है। जल्द ही आप देख पाएँगे।",
+      "cancelled": "इस हफ़्ते का बॉक्स रद्द हुआ। कोई पैसा नहीं कटा।"
     },
     "brings": "{name} {flat} तक लाएँगी",
     "open": "बॉक्स खोलें",
@@ -466,34 +472,49 @@
       },
       "offer": "आपकी सोसाइटी से {cook} का {dish} · {price} · {when} तक ऑर्डर करें",
       "addTiffin": "टिफ़िन जोड़ें",
-      "added": "{cook} का {dish} जुड़ गया। इसका भुगतान कट-ऑफ़ पर बॉक्स के साथ होगा।"
+      "added": "{cook} का {dish} जुड़ गया। इसका भुगतान कट-ऑफ़ पर बॉक्स के साथ होगा।",
+      "tiffinSlot": "टिफ़िन",
+      "with": "{sides} के साथ"
     },
     "pauseLead": "ज़्यादा दिन बाहर हैं?",
     "pauseLink": "प्रोफ़ाइल में Autopilot रोकें",
     "thisBox": "इस हफ़्ते का बॉक्स: ",
     "paidFromWallet": "वॉलेट से भुगतान",
-    "atCutoff": "कट-ऑफ़ पर"
+    "atCutoff": "कट-ऑफ़ पर",
+    "noCycleTitle": "आपका पहला हफ़्ता आ रहा है",
+    "noCycleBody": "Autopilot हर हफ़्ता डिलीवरी से तीन दिन पहले प्लान करता है। तैयार होते ही यहाँ दिखेगा, देखकर मंज़ूर कीजिए।",
+    "atSociety": "आपकी सोसाइटी में",
+    "failed": "यह नहीं हो पाया। कृपया दोबारा कोशिश करें।"
   },
   "reasons": {
     "in_season": "{item} का मौसम है",
     "tiffin_day": "{weekday}: {cook} का टिफ़िन",
     "health_tag": "{member} के लिए {tag}",
-    "price_spike": "इस हफ़्ते {item} +{pct}%",
-    "high_protein": "{member} के लिए प्रोटीन",
     "tags": {
       "low_sugar": "कम शक्कर",
       "low_salt": "कम नमक",
       "low_oil": "कम तेल",
       "high_protein": "हाई प्रोटीन"
     },
-    "same_style": "वैसी ही सब्ज़ी",
-    "seasonal": "मौसम की सब्ज़ी",
-    "half_qty": "आधी मात्रा",
-    "same_protein": "वैसा ही प्रोटीन",
     "swapped_by_you": "आपने बदला",
-    "quick_cook": "{minutes} मिनट में तैयार",
     "added_by_you": "आपने जोड़ा",
-    "kept_by_you": "आपने रखा"
+    "meal_plan": "{recipes} के लिए",
+    "meal_plan_plain": "इस हफ़्ते के खाने के लिए",
+    "daily_use": "आपके परिवार का रोज़ का सामान",
+    "price_swap": "इस हफ़्ते सस्ता: आम पसंद {pct}% महँगी है",
+    "price_swap_plain": "इस हफ़्ते सस्ता",
+    "fallback_rules": "आपके परिवार के आकार के हिसाब से",
+    "pantry_low": "घर में कम पड़ रहा है",
+    "in_season_plain": "मौसम का",
+    "health_tag_plain": "आपके परिवार की सेहत के लिए अच्छा",
+    "festival": "{days} को व्रत",
+    "festival_plain": "त्योहार का हफ़्ता",
+    "budget_near": "आपके Budget Lock के क़रीब",
+    "tiffin_day_plain": "टिफ़िन का दिन",
+    "similar_use": "रसोई में वैसा ही इस्तेमाल",
+    "same_family": "उसी परिवार की सब्ज़ी",
+    "cheaper": "सस्ता, {saves} बचते हैं",
+    "cheaper_plain": "सस्ता"
   },
   "box": {
     "when": "{day} की डिलीवरी",
@@ -517,7 +538,6 @@
       "change": "{name} बदलें",
       "each": "{step} के {price}",
       "for": "{meals} के लिए।",
-      "use": "{day} का {dish}",
       "label": "कितना {name}",
       "less": "कम",
       "more": "ज़्यादा",
@@ -542,12 +562,16 @@
     "undone": "{name} पहले जैसा वापस",
     "spike": {
       "title": "इस हफ़्ते दाम बदले",
-      "body": "{market} में {item} {pct}% महँगा है। आपको {budget} के अंदर रखने के लिए Autopilot ने {n} खानों में {sub} लिया।",
-      "bodyNoLock": "{market} में {item} {pct}% महँगा है, इसलिए Autopilot ने {n} खानों में {sub} लिया।",
+      "body": "{lead}। आपको {budget} के अंदर रखने के लिए Autopilot ने {sub} लिया।",
+      "bodyNoLock": "{lead}, इसलिए Autopilot ने {sub} लिया।",
       "keep": "{item} रखें (+{delta})",
       "ok": "ठीक है",
-      "kept": "{item} आपके बॉक्स में रखा"
-    }
+      "kept": "{item} आपके बॉक्स में रखा",
+      "up": "{item} {pct}% महँगा है",
+      "pricier": "{item} महँगा हुआ"
+    },
+    "overBudget": "इससे आपका बॉक्स Budget Lock से {amount} ऊपर चला जाएगा।",
+    "cantEdit": "यह बदलाव नहीं हो सकता। अपना बॉक्स देखकर दोबारा कोशिश करें।"
   },
   "wallet": {
     "title": "वॉलेट",
@@ -1492,7 +1516,7 @@
     "title": "Budget Lock",
     "spent": "अब तक ख़र्च",
     "spentValue": "{limit} में से {spent}",
-    "left": "बाकी {n} डिलीवरी दिनों के लिए {amount} बचे हैं। Autopilot हर हफ़्ता इसी में प्लान करता है।",
+    "left": "इस महीने {amount} बचे हैं। Autopilot हर हफ़्ता इसी में प्लान करता है।",
     "over": "इस महीने सीमा से {amount} ज़्यादा। Autopilot महीने के बाकी प्लान हल्के रखेगा।",
     "off": "Budget Lock बंद है। मासिक सीमा तय करें, Autopilot हर हफ़्ता इसी में प्लान करेगा।",
     "limitLabel": "सब्ज़ी और राशन की मासिक सीमा",

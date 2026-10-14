@@ -11,18 +11,18 @@ import {
   StatusPill,
   ThaliWeek,
   toast,
-  WalletCard,
 } from "@gharbasket/ui";
-import { WarningIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { useTopUp } from "@/features/billing/useTopUp.jsx";
+import { PILL } from "@/features/subscriptions/cycle.js";
 import { DaySheet } from "@/features/subscriptions/DaySheet.jsx";
+import { showCycleError } from "@/features/subscriptions/errors.js";
 import {
   clockTime,
   istClock,
+  istDate,
   monthName,
   shortDate,
   timeRange,
@@ -30,23 +30,13 @@ import {
   weekdayOf,
   weekRange,
 } from "@/features/subscriptions/format.js";
-import { useCurrentCycle, useCycleAction } from "@/features/subscriptions/queries.js";
-import { ApiError } from "@/lib/api.js";
+import { isEditable, useCurrentCycle, useCycleAction } from "@/features/subscriptions/queries.js";
 import { markFirstBoxApproved } from "@/lib/install.js";
-
-/** @type {Record<string, "planned" | "preparing" | "ready" | "out" | "delivered" | "issue">} */
-const PILL = {
-  ready: "preparing",
-  approved: "ready",
-  skipped: "planned",
-  locked: "out",
-  payment_failed: "issue",
-};
 
 /**
  * Your week: the thali, the box, Budget Lock, approve or skip before the cut-off (design HcWeek, M3).
- * Also the approved week (Core-W3), the skipped week with undo (W4) and a short wallet at the
- * cut-off (D4).
+ * Also the approved week (Core-W3) and the skipped week with undo (W4). Before the first plan the
+ * API answers no_cycle, which is an empty state.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/week")({ component: Week });
@@ -59,39 +49,49 @@ function Week() {
   const approve = useCycleAction("approve");
   const skip = useCycleAction("skip");
   const unskip = useCycleAction("unskip");
-  const pay = useCycleAction("pay");
   const [confirmSkip, setConfirmSkip] = useState(false);
   const [openDay, setOpenDay] = useState(/** @type {number | null} */ (null));
-  // After a top-up in the grace window, retry the box payment straight away.
-  const topUp = useTopUp({
-    onPaid: () => {
-      if (c) pay.mutate(c, { onSuccess: () => toast(t("week.paidToast")), onError });
-    },
-  });
 
   if (isPending) return <Skeleton lines={6} />;
-  if (isError || !c) return <ScreenError onRetry={() => refetch()} />;
+  if (isError) return <ScreenError onRetry={() => refetch()} />;
+  if (!c)
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("week.title")}</h1>
+        <EmptyState
+          illustration={<EmptyBasket />}
+          title={t("week.noCycleTitle")}
+          body={t("week.noCycleBody")}
+        />
+      </div>
+    );
 
-  const today = c.meal_plan.days.findIndex(
-    (d) => d.date === new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),
-  );
-  const cutoff = new Date(c.cutoff_at);
-  const cutoffDate = c.cutoff_at.slice(0, 10);
-  const cutoffWhen = `${t(`days.long.d${weekdayOf(cutoffDate)}`)} ${clockTime(cutoff.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" }), lang)}`;
+  const today = c.meal_plan.days.findIndex((d) => d.date === istDate());
+  const cutoffWhen = `${t(`days.long.d${weekdayOf(istDate(c.cutoff_at))}`)} ${clockTime(istClock(c.cutoff_at), lang)}`;
   const deliveryDay = `${t(`days.short.d${weekdayOf(c.delivery_date)}`)} ${shortDate(c.delivery_date, lang)}`;
   // Edits, including skipping, stay open until the cut-off, even after approving (W3).
-  const editable = c.status === "ready" || c.status === "approved";
-  const due = c.payment_due;
-  // The failed-payment week shows only the alert, the wallet and the two ways out (design HcPayFailed).
-  const failed = c.status === "payment_failed" && !!due;
+  const editable = isEditable(c);
 
-  /** @param {unknown} e */
-  const onError = (e) => {
-    if (e instanceof ApiError && e.code === "subscriptions.version_conflict") {
-      toast(t("week.changed"));
-      refetch();
-    } else toast(t("onboarding.error"));
-  };
+  /** Says why an action failed; Try again runs it once more. @param {unknown} e @param {() => void} [retry] */
+  const onError = (e, retry) => showCycleError(t, e, { retry, refetch });
+  const approveWeek = () =>
+    approve.mutate(c, {
+      onSuccess: () => {
+        markFirstBoxApproved();
+        toast(t("week.approvedToast", { day: deliveryDay }));
+      },
+      onError: (e) => onError(e, approveWeek),
+    });
+  const skipWeek = () =>
+    skip.mutate(c, {
+      onSuccess: () => toast(t("week.skippedToast")),
+      onError: (e) => onError(e, skipWeek),
+    });
+  const unskipWeek = () =>
+    unskip.mutate(c, {
+      onSuccess: () => toast(t("week.unskippedToast")),
+      onError: (e) => onError(e, unskipWeek),
+    });
 
   return (
     <div className="flex flex-col gap-4">
@@ -108,7 +108,7 @@ function Week() {
           <StatusPill status={PILL[c.status]}>{t(`week.status.${c.status}`)}</StatusPill>
         </div>
       </header>
-      {(c.status === "ready" || c.status === "locked") && (
+      {c.status !== "approved" && c.status !== "skipped" && (
         <p className="-mt-2 text-sm leading-[22px] text-fg-secondary">
           {t(`week.lead.${c.status}`, {
             when: cutoffWhen,
@@ -124,63 +124,7 @@ function Week() {
           </p>
         </section>
       )}
-      {failed && due && (
-        <>
-          <section
-            role="alert"
-            className="flex flex-col gap-2 rounded-md border border-danger bg-danger-soft px-4 py-3.5"
-          >
-            <h2 className="flex items-center gap-2 text-[18px] leading-[26px] font-bold">
-              <WarningIcon aria-hidden size={20} className="shrink-0 text-danger" />
-              {t("week.failedTitle")}
-            </h2>
-            <p className="text-[15px] leading-[22px]">
-              {t("week.failedBody", {
-                wallet: formatPaise(due.wallet_paise),
-                total: formatPaise(c.total_paise),
-                short: formatPaise(due.shortfall_paise),
-                time: clockTime(istClock(due.due_at), lang),
-                day: t(`days.long.d${weekdayOf(c.delivery_date)}`),
-              })}
-            </p>
-          </section>
-          {topUp.error && (
-            <p role="alert" className="text-sm font-semibold text-danger">
-              {topUp.error}
-            </p>
-          )}
-          <WalletCard
-            balancePaise={due.wallet_paise}
-            weekTotalPaise={c.total_paise}
-            onTopUp={() => topUp.start(due.shortfall_paise)}
-            onStatement={() => navigate({ to: "/wallet/statement" })}
-            labels={{
-              name: t("wallet.title"),
-              balance: t("wallet.balance"),
-              week: t("week.thisBox"),
-              topUpNeeded: t("wallet.topUpNeeded"),
-              covered: t("wallet.covered"),
-              topUp: t("wallet.topUp"),
-              statement: t("wallet.statement"),
-            }}
-          />
-          <div className="flex flex-col">
-            <Button
-              variant="primary"
-              size="lg"
-              block
-              isPending={topUp.busy || pay.isPending}
-              onPress={() => topUp.start(due.shortfall_paise)}
-            >
-              {t("week.topUpShort", { short: formatPaise(due.shortfall_paise) })}
-            </Button>
-            <Button variant="quiet" block onPress={() => setConfirmSkip(true)}>
-              {t("week.skipInstead")}
-            </Button>
-          </div>
-        </>
-      )}
-      {failed ? null : c.status === "skipped" ? (
+      {c.status === "skipped" ? (
         <>
           <EmptyState
             illustration={<EmptyBasket />}
@@ -190,9 +134,7 @@ function Week() {
               next: `${weekdayName(nextWeek(c.delivery_date), lang)} ${shortDate(nextWeek(c.delivery_date), lang)}`,
             })}
             action={t("week.undoSkip")}
-            onAction={() =>
-              unskip.mutate(c, { onSuccess: () => toast(t("week.unskippedToast")), onError })
-            }
+            onAction={unskipWeek}
           />
           <p className="-mt-2 text-center text-sm text-fg-secondary">
             {t("week.pauseLead")}{" "}
@@ -217,9 +159,8 @@ function Week() {
               date: shortDate(d.date, lang),
               meals: d.meals.map((m) => ({
                 slot: t(`week.slot.${m.slot}`),
-                name: m.name,
+                name: m.name ?? t("week.day.tiffinSlot"),
                 tiffin: m.tiffin,
-                skip: m.skip,
               })),
             }))}
           />
@@ -229,7 +170,7 @@ function Week() {
               <MoneyText paise={c.total_paise} size="lg" />
             </div>
             <p className="text-sm leading-[22px] text-fg-secondary">
-              {`${deliveryDay}, ${timeRange(c.delivery_window, lang)}`}
+              {`${deliveryDay}, ${timeRange(c.slot, lang)}`}
               {c.captain &&
                 ` · ${t("week.brings", { name: c.captain.name, flat: c.captain.flat })}`}
             </p>
@@ -259,10 +200,12 @@ function Week() {
                       note: t("week.atCutoff"),
                       state: "current",
                     },
-                    { label: t("orders.stage.PACKED", { hub: c.hub.name }), state: "todo" },
+                    { label: t("track.stage.packed"), state: "todo" },
                     {
-                      label: t("orders.stage.AT_SOCIETY", { captain: c.captain?.name ?? "" }),
-                      time: `${weekdayName(c.delivery_date, lang)} ${timeRange(c.delivery_window, lang)}`,
+                      label: c.captain
+                        ? t("orders.stage.AT_SOCIETY", { captain: c.captain.name })
+                        : t("week.atSociety"),
+                      time: `${weekdayName(c.delivery_date, lang)} ${timeRange(c.slot, lang)}`,
                       state: "todo",
                     },
                     ...(c.captain
@@ -285,8 +228,8 @@ function Week() {
           </section>
           {c.budget_lock && (
             <ProgressBar
-              label={t("week.lock", { month: monthName(c.week_start, lang) })}
-              value={c.budget_lock.spent_paise}
+              label={t("week.lock", { month: monthName(`${c.budget_lock.month}-15`, lang) })}
+              value={Math.min(c.budget_lock.spent_paise, c.budget_lock.budget_paise)}
               max={c.budget_lock.budget_paise}
               tone="accent"
               valueLabel={t("week.lockValue", {
@@ -309,15 +252,7 @@ function Week() {
               size="lg"
               block
               isPending={approve.isPending}
-              onPress={() =>
-                approve.mutate(c, {
-                  onSuccess: () => {
-                    markFirstBoxApproved();
-                    toast(t("week.approvedToast", { day: deliveryDay }));
-                  },
-                  onError,
-                })
-              }
+              onPress={approveWeek}
             >
               {t("week.approve")}
             </Button>
@@ -334,13 +269,10 @@ function Week() {
         confirmLabel={t("week.skipConfirm")}
         cancelLabel={t("week.skipCancel")}
         tone="danger"
-        onConfirm={() =>
-          skip.mutate(c, { onSuccess: () => toast(t("week.skippedToast")), onError })
-        }
+        onConfirm={skipWeek}
       >
         {t("week.skipBody", { amount: formatPaise(c.total_paise) })}
       </Dialog>
-      {topUp.dialog}
       <DaySheet
         cycle={c}
         index={openDay}

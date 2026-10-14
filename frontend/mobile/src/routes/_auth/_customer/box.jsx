@@ -1,5 +1,7 @@
 import {
   Button,
+  EmptyBasket,
+  EmptyState,
   formatPaise,
   ParchiList,
   Sheet,
@@ -14,21 +16,26 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { AddItemSheet } from "@/features/catalog/AddItemSheet.jsx";
-import { reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
+import {
+  PILL,
+  priceSwaps,
+  swappedFromPaise,
+  useDismissedSwaps,
+} from "@/features/subscriptions/cycle.js";
+import { showCycleError } from "@/features/subscriptions/errors.js";
+import { qtyLabel, reasonText, shortDate, weekdayOf } from "@/features/subscriptions/format.js";
 import { ProductSheet } from "@/features/subscriptions/ProductSheet.jsx";
 import {
+  isEditable,
   useCurrentCycle,
   useCycleAction,
   useEditLine,
   useSubstitutes,
   useSwapLine,
 } from "@/features/subscriptions/queries.js";
-import { ApiError } from "@/lib/api.js";
 import { markFirstBoxApproved } from "@/lib/install.js";
 
 const FIRST_LINES = 5;
-/** @type {Record<string, "planned" | "preparing" | "ready" | "out" | "delivered" | "issue">} */
-const PILL = { ready: "preparing", approved: "ready", skipped: "planned", locked: "out" };
 
 /**
  * Your box as a parchi, with Swap on each line while edits are open; tapping a line opens it as a
@@ -51,30 +58,35 @@ function Box() {
     /** @type {{ id: string, name: string, pricePaise: number } | null} */ (null),
   );
   const subs = useSubstitutes(swapping?.id ?? null, lang);
+  const { dismissed, dismiss } = useDismissedSwaps(c?.id);
 
   if (isPending) return <Skeleton lines={8} />;
-  if (isError || !c) return <ScreenError onRetry={() => refetch()} />;
+  if (isError) return <ScreenError onRetry={() => refetch()} />;
+  if (!c)
+    return (
+      <div className="flex flex-col gap-4">
+        <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("box.title")}</h1>
+        <EmptyState
+          illustration={<EmptyBasket />}
+          title={t("week.noCycleTitle")}
+          body={t("week.noCycleBody")}
+        />
+      </div>
+    );
 
   // Swaps stay open after approving, until the cut-off (Core-W3).
-  const editable = c.status === "ready" || c.status === "approved";
+  const editable = isEditable(c);
+  const alert = priceSwaps(c).find((a) => !dismissed.includes(a.product_id));
   const day = `${t(`days.short.d${weekdayOf(c.delivery_date)}`)} ${shortDate(c.delivery_date, lang)}`;
   const shown = all ? c.lines : c.lines.slice(0, FIRST_LINES);
   const byName = new Map(c.lines.map((l) => [l.name, l]));
+  // A substitute the hub has no price for can't be offered as a swap.
+  const priced = subs.data?.items.flatMap((s) =>
+    s.price_paise === null ? [] : [{ ...s, price_paise: s.price_paise }],
+  );
 
-  /** @param {unknown} e */
-  const onError = (e) => {
-    const code = e instanceof ApiError ? e.code : "";
-    toast(
-      t(
-        code === "subscriptions.version_conflict"
-          ? "week.changed"
-          : code === "orders.cutoff_passed"
-            ? "box.closed"
-            : "onboarding.error",
-      ),
-    );
-    refetch();
-  };
+  /** Says why an edit failed; Try again runs it once more. @param {(() => void) | undefined} [retry] */
+  const fail = (retry) => (/** @type {unknown} */ e) => showCycleError(t, e, { retry, refetch });
 
   /** Swap a line for a substitute, with Undo on the toast. */
   const swapTo = (
@@ -91,11 +103,65 @@ function Box() {
               onClick: () =>
                 edit.mutate(
                   { cycle: after, productId: sub.product_id, op: "undo_swap" },
-                  { onError },
+                  { onError: fail() },
                 ),
             },
           }),
-        onError,
+        onError: fail(() => swapTo(from, sub)),
+      },
+    );
+
+  const approveBox = () =>
+    approve.mutate(c, {
+      onSuccess: () => {
+        markFirstBoxApproved();
+        toast(t("week.approvedToast", { day }));
+      },
+      onError: fail(approveBox),
+    });
+
+  /** @param {string} productId @param {string} name */
+  const addItem = (productId, name) =>
+    edit.mutate(
+      { cycle: c, productId, op: "add" },
+      {
+        onSuccess: () => toast(t("box.add.added", { name })),
+        onError: fail(() => addItem(productId, name)),
+      },
+    );
+
+  /** @param {import("@/features/subscriptions/queries.js").BoxLine} line @param {number} qty */
+  const saveQty = (line, qty) =>
+    edit.mutate(
+      { cycle: c, productId: line.product_id, op: "qty", qty },
+      {
+        onSuccess: () => {
+          setChanging(null);
+          toast(t("box.qty.saved", { name: line.name }));
+        },
+        onError: fail(() => saveQty(line, qty)),
+      },
+    );
+
+  /** Take a line out, with Undo on the toast. @param {import("@/features/subscriptions/queries.js").BoxLine} line */
+  const removeLine = (line) =>
+    edit.mutate(
+      { cycle: c, productId: line.product_id, op: "remove" },
+      {
+        onSuccess: (after) => {
+          setChanging(null);
+          toast(t("box.qty.removed", { name: line.name }), {
+            action: {
+              label: t("box.undo"),
+              onClick: () =>
+                edit.mutate(
+                  { cycle: after, productId: line.product_id, op: "restore" },
+                  { onError: fail() },
+                ),
+            },
+          });
+        },
+        onError: fail(() => removeLine(line)),
       },
     );
 
@@ -114,20 +180,18 @@ function Box() {
           <StatusPill status={PILL[c.status]}>{t(`week.status.${c.status}`)}</StatusPill>
         </div>
       </header>
-      {editable && c.price_alerts?.[0] && (
+      {editable && alert && (
         <PriceAlert
-          alert={c.price_alerts[0]}
+          alert={alert}
           budget={c.budget_lock ? formatPaise(c.budget_lock.budget_paise) : null}
           busy={edit.isPending}
           onKeep={(a) =>
             edit.mutate(
               { cycle: c, productId: a.product_id, op: "undo_swap" },
-              { onSuccess: () => toast(t("box.spike.kept", { item: a.item })), onError },
+              { onSuccess: () => toast(t("box.spike.kept", { item: a.item })), onError: fail() },
             )
           }
-          onOk={(a) =>
-            edit.mutate({ cycle: c, productId: a.product_id, op: "dismiss_alert" }, { onError })
-          }
+          onOk={(a) => dismiss(a.product_id)}
         />
       )}
       <ParchiList
@@ -143,12 +207,10 @@ function Box() {
         }}
         items={shown.map((l) => ({
           name: l.name,
-          qty: l.qty_label,
-          pricePaise: l.price_paise,
-          reason: l.reason_code
-            ? reasonText(t, { code: l.reason_code, params: l.reason_params })
-            : undefined,
-          swappedFromPaise: l.swapped_from_paise ?? undefined,
+          qty: qtyLabel(l),
+          pricePaise: l.total_paise,
+          reason: reasonText(t, { code: l.reason_code, params: l.reason_params }, lang),
+          swappedFromPaise: swappedFromPaise(l),
         }))}
         onUndo={
           editable
@@ -157,7 +219,10 @@ function Box() {
                 if (line)
                   edit.mutate(
                     { cycle: c, productId: line.product_id, op: "undo_swap" },
-                    { onSuccess: () => toast(t("box.undone", { name: line.name })), onError },
+                    {
+                      onSuccess: () => toast(t("box.undone", { name: line.name })),
+                      onError: fail(),
+                    },
                   );
               }
             : undefined
@@ -166,7 +231,7 @@ function Box() {
           editable
             ? (item) => {
                 const line = byName.get(item.name);
-                if (line?.step) setChanging(line.product_id);
+                if (line) setChanging(line.product_id);
               }
             : undefined
         }
@@ -178,7 +243,7 @@ function Box() {
                   setSwapping({
                     id: line.product_id,
                     name: line.name,
-                    pricePaise: line.price_paise,
+                    pricePaise: line.unit_price_paise,
                   });
               }
             : undefined
@@ -205,33 +270,24 @@ function Box() {
             to="/budget"
             className="flex min-h-12 items-center text-sm leading-[22px] text-fg-secondary underline decoration-line-strong underline-offset-3 outline-none focus-visible:shadow-focus"
           >
-            {t(
-              c.budget_lock.spent_paise <= c.budget_lock.budget_paise ? "box.within" : "box.over",
-              { budget: formatPaise(c.budget_lock.budget_paise) },
-            )}
+            {t(c.budget_lock.remaining_paise >= 0 ? "box.within" : "box.over", {
+              budget: formatPaise(c.budget_lock.budget_paise),
+            })}
           </Link>
         )}
       </div>
-      {c.status === "ready" && (
+      {c.status === "awaiting_approval" && (
         <Button
           variant="primary"
           size="lg"
           block
           isPending={approve.isPending}
-          onPress={() =>
-            approve.mutate(c, {
-              onSuccess: () => {
-                markFirstBoxApproved();
-                toast(t("week.approvedToast", { day }));
-              },
-              onError,
-            })
-          }
+          onPress={approveBox}
         >
           {t("week.approve")}
         </Button>
       )}
-      {swapping && !subs.data && (
+      {swapping && !priced && (
         <Sheet
           open
           onOpenChange={(open) => !open && setSwapping(null)}
@@ -240,7 +296,7 @@ function Box() {
           {subs.isError ? <ScreenError onRetry={() => subs.refetch()} /> : <Skeleton lines={6} />}
         </Sheet>
       )}
-      {swapping && subs.data && (
+      {swapping && priced && (
         <SubstituteSheet
           open
           onOpenChange={(open) => !open && setSwapping(null)}
@@ -253,16 +309,14 @@ function Box() {
             }),
             cta: t("box.useThis"),
           }}
-          options={subs.data.items.map((s) => ({
+          options={priced.map((s) => ({
             name: s.name,
-            qty: s.qty_label,
+            qty: s.step.label,
             pricePaise: s.price_paise,
-            reason: s.reason_code
-              ? reasonText(t, { code: s.reason_code, params: s.reason_params })
-              : undefined,
+            reason: reasonText(t, { code: s.reason_code, params: s.reason_params }, lang),
           }))}
           onConfirm={(picked) => {
-            const sub = subs.data.items.find(
+            const sub = priced.find(
               (s) => s.name === picked.name && s.price_paise === picked.pricePaise,
             );
             const from = swapping;
@@ -276,12 +330,7 @@ function Box() {
         onClose={() => setAdding(false)}
         inBox={new Set(c.lines.map((l) => l.product_id))}
         busyId={edit.isPending && edit.variables?.op === "add" ? edit.variables.productId : null}
-        onAdd={(productId, name) =>
-          edit.mutate(
-            { cycle: c, productId, op: "add" },
-            { onSuccess: () => toast(t("box.add.added", { name })), onError },
-          )
-        }
+        onAdd={addItem}
       />
       <ProductSheet
         line={c.lines.find((l) => l.product_id === changing) ?? null}
@@ -294,40 +343,11 @@ function Box() {
         }}
         onSave={(qty) => {
           const line = c.lines.find((l) => l.product_id === changing);
-          if (!line) return;
-          edit.mutate(
-            { cycle: c, productId: line.product_id, op: "qty", qty },
-            {
-              onSuccess: () => {
-                setChanging(null);
-                toast(t("box.qty.saved", { name: line.name }));
-              },
-              onError,
-            },
-          );
+          if (line) saveQty(line, qty);
         }}
         onRemove={() => {
           const line = c.lines.find((l) => l.product_id === changing);
-          if (!line) return;
-          edit.mutate(
-            { cycle: c, productId: line.product_id, op: "remove" },
-            {
-              onSuccess: (after) => {
-                setChanging(null);
-                toast(t("box.qty.removed", { name: line.name }), {
-                  action: {
-                    label: t("box.undo"),
-                    onClick: () =>
-                      edit.mutate(
-                        { cycle: after, productId: line.product_id, op: "restore" },
-                        { onError },
-                      ),
-                  },
-                });
-              },
-              onError,
-            },
-          );
+          if (line) removeLine(line);
         }}
       />
     </div>
@@ -336,11 +356,15 @@ function Box() {
 
 /**
  * "Prices moved this week": what Autopilot swapped to stay within the Budget Lock, with Keep and OK
- * (design Core-B4).
- * @param {{ alert: NonNullable<import("@/features/subscriptions/queries.js").Cycle["price_alerts"]>[number], budget: string | null, busy: boolean, onKeep: (a: any) => void, onOk: (a: any) => void }} props
+ * (design Core-B4). Built from the box's `price_swap` lines; the API sends no market or meal count.
+ * @param {{ alert: import("@/features/subscriptions/cycle.js").PriceSwap, budget: string | null, busy: boolean, onKeep: (a: import("@/features/subscriptions/cycle.js").PriceSwap) => void, onOk: (a: import("@/features/subscriptions/cycle.js").PriceSwap) => void }} props
  */
 function PriceAlert({ alert: a, budget, busy, onKeep, onOk }) {
   const { t } = useTranslation();
+  const lead =
+    a.pct === null
+      ? t("box.spike.pricier", { item: a.item })
+      : t("box.spike.up", { item: a.item, pct: a.pct });
   return (
     <section
       role="status"
@@ -348,14 +372,7 @@ function PriceAlert({ alert: a, budget, busy, onKeep, onOk }) {
     >
       <strong>{t("box.spike.title")}</strong>
       <p className="text-sm leading-5">
-        {t(budget ? "box.spike.body" : "box.spike.bodyNoLock", {
-          item: a.item,
-          pct: a.pct,
-          market: a.market,
-          budget,
-          sub: a.substitute,
-          n: a.meals,
-        })}
+        {t(budget ? "box.spike.body" : "box.spike.bodyNoLock", { lead, budget, sub: a.substitute })}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" isDisabled={busy} onPress={() => onKeep(a)}>
