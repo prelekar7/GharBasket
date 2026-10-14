@@ -538,6 +538,11 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 - **Round 1's deadline** is 22:30 IST the evening before, or 30 minutes after the offer when the round runs later than 22:00. The jobs use `scheduled_for` as "now".
 - **Greedy reasons.** When no kitchen fits, the reason is the furthest rule any kitchen passed: `no_skills`, `below_rating_floor`, `out_of_reach`, then `no_room` (also when no kitchen has room for the meal).
 
+**As built (offers, part 3).**
+- **`GET /v1/assignments`** answers 422 `request.invalid` for a date outside a week back to tomorrow. Orders keep their rows after a release (`status: released`, not counted in `dishes`). `accepted_at` is the answer's time once accepted; `pickup_qr` appears once an order is past `assigned`.
+- **Accept** does not call `orders.api.set_kitchen` yet: M4 has no such move (ADR-0026 §3 follow-up), so the order does not show its cook until it does.
+- **The 15-minute job** takes T as tomorrow from noon IST and today before; it always expires overdue offers (`respond_by` ≤ `scheduled_for`) and runs a round only before T 00:00.
+
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
 KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": null,   null for now (§11)

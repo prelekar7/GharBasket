@@ -7,6 +7,9 @@ answer, so ML never blocks the evening. Orders are grouped into one offer per ki
 publishes `partners.assignment_created`, the run is kept in `assignment_runs`, and orders nobody
 could take are published once as `partners.tiffins_unassigned`. Kitchens that declined or let an
 offer expire for the date and meal are left out of the later rounds.
+
+A kitchen accepts or declines an offer while it is open; declined and expired offers release
+their orders (`partners.assignment_released`) for the next round.
 """
 
 import time as clock
@@ -17,7 +20,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 import httpx2
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
@@ -36,6 +39,7 @@ from gharbasket.modules.partners.models import (
     Kitchen,
     Partner,
 )
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import lock_key
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.settings import Settings
@@ -454,3 +458,110 @@ async def _offer(
             respond_until=respond_by(run.round, run.on_date, at),
         )
     return len(by_partner)
+
+
+# --- the kitchen's answer, expiry and release ---------------------------------------------------
+
+
+def not_found() -> ProblemError:
+    return ProblemError(404, "partners.assignment_not_found", "No such assignment.")
+
+
+async def own(session: AsyncSession, user_id: uuid.UUID, assignment_id: uuid.UUID) -> Assignment:
+    """The caller's kitchen's assignment, row-locked; 404 for anyone else's."""
+    assignment = await session.get(Assignment, assignment_id, with_for_update=True)
+    partner = None if assignment is None else await session.get(Partner, assignment.partner_id)
+    if assignment is None or partner is None or partner.user_id != user_id:
+        raise not_found()
+    return assignment
+
+
+def _ensure_open(assignment: Assignment, at: datetime) -> None:
+    if assignment.status != "offered" or at >= assignment.respond_by:
+        raise ProblemError(409, "partners.assignment_closed", "This offer is closed.")
+
+
+async def _event(
+    session: AsyncSession,
+    assignment: Assignment,
+    action: str,
+    user_id: uuid.UUID | None,
+    **payload: object,
+) -> None:
+    session.add(
+        AssignmentEvent(
+            assignment_id=assignment.id, action=action, user_id=user_id, payload=payload
+        )
+    )
+    assignment.version += 1
+    await session.flush()
+
+
+async def accept(
+    session: AsyncSession, assignment: Assignment, user_id: uuid.UUID, at: datetime
+) -> None:
+    """Accept the whole offer. M4's `set_kitchen` (ADR-0026 §3) is not built yet, so the
+    order does not show its cook until it is."""
+    _ensure_open(assignment, at)
+    assignment.status, assignment.responded_at = "accepted", at
+    await _event(session, assignment, "accepted", user_id)
+
+
+async def decline(
+    session: AsyncSession,
+    assignment: Assignment,
+    reason: str,
+    note: str | None,
+    user_id: uuid.UUID,
+    at: datetime,
+) -> None:
+    _ensure_open(assignment, at)
+    assignment.status, assignment.responded_at, assignment.decline_reason = "declined", at, reason
+    await _event(session, assignment, "declined", user_id, reason=reason, note=note)
+    await release(session, assignment, "declined")
+
+
+async def release(session: AsyncSession, assignment: Assignment, reason: str) -> list[uuid.UUID]:
+    """Let go of the assignment's orders that are not ready yet, for the next round."""
+    released = await session.execute(
+        update(AssignmentOrder)
+        .where(AssignmentOrder.assignment_id == assignment.id, AssignmentOrder.status == "assigned")
+        .values(status="released")
+        .returning(AssignmentOrder.order_id)
+    )
+    order_ids = sorted(released.scalars(), key=str)
+    await publish(
+        session,
+        events.ASSIGNMENT_RELEASED,
+        {
+            "assignment_id": str(assignment.id),
+            "partner_id": str(assignment.partner_id),
+            "hub_id": str(assignment.hub_id),
+            "date": assignment.on_date.isoformat(),
+            "meal": assignment.meal,
+            "order_ids": [str(order_id) for order_id in order_ids],
+            "reason": reason,
+        },
+    )
+    return order_ids
+
+
+async def expire_overdue(session: AsyncSession, at: datetime) -> int:
+    """Offers past `respond_by` become `expired` and release their orders."""
+    overdue = (
+        (
+            await session.execute(
+                select(Assignment)
+                .where(Assignment.status == "offered", Assignment.respond_by <= at)
+                .order_by(Assignment.id)
+                .with_for_update()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for assignment in overdue:
+        assignment.status = "expired"
+        await _event(session, assignment, "expired", None)
+        await release(session, assignment, "expired")
+    return len(overdue)
