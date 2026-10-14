@@ -86,7 +86,7 @@ export function useAddKycDocument() {
       /** @type {{ docType: DocType, files: File[], idKind?: string, number?: string, ifsc?: string }} */ v,
     ) => {
       keys.current[v.docType] ??= crypto.randomUUID();
-      const fileKeys = await Promise.all(v.files.map((f) => uploadFile(f, "kyc")));
+      const fileKeys = await Promise.all(v.files.map((f) => uploadFile(f, "kyc_document")));
       return /** @type {Promise<KycDocument>} */ (
         request("/v1/kyc-documents", {
           method: "POST",

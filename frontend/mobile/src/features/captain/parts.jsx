@@ -74,7 +74,7 @@ export function PhotoButton({ added, label, doneLabel, onKey }) {
           if (!file) return;
           setBusy(true);
           setFailed(false);
-          await uploadFile(file, /** @type {any} */ ("delivery_photo"))
+          await uploadFile(file, "delivery_photo")
             .then(onKey, () => setFailed(true))
             .finally(() => setBusy(false));
         }}

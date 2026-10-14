@@ -13,10 +13,24 @@ const post = (/** @type {string} */ path, /** @type {object} */ body, key = "key
     }),
   );
 
+const signIn = (phone = "+919800000001") =>
+  mockFetch(
+    new Request("http://localhost/v1/auth/exchange", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-gb-client": "web" },
+      body: JSON.stringify({ dev_phone: phone }),
+    }),
+  );
+const getJson = async (/** @type {string} */ path) =>
+  (await mockFetch(new Request(`http://localhost${path}`))).json();
+
 describe("mock API idempotency (the same key never creates twice)", () => {
   it("donations", async () => {
-    const a = await post("/v1/donations", { items: ["clothes"] }, "don-key");
-    const b = await post("/v1/donations", { items: ["clothes"] }, "don-key");
+    await signIn();
+    const { pickup_dates: dates } = await getJson("/v1/donations");
+    const body = { items: [{ code: "clothes", qty: 2 }], pickup_on: dates[0] };
+    const a = await post("/v1/donations", body, "don-key");
+    const b = await post("/v1/donations", body, "don-key");
     expect(a.status).toBe(201);
     expect((await b.json()).id).toBe((await a.json()).id);
   });
@@ -755,31 +769,190 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     expect((await sixth.json()).code).toBe("community.request_rate_limited");
   });
 
-  it("reports a live society's impact this month", async () => {
-    const r = await mockFetch(
-      new Request("http://localhost/v1/impact?scope=society&id=sunrise-towers"),
+  it("reports a society's impact with hub numbers apart, and null while under 5 homes", async () => {
+    const live = await getJson(
+      "/v1/impact?scope=society&society_id=0199a000-0000-7000-8000-00000000b001&period=2026-10",
     );
-    expect(await r.json()).toMatchObject({ food_saved_kg: 42, items_donated: 18, homes: 50 });
+    expect(live).toMatchObject({
+      scope: "society",
+      period: "2026-10",
+      homes_joined: 50,
+      items_donated: 18,
+      contributors: "5+",
+      hub: { food_saved_kg: 420.5, partners_earned_paise: 1240000 },
+    });
+    const none = await getJson("/v1/impact?scope=society&society_id=nowhere");
+    expect(none).toMatchObject({
+      period: "all",
+      homes_joined: null,
+      items_donated: null,
+      contributors: "under_5",
+    });
+    const bad = await mockFetch(new Request("http://localhost/v1/impact?scope=society&period=oct"));
+    expect(bad.status).toBe(422);
   });
 
-  it("reports your family's month and your share for a signed-in person", async () => {
+  it("reports what your household gave, all time, for a signed-in person", async () => {
     const me = () => mockFetch(new Request("http://localhost/v1/impact?scope=me"));
     expect((await me()).status).toBe(401);
-    await mockFetch(
-      new Request("http://localhost/v1/auth/exchange", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-gb-client": "web" },
-        body: JSON.stringify({ dev_phone: "+919800000001" }),
-      }),
-    );
+    await signIn();
     expect(await (await me()).json()).toMatchObject({
       scope: "me",
+      period: "all",
+      items_donated: 9,
+      kg_donated: 3,
+      donations_verified: 1,
       points_earned: 340,
+      meals_donated: 0,
       donated: [
-        { code: "school_bags", qty: 1 },
-        { code: "clothes", kg: 3 },
+        { code: "school_bag", unit: "each", qty: 1 },
+        { code: "clothes", unit: "kg", qty: 3 },
+        { code: "books", unit: "each", qty: 5 },
       ],
     });
+  });
+});
+
+describe("point rates, drives and donations (M9 §3.4)", () => {
+  const nextDate = async () => (await getJson("/v1/donations")).pickup_dates[0];
+
+  it("lists rates and the running drive in the request language", async () => {
+    await signIn();
+    const rates = (await getJson("/v1/point-rates")).items;
+    expect(rates.map((/** @type {{ code: string }} */ r) => r.code)).toContain("school_bag");
+    expect(rates.find((/** @type {{ code: string }} */ r) => r.code === "clothes")).toMatchObject({
+      unit: "kg",
+      points: 40,
+      max_qty: 15,
+    });
+    const drives = await mockFetch(
+      new Request("http://localhost/v1/drives", { headers: { "accept-language": "hi-IN" } }),
+    );
+    const diwali = (await drives.json()).items[0];
+    expect(diwali).toMatchObject({ multiplier: 2, scope: "platform", codes: ["clothes", "toys"] });
+    expect(diwali.name).toBe("दिवाली ड्राइव");
+    expect((await getJson("/v1/drives?state=ended")).items).toEqual([]);
+  });
+
+  it("books a pickup with an estimate that doubles the drive's lines", async () => {
+    await signIn();
+    const date = await nextDate();
+    const drive = (await getJson("/v1/drives")).items[0];
+    const res = await post(
+      "/v1/donations",
+      {
+        items: [
+          { code: "clothes", qty: 2.5 },
+          { code: "books", qty: 3 },
+        ],
+        photo_keys: ["donation_photo/u/1.jpg"],
+        drive_id: drive.id,
+        pickup_on: date,
+      },
+      "book-1",
+    );
+    expect(res.status).toBe(201);
+    const d = await res.json();
+    // 2.5 kg × 40 × 2 (clothes are in the drive) + 3 × 10 (books are not) = 230.
+    expect(d).toMatchObject({
+      status: "scheduled",
+      photos: 1,
+      estimated_points: 230,
+      points_awarded: null,
+      drive: { id: drive.id, multiplier: 2 },
+    });
+    expect(d.items[0]).toMatchObject({ unit: "kg", counted: null, points: null });
+    const list = await getJson("/v1/donations");
+    expect(list.items[0].id).toBe(d.id);
+    const cancelled = await post(`/v1/donations/${d.id}/cancel`, {}, "cancel-1");
+    expect(await cancelled.json()).toMatchObject({
+      status: "cancelled",
+      cancel_reason: "customer",
+    });
+    expect((await post(`/v1/donations/${d.id}/cancel`, {}, "cancel-2")).status).toBe(200);
+    expect((await post("/v1/donations/nope/cancel", {}, "cancel-3")).status).toBe(404);
+  });
+
+  it("refuses what the spec refuses, with its codes", async () => {
+    await signIn();
+    const date = await nextDate();
+    const code = async (/** @type {object} */ body, key = crypto.randomUUID()) => {
+      const res = await post("/v1/donations", { pickup_on: date, ...body }, key);
+      return [res.status, (await res.json()).code];
+    };
+    expect(await code({ items: [] })).toEqual([422, "community.no_items"]);
+    expect(await code({ items: [{ code: "tv", qty: 1 }] })).toEqual([
+      422,
+      "community.item_code_unknown",
+    ]);
+    expect(await code({ items: [{ code: "clothes", qty: 20 }] })).toEqual([
+      422,
+      "community.donation_qty_invalid",
+    ]);
+    expect(await code({ items: [{ code: "books", qty: 1.5 }] })).toEqual([
+      422,
+      "community.donation_qty_invalid",
+    ]);
+    const late = await post(
+      "/v1/donations",
+      { items: [{ code: "toys", qty: 1 }], pickup_on: "2020-01-07" },
+      "late",
+    );
+    expect(await late.json()).toMatchObject({
+      code: "community.pickup_date_invalid",
+      dates: [date, expect.any(String)],
+    });
+    expect(
+      await code({ items: [{ code: "toys", qty: 1 }], photo_keys: ["kyc_document/u/1.jpg"] }),
+    ).toEqual([422, "community.photo_key_invalid"]);
+    expect(await code({ items: [{ code: "toys", qty: 1 }], drive_id: "nope" })).toEqual([
+      422,
+      "community.drive_not_open",
+    ]);
+    // Three open pickups at most.
+    for (const n of [1, 2, 3])
+      await post(
+        "/v1/donations",
+        { items: [{ code: "toys", qty: n }], pickup_on: date },
+        `open-${n}`,
+      );
+    expect(await code({ items: [{ code: "toys", qty: 1 }] })).toEqual([
+      409,
+      "community.too_many_open_donations",
+    ]);
+  });
+
+  it("presigns private uploads by purpose, with the headers to send", async () => {
+    const presign = (/** @type {object} */ body) => post("/v1/files/presign", body, "p");
+    expect((await presign({ purpose: "donation_photo" })).status).toBe(401);
+    await signIn();
+    const photo = { purpose: "donation_photo", content_type: "image/jpeg", size_bytes: 2048 };
+    const ok = await (await presign(photo)).json();
+    expect(ok).toMatchObject({
+      method: "PUT",
+      headers: { "Content-Type": "image/jpeg", "Content-Length": "2048" },
+      expires_at: expect.any(String),
+    });
+    expect(ok.key).toMatch(/^donation_photo\/[0-9a-f-]+\/[0-9a-f-]+\.jpg$/);
+    expect((await (await presign({ ...photo, purpose: "data_export" })).json()).code).toBe(
+      "platform.upload_purpose_invalid",
+    );
+    const pdf = await (await presign({ ...photo, content_type: "application/pdf" })).json();
+    expect(pdf).toMatchObject({ code: "platform.upload_type_not_allowed" });
+    expect(pdf.allowed).toEqual(["image/jpeg", "image/png", "image/webp"]);
+    const big = await (await presign({ ...photo, size_bytes: 6_000_000 })).json();
+    expect(big).toMatchObject({ code: "platform.upload_too_large", max_bytes: 5_000_000 });
+    expect(
+      (
+        await (
+          await presign({ purpose: "kyc_document", content_type: "application/pdf", size_bytes: 9 })
+        ).json()
+      ).key,
+    ).toMatch(/\.pdf$/);
+    // M7's proof, undelivered and damage photos (not in M0's list yet).
+    expect((await (await presign({ ...photo, purpose: "delivery_photo" })).json()).key).toMatch(
+      /^delivery_photo\//,
+    );
   });
 });
 
@@ -996,6 +1169,11 @@ describe("partner documents (M8 US-2)", () => {
       }),
     );
   const key = () => ({ "idempotency-key": crypto.randomUUID() });
+  const PHOTO = (/** @type {string} */ purpose) => ({
+    purpose,
+    content_type: "image/jpeg",
+    size_bytes: 1000,
+  });
 
   it("lists a kitchen's four documents, keeps only the last 4 of a number, never Aadhaar", async () => {
     await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
@@ -1008,8 +1186,8 @@ describe("partner documents (M8 US-2)", () => {
       "bank",
       "kitchen_photos",
     ]);
-    const presign = await (await call("POST", "/v1/files/presign", { purpose: "kyc" })).json();
-    expect(presign.key).toMatch(/^kyc\//);
+    const presign = await (await call("POST", "/v1/files/presign", PHOTO("kyc_document"))).json();
+    expect(presign.key).toMatch(/^kyc_document\//);
     const aadhaar = await call(
       "POST",
       "/v1/kyc-documents",
@@ -1060,7 +1238,7 @@ describe("partner documents (M8 US-2)", () => {
     );
     const locked = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
     expect(locked.status).toBe(409);
-    const presign = await (await call("POST", "/v1/files/presign", { purpose: "kyc" })).json();
+    const presign = await (await call("POST", "/v1/files/presign", PHOTO("kyc_document"))).json();
     await call(
       "POST",
       "/v1/kyc-documents",

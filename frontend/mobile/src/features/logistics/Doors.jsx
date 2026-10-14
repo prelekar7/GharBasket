@@ -132,10 +132,7 @@ function ProofSheet({ door, onClose, onProof }) {
             const file = e.target.files?.[0];
             if (!file) return;
             // The photo goes to storage first; only its key waits in the outbox.
-            // "delivery_photo" is M7's purpose for M0's presign (not in M0's list yet).
-            const key = await uploadFile(file, /** @type {any} */ ("delivery_photo")).catch(
-              () => null,
-            );
+            const key = await uploadFile(file, "delivery_photo").catch(() => null);
             setPhotoKey(key);
             setFailed(!key);
           }}

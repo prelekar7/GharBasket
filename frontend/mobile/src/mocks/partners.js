@@ -159,7 +159,7 @@ export const partnerHandlers = [
       return problem(422, "partners.number_invalid", "Check the number");
     if (type === "bank" && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test((body.ifsc ?? "").toUpperCase()))
       return problem(422, "partners.ifsc_invalid", "Check the IFSC");
-    const files = (body.file_keys ?? []).filter((k) => k.startsWith("kyc/"));
+    const files = (body.file_keys ?? []).filter((k) => k.startsWith("kyc_document/"));
     if (files.length < rule.files)
       return problem(422, "partners.files_missing", `Add ${rule.files} file(s)`);
     docs[phone] ??= {};

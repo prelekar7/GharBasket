@@ -104,24 +104,31 @@ export function useDeliveryDays(id) {
 }
 
 /**
- * @typedef {{ period: string, food_saved_kg: number, items_donated: number, cooks_earned_paise: number }} ImpactCounters
- * @typedef {ImpactCounters & { scope: "society", homes: number }} SocietyImpact
- * @typedef {ImpactCounters & { scope: "me", homes_invited: number, donated: import("./kindness.js").DonationItem[], points_earned: number }} MyImpact
+ * M9 §3.7. A society's numbers are null until 5 households of it have contributed (`contributors`
+ * is "under_5"); the hub numbers are hub-wide, not the society's.
+ * @typedef {{ scope: "society", society_id: string, period: string, as_of: string, homes_joined: number | null,
+ *   items_donated: number | null, kg_donated: number | null, meals_donated: number | null, contributors: "5+" | "under_5",
+ *   hub: { food_saved_kg: number, meals_served: number, partners_earned_paise: number | null, partners: "5+" | "under_5" } }} SocietyImpact
+ * @typedef {{ scope: "me", period: "all", items_donated: number, kg_donated: number, donations_verified: number,
+ *   points_earned: number, meals_donated: number, homes_invited: number,
+ *   donated: { code: string, unit: "kg" | "each", qty: number }[] }} MyImpact
  */
 
-/** This month's counters for a society (GET /v1/impact?scope=society&id=, M9). @param {string | undefined} id */
-export function useImpact(id) {
+/** A society's impact: "all" time or one IST month "YYYY-MM" (GET /v1/impact?scope=society, M9). @param {string | undefined} id @param {string} [period] */
+export function useImpact(id, period = "all") {
   return useQuery({
-    queryKey: ["impact", "society", id],
+    queryKey: ["impact", "society", id, period],
     queryFn: () =>
       /** @type {Promise<SocietyImpact>} */ (
-        request(`/v1/impact?${new URLSearchParams({ scope: "society", id: id ?? "" })}`)
+        request(
+          `/v1/impact?${new URLSearchParams({ scope: "society", society_id: id ?? "", period })}`,
+        )
       ),
     enabled: !!id,
   });
 }
 
-/** This month for your family, and your share of the society's (GET /v1/impact?scope=me, M9). */
+/** What your household has given, all time (GET /v1/impact?scope=me, M9). */
 export function useMyImpact() {
   return useQuery({
     queryKey: ["impact", "me"],

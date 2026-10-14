@@ -1,4 +1,13 @@
-import { Badge, Button, Chip, EmptyState, GullakCoin, Skeleton, toast } from "@gharbasket/ui";
+import {
+  Badge,
+  Button,
+  Chip,
+  EmptyState,
+  GullakCoin,
+  QtyStepper,
+  Skeleton,
+  toast,
+} from "@gharbasket/ui";
 import { PlusIcon } from "@phosphor-icons/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -7,10 +16,10 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { KindnessGullak } from "@/features/billing/KindnessGullak.jsx";
 import { useKindness } from "@/features/billing/queries.js";
 import {
-  DONATION_ITEMS,
   describeItems,
   useDonations,
   useDrives,
+  usePointRates,
   useScheduleDonation,
 } from "@/features/community/kindness.js";
 import { shortDate, weekdayName } from "@/features/subscriptions/format.js";
@@ -26,9 +35,11 @@ function Kindness() {
   const lang = i18n.resolvedLanguage ?? "en-IN";
   const balance = useKindness();
   const drives = useDrives();
+  const rates = usePointRates();
   const donations = useDonations();
   const schedule = useScheduleDonation();
-  const [picked, setPicked] = useState(/** @type {string[]} */ ([]));
+  // What is being given: code → quantity (kg for clothes and utensils, pieces for the rest).
+  const [picked, setPicked] = useState(/** @type {Record<string, number>} */ ({}));
   const [photos, setPhotos] = useState(/** @type {File[]} */ ([]));
   const fileInput = useRef(/** @type {HTMLInputElement | null} */ (null));
 
@@ -63,13 +74,21 @@ function Kindness() {
     );
 
   const k = balance.data;
-  const drive = drives.data?.[0];
-  const pickupOn = donations.data.next_pickup_on;
+  // The running drive with the highest multiplier is suggested (M9 §3.4); it applies to the
+  // lines whose code it multiplies.
+  const drive = [...(drives.data ?? [])]
+    .filter((d) => d.state === "running")
+    .sort((a, b) => b.multiplier - a.multiplier)[0];
+  const pickupOn = donations.data.pickup_dates[0];
   const day = (/** @type {string} */ iso) => `${weekdayName(iso, lang)} ${shortDate(iso, lang)}`;
   /** @param {import("@/features/community/kindness.js").Donation} d */
   const describe = (d) => describeItems(t, lang, d.items);
+  const codes = Object.keys(picked);
   const toggle = (/** @type {string} */ code, /** @type {boolean} */ on) =>
-    setPicked((p) => (on ? [...p, code] : p.filter((c) => c !== code)));
+    setPicked((p) => {
+      const { [code]: _gone, ...rest } = p;
+      return on ? { ...p, [code]: 1 } : rest;
+    });
 
   return (
     <div className="flex flex-col gap-3">
@@ -97,22 +116,35 @@ function Kindness() {
           <strong>{t("kindness.give")}</strong>
           {drive && (
             <Badge tone="accent">
-              {t("kindness.drive", {
-                name: t(`kindness.drives.${drive.code}`, { defaultValue: drive.code }),
-                x: drive.multiplier,
-              })}
+              {t("kindness.drive", { name: drive.name, x: drive.multiplier })}
             </Badge>
           )}
         </div>
         <p className="text-sm leading-5 text-fg-secondary">{t("kindness.how")}</p>
         <fieldset className="flex flex-wrap gap-2">
           <legend className="sr-only">{t("kindness.what")}</legend>
-          {DONATION_ITEMS.map((code) => (
-            <Chip key={code} isSelected={picked.includes(code)} onChange={(on) => toggle(code, on)}>
+          {(rates.data ?? []).map(({ code }) => (
+            <Chip key={code} isSelected={code in picked} onChange={(on) => toggle(code, on)}>
               {t(`kindness.items.${code}`)}
             </Chip>
           ))}
         </fieldset>
+        {(rates.data ?? [])
+          .filter((r) => r.code in picked)
+          .map((r) => (
+            <div key={r.code} className="flex items-center justify-between gap-3">
+              <span className="text-sm">{t(`kindness.items.${r.code}`)}</span>
+              <QtyStepper
+                label={t(`kindness.items.${r.code}`)}
+                value={picked[r.code]}
+                onChange={(qty) => setPicked((p) => ({ ...p, [r.code]: qty }))}
+                min={1}
+                max={r.max_qty}
+                unit={r.unit === "kg" ? t("kindness.unitKg") : undefined}
+                labels={{ decrease: t("box.qty.less"), increase: t("box.qty.more") }}
+              />
+            </div>
+          ))}
         <input
           ref={fileInput}
           type="file"
@@ -140,14 +172,19 @@ function Kindness() {
           variant="primary"
           size="lg"
           block
-          isDisabled={picked.length === 0}
+          isDisabled={codes.length === 0 || !pickupOn}
           isPending={schedule.isPending}
           onPress={() =>
             schedule.mutate(
-              { items: picked, photos, pickupOn },
+              {
+                items: codes.map((code) => ({ code, qty: picked[code] })),
+                photos,
+                driveId: drive?.codes.some((c) => c in picked) ? drive.id : undefined,
+                pickupOn,
+              },
               {
                 onSuccess: () => {
-                  setPicked([]);
+                  setPicked({});
                   setPhotos([]);
                   toast(t("kindness.booked", { day: day(pickupOn) }));
                 },
@@ -156,7 +193,7 @@ function Kindness() {
             )
           }
         >
-          {t("kindness.cta", { day: day(pickupOn) })}
+          {pickupOn ? t("kindness.cta", { day: day(pickupOn) }) : t("kindness.noPickupDay")}
         </Button>
       </section>
       {donations.data.items.length === 0 && (

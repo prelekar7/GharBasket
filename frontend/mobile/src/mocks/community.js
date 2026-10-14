@@ -1,8 +1,8 @@
 // M9 community mocks (docs/modules/M9-community.md §3.1): societies, unlock counts, delivery days
-// and society requests in the real shapes. Referrals and impact are not in the contract yet, so
-// those two stay our proposal. Ids are the UUIDs of the dev database's seeded societies.
+// and society requests in the real shapes, plus impact (§3.7). Referrals are still our proposal. Ids are the UUIDs of the dev database's seeded societies.
 import { HttpResponse, http } from "msw";
-import { caller, isNewUser } from "./handlers.js";
+import { caller } from "./handlers.js";
+import { myImpact } from "./kindness.js";
 
 /** @typedef {"prospect" | "unlocking" | "live" | "paused"} SocietyStatus */
 /** @typedef {{ id: string, label: string, start: string, end: string }} Slot */
@@ -176,46 +176,39 @@ export const communityHandlers = [
     );
   }),
 
-  // @proposal (not in the contract yet): GET /v1/impact?scope=society&id= or ?scope=me (M9): this month's counters. Society: food not
-  // wasted, items donated, what home cooks and the captain earned, homes on GharBasket. Me: the
-  // same for your family, neighbours who joined from your invites, and your share (what you gave
-  // and the Kindness points it earned).
+  // GET /v1/impact?scope=me|society (M9 §3.7). Society numbers are k-anonymous: null until at
+  // least 5 households of the society have contributed. The mock does not check residency (403).
   http.get("*/v1/impact", ({ request }) => {
     const url = new URL(request.url);
     if (url.searchParams.get("scope") === "me") {
       const phone = caller(request);
-      if (!phone)
-        return HttpResponse.json(
-          { type: "about:blank", title: "Sign in again", status: 401, code: "auth.invalid_token" },
-          { status: 401, headers: { "content-type": "application/problem+json" } },
-        );
-      const demo = !isNewUser(phone);
-      return HttpResponse.json({
-        scope: "me",
-        period: "2026-10",
-        food_saved_kg: demo ? 3 : 0,
-        items_donated: demo ? 2 : 0,
-        cooks_earned_paise: demo ? 84000 : 0,
-        homes_invited: demo ? 2 : 0,
-        donated: demo
-          ? [
-              { code: "school_bags", qty: 1 },
-              { code: "clothes", kg: 3 },
-            ]
-          : [],
-        points_earned: demo ? 340 : 0,
-      });
+      if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+      return HttpResponse.json(myImpact(phone));
     }
-    const found = find(url.searchParams.get("id") ?? "");
+    const period = url.searchParams.get("period") ?? "all";
+    if (period !== "all" && !/^\d{4}-(0[1-9]|1[0-2])$/.test(period))
+      return problem(422, "request.invalid", "Unprocessable Content");
+    const id = url.searchParams.get("society_id") ?? "";
+    const found = find(id);
     const society = found && current(found);
     const live = society?.status === "live";
+    const homes = live ? 50 : (society?.unlock.joined ?? 0);
     return HttpResponse.json({
       scope: "society",
-      period: "2026-10",
-      food_saved_kg: live ? 42 : 0,
-      items_donated: live ? 18 : 0,
-      cooks_earned_paise: live ? 1240000 : 0,
-      homes: live ? 50 : (society?.unlock.joined ?? 0),
+      society_id: id,
+      period,
+      as_of: new Date().toISOString(),
+      homes_joined: homes >= 5 ? homes : null,
+      items_donated: live ? 18 : null,
+      kg_donated: live ? 9.5 : null,
+      meals_donated: live ? 7 : null,
+      contributors: live ? "5+" : "under_5",
+      hub: {
+        food_saved_kg: live ? 420.5 : 0,
+        meals_served: live ? 31 : 0,
+        partners_earned_paise: live ? 1240000 : null,
+        partners: live ? "5+" : "under_5",
+      },
     });
   }),
 
