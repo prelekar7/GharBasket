@@ -16,6 +16,8 @@ from gharbasket_ml import __version__
 BUILTIN = (
     ("planner", "cpsat-v0", "solver"),
     ("routing", "cvrptw-waves-v0", "solver"),
+    ("pantry", "pantry-gamma-poisson-v0", "model"),
+    ("assignment", "assignment-cpsat-v0", "solver"),
 )
 
 
