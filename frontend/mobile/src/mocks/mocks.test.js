@@ -204,3 +204,39 @@ describe("add-ons (M2 search, lines on the box)", () => {
     expect(c.lines.at(-1).qty_label).toBe("12 pcs");
   });
 });
+
+describe("price spike (Core-B4)", () => {
+  const patch = async (/** @type {object} */ body, /** @type {number} */ v) =>
+    (
+      await mockFetch(
+        new Request("http://localhost/v1/cycles/cyc-2026-10-05/lines", {
+          method: "PATCH",
+          headers: { "content-type": "application/json", "if-match": String(v) },
+          body: JSON.stringify(body),
+        }),
+      )
+    ).json();
+  const now = async () =>
+    (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json();
+
+  it("explains the swap until it is kept or OK'd", async () => {
+    expect((await now()).price_alerts[0]).toMatchObject({
+      item: "Tomato",
+      pct: 40,
+      keep_delta_paise: 2600,
+    });
+    const c = await patch({ op: "dismiss_alert", product_id: "lauki" }, 1);
+    expect(c.price_alerts).toEqual([]);
+    expect(c.lines.some((/** @type {any} */ l) => l.product_id === "lauki")).toBe(true);
+  });
+
+  it("keeps the original item at its price, and Undo swaps back", async () => {
+    let c = await patch({ op: "undo_swap", product_id: "lauki" }, 1);
+    expect(c.lines.find((/** @type {any} */ l) => l.product_id === "tomato")).toMatchObject({
+      price_paise: 5600,
+    });
+    expect(c.total_paise).toBe(69000 + 2600);
+    c = await patch({ op: "undo_swap", product_id: "lauki" }, 2);
+    expect(c.total_paise).toBe(69000);
+  });
+});

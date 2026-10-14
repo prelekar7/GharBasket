@@ -43,7 +43,8 @@ export function PriceSwapChip({ fromPaise, toPaise, labels }) {
 /**
  * The weekly box as a handwritten-style list ("parchi") on kraft paper, the same in light and dark.
  * With `onItemPress`, each item's name is a button that opens it (quantity sheet, design Core-B3).
- * @param {{ items: ParchiItem[], title?: string, date?: string, totalPaise?: number, after?: import("react").ReactNode, onSwap?: (item: ParchiItem) => void, onItemPress?: (item: ParchiItem) => void, labels?: { total?: string, swap?: string, change?: string, swapChip?: { up?: string, saves?: string } } }} props
+ * With `onUndo`, a swapped-in item offers Undo next to its price chip (Core-B4).
+ * @param {{ items: ParchiItem[], title?: string, date?: string, totalPaise?: number, after?: import("react").ReactNode, onSwap?: (item: ParchiItem) => void, onItemPress?: (item: ParchiItem) => void, onUndo?: (item: ParchiItem) => void, labels?: { total?: string, swap?: string, change?: string, undo?: string, swapChip?: { up?: string, saves?: string } } }} props
  */
 export function ParchiList({
   items,
@@ -53,6 +54,7 @@ export function ParchiList({
   after,
   onSwap,
   onItemPress,
+  onUndo,
   labels,
 }) {
   const total = totalPaise ?? items.reduce((s, i) => s + i.pricePaise, 0);
@@ -94,14 +96,24 @@ export function ParchiList({
                     labels={labels?.swapChip}
                   />
                 )}
-                {onSwap && (
+                {onUndo && it.swappedFromPaise != null ? (
                   <Button
                     variant="quiet"
                     className="min-h-10 px-1 text-[var(--gb-neel-600)] underline"
-                    onPress={() => onSwap(it)}
+                    onPress={() => onUndo(it)}
                   >
-                    {labels?.swap ?? "Swap"}
+                    {labels?.undo ?? "Undo"}
                   </Button>
+                ) : (
+                  onSwap && (
+                    <Button
+                      variant="quiet"
+                      className="min-h-10 px-1 text-[var(--gb-neel-600)] underline"
+                      onPress={() => onSwap(it)}
+                    >
+                      {labels?.swap ?? "Swap"}
+                    </Button>
+                  )
                 )}
               </div>
             )}

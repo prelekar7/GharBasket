@@ -17,6 +17,7 @@ import { request } from "@/lib/api.js";
  * @property {string | null} approved_at
  * @property {{ name: string }} hub
  * @property {{ wallet_paise: number, shortfall_paise: number, due_at: string } | null} payment_due
+ * @property {{ id: string, product_id: string, item: string, substitute: string, pct: number, market: string, meals: number, keep_delta_paise: number }[]} [price_alerts]
  * @property {{ days: { date: string, meals: PlannedMeal[], tiffin_offer?: TiffinOffer | null }[] }} meal_plan
  * @property {BoxLine[]} lines
  * @property {number} total_paise
@@ -107,7 +108,7 @@ export function useEditLine() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (
-      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore" | "add", qty?: number }} */ v,
+      /** @type {{ cycle: Cycle, productId: string, op: "qty" | "remove" | "restore" | "add" | "undo_swap" | "dismiss_alert", qty?: number }} */ v,
     ) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/lines`, {

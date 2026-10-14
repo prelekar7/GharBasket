@@ -98,6 +98,23 @@ const qtyLabel = (
     ? `${amount / 1000} ${lang === "hi" ? "किलो" : "kg"}`
     : `${amount} ${unit}`;
 
+/** The week's price spike: tomato +40%, so Autopilot used lauki (Core-B4). */
+const SPIKE = {
+  price: 5600,
+  original: (/** @type {"en" | "hi"} */ lang) => ({
+    product_id: "tomato",
+    replaces: "lauki",
+    name: lang === "hi" ? "टमाटर" : "Tomato",
+    qty_label: lang === "hi" ? "500 ग्रा" : "500 g",
+    qty: 1,
+    step: { label: lang === "hi" ? "500 ग्रा" : "500 g", price_paise: 5600 },
+    price_paise: 5600,
+    reason_code: "kept_by_you",
+    reason_params: null,
+    swapped_from_paise: null,
+  }),
+};
+
 /** M2 substitutes: [id, en, hi, en qty, hi qty, price_paise, reason_code], best first. */
 /** @type {Record<string, [string, string, string, string, string, number, string][]>} */
 const SUBSTITUTES = {
@@ -130,7 +147,7 @@ const loadState = () => {
   }
 };
 const saveState = (
-  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[], added?: Record<string, number>, parked?: Record<string, number> }} */ s,
+  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]>, qty?: Record<string, number>, removed?: string[], added?: Record<string, number>, parked?: Record<string, number>, kept?: boolean, alertSeen?: boolean }} */ s,
 ) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
@@ -147,6 +164,8 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
     qty = {},
     removed = [],
     added = {},
+    kept = false,
+    alertSeen = false,
   } = loadState();
   const base = LINES.filter(([id]) => !removed.includes(id)).map(
     ([id, en, hi, qen, qhi, price, code, params, from]) => {
@@ -189,6 +208,8 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
   );
   // A swapped line becomes its substitute, remembering the price it replaced.
   const lines = base.map((l) => {
+    // Autopilot swapped tomato for lauki on price (Core-B4); "Keep tomato" puts it back.
+    if (l.product_id === "lauki" && kept) return { ...SPIKE.original(lang), used_in: [] };
     const sub = swaps[l.product_id];
     if (!sub) return l;
     return {
@@ -221,6 +242,7 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
       swapped_from_paise: null,
     });
   }
+  const spikeOpen = !kept && !alertSeen && lines.some((l) => l.product_id === "lauki");
   return {
     id: "cyc-2026-10-05",
     week_start: "2026-10-05",
@@ -291,6 +313,21 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
     },
     captain: { name: lang === "hi" ? "मीना ताई" : "Meena tai", flat: "B-402" },
     hub: { name: lang === "hi" ? "खारघर" : "Kharghar" },
+    // Price moves Autopilot reacted to; the banner shows until kept or OK'd (Core-B4).
+    price_alerts: spikeOpen
+      ? [
+          {
+            id: "spike-tomato",
+            product_id: "lauki",
+            item: pick(["Tomato", "टमाटर"], lang),
+            substitute: pick(["lauki", "लौकी"], lang),
+            pct: 40,
+            market: pick(["Vashi APMC", "वाशी APMC"], lang),
+            meals: 2,
+            keep_delta_paise: SPIKE.price - 3000,
+          },
+        ]
+      : [],
     payment_due:
       status === "payment_failed"
         ? {
@@ -395,6 +432,22 @@ export const subscriptionHandlers = [
       return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
     const body = /** @type {any} */ (await request.json());
     // { op: "qty", product_id, qty } | { op: "remove" | "restore", product_id } (Core-B3, B4).
+    // { op: "undo_swap", product_id } puts back what a swap replaced: Autopilot's price swap
+    // (lauki → tomato) or the person's own. { op: "dismiss_alert" } is the banner's OK.
+    if (body.op === "undo_swap" || body.op === "dismiss_alert") {
+      if (body.op === "dismiss_alert")
+        saveState({ ...state, version: state.version + 1, alertSeen: true });
+      else if (body.product_id === "lauki")
+        saveState({ ...state, version: state.version + 1, kept: !state.kept });
+      else {
+        const swaps = { ...(state.swaps ?? {}) };
+        const from = Object.keys(swaps).find((k) => swaps[k].id === body.product_id);
+        if (!from) return problem(404, "subscriptions.line_not_found", "Nothing to undo");
+        delete swaps[from];
+        saveState({ ...state, version: state.version + 1, swaps });
+      }
+      return HttpResponse.json(cycle(langOf(request)));
+    }
     // { op: "add", product_id }: an add-on from the catalog, one step to start (or one more).
     if (body.op === "add" || (body.op && PRODUCTS.some(([pid]) => pid === body.product_id))) {
       const added = { ...(state.added ?? {}) };

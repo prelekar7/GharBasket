@@ -95,6 +95,22 @@ function Box() {
           <StatusPill status={PILL[c.status]}>{t(`week.status.${c.status}`)}</StatusPill>
         </div>
       </header>
+      {editable && c.price_alerts?.[0] && (
+        <PriceAlert
+          alert={c.price_alerts[0]}
+          budget={c.budget_lock ? formatPaise(c.budget_lock.budget_paise) : null}
+          busy={edit.isPending}
+          onKeep={(a) =>
+            edit.mutate(
+              { cycle: c, productId: a.product_id, op: "undo_swap" },
+              { onSuccess: () => toast(t("box.spike.kept", { item: a.item })), onError },
+            )
+          }
+          onOk={(a) =>
+            edit.mutate({ cycle: c, productId: a.product_id, op: "dismiss_alert" }, { onError })
+          }
+        />
+      )}
       <ParchiList
         title={t("box.parchi")}
         date={day}
@@ -103,6 +119,7 @@ function Box() {
           total: t("box.total", { count: c.lines.length }),
           swap: t("box.swap"),
           change: t("box.qty.change"),
+          undo: t("box.undo"),
           swapChip: { up: t("box.up"), saves: t("box.saves") },
         }}
         items={shown.map((l) => ({
@@ -114,6 +131,18 @@ function Box() {
             : undefined,
           swappedFromPaise: l.swapped_from_paise ?? undefined,
         }))}
+        onUndo={
+          editable
+            ? (item) => {
+                const line = byName.get(item.name);
+                if (line)
+                  edit.mutate(
+                    { cycle: c, productId: line.product_id, op: "undo_swap" },
+                    { onSuccess: () => toast(t("box.undone", { name: line.name })), onError },
+                  );
+              }
+            : undefined
+        }
         onItemPress={
           editable
             ? (item) => {
@@ -227,7 +256,17 @@ function Box() {
             swap.mutate(
               { cycle: c, productId: from.id, substituteId: sub.product_id },
               {
-                onSuccess: () => toast(t("box.swapped", { from: from.name, to: sub.name })),
+                onSuccess: (after) =>
+                  toast(t("box.swapped", { from: from.name, to: sub.name }), {
+                    action: {
+                      label: t("box.undo"),
+                      onClick: () =>
+                        edit.mutate(
+                          { cycle: after, productId: sub.product_id, op: "undo_swap" },
+                          { onError },
+                        ),
+                    },
+                  }),
                 onError,
               },
             );
@@ -289,5 +328,40 @@ function Box() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * "Prices moved this week": what Autopilot swapped to stay within the Budget Lock, with Keep and OK
+ * (design Core-B4).
+ * @param {{ alert: NonNullable<import("@/features/subscriptions/queries.js").Cycle["price_alerts"]>[number], budget: string | null, busy: boolean, onKeep: (a: any) => void, onOk: (a: any) => void }} props
+ */
+function PriceAlert({ alert: a, budget, busy, onKeep, onOk }) {
+  const { t } = useTranslation();
+  return (
+    <section
+      role="status"
+      className="flex flex-col gap-2 rounded-md border-2 border-accent bg-accent-soft px-4 py-3"
+    >
+      <strong>{t("box.spike.title")}</strong>
+      <p className="text-sm leading-5">
+        {t(budget ? "box.spike.body" : "box.spike.bodyNoLock", {
+          item: a.item,
+          pct: a.pct,
+          market: a.market,
+          budget,
+          sub: a.substitute,
+          n: a.meals,
+        })}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" isDisabled={busy} onPress={() => onKeep(a)}>
+          {t("box.spike.keep", { item: a.item, delta: formatPaise(a.keep_delta_paise) })}
+        </Button>
+        <Button variant="quiet" isDisabled={busy} onPress={() => onOk(a)}>
+          {t("box.spike.ok")}
+        </Button>
+      </div>
+    </section>
   );
 }
