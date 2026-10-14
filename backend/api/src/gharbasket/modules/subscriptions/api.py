@@ -16,7 +16,7 @@ from gharbasket.modules.subscriptions.models import (
     WeeklyCycle,
 )
 
-__all__ = ["WeeklyCycle", "cycle_for", "export_for_user", "mark_locked"]
+__all__ = ["WeeklyCycle", "cycle_for", "delete_for_user", "export_for_user", "mark_locked"]
 
 
 async def cycle_for(
@@ -81,3 +81,10 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         "budget_locks": [lock.as_dict() for lock in locks.scalars()],
         "pantry_feedback": [signal.as_dict() for signal in pantry.scalars()],
     }
+
+
+async def delete_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 7): everything M3 holds about the household."""
+    return {} if household_id is None else await service.delete_for_user(session, household_id)

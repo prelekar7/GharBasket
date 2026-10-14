@@ -21,11 +21,11 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 | T-1 20:55 | `apply_auto_approve` — approve for households that asked (notice ≥ 24 h before) | subscriptions | W2 |
 | **T-1 21:00** | **`cutoff_lock`** — lock orders, debit wallet / capture Autopay; unpaid → `payment_failed` with a 2 h grace | orders, billing | W2, W3 |
 | T-1 23:00 | `payment_grace_expiry` — still unpaid → cancelled (reason `payment`); the cycle mirrors it | orders → subscriptions | W3 |
+| T-1 23:15 | `solve_routes` per hub (M10 solver, or M7's fallback when ML is down) → plan published when its check is clean; vans leave at 06:30 | logistics ← intel | W5 |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops | W4 |
 | T-1 21:30 | `assign_kitchens` for tiffins on T | intel → partners | W6 |
 | T 04:00 | Buying at APMC Vashi / FPO, goods receipt, QC | ops | W4 |
 | T 05:00 | `build_packing_tasks` → packing | ops | W4 |
-| T 07:00 | `solve_routes` per slot → vans depart | intel → logistics | W5 |
 | T 08:00–10:00 | Society handover to captain → doorstep delivery | logistics | W5 |
 | T 10:00–12:00 | Return leg: crates + Kindness pickups | logistics, community | W5, W8 |
 | T 11:30–13:30 | Tiffin ready, picked up, delivered | partners, logistics | W6 |
@@ -607,6 +607,7 @@ flowchart TD
 3. The unlock threshold **N** is computed from the route-cost model: the number of households at which a stop becomes cheaper than the delivery fee.
 4. A referral campaign runs through the captain and WhatsApp groups.
 5. When N households have joined → status `live`, free-delivery badge, fixed delivery days assigned.
+6. Before that, once the hub assigns the society delivery days, households can already get boxes, paying the hub's pre-live delivery fee on each box (`pre_live_box_fee_paise`, default ₹30, set by an admin). The fee is debited with the box at cut-off and stops from the first cut-off after the society goes live (M9 §3.6, M4 §11).
 
 *Figure 7.16 — Activity: society unlock*
 
