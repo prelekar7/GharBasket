@@ -1,7 +1,6 @@
 import { Button, Sheet, TextField } from "@gharbasket/ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { normalizeCode } from "@/lib/scan.js";
 
 /**
  * Typing a bag or item code when the scan does not work (torn label, no camera, bad light).
@@ -10,7 +9,7 @@ import { normalizeCode } from "@/lib/scan.js";
 export function CodeSheet({ kind, open, onOpenChange, onCode }) {
   const { t } = useTranslation();
   const [value, setValue] = useState("");
-  const code = normalizeCode(value);
+  const code = value.trim();
   const submit = () => {
     if (!code) return;
     onOpenChange(false);

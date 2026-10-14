@@ -7,13 +7,13 @@ import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { CodeSheet } from "@/features/packing/CodeSheet.jsx";
-import { qtyText } from "@/features/packing/format.js";
-import { usePackingActions, usePackingDay } from "@/features/packing/queries.js";
+import { bagCode, inBag, lineMatches, lineQty, lineState } from "@/features/packing/lines.js";
+import { usePackingActions, usePackingDay, usePackingTask } from "@/features/packing/queries.js";
 import { useOpenBag } from "@/features/packing/useOpenBag.js";
-import { normalizeCode } from "@/lib/scan.js";
 
 /** @typedef {import("@/features/packing/queries.js").PackingDay} PackingDay */
 /** @typedef {import("@/features/packing/queries.js").PackingTask} PackingTask */
+/** @typedef {import("@/features/packing/queries.js").PackingDetail} PackingDetail */
 /** @typedef {import("@/features/packing/queries.js").PackLine} PackLine */
 
 /** Pick and pack one bag by scanning each item (designs Packer · Pick and pack, Wrong item scanned; M6 US-5). */
@@ -25,27 +25,31 @@ export const Route = createFileRoute("/_auth/packer/pick")({
   component: Pick,
 });
 
+const PickLoading = () => (
+  <div aria-busy="true" className="flex flex-col gap-3">
+    <Skeleton className="h-5 w-56" />
+    <Skeleton className="h-44 w-full" />
+    <Skeleton className="h-11 w-full" />
+    <Skeleton lines={4} />
+    <Skeleton className="h-16 w-full" />
+  </div>
+);
+
 function Pick() {
   const { bag } = Route.useSearch();
   const day = usePackingDay();
-  if (day.isPending) {
-    return (
-      <div aria-busy="true" className="flex flex-col gap-3">
-        <Skeleton className="h-5 w-56" />
-        <Skeleton className="h-44 w-full" />
-        <Skeleton className="h-11 w-full" />
-        <Skeleton lines={4} />
-        <Skeleton className="h-16 w-full" />
-      </div>
-    );
-  }
-  if (!day.data) return <ScreenError onRetry={() => day.refetch()} />;
-  const { tasks } = day.data;
   // From the queue the bag comes in the link; from the tab it is the bag already open.
-  const task =
-    (bag && tasks.find((x) => x.bag_qr === bag)) ?? tasks.find((x) => x.status === "packing");
-  if (!task) return <NoBag tasks={tasks} />;
-  return <PickBag key={task.id} task={task} day={day.data} />;
+  const row = day.data
+    ? ((bag && day.data.tasks.find((x) => x.bag_qr === bag)) ??
+      day.data.tasks.find((x) => x.status === "picking"))
+    : undefined;
+  const task = usePackingTask(row?.id);
+  if (day.isPending) return <PickLoading />;
+  if (!day.data) return <ScreenError onRetry={() => day.refetch()} />;
+  if (!row) return <NoBag tasks={day.data.tasks} />;
+  if (task.isPending) return <PickLoading />;
+  if (!task.data) return <ScreenError onRetry={() => task.refetch()} />;
+  return <PickBag key={row.id} task={task.data} day={day.data} />;
 }
 
 /** @param {{ tasks: PackingTask[] }} props */
@@ -71,7 +75,7 @@ function NoBag({ tasks }) {
   );
 }
 
-/** @param {{ task: PackingTask, day: PackingDay }} props */
+/** @param {{ task: PackingDetail, day: PackingDay }} props */
 function PickBag({ task, day }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -83,46 +87,43 @@ function PickBag({ task, day }) {
   );
   const [typing, setTyping] = useState(false);
   const [all, setAll] = useState(false);
-  const society = day.societies.find((s) => s.id === task.society_id);
+  const society = task.society.name;
+  const code = bagCode(task);
   const lines = task.lines;
-  const done = lines.filter((l) => l.status !== "todo");
-  const next = lines.find((l) => l.status === "todo");
+  const done = lines.filter((l) => lineState(l) !== "todo");
+  const next = lines.find((l) => lineState(l) === "todo");
   const packed = task.status === "packed";
-  const product = (/** @type {string} */ code) =>
-    day.products[code] ?? { name: code, unit: "pc", shelf: "" };
-  const qty = (/** @type {PackLine} */ l) => qtyText(t, l.qty, product(l.product_code).unit);
-  const item = (/** @type {PackLine} */ l) => `${product(l.product_code).name} · ${qty(l)}`;
+  const item = (/** @type {PackLine} */ l) => `${inBag(l).name} · ${lineQty(l)}`;
 
   const onCode = (/** @type {string} */ raw) => {
-    const code = normalizeCode(raw);
-    const line = lines.find((l) => l.product_code === code && l.status === "todo");
+    const line = lines.find((l) => lineState(l) === "todo" && lineMatches(l, raw));
     if (line) {
-      actions.pick(task, code);
+      actions.pick(task, line);
       setScan({
         state: "success",
-        label: t("packer.pick.added", { item: product(code).name, qty: qty(line) }),
+        label: t("packer.pick.added", { item: inBag(line).name, qty: lineQty(line) }),
       });
       return;
     }
-    const known = day.products[code];
-    if (!known) return setScan({ state: "error", label: t("packer.pick.unknown", { code }) });
-    if (lines.some((l) => l.product_code === code))
-      return setScan({ state: "error", label: t("packer.pick.already", { item: known.name }) });
-    setScan({
-      state: "error",
-      label: t("packer.pick.wrong", { item: known.name }),
-      wrong: known.name,
-    });
+    const known = lines.find((l) => lineMatches(l, raw));
+    if (known)
+      return setScan({
+        state: "error",
+        label: t("packer.pick.already", { item: inBag(known).name }),
+      });
+    // The API has no list of the hub's products, so a code that is not on this bag is shown as typed.
+    const wrong = raw.trim();
+    setScan({ state: "error", label: t("packer.pick.wrong", { item: wrong }), wrong });
   };
   const markShort = () => {
     if (!next) return;
     actions.markShort(task, next);
     setScan({ state: "idle" });
-    toast(t("packer.pick.markedShort", { item: product(next.product_code).name }));
+    toast(t("packer.pick.markedShort", { item: inBag(next).name }));
   };
   const close = () => {
     actions.close(task);
-    toast(t("packer.pick.closed", { code: task.bag_qr, crate: task.crate }));
+    toast(t("packer.pick.closed", { code }));
     navigate({ to: "/packer" });
   };
 
@@ -138,7 +139,7 @@ function PickBag({ task, day }) {
     <ScanField
       label={t("packer.pick.scan")}
       manualLabel={t("packer.pick.manual")}
-      expected={next?.product_code}
+      expected={next ? inBag(next).slug : undefined}
       state={scan.state}
       successLabel={scan.label}
       errorLabel={scan.label}
@@ -150,15 +151,10 @@ function PickBag({ task, day }) {
 
   // Wrong item scanned: what to do with it, and what this bag needs instead (design PackerScanError).
   if (scan.wrong && next) {
-    const p = product(next.product_code);
     return (
       <div className="flex flex-1 flex-col gap-3.5">
         <FieldHeader
-          eyebrow={t("packer.pick.where", {
-            code: task.bag_qr,
-            society: society?.name,
-            flat: task.flat,
-          })}
+          eyebrow={t("packer.pick.where", { code, society, flat: task.flat_label ?? "" })}
           title={t("packer.pick.title")}
         />
         {scanField}
@@ -173,12 +169,11 @@ function PickBag({ task, day }) {
             {t("packer.pick.needs")}
           </span>
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">{item(next)}</h2>
-          <span className="text-[15px] leading-[22px] text-fg-secondary">{p.shelf}</span>
         </section>
         {progress}
         <div className="mt-auto">
           <Button variant="secondary" size="lg" block onPress={markShort}>
-            {t("packer.pick.isShort", { item: p.name })}
+            {t("packer.pick.isShort", { item: inBag(next).name })}
           </Button>
         </div>
         {sheet}
@@ -191,24 +186,20 @@ function PickBag({ task, day }) {
   return (
     <div className="flex flex-col gap-3">
       <h1 className="m-0 text-[15px] leading-[22px] font-semibold text-fg-secondary">
-        {t("packer.pick.bag", {
-          n: task.route_seq,
-          total: day.tasks.length,
-          captain: society?.captain,
-        })}
+        {t("packer.pick.bag", { n: task.seq, total: day.tasks.length, society })}
       </h1>
       <BagLabel
-        code={task.bag_qr}
-        flat={task.flat}
-        society={society?.name ?? ""}
-        stop={society?.stop}
-        crate={task.crate}
+        code={code}
+        flat={task.flat_label ?? ""}
+        society={society}
+        stop={task.route?.stop_seq}
+        crate={task.crate_no == null ? undefined : String(task.crate_no)}
         lines={lines.length}
         labels={{
           bag: t("packer.pick.label.bag"),
           flat: t("packer.pick.label.flat"),
-          stop: t("packer.pick.label.stop", { n: society?.stop }),
-          crate: t("packer.pick.label.crate", { crate: task.crate }),
+          stop: t("packer.pick.label.stop", { n: task.route?.stop_seq }),
+          crate: t("packer.pick.label.crate", { crate: task.crate_no }),
           lines: t("packer.pick.label.lines", { n: lines.length }),
         }}
       />
@@ -216,22 +207,20 @@ function PickBag({ task, day }) {
       <ul className="m-0 list-none p-0">
         {shown.map((l) => (
           <LineRow
-            key={l.id}
-            name={product(l.product_code).name}
+            key={l.product_id}
+            name={inBag(l).name}
             how={
-              l.status === "todo"
-                ? l === next
-                  ? t("packer.pick.how.next", { qty: qty(l), shelf: product(l.product_code).shelf })
-                  : qty(l)
-                : t(`packer.pick.how.${l.status}`, { qty: qty(l) })
+              lineState(l) === "todo"
+                ? lineQty(l)
+                : t(`packer.pick.how.${lineState(l)}`, { qty: lineQty(l) })
             }
-            status={l.status}
+            status={lineState(l)}
             word={
-              l.status === "todo"
+              lineState(l) === "todo"
                 ? l === next
                   ? t("packer.pick.state.next")
                   : ""
-                : t(`packer.pick.state.${l.status}`)
+                : t(`packer.pick.state.${lineState(l)}`)
             }
           />
         ))}
@@ -247,13 +236,15 @@ function PickBag({ task, day }) {
       )}
       {packed ? (
         <p role="status" className="m-0 font-semibold">
-          {t("packer.pick.packed", { crate: task.crate })}
+          {task.crate_no == null
+            ? t("packer.pick.packedSent")
+            : t("packer.pick.packed", { crate: task.crate_no })}
         </p>
       ) : next ? (
         scanField
       ) : (
         <p role="status" className="m-0 font-semibold">
-          {t("packer.pick.allDone", { crate: task.crate })}
+          {t("packer.pick.allDone")}
         </p>
       )}
       {!packed && (
@@ -273,7 +264,7 @@ function PickBag({ task, day }) {
 
 /**
  * One line of the bag: a tick when picked, a dash when short, the word always beside it.
- * @param {{ name: string, how: string, status: PackLine["status"], word: string }} props
+ * @param {{ name: string, how: string, status: ReturnType<typeof lineState>, word: string }} props
  */
 function LineRow({ name, how, status, word }) {
   const tick =

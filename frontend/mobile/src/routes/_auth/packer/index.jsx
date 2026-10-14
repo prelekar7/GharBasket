@@ -3,7 +3,6 @@ import {
   Button,
   EmptyBasket,
   EmptyState,
-  formatPaise,
   ProgressBar,
   Sheet,
   Skeleton,
@@ -19,7 +18,8 @@ import { ScreenError } from "@/components/ScreenError.jsx";
 import { dayLabel } from "@/features/logistics/format.js";
 import { CodeSheet } from "@/features/packing/CodeSheet.jsx";
 import { dayLine } from "@/features/packing/format.js";
-import { usePackingDay, useShortages } from "@/features/packing/queries.js";
+import { bagCode } from "@/features/packing/lines.js";
+import { usePackingDay, usePrefetchNext, useShortages } from "@/features/packing/queries.js";
 import { useOpenBag } from "@/features/packing/useOpenBag.js";
 import { clockTime, todayIst } from "@/features/subscriptions/format.js";
 
@@ -28,13 +28,14 @@ import { clockTime, todayIst } from "@/features/subscriptions/format.js";
 export const Route = createFileRoute("/_auth/packer/")({ component: Queue });
 
 /** Bag status → the design system's process state. */
-const PILL = /** @type {const} */ ({ packed: "ready", packing: "preparing", to_pack: "planned" });
+const PILL = /** @type {const} */ ({ packed: "ready", picking: "preparing", queued: "planned" });
 
 function Queue() {
   const day = usePackingDay();
   if (day.isPending) return <QueueLoading />;
   if (!day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const { tasks } = day.data;
+  if (tasks.length === 0) return <NoBags day={day.data} />;
   if (tasks.every((x) => x.status === "packed")) return <AllPacked day={day.data} />;
   return <QueueList day={day.data} />;
 }
@@ -46,17 +47,11 @@ function QueueList({ day }) {
   const [typing, setTyping] = useState(false);
   const { open, error, next } = useOpenBag(day.tasks);
   const packed = day.tasks.filter((x) => x.status === "packed").length;
-  const society = Object.fromEntries(day.societies.map((s) => [s.id, s.name]));
+  usePrefetchNext(day.tasks);
 
-  /** "14 lines · ₹690", "15 lines + 2 add-ons", "Tiffin × 2". @param {import("@/features/packing/queries.js").PackingTask} x */
-  const what = (x) => {
-    if (x.kind === "tiffin") return t("packer.queue.tiffin", { n: x.lines[0]?.qty ?? 1 });
-    const addons = x.lines.filter((l) => l.addon).length;
-    const n = x.lines.length - addons;
-    return addons
-      ? t("packer.queue.linesAddons", { n, m: addons })
-      : t("packer.queue.lines", { n, amount: formatPaise(x.total_paise) });
-  };
+  /** "14 lines" for a box, "2 lines · add-on order" for an add-on. @param {import("@/features/packing/queries.js").PackingTask} x */
+  const what = (x) =>
+    t(x.order_kind === "addon" ? "packer.queue.addon" : "packer.queue.lines", { n: x.lines_total });
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -90,12 +85,10 @@ function QueueList({ day }) {
               className="flex min-h-16 items-center gap-3 rounded-md bg-surface px-3.5 py-3 text-fg no-underline outline-none focus-visible:shadow-focus"
             >
               <span className="grid size-10 flex-none place-items-center rounded-full border-2 border-role-packer bg-bg font-bold tabular-nums">
-                {x.route_seq}
+                {x.seq}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <strong>
-                  {x.flat} · {society[x.society_id]}
-                </strong>
+                <strong>{[x.flat_label, x.society.name].filter(Boolean).join(" · ")}</strong>
                 <span className="text-[15px] leading-[22px] text-fg-secondary">{what(x)}</span>
               </span>
               <StatusPill status={PILL[x.status]}>
@@ -107,6 +100,24 @@ function QueueList({ day }) {
       </ol>
       <Account />
       <CodeSheet kind="bag" open={typing} onOpenChange={setTyping} onCode={open} />
+    </div>
+  );
+}
+
+/**
+ * Nothing built yet for today: the queue is made at 05:00.
+ * @param {{ day: import("@/features/packing/queries.js").PackingDay }} props
+ */
+function NoBags({ day }) {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="flex flex-col gap-3">
+      <FieldHeader
+        eyebrow={dayLine(i18n.resolvedLanguage ?? "en-IN", day)}
+        title={t("packer.queue.title")}
+      />
+      <EmptyState title={t("packer.queue.emptyTitle")} body={t("packer.queue.emptyBody")} />
+      <Account />
     </div>
   );
 }
@@ -152,20 +163,18 @@ function AllPacked({ day }) {
   const shortages = useShortages();
   const total = day.tasks.length;
   const last = day.tasks.reduce(
-    (/** @type {string | null} */ at, x) => (x.done_at && (!at || x.done_at > at) ? x.done_at : at),
+    (/** @type {string | null} */ at, x) =>
+      x.packed_at && (!at || x.packed_at > at) ? x.packed_at : at,
     null,
   );
-  const stops = [...day.societies]
-    .sort((a, b) => a.stop - b.stop)
-    .map((s) => {
-      const bags = day.tasks.filter((x) => x.society_id === s.id);
-      const crates = [...new Set(bags.map((x) => x.crate))].map((crate) => ({
-        crate,
-        bags: bags.filter((x) => x.crate === crate),
-      }));
-      return { ...s, bags: bags.length, crates };
-    })
-    .filter((s) => s.bags > 0);
+  // Societies in the order of their first bag; a bag closed a moment ago has no crate until it is sent.
+  const stops = [...new Map(day.tasks.map((x) => [x.society.id, x.society])).values()].map((s) => {
+    const bags = day.tasks.filter((x) => x.society.id === s.id);
+    const crates = [...new Set(bags.map((x) => x.crate_no))]
+      .sort((a, b) => (a ?? 99) - (b ?? 99))
+      .map((crate) => ({ crate: crate ?? "–", bags: bags.filter((x) => x.crate_no === crate) }));
+    return { ...s, bags: bags.length, crates };
+  });
   const names = stops.map((s) => s.name);
   const order =
     names.length > 1
@@ -175,7 +184,7 @@ function AllPacked({ day }) {
     .filter((i) => i.reported.length > 0)
     .map((i) =>
       t("packer.done.shortItem", {
-        item: day.products[i.product_code]?.name ?? i.product_code,
+        item: i.name,
         n: i.reported.length,
       }),
     );
@@ -229,8 +238,8 @@ function AllPacked({ day }) {
                 <span className="text-sm leading-5 text-fg-secondary">
                   {t("packer.done.loadBags", {
                     n: c.bags.length,
-                    first: c.bags[0].bag_qr,
-                    last: c.bags[c.bags.length - 1].bag_qr,
+                    first: bagCode(c.bags[0]),
+                    last: bagCode(c.bags[c.bags.length - 1]),
                   })}
                 </span>
               </li>

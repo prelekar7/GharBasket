@@ -4,6 +4,7 @@
 import { HttpResponse, http } from "msw";
 import { seedShortWallet } from "./billing.js";
 import { clearRatings } from "./orders.js";
+import { HUB_ID } from "./packer.js";
 import { seedPaymentFailed } from "./subscriptions.js";
 import { restartTrip } from "./tracking.js";
 
@@ -54,7 +55,7 @@ export function rolesFor(/** @type {string} */ phone) {
     "+919800001007": {
       role: "packer",
       scope_type: "hub",
-      scope_id: "hub-kharghar",
+      scope_id: HUB_ID,
       status: "verified",
     },
   };
