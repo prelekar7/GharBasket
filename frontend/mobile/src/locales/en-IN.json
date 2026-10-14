@@ -606,5 +606,45 @@
     "failed": "We couldn’t send your application. Check your internet and try again.",
     "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
     "rejected": "Your application as {role} needs another look. The hub will call you about what to send again."
+  },
+  "ghar": {
+    "title": "Ghar Saathi",
+    "sub": "Ask in English, Hindi or Marathi",
+    "hello": "Namaste! I can change next week’s box, skip a week, book a tiffin or tell you where today’s box is.",
+    "suggest": {
+      "lighter": "Next Wednesday I want a light dinner. And take the paneer out.",
+      "track": "Where is today’s box?"
+    },
+    "confirmTitle": "Change next week’s box ({day})?",
+    "line": {
+      "remove": "Remove {item} · {qty}",
+      "add": "Add {item} · {qty}",
+      "qty": "{item} · {qty}"
+    },
+    "meal": "{day} {slot} → {dish}",
+    "slot": {
+      "lunch": "lunch",
+      "dinner": "dinner"
+    },
+    "noPrice": "no change",
+    "total": "New box total",
+    "yes": "Yes, change it",
+    "no": "No",
+    "status": {
+      "confirmed": "Done. Your {day} box is updated.",
+      "rejected": "Okay, nothing changed.",
+      "expired": "This suggestion expired. Ask again and I’ll check the box."
+    },
+    "safe": "Nothing changes until you say yes.",
+    "thinking": "Checking your box…",
+    "placeholder": "Type a message",
+    "send": "Send",
+    "errors": {
+      "assistant_daily_limit": "That’s all I can do today. I’ll be back tomorrow morning.",
+      "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
+      "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
+      "orders_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    }
   }
 }
