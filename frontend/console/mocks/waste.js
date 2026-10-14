@@ -13,6 +13,7 @@ import { catalogStore } from "./catalog.js";
 import { addDays, dateParam, hubGuard, istAt, mockToday, opsUnit, qty3 } from "./hubops.js";
 import { KHARGHAR_HUB_ID } from "./hubs.js";
 import { addLot, inventoryState } from "./inventory.js";
+import { drawDownPacked } from "./packing.js";
 import { partnersHandlers } from "./partners.js";
 import { closeBuying } from "./procurement.js";
 import { fieldError, idempotent, mockStore, mockUuid, problem } from "./util.js";
@@ -541,6 +542,7 @@ export const wasteHandlers = [
       seed();
       const now = new Date().toISOString();
       const today = mockToday();
+      const drawnTasks = drawDownPacked();
       const closed = closeBuying(today);
       let offers = 0;
       let binned = 0;
@@ -583,7 +585,12 @@ export const wasteHandlers = [
           offers += 1;
         }
       }
-      return HttpResponse.json({ drawn_tasks: 0, closed_purchase_orders: closed, offers, binned });
+      return HttpResponse.json({
+        drawn_tasks: drawnTasks,
+        closed_purchase_orders: closed,
+        offers,
+        binned,
+      });
     }),
   ),
 

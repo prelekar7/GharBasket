@@ -220,14 +220,20 @@ test("the 12:30 run closes the day's buying once and offers what cannot be packe
     "offers",
   ]);
   assert.equal(run.body.closed_purchase_orders > 0, true);
+  assert.ok(run.body.drawn_tasks > 0, "packed bags are drawn down from stock");
   const after = (await call("GET", `${HUB}/purchase-orders?date=${today}`)).body.items;
   assert.ok(after.every((/** @type {any} */ o) => ["received", "cancelled"].includes(o.status)));
   const plan = await call("GET", `${HUB}/procurement-plans?date=${today}`);
   assert.equal(plan.body.status, "closed");
   const again = await call("POST", `${HUB}/surplus/run`);
   assert.deepEqual(
-    [again.body.closed_purchase_orders, again.body.offers, again.body.binned],
-    [0, 0, 0],
+    [
+      again.body.drawn_tasks,
+      again.body.closed_purchase_orders,
+      again.body.offers,
+      again.body.binned,
+    ],
+    [0, 0, 0, 0],
   );
 });
 

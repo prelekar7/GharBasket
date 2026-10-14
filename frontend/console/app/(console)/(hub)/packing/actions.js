@@ -3,16 +3,12 @@
 import { ApiProblem, apiPost } from "@/lib/api.js";
 import { currentHub } from "@/lib/hub.js";
 
-/**
- * What the person is told for each failure; the `code` decides, never the server's text.
- * @type {Record<string, string>}
- */
+/** What the person is told for each failure; the `code` decides, never the server's text. @type {Record<string, string>} */
 const MESSAGES = {
-  "packing.not_packed_yet": "Pack and label the bag first, then it can go in a crate.",
-  "packing.crate_full": "Every crate for that society is full. Start a new crate at the van.",
-  "packing.packers_busy": "Every packer already has a bag open. Try again when one is packed.",
-  "packing.nothing_to_pack": "No bags are waiting to be packed.",
-  "packing.task_not_found": "That bag is no longer on today’s list. Reload the board.",
+  "hub_ops.task_not_found": "That bag is no longer on the list. Reload the board.",
+  "hub_ops.task_packed": "That bag is already packed, so nobody holds it.",
+  "hub_ops.task_not_started": "Nobody holds that bag yet.",
+  "hub_ops.date_out_of_range": "Bags can only be built for today or the next two days.",
 };
 
 /**
@@ -31,23 +27,24 @@ async function attempt(run) {
 }
 
 /**
- * Moves a bag to another column of the packing board.
- * @param {string} taskId @param {string} to a packing status @param {string} idempotencyKey one per move
+ * Frees a bag a packer started, so any packer of the hub can take it (M6 §3.2). The order stays in picking.
+ * @param {string} taskId @param {string} idempotencyKey one per release
  */
-export async function moveTask(taskId, to, idempotencyKey) {
-  return attempt(() => apiPost(`/v1/packing-tasks/${taskId}/move`, { to }, { idempotencyKey }));
-}
-
-/** Gives the next bag in route order to a free packer. @param {string} idempotencyKey */
-export async function assignNext(idempotencyKey) {
-  const hub = await currentHub();
+export async function releaseTask(taskId, idempotencyKey) {
   return attempt(() =>
-    apiPost(`/v1/hubs/${hub.id}/packing-tasks/assign-next`, {}, { idempotencyKey }),
+    apiPost(`/v1/packing-tasks/${taskId}/release`, undefined, { idempotencyKey }),
   );
 }
 
-/** Sends the bag-label sheets to the hub printer. @param {string} idempotencyKey */
-export async function printLabels(idempotencyKey) {
+/**
+ * Builds the day's packing tasks now (the 05:00 job, on demand): one task per locked box or add-on order
+ * that has none yet. Running it again adds nothing.
+ * @param {string} date @param {string} idempotencyKey
+ * @returns {Promise<{ ok: true, data: { created: number, existing: number } } | { ok: false, message: string }>}
+ */
+export async function buildTasks(date, idempotencyKey) {
   const hub = await currentHub();
-  return attempt(() => apiPost(`/v1/hubs/${hub.id}/packing-labels/print`, {}, { idempotencyKey }));
+  return attempt(() =>
+    apiPost(`/v1/hubs/${hub.id}/packing-tasks/build`, { date }, { idempotencyKey }),
+  );
 }

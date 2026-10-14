@@ -508,7 +508,11 @@ export const procurementHandlers = [
     idempotent(request, (body) => {
       const refused = hubGuard(request, params.id, { write: true });
       if (refused) return refused;
-      const day = dateParam(body?.date, { min: 0, max: 2 });
+      if (typeof body?.date !== "string")
+        return problem(422, "request.invalid", "Send { date }", {
+          errors: [fieldError("date", "Field required", "missing")],
+        });
+      const day = dateParam(body.date, { min: 0, max: 2 });
       if ("error" in day) return day.error;
       const existing = planFor(KHARGHAR_HUB_ID, day.date);
       if (existing?.status === "closed")
