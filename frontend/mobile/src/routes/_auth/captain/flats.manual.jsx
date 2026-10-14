@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { findFlat, isHandedOver } from "@/features/captain/day.js";
 import { isOpen, proof } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite } from "@/features/captain/queries.js";
-import { normalizeCode } from "@/lib/scan.js";
 
-/** A torn or smudged label: type the bag code, check the flat, hand it over (design CaptainManual; M7). */
+/** A torn or smudged label: type the flat, check it against the label, hand it over (design CaptainManual; M7 §3.4). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/captain/flats/manual")({ component: TypeBagCode });
 
@@ -23,16 +23,15 @@ function TypeBagCode() {
   if (day.isPending) return <Skeleton lines={6} />;
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
-  const code = normalizeCode(raw);
-  const bag = code ? d.bags.find((b) => b.code === code) : undefined;
-  const ready = !!bag && isOpen(bag) && !!d.stop.handed_over_at;
+  const flat = raw.trim().length >= 3 ? findFlat(d.flats, raw) : undefined;
+  const ready = !!flat && isOpen(flat) && isHandedOver(d);
   const error =
-    code.length < 3
+    raw.trim().length < 3
       ? undefined
-      : !bag
+      : !flat
         ? t("captain.manual.notFound")
-        : !isOpen(bag)
-          ? t("captain.flats.alreadyDone", { code, flat: bag.flat })
+        : !isOpen(flat)
+          ? t("captain.flats.alreadyDone", { flat: flat.flat_label })
           : undefined;
 
   return (
@@ -44,7 +43,7 @@ function TypeBagCode() {
       />
       <TextField
         label={t("captain.manual.field")}
-        placeholder="B-214"
+        placeholder="B-402"
         description={t("captain.manual.help")}
         autoComplete="off"
         value={raw}
@@ -52,16 +51,15 @@ function TypeBagCode() {
         isInvalid={!!error}
         errorMessage={error}
       />
-      {bag && !error && (
+      {flat && !error && (
         <section className="flex flex-col gap-2 rounded-md bg-primary-soft p-3.5">
           <span className="text-[15px] leading-[22px]">{t("captain.manual.found")}</span>
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">
-            {t("captain.manual.match", { code: bag.code, flat: bag.flat })}
+            {t("captain.manual.match", { flat: flat.flat_label })}
           </h2>
           <span className="text-[15px] leading-[22px]">
             {t("captain.manual.matchDetail", {
-              contents: t(`captain.flats.contents.${bag.contents}`),
-              lines: bag.lines,
+              contents: t(`captain.flats.contents.${flat.kind}`),
               society: d.society.name,
             })}
           </span>
@@ -77,13 +75,15 @@ function TypeBagCode() {
           block
           isDisabled={!ready}
           onPress={() => {
-            if (!bag) return;
-            write(proof(bag, true));
-            toast(t("captain.manual.done", { code: bag.code, flat: bag.flat }));
+            if (!flat) return;
+            write(proof(flat));
+            toast(t("captain.manual.done", { flat: flat.flat_label }));
             toFlats();
           }}
         >
-          {bag ? t("captain.manual.confirm", { flat: bag.flat }) : t("captain.manual.confirmAny")}
+          {flat
+            ? t("captain.manual.confirm", { flat: flat.flat_label })
+            : t("captain.manual.confirmAny")}
         </Button>
       </div>
     </div>

@@ -205,14 +205,16 @@ describe("rider mode: handover and the doors (M7 §3.4)", () => {
   it("passes another role's handover on (mocks/captain.js answers it)", async () => {
     const asCaptain = await call(
       "POST",
-      "/v1/stops/stop-1006-sunrise/handover",
+      "/v1/stops/01995000-0000-7000-8000-000000000001/handover", // the captain mock's stop
       {},
       {
         "x-active-role": "captain:0199e000-0000-7000-8000-000000000001",
         "idempotency-key": "k1",
       },
     );
-    expect((await asCaptain.json()).code).not.toBe("logistics.stop_not_found");
+    // The rider mock would say stop_not_found (the stop is not on a rider's route); the captain
+    // mock knows it and answers its own validation of the empty body.
+    expect((await asCaptain.json()).code).toBe("request.invalid");
   });
 
   it("lists the bags to deliver, flat by flat, once the route is in progress", async () => {

@@ -1,98 +1,122 @@
-// A Society Captain's delivery day (M7): the van's handover, then every bag to its flat. The spec
-// names the write endpoints (§3) but not the read or the JSON; these shapes are our proposal.
-// A captain sees flats and bag codes, never a resident's name or phone (M9 privacy).
+// A Society Captain's delivery day (M7 §3.4, frozen): the van's handover by count and code, then
+// every flat's bag to its door. GET /v1/captains/me/today answers CaptainDay; a captain sees flat
+// labels, never a resident's name or phone (M9 privacy). The captain's own name is on
+// GET /v1/partners/me (M8 §3.3), not in this answer.
 
 /**
- * @typedef {"planned" | "delivered" | "in_lobby" | "returned" | "reported" | "missing"} BagStatus
- * planned = still to hand over; returned = back to the hub (redelivery or money back);
- * reported = delivered with damage reported; missing = its crate never came.
- * @typedef {object} Bag
- * @property {string} code Printed bag code ("B-214").
+ * @typedef {"on_the_way" | "with_you" | "held" | "delivered" | "undelivered"} FlatStatus
+ * on_the_way = still on the van; with_you = handed over to the captain; held = nobody home, kept
+ * for the family until `hold_until`.
+ * @typedef {object} Flat CaptainFlat
  * @property {string} order_id
- * @property {string} flat "B-402"
- * @property {string} wing "B"
- * @property {"box" | "box_tiffin" | "tiffin"} contents
- * @property {number} lines Items in the bag.
- * @property {"door" | "lobby"} pickup Lobby bags are collected by the family.
- * @property {string} crate Crate code ("S-1").
- * @property {BagStatus} status
- * @property {string | null} note What went wrong, in the captain's words.
- * @typedef {{ id: string, bags: number, state: "waiting" | "scanned" | "missing" }} Crate
- * @typedef {object} Stop The van's stop at the society gate.
- * @property {string} id
- * @property {string} eta ISO time.
- * @property {number} gate
- * @property {string} rider_name First name only.
- * @property {string} handover_code Four digits the rider types to confirm the handover.
- * @property {string | null} handed_over_at
- * @typedef {object} CaptainDay GET /v1/logistics/captain/today (M7, proposal)
+ * @property {string} flat_label Tower label and flat: "B-402".
+ * @property {"box" | "addon" | "tiffin"} kind
+ * @property {number} bags
+ * @property {boolean} redelivery A free second attempt.
+ * @property {FlatStatus} status
+ * @property {string | null} hold_until IST "20:00" while held.
+ * @typedef {{ label: string, start: string, end: string }} Slot
+ * @typedef {object} DayStop One van stop at the society.
+ * @property {string} stop_id
+ * @property {string} route_id
+ * @property {Slot} slot
+ * @property {string | null} eta_now IST "07:20".
+ * @property {"pending" | "arrived" | "handed_over" | "skipped"} status
+ * @property {{ crates: number, bags: number, redelivery_bags: number }} expected
+ * @typedef {Record<FlatStatus, number>} Counts
+ * @typedef {object} CaptainDay GET /v1/captains/me/today
  * @property {string} date "2026-10-06"
  * @property {{ id: string, name: string }} society
- * @property {string} captain_name The name her society knows her by ("Meena tai").
- * @property {Stop} stop
- * @property {Crate[]} crates
- * @property {Bag[]} bags In walking order.
+ * @property {DayStop[]} stops
+ * @property {Flat[]} flats By tower, then flat.
+ * @property {Counts} counts
  * @typedef {{ path: string, body?: any }} Action A captain write, as queued in the outbox.
  */
 
-const HANDOVER = /^\/v1\/stops\/[^/]+\/handover$/;
-const DELIVERY = /^\/v1\/deliveries\/([^/]+)\/(proof|undelivered|damage)$/;
+const HANDOVER = /^\/v1\/stops\/([^/]+)\/handover$/;
+const DELIVERY = /^\/v1\/deliveries\/([^/]+)\/(proof|undelivered)$/;
+
+/** What is printed in the bag's QR: "GB1:" and the order id without hyphens (M6 §3.2). @param {string} orderId */
+export const bagQr = (orderId) => `GB1:${orderId.replaceAll("-", "")}`;
+
+/** The tower label of "B-402". @param {Flat} flat */
+export const towerOf = (flat) => flat.flat_label.split("-")[0];
+
+/** Counts of flats by status. @param {Flat[]} flats @returns {Counts} */
+export function countFlats(flats) {
+  /** @type {Counts} */
+  const counts = { on_the_way: 0, with_you: 0, held: 0, delivered: 0, undelivered: 0 };
+  for (const f of flats) counts[f.status] += 1;
+  return counts;
+}
 
 /**
  * What a write does to the day. The mock server and the screen share it, so the screen can show
  * a queued write straight away and keep showing it until the server has it.
- * - POST /v1/stops/{id}/handover `{ crates, missing, missing_bags, bags_count }`: lobby bags go to the lobby;
- *   `missing_bags` (proposal) are bag codes missing from crates that did arrive
- * - POST /v1/deliveries/{order_id}/proof `{ proof_kind: "captain_scan", bag_code, typed }`
- * - POST /v1/deliveries/{order_id}/undelivered `{ reason: "not_home", outcome: "lobby" | "return" }`
- * - POST /v1/deliveries/{order_id}/damage `{ note, photo_key }` (not in M7 §3 yet: proposal)
+ * - POST /v1/stops/{id}/handover `{ crates, bags, handover_code, scanned_bags?, client_at }`: every
+ *   bag still on the van is now with her, or only the scanned ones when the counts differed
+ * - POST /v1/deliveries/{order_id}/proof `{ bag_qr, proof: "scan", client_at }`
+ * - POST /v1/deliveries/{order_id}/undelivered `{ reason, note?, photo_key?, client_at }`: not_home
+ *   is held until 20:00, anything else is undelivered
  * @param {CaptainDay} day @param {Action} action @returns {CaptainDay}
  */
 export function applyAction(day, { path, body = {} }) {
-  if (HANDOVER.test(path)) {
-    const missing = new Set(body.missing ?? []);
-    const lost = new Set(body.missing_bags ?? []);
+  const handover = path.match(HANDOVER);
+  if (handover) {
+    const scanned = body.scanned_bags ? new Set(/** @type {string[]} */ (body.scanned_bags)) : null;
+    const flats = day.flats.map((f) =>
+      f.status === "on_the_way" && (!scanned || scanned.has(bagQr(f.order_id)))
+        ? { ...f, status: /** @type {const} */ ("with_you") }
+        : f,
+    );
     return {
       ...day,
-      stop: { ...day.stop, handed_over_at: body.at ?? new Date().toISOString() },
-      crates: day.crates.map((c) => ({ ...c, state: missing.has(c.id) ? "missing" : "scanned" })),
-      bags: day.bags.map((b) => {
-        if (missing.has(b.crate) || lost.has(b.code)) return { ...b, status: "missing" };
-        return b.pickup === "lobby" && b.status === "planned" ? { ...b, status: "in_lobby" } : b;
-      }),
+      stops: day.stops.map((s) =>
+        s.stop_id === handover[1] ? { ...s, status: /** @type {const} */ ("handed_over") } : s,
+      ),
+      flats,
+      counts: countFlats(flats),
     };
   }
   const match = path.match(DELIVERY);
   if (!match) return day;
   const [, orderId, kind] = match;
-  /** @type {BagStatus} */
+  /** @type {FlatStatus} */
   const status =
-    kind === "proof"
-      ? "delivered"
-      : kind === "damage"
-        ? "reported"
-        : body.outcome === "lobby"
-          ? "in_lobby"
-          : "returned";
-  return {
-    ...day,
-    bags: day.bags.map((b) =>
-      b.order_id === orderId ? { ...b, status, note: body.note ?? b.note } : b,
-    ),
-  };
+    kind === "proof" ? "delivered" : body.reason === "not_home" ? "held" : "undelivered";
+  const flats = day.flats.map((f) =>
+    f.order_id === orderId ? { ...f, status, hold_until: status === "held" ? "20:00" : null } : f,
+  );
+  return { ...day, flats, counts: countFlats(flats) };
 }
+
+/** The van stop that matters now: the first still to receive, else the last. @param {CaptainDay} day */
+export const currentStop = (day) =>
+  day.stops.find((s) => s.status === "pending" || s.status === "arrived") ?? day.stops.at(-1);
+
+/** Every stop of the day has had its handover (or was skipped). @param {CaptainDay} day */
+export const isHandedOver = (day) =>
+  day.stops.length > 0 &&
+  day.stops.every((s) => s.status === "handed_over" || s.status === "skipped");
 
 /** Counts for Today and the done screen. @param {CaptainDay} day */
 export function tally(day) {
-  const by = (/** @type {BagStatus[]} */ ...s) => day.bags.filter((b) => s.includes(b.status));
+  const by = (/** @type {FlatStatus[]} */ ...s) => day.flats.filter((f) => s.includes(f.status));
   return {
-    total: day.bags.length,
-    handled: day.bags.length - by("planned").length,
+    total: day.flats.length,
+    handled: by("delivered", "held", "undelivered").length,
     door: by("delivered").length,
-    lobby: by("in_lobby").length,
-    problems: by("reported", "returned", "missing"),
+    held: by("held").length,
+    problems: by("undelivered"),
   };
 }
 
-/** The next bag to take to a door, in walking order. @param {Bag[]} bags */
-export const nextBag = (bags) => bags.find((b) => b.status === "planned" && b.pickup === "door");
+/** The next bag to take to a door, in walking order. @param {Flat[]} flats */
+export const nextFlat = (flats) => flats.find((f) => f.status === "with_you");
+
+/** A flat from what the camera read ("GB1:…") or what was typed ("b402"). @param {Flat[]} flats @param {string} raw */
+export function findFlat(flats, raw) {
+  const text = raw.trim().toUpperCase().replace(/\s+/g, "");
+  const typed = text.replace(/^([A-Z]+)(\d)/, "$1-$2");
+  return flats.find((f) => bagQr(f.order_id).toUpperCase() === text || f.flat_label === typed);
+}
