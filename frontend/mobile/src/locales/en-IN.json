@@ -671,7 +671,7 @@
     "impact": {
       "title": "This month in {society}",
       "body": "{kg} kg food not wasted · {n} items donated ·",
-      "cooks": "earned by home cooks"
+      "cooks": "earned by partners in our hub"
     },
     "unlock": {
       "title": "{society} is unlocked",
@@ -757,31 +757,28 @@
     "mealGiven": "A meal for a child is on its way. Thank you.",
     "mealFailed": "Could not donate the meal. Try again.",
     "give": "Give something away",
-    "drive": "{name} drive · {x}× points",
-    "drives": {
-      "diwali": "Diwali"
-    },
+    "drive": "{name} · {x}× points",
     "how": "The van collects it on the way back after your Tuesday delivery. The hub checks the items, then points are added.",
     "what": "What are you giving?",
     "items": {
       "clothes": "Clothes",
       "books": "Books",
       "toys": "Toys",
-      "school_bags": "School bags",
+      "school_bag": "School bags",
       "utensils": "Utensils"
     },
     "of": {
       "clothes": "clothes",
       "books": "books",
       "toys": "toys",
-      "school_bags": "school bags",
+      "school_bag": "school bags",
       "utensils": "utensils"
     },
     "count": {
       "clothes": "clothes",
       "books": "{count, plural, one {a book} other {books}}",
       "toys": "{count, plural, one {a toy} other {toys}}",
-      "school_bags": "{count, plural, one {school bag} other {# school bags}}",
+      "school_bag": "{count, plural, one {school bag} other {# school bags}}",
       "utensils": "utensils"
     },
     "kg": "{kg} kg {item}",
@@ -792,17 +789,17 @@
     "failed": "We couldn’t book the pickup. Check your internet and try again.",
     "history": "What you gave",
     "status": {
-      "SCHEDULED": "pickup {day}",
-      "PICKUP_ASSIGNED": "pickup {day}",
-      "PICKED_UP": "picked up",
-      "AT_HUB": "being checked at the hub",
-      "VERIFIED": "verified",
-      "HANDED_TO_NGO": "given to the NGO",
-      "REJECTED": "not accepted",
-      "CANCELLED": "cancelled"
+      "scheduled": "pickup {day}",
+      "picked_up": "picked up",
+      "verified": "verified",
+      "rejected": "not accepted",
+      "handed_over": "given to the NGO",
+      "cancelled": "cancelled"
     },
     "emptyTitle": "Nothing given yet",
-    "emptyBody": "Your first pickup fills the gullak once the hub has checked the items."
+    "emptyBody": "Your first pickup fills the gullak once the hub has checked the items.",
+    "unitKg": "kg",
+    "noPickupDay": "No pickup day in your society yet"
   },
   "partner": {
     "title": "Become a partner",
@@ -1741,23 +1738,25 @@
     "kg": "{kg} kg",
     "stats": {
       "society": {
-        "food": "Food saved from waste",
+        "food": "Food saved from waste by our hub",
         "items": "Items donated",
-        "cooks": "Earned by home cooks and our captain",
+        "cooks": "Earned by partners at our hub this month",
         "homes": "Homes on GharBasket"
       },
       "me": {
-        "food": "Food your family saved from waste",
+        "meals": "Meals you donated with Kindness points",
         "items": "Items you donated",
-        "cooks": "Paid to home cooks for your tiffins",
+        "kg": "Kilograms you gave away",
         "homes": "Neighbours who joined from your invites"
       }
     },
     "youTitle": "Your share",
     "you": "You gave {items} and earned {points} Kindness points.",
-    "youNone": "Nothing given yet this month. Give clothes, books or toys from the Kindness tab.",
+    "youNone": "Nothing given yet. Give clothes, books or toys from the Kindness tab.",
     "how": "Counted from verified donations, surplus that was eaten instead of thrown away, and partner earnings in the ledger. Updated every hour.",
     "share": "Share with neighbours",
-    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}"
+    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
+    "allTime": "So far",
+    "underFive": "Numbers show once 5 homes in the society have joined in."
   }
 }
