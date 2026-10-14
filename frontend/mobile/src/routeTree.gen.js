@@ -43,6 +43,9 @@ import { Route as AuthOnboardingPaymentRouteImport } from "./routes/_auth/onboar
 import { Route as AuthOnboardingPreviewRouteImport } from "./routes/_auth/onboarding/preview"
 import { Route as AuthOnboardingRequestRouteImport } from "./routes/_auth/onboarding/request"
 import { Route as AuthOnboardingSocietyRouteImport } from "./routes/_auth/onboarding/society"
+import { Route as AuthPackerIndexRouteImport } from "./routes/_auth/packer/index"
+import { Route as AuthPackerPickRouteImport } from "./routes/_auth/packer/pick"
+import { Route as AuthPackerShortRouteImport } from "./routes/_auth/packer/short"
 import { Route as AuthCustomerSocietySocietyIdRouteImport } from "./routes/_auth/_customer/society.$societyId"
 import { Route as AuthCustomerWalletStatementRouteImport } from "./routes/_auth/_customer/wallet_.statement"
 
@@ -215,6 +218,21 @@ const AuthOnboardingSocietyRoute = AuthOnboardingSocietyRouteImport.update({
   path: "/onboarding/society",
   getParentRoute: () => AuthRoute,
 })
+const AuthPackerIndexRoute = AuthPackerIndexRouteImport.update({
+  id: "/",
+  path: "/",
+  getParentRoute: () => AuthPackerRoute,
+})
+const AuthPackerPickRoute = AuthPackerPickRouteImport.update({
+  id: "/pick",
+  path: "/pick",
+  getParentRoute: () => AuthPackerRoute,
+})
+const AuthPackerShortRoute = AuthPackerShortRouteImport.update({
+  id: "/short",
+  path: "/short",
+  getParentRoute: () => AuthPackerRoute,
+})
 const AuthCustomerSocietySocietyIdRoute =
   AuthCustomerSocietySocietyIdRouteImport.update({
     id: "/society/$societyId",
@@ -245,12 +263,22 @@ const AuthCustomerRouteWithChildren = AuthCustomerRoute._addFileChildren(
   AuthCustomerRouteChildren,
 )
 
+const AuthPackerRouteChildren = {
+  AuthPackerPickRoute: AuthPackerPickRoute,
+  AuthPackerShortRoute: AuthPackerShortRoute,
+  AuthPackerIndexRoute: AuthPackerIndexRoute,
+}
+
+const AuthPackerRouteWithChildren = AuthPackerRoute._addFileChildren(
+  AuthPackerRouteChildren,
+)
+
 const AuthRouteChildren = {
   AuthCustomerRoute: AuthCustomerRouteWithChildren,
   AuthAssistantRoute: AuthAssistantRoute,
   AuthCaptainRoute: AuthCaptainRoute,
   AuthKitchenRoute: AuthKitchenRoute,
-  AuthPackerRoute: AuthPackerRoute,
+  AuthPackerRoute: AuthPackerRouteWithChildren,
   AuthRiderRoute: AuthRiderRoute,
   AuthOnboardingBudgetRoute: AuthOnboardingBudgetRoute,
   AuthOnboardingConsentRoute: AuthOnboardingConsentRoute,

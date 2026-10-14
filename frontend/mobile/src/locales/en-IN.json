@@ -894,5 +894,70 @@
       "kindness": "Kindness",
       "offers": "Offers"
     }
+  },
+  "packer": {
+    "tabs": {
+      "queue": "Queue",
+      "pick": "Pick/Pack",
+      "short": "Shortages"
+    },
+    "role": "Packer",
+    "account": "Your account",
+    "progressValue": "{done} of {total}",
+    "qty": {
+      "judi": "{n} judi",
+      "g": "{n} g",
+      "kg": "{n} kg",
+      "l": "{n} L",
+      "pc": "{n, plural, one {# piece} other {# pieces}}"
+    },
+    "unit": {
+      "judi": "judi",
+      "g": "g",
+      "kg": "kg",
+      "l": "L",
+      "pc": "pieces"
+    },
+    "manual": {
+      "bagTitle": "Type the bag code",
+      "bagLabel": "Bag code",
+      "bagHint": "Printed under the QR, like B-214",
+      "itemTitle": "Type the item code",
+      "itemLabel": "Item code",
+      "itemHint": "On the shelf tag or the pack, like P-104",
+      "use": "Use this code",
+      "cancel": "Cancel"
+    },
+    "queue": {
+      "title": "Packing queue",
+      "progress": "Bags packed",
+      "scan": "Scan a bag to start",
+      "manual": "Type the bag code instead",
+      "order": "In route order: first stop first, so crates load in order.",
+      "lines": "{n} lines · {amount}",
+      "linesAddons": "{n} lines + {m, plural, one {# add-on} other {# add-ons}}",
+      "tiffin": "Tiffin × {n}",
+      "status": {
+        "packed": "Packed",
+        "packing": "Packing",
+        "to_pack": "To pack"
+      },
+      "unknownBag": "{code} isn’t one of today’s bags",
+      "alreadyPacked": "{code} is already packed",
+      "loading": "Loading today’s bags. Once loaded, the queue works without signal."
+    },
+    "done": {
+      "title": "All bags packed",
+      "body": "Load the crates in route order: {order}. The van leaves at {time}.",
+      "firstThen": "{first} first, then {rest}",
+      "crates": "{crates, plural, one {# crate} other {# crates}} · {bags, plural, one {# bag} other {# bags}}",
+      "shortages": "Shortages reported",
+      "shortItem": "{item} · {n, plural, one {# bag} other {# bags}}",
+      "none": "None",
+      "load": "Show the loading order",
+      "loadTitle": "Loading order",
+      "loadRow": "Crate {crate} · {society}",
+      "loadBags": "{n, plural, one {# bag} other {# bags}}: {first} to {last}"
+    }
   }
 }
