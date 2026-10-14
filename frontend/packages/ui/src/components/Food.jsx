@@ -109,9 +109,10 @@ export function ParchiList({
 /**
  * The week as seven thalis: one katori per meal (green cook, saffron tiffin, empty skip).
  * Scrolls sideways on a phone; today is outlined and badged.
- * @param {{ days: { day: string, date: string, meals: ThaliMeal[] }[], today?: number, label?: string, labels?: { today?: string, skip?: string } }} props
+ * With `onDayPress`, a button over each day opens it (design Core-W2); `labels.open` names it.
+ * @param {{ days: { day: string, date: string, meals: ThaliMeal[] }[], today?: number, label?: string, labels?: { today?: string, skip?: string, open?: string }, onDayPress?: (index: number) => void }} props
  */
-export function ThaliWeek({ days, today, label = "This week", labels }) {
+export function ThaliWeek({ days, today, label = "This week", labels, onDayPress }) {
   return (
     <ol
       aria-label={label}
@@ -159,6 +160,14 @@ export function ThaliWeek({ days, today, label = "This week", labels }) {
                 </li>
               ))}
             </ul>
+            {onDayPress && (
+              <button
+                type="button"
+                aria-label={fill(labels?.open ?? "Open {day} {date}", { day: d.day, date: d.date })}
+                onClick={() => onDayPress(i)}
+                className="absolute inset-0 cursor-pointer rounded-md outline-none focus-visible:shadow-focus"
+              />
+            )}
           </li>
         );
       })}

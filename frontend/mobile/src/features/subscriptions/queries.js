@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { request } from "@/lib/api.js";
 
 /**
- * @typedef {{ slot: "lunch" | "dinner", name: string, tiffin: boolean, skip?: boolean }} PlannedMeal
+ * @typedef {{ slot: "lunch" | "dinner", name: string, tiffin: boolean, skip?: boolean, reason_code?: string | null, reason_params?: Record<string, string | number> | null }} PlannedMeal
+ * @typedef {{ kitchen_id: string, slot: "lunch" | "dinner", cook: { name: string }, dish: { name: string }, price_paise: number, order_by: string }} TiffinOffer
  * @typedef {{ product_id: string, name: string, qty_label: string, price_paise: number, reason_code: string | null, reason_params: Record<string, string | number> | null, swapped_from_paise: number | null }} BoxLine
  * @typedef {{ code: string, params: Record<string, string | number> }} Highlight
  * @typedef {object} Cycle
@@ -16,7 +17,7 @@ import { request } from "@/lib/api.js";
  * @property {string | null} approved_at
  * @property {{ name: string }} hub
  * @property {{ wallet_paise: number, shortfall_paise: number, due_at: string } | null} payment_due
- * @property {{ days: { date: string, meals: PlannedMeal[] }[] }} meal_plan
+ * @property {{ days: { date: string, meals: PlannedMeal[], tiffin_offer?: TiffinOffer | null }[] }} meal_plan
  * @property {BoxLine[]} lines
  * @property {number} total_paise
  * @property {Highlight[]} highlights
@@ -76,6 +77,22 @@ export function useSwapLine() {
           method: "PATCH",
           headers: { "if-match": String(v.cycle.version) },
           body: { op: "substitute", product_id: v.productId, substitute_id: v.substituteId },
+        })
+      ),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),
+  });
+}
+
+/** Swap one planned meal for another (PATCH /v1/cycles/{id}/meals, our proposal for M3), with If-Match. */
+export function useSwapMeal() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {{ cycle: Cycle, date: string, slot: "lunch" | "dinner" }} */ v) =>
+      /** @type {Promise<Cycle>} */ (
+        request(`/v1/cycles/${v.cycle.id}/meals`, {
+          method: "PATCH",
+          body: { date: v.date, slot: v.slot },
+          headers: { "if-match": String(v.cycle.version) },
         })
       ),
     onSuccess: () => client.invalidateQueries({ queryKey: ["cycle", "current"] }),

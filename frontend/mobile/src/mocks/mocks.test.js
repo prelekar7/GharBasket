@@ -89,3 +89,37 @@ describe("weekly cycle lifecycle", () => {
     expect(JSON.parse(localStorage.getItem("gb-mock-billing") ?? "{}").balance_paise).toBe(0);
   });
 });
+
+describe("week day: meal swap and tiffin", () => {
+  const cycleNow = async () =>
+    (await mockFetch(new Request("http://localhost/v1/cycles/current"))).json();
+
+  it("swaps a meal and remembers it as the person's choice", async () => {
+    const res = await mockFetch(
+      new Request("http://localhost/v1/cycles/cyc-2026-10-05/meals", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "if-match": "1" },
+        body: JSON.stringify({ date: "2026-10-06", slot: "dinner" }),
+      }),
+    );
+    const dinner = (await res.json()).meal_plan.days[1].meals[1];
+    expect(dinner).toMatchObject({ name: "Moong dal khichdi", reason_code: "swapped_by_you" });
+  });
+
+  it("books a tiffin once per key and per meal, then shows it on the week", async () => {
+    const body = {
+      kind: "tiffin",
+      delivery_date: "2026-10-06",
+      slot: "dinner",
+      kitchen_id: "kit-sunita",
+    };
+    const a = await post("/v1/orders", body, "tif-1");
+    const again = await post("/v1/orders", body, "tif-1");
+    expect(a.status).toBe(201);
+    expect((await again.json()).id).toBe((await a.json()).id);
+    expect((await post("/v1/orders", body, "tif-2")).status).toBe(409);
+    const day = (await cycleNow()).meal_plan.days[1];
+    expect(day.meals[1].tiffin).toBe(true);
+    expect(day.tiffin_offer).toBeNull();
+  });
+});

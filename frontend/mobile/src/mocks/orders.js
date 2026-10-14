@@ -69,6 +69,18 @@ function orders(/** @type {"en" | "hi"} */ lang) {
   ];
 }
 
+/** Tiffins booked from the Week day sheet (POST /v1/orders, kind "tiffin"); they survive reloads. */
+const TIFFINS_KEY = "gb-mock-tiffins";
+/** @returns {{ id: string, key: string, delivery_date: string, slot: string, kitchen_id: string }[]} */
+export const bookedTiffins = () => JSON.parse(localStorage.getItem(TIFFINS_KEY) ?? "[]");
+/** The home kitchen that offers a tiffin to the society this week (M8, priced by M2). */
+export const TIFFIN_OFFER = {
+  kitchen_id: "kit-sunita",
+  cook: ["Sunita tai", "सुनीता ताई"],
+  dish: ["rajma chawal", "राजमा चावल"],
+  price_paise: 11000,
+};
+
 const ISSUE_KINDS = ["missing", "damaged", "late", "other"];
 /** @type {Record<string, any>} */
 const issuesByKey = {};
@@ -79,7 +91,59 @@ export const orderHandlers = [
     // A household still in onboarding has no orders yet.
     if (isNewUser(caller(request) ?? ""))
       return HttpResponse.json({ items: [], next_cursor: null });
-    return HttpResponse.json({ items: orders(langOf(request)), next_cursor: null });
+    const hi = langOf(request) === "hi";
+    const booked = bookedTiffins().map((b) => ({
+      id: b.id,
+      kind: "tiffin",
+      status: "SCHEDULED",
+      delivery_date: b.delivery_date,
+      total_paise: TIFFIN_OFFER.price_paise,
+      paid_from: "wallet",
+      address: { flat: "B-402", society: "Sunrise Towers" },
+      cook: { name: TIFFIN_OFFER.cook[hi ? 1 : 0] },
+      dish: { name: TIFFIN_OFFER.dish[hi ? 1 : 0] },
+      events: [],
+      version: 1,
+    }));
+    const items = [...orders(langOf(request)), ...booked].sort((a, b) =>
+      a.delivery_date.localeCompare(b.delivery_date),
+    );
+    return HttpResponse.json({ items, next_cursor: null });
+  }),
+
+  // A direct order (M4 §3): only tiffins and add-ons; boxes come from the weekly cycle.
+  http.post("*/v1/orders", async ({ request }) => {
+    const key = request.headers.get("idempotency-key");
+    if (!key)
+      return problem(
+        400,
+        "platform.idempotency_key_required",
+        "Idempotency-Key header is required",
+      );
+    const list = bookedTiffins();
+    const replay = list.find((b) => b.key === key);
+    if (replay) return HttpResponse.json(replay, { status: 201 });
+    const body =
+      /** @type {{ kind?: string, delivery_date?: string, slot?: string, kitchen_id?: string }} */ (
+        await request.json()
+      );
+    if (
+      body.kind !== "tiffin" ||
+      !body.delivery_date ||
+      body.kitchen_id !== TIFFIN_OFFER.kitchen_id
+    )
+      return problem(422, "orders.invalid_order", "Only a tiffin from this week's kitchen");
+    if (list.some((b) => b.delivery_date === body.delivery_date && b.slot === body.slot))
+      return problem(409, "orders.already_booked", "A tiffin is already booked for that meal");
+    const order = {
+      id: `ord-tif-${body.delivery_date}-${body.slot}`,
+      key,
+      delivery_date: body.delivery_date,
+      slot: body.slot ?? "dinner",
+      kitchen_id: body.kitchen_id,
+    };
+    localStorage.setItem(TIFFINS_KEY, JSON.stringify([...list, order]));
+    return HttpResponse.json(order, { status: 201 });
   }),
 
   http.get("*/v1/orders/:id", ({ request, params }) => {

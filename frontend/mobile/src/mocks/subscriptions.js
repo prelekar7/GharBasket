@@ -4,6 +4,7 @@
 // highlights are codes with params, which the app turns into sentences.
 import { HttpResponse, http } from "msw";
 import { chargeBox, walletBalance } from "./billing.js";
+import { bookedTiffins, TIFFIN_OFFER } from "./orders.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
 const DISHES = {
@@ -27,6 +28,18 @@ const DISHES = {
   ],
 };
 const TIFFIN_DAY = 2; // Wednesday: tiffin by Sunita tai
+/** Other meals Autopilot can swap in (M3 meal swap, our proposal): [en, hi]. */
+const ALT_DISHES = [
+  ["Moong dal khichdi", "मूंग दाल खिचड़ी"],
+  ["Palak paneer, roti", "पालक पनीर, रोटी"],
+  ["Masoor dal, rice", "मसूर दाल, चावल"],
+];
+/** Why a meal was planned: [day index, slot, reason code, params]. */
+const MEAL_REASONS = [
+  [1, "lunch", "in_season", { item: ["Methi", "मेथी"] }],
+  [1, "dinner", "quick_cook", { minutes: 30 }],
+  [0, "dinner", "quick_cook", { minutes: 25 }],
+];
 
 /** [id, en name, hi name, en qty, hi qty, price_paise, reason_code?, reason_params?, swapped_from_paise?] */
 /** @type {[string, string, string, string, string, number, string?, Record<string, any>?, number?][]} */
@@ -89,7 +102,7 @@ const loadState = () => {
   }
 };
 const saveState = (
-  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string }} */ s,
+  /** @type {{ status: string, version: number, swaps?: Record<string, any>, approved_at?: string, meals?: Record<string, string[]> }} */ s,
 ) => localStorage.setItem(STATE_KEY, JSON.stringify(s));
 
 /** Localised value: [en, hi] pairs become one string. */
@@ -97,7 +110,7 @@ const pick = (/** @type {any} */ v, /** @type {"en" | "hi"} */ lang) =>
   Array.isArray(v) ? v[lang === "hi" ? 1 : 0] : v;
 
 function cycle(/** @type {"en" | "hi"} */ lang) {
-  const { status, version, swaps = {}, approved_at = null } = loadState();
+  const { status, version, swaps = {}, approved_at = null, meals = {} } = loadState();
   const base = LINES.map(([id, en, hi, qen, qhi, price, code, params, from]) => ({
     product_id: id,
     name: lang === "hi" ? hi : en,
@@ -138,10 +151,43 @@ function cycle(/** @type {"en" | "hi"} */ lang) {
     meal_plan: {
       days: DISHES[lang].map(([lunch, dinner], i) => ({
         date: `2026-10-${String(5 + i).padStart(2, "0")}`,
-        meals: [
-          { slot: "lunch", name: lunch, tiffin: i === TIFFIN_DAY },
-          { slot: "dinner", name: dinner, tiffin: i === TIFFIN_DAY },
-        ],
+        meals: /** @type {const} */ (["lunch", "dinner"]).map((slot) => {
+          const date = `2026-10-${String(5 + i).padStart(2, "0")}`;
+          const swapped = meals[`${date}:${slot}`];
+          const reason = MEAL_REASONS.find(([d, sl]) => d === i && sl === slot);
+          const booked = bookedTiffins().some((b) => b.delivery_date === date && b.slot === slot);
+          const planned = slot === "lunch" ? lunch : dinner;
+          return {
+            slot,
+            // A booked tiffin replaces the home-cooked meal.
+            name: booked
+              ? pick(TIFFIN_OFFER.dish, lang)
+              : swapped
+                ? swapped[lang === "hi" ? 1 : 0]
+                : planned,
+            tiffin: i === TIFFIN_DAY || booked,
+            reason_code: swapped ? "swapped_by_you" : (reason?.[2] ?? null),
+            reason_params:
+              !swapped && reason
+                ? Object.fromEntries(Object.entries(reason[3]).map(([k, v]) => [k, pick(v, lang)]))
+                : null,
+          };
+        }),
+        // A home kitchen's dinner tiffin, until the cut-off (design Core-W2).
+        tiffin_offer:
+          i === TIFFIN_DAY ||
+          bookedTiffins().some(
+            (b) => b.delivery_date === `2026-10-${String(5 + i).padStart(2, "0")}`,
+          )
+            ? null
+            : {
+                kitchen_id: TIFFIN_OFFER.kitchen_id,
+                slot: "dinner",
+                cook: { name: pick(TIFFIN_OFFER.cook, lang) },
+                dish: { name: pick(TIFFIN_OFFER.dish, lang) },
+                price_paise: TIFFIN_OFFER.price_paise,
+                order_by: "2026-10-05T21:00:00+05:30",
+              },
       })),
     },
     lines,
@@ -275,6 +321,22 @@ export const subscriptionHandlers = [
       version: state.version + 1,
       swaps: { ...state.swaps, [body.product_id]: { id, en, hi, qen, qhi, price } },
     });
+    return HttpResponse.json(cycle(langOf(request)));
+  }),
+
+  // PATCH meals: { date, slot } with If-Match: swaps that meal for the next alternative (M3).
+  http.patch("*/v1/cycles/:id/meals", async ({ request }) => {
+    const state = loadState();
+    if (Number(request.headers.get("if-match")) !== state.version)
+      return problem(412, "subscriptions.version_conflict", "The plan changed; reload it");
+    if (state.status !== "ready" && state.status !== "approved")
+      return problem(409, "orders.cutoff_passed", "Edits are closed for this week");
+    const { date, slot } = /** @type {{ date: string, slot: string }} */ (await request.json());
+    const meals = { ...(state.meals ?? {}) };
+    const key = `${date}:${slot}`;
+    const at = ALT_DISHES.findIndex(([en]) => en === meals[key]?.[0]);
+    meals[key] = ALT_DISHES[(at + 1) % ALT_DISHES.length];
+    saveState({ ...state, meals, version: state.version + 1 });
     return HttpResponse.json(cycle(langOf(request)));
   }),
 

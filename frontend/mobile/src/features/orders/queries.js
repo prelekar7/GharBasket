@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { request } from "@/lib/api.js";
 
@@ -36,6 +36,30 @@ export function useReportIssue(orderId) {
         body: { kind },
         headers: { "idempotency-key": keys.current[kind] },
       });
+    },
+  });
+}
+
+/**
+ * Book a home kitchen's tiffin for a day (POST /v1/orders, kind "tiffin", M4). One key per day and
+ * meal, so a retry never books twice; it is paid at the cut-off with the box.
+ */
+export function useAddTiffin() {
+  const client = useQueryClient();
+  const keys = useRef(/** @type {Record<string, string>} */ ({}));
+  return useMutation({
+    mutationFn: (/** @type {{ date: string, slot: string, kitchenId: string }} */ v) => {
+      const id = `${v.date}:${v.slot}`;
+      keys.current[id] ??= crypto.randomUUID();
+      return request("/v1/orders", {
+        method: "POST",
+        body: { kind: "tiffin", delivery_date: v.date, slot: v.slot, kitchen_id: v.kitchenId },
+        headers: { "idempotency-key": keys.current[id] },
+      });
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["cycle", "current"] });
+      client.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 }

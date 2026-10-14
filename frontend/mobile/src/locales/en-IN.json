@@ -412,7 +412,21 @@
     "skippedTitle": "No box this week",
     "skippedBody": "You skipped {range}. Nothing will be charged. Your next box is planned for {next}.",
     "undoSkip": "Undo skip",
-    "unskippedToast": "Your box is back for this week. Check and approve it."
+    "unskippedToast": "Your box is back for this week. Check and approve it.",
+    "day": {
+      "open": "Open {day} {date}",
+      "done": "Done",
+      "swap": "Swap meal",
+      "swapped": "Meal swapped",
+      "tiffin": "Tiffin from a home kitchen",
+      "noTime": {
+        "lunch": "No time to cook lunch?",
+        "dinner": "No time to cook dinner?"
+      },
+      "offer": "{cook}’s {dish} from your society · {price} · order by {when}",
+      "addTiffin": "Add tiffin",
+      "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off."
+    }
   },
   "reasons": {
     "in_season": "{item} is in season",
@@ -430,7 +444,8 @@
     "seasonal": "In season",
     "half_qty": "Half quantity",
     "same_protein": "Same protein",
-    "swapped_by_you": "You swapped this"
+    "swapped_by_you": "You swapped this",
+    "quick_cook": "Ready in {minutes} minutes"
   },
   "box": {
     "when": "{day} delivery",
