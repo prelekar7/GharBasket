@@ -7,6 +7,9 @@
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
 
+/** The route today's box rides on: the rider's route in mocks/logistics.js. */
+export const ROUTE_ID = "01994000-0000-7000-8000-000000000001";
+
 /** Today's box, the one on the van: M4's order id (a UUID). */
 export const TODAY_BOX_ID = "0199b000-0000-7000-8000-0000000000a6";
 

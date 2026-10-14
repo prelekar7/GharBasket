@@ -49,7 +49,7 @@ export function rolesFor(/** @type {string} */ phone) {
     "+919800001006": {
       role: "rider",
       scope_type: "hub",
-      scope_id: "hub-kharghar",
+      scope_id: HUB_ID,
       status: "verified",
     },
     "+919800001007": {
