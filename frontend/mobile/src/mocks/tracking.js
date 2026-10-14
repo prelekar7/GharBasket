@@ -1,15 +1,12 @@
-// M7 live-tracking mocks (docs/modules/M7-logistics.md US-5): where today's van is, for the customer.
-// The rider's side of M7 is mocks/logistics.js.
-// The real API streams GET /v1/routes/{id}/live over SSE every 15 s; until it exists the app polls
-// GET /v1/orders/{id}/tracking, our proposal. It adds only what the order cannot say (the van, the
-// rider, the hub's name, the map's two ends); the order's status and times are the order's.
-// The van drives a short demo trip in real time.
+// M7 live-tracking mocks (docs/modules/M7-logistics.md §3.3 and §3.5): the customer's delivery view
+// (GET /v1/deliveries/{order_id}) and the van's position stream (GET /v1/routes/{id}/live, SSE).
+// The rider's side of M7 is mocks/logistics.js. The van drives a short demo trip in real time; the
+// customer never gets the rider, other societies or exact coordinates (positions to 4 decimals).
 import { HttpResponse, http } from "msw";
 import { caller } from "./handlers.js";
 
-/** The route today's box rides on: the rider's route in mocks/logistics.js. */
+/** Today's box and the route it rides on (the rider's route in mocks/logistics.js): UUIDs. */
 export const ROUTE_ID = "01994000-0000-7000-8000-000000000001";
-
 /** Today's box, the one on the van: M4's order id (a UUID). */
 export const TODAY_BOX_ID = "0199b000-0000-7000-8000-0000000000a6";
 
@@ -58,37 +55,114 @@ function along(f) {
   return { lng: a[0] + (b[0] - a[0]) * k, lat: a[1] + (b[1] - a[1]) * k };
 }
 
-const langOf = (/** @type {Request} */ r) =>
-  (r.headers.get("accept-language") ?? "").startsWith("hi") ? "hi" : "en";
+/** Seconds between the van's positions on the stream: 15 in the real API, faster here so a demo moves. */
+const POSITION_MS = 5000;
+const SOCIETY_STOP = { seq: 1, eta_now: "08:40", stops_before: 0 };
+
+const problem = (
+  /** @type {number} */ status,
+  /** @type {string} */ code,
+  /** @type {string} */ title,
+) =>
+  HttpResponse.json(
+    { type: "about:blank", title, status, code },
+    { status, headers: { "content-type": "application/problem+json" } },
+  );
+const signedOut = () => problem(401, "auth.invalid_token", "Sign in again");
+/** Customers only: a rider or captain is not the household. @param {Request} request */
+const notCustomer = (request) => {
+  const role = request.headers.get("x-active-role");
+  return !!role && !role.startsWith("customer");
+};
+
+/** The van, as the stream sends it: 4 decimals (about 11 m) and how old the fix is. */
+function position() {
+  const { lat, lng } = along(deliveryStage().progress);
+  return {
+    at: new Date().toISOString(),
+    lat: +lat.toFixed(4),
+    lng: +lng.toFixed(4),
+    heading: 335,
+    age_s: 4,
+  };
+}
+/** Delivery.status for the stage of the day. @param {string} status */
+const deliveryStatus = (status) =>
+  status === "dispatched" ? "on_route" : status === "at_society" ? "with_captain" : "delivered";
 
 export const trackingHandlers = [
-  http.get("*/v1/orders/:id/tracking", ({ request, params }) => {
-    if (!caller(request))
-      return HttpResponse.json(
-        { type: "about:blank", title: "Sign in again", status: 401, code: "auth.invalid_token" },
-        { status: 401, headers: { "content-type": "application/problem+json" } },
-      );
-    if (params.id !== TODAY_BOX_ID)
-      return HttpResponse.json(
-        {
-          type: "about:blank",
-          title: "This order is not on a van",
-          status: 404,
-          code: "logistics.not_tracked",
-        },
-        { status: 404, headers: { "content-type": "application/problem+json" } },
-      );
-    const hi = langOf(request) === "hi";
-    const { progress } = deliveryStage();
-    const [lng, lat] = ROUTE[ROUTE.length - 1];
+  // The customer's delivery view (§3.5): the window is the promise, `eta` the live estimate, and
+  // `tracking.route_id` opens the stream until the society's handover. No rider, no phone.
+  http.get("*/v1/deliveries/:orderId", ({ request, params }) => {
+    if (!caller(request)) return signedOut();
+    if (notCustomer(request) || params.orderId !== TODAY_BOX_ID)
+      return problem(404, "logistics.delivery_not_found", "No delivery here");
+    const { status } = deliveryStage();
+    const handedOver = status !== "dispatched";
     return HttpResponse.json({
-      order_id: params.id,
-      rider: { name: hi ? "अर्जुन" : "Arjun" },
-      hub: { name: hi ? "खारघर" : "Kharghar", lat: ROUTE[0][1], lng: ROUTE[0][0] },
-      society: { lat, lng },
-      van: along(progress),
-      eta_at: "2026-10-06T03:10:00Z",
-      updated_at: new Date().toISOString(),
+      order_id: TODAY_BOX_ID,
+      status: deliveryStatus(status),
+      attempt: 1,
+      window: { start: "08:00", end: "10:00" },
+      eta: status === "delivered" ? null : "08:40",
+      tracking: handedOver ? null : { route_id: ROUTE_ID },
+      captain: { display_name: "Meena tai", photo_url: null },
+      hold_until: null,
+      delivery_code: status === "delivered" ? null : "5170",
+      proof:
+        status === "delivered"
+          ? { kind: "scan", at: "2026-10-06T04:00:00Z", photo_url: null }
+          : null,
+      redelivery: null,
+    });
+  }),
+
+  // The van's position over SSE: a snapshot first, then positions, then `end` at the handover.
+  http.get("*/v1/routes/:id/live", ({ request, params }) => {
+    if (!caller(request)) return signedOut();
+    if (notCustomer(request)) return problem(403, "auth.forbidden", "Not your route");
+    if (params.id !== ROUTE_ID) return problem(404, "logistics.route_not_found", "Route not found");
+    const encoder = new TextEncoder();
+    /** @type {ReturnType<typeof setInterval> | undefined} */
+    let timer;
+    const stream = new ReadableStream({
+      start(controller) {
+        /** @param {string} event @param {unknown} data */
+        const send = (event, data) =>
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        const stop = () => {
+          clearInterval(timer);
+          try {
+            controller.close();
+          } catch {
+            // Already closed by the reader going away.
+          }
+        };
+        const { status } = deliveryStage();
+        if (status !== "dispatched") {
+          send("end", { reason: "handed_over" });
+          return stop();
+        }
+        send("snapshot", {
+          route_id: ROUTE_ID,
+          status: "in_progress",
+          position: position(),
+          stops: [{ ...SOCIETY_STOP, status: "pending" }],
+        });
+        timer = setInterval(() => {
+          if (deliveryStage().status !== "dispatched") {
+            send("stop", { seq: 1, status: "handed_over", eta_now: null });
+            send("end", { reason: "handed_over" });
+            return stop();
+          }
+          send("position", position());
+        }, POSITION_MS);
+        request.signal.addEventListener("abort", stop);
+      },
+      cancel: () => clearInterval(timer),
+    });
+    return new HttpResponse(stream, {
+      headers: { "content-type": "text/event-stream", "cache-control": "no-store" },
     });
   }),
 ];

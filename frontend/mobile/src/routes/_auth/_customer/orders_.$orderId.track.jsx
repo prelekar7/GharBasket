@@ -4,37 +4,25 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { useDelivery, useLiveRoute } from "@/features/logistics/tracking.js";
 import { hhmm } from "@/features/orders/format.js";
 import { ProblemSheet } from "@/features/orders/ProblemSheet.jsx";
-import { useDeliveryPlace, useOrder, useTracking } from "@/features/orders/queries.js";
+import { useDeliveryPlace, useOrder } from "@/features/orders/queries.js";
 import { legOf, PILL, statusKey } from "@/features/orders/status.js";
 import { clockTime, istClock, shortDate, weekdayName } from "@/features/subscriptions/format.js";
-import { intlLocale } from "@/lib/intlLocale.js";
 
 const TrackMap = lazy(() => import("@/components/TrackMap.jsx"));
 
 /**
  * Live tracking of today's box: the van on a map, when it reaches your society, the last metres
- * (design HcTracking; M4, M7). The order alone gives the steps and times (the delivery slot's end
- * is the ETA); the van, the rider and the map come from M7's tracking, a proposal, and drop out
- * while it is not there.
+ * (design HcTracking; M4, M7). The order gives the steps and times; the delivery card (§3.5) the
+ * ETA and the captain, and the van's stream (§3.3) its position and how many stops come before
+ * yours. The customer never sees the rider. The map and the stops drop out while there is no stream.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer/orders_/$orderId/track")({
   component: Track,
 });
-
-/** Straight-line distance in km, for the words under a map that cannot load. */
-const km = (
-  /** @type {{ lat: number, lng: number }} */ a,
-  /** @type {{ lat: number, lng: number }} */ b,
-) => {
-  const rad = Math.PI / 180;
-  const h =
-    Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
-  return 12742 * Math.asin(Math.sqrt(h));
-};
 
 function Track() {
   const { t, i18n } = useTranslation();
@@ -43,10 +31,11 @@ function Track() {
   const { orderId } = Route.useParams();
   const order = useOrder(orderId, lang);
   const o = order.data;
-  const live = useTracking(orderId, lang, o?.status === "dispatched");
+  const delivery = useDelivery(orderId).data;
+  const live = useLiveRoute(o?.status === "dispatched" ? delivery?.tracking?.route_id : undefined);
   const place = useDeliveryPlace();
   const [reporting, setReporting] = useState(false);
-  const v = live.data;
+  const captain = delivery?.captain?.display_name ?? place.captain;
 
   const back = (
     <IconButton label={t("onboarding.back")} variant="quiet" onPress={() => router.history.back()}>
@@ -80,7 +69,10 @@ function Track() {
   const society = place.society ?? t("orders.yourSociety");
   // The slot's end is when the box is at the door by; the van's own ETA, when known, is for the gate.
   const doorBy = time(hhmm(o.slot.end));
-  const gateBy = v ? time(istClock(v.eta_at)) : doorBy;
+  const gateBy =
+    (live.stop?.eta_now ?? delivery?.eta)
+      ? time(live.stop?.eta_now ?? delivery?.eta ?? "")
+      : doorBy;
   /** @type {{ label: string, time?: string, state: "done" | "current" | "todo" }[]} */
   const steps = [
     { label: t("track.stage.packed"), time: at("packed"), state: leg >= 1 ? "done" : "current" },
@@ -91,9 +83,7 @@ function Track() {
       state: arrived ? "done" : leg === 1 ? "current" : "todo",
     },
     {
-      label: place.captain
-        ? t("track.stage.captain", { captain: place.captain })
-        : t("track.stage.captainNone"),
+      label: captain ? t("track.stage.captain", { captain }) : t("track.stage.captainNone"),
       state: delivered ? "done" : arrived ? "current" : "todo",
     },
     {
@@ -117,27 +107,24 @@ function Track() {
           <StatusPill status={PILL[o.status]}>{t(statusKey(o))}</StatusPill>
         </div>
       </header>
-      {v && (
+      {live.position && (
         <figure className="m-0">
           <Suspense fallback={<Skeleton className="h-[220px] w-full" />}>
             <TrackMap
-              van={v.van}
-              society={v.society}
-              labels={{ van: t("track.vanLabel", { rider: v.rider.name }), society }}
+              van={live.position}
+              labels={{ van: t("track.vanLabel"), society }}
               fallback={
                 <div className="grid h-[220px] place-items-center rounded-md border border-dashed border-line-strong bg-surface p-4 text-center text-sm leading-5 text-fg-secondary">
-                  {arrived
-                    ? t("track.noMapThere", { society })
-                    : t("track.noMap", {
-                        km: km(v.van, v.society).toLocaleString(intlLocale(lang), {
-                          maximumFractionDigits: 1,
-                        }),
-                        society,
-                      })}
+                  {arrived ? t("track.noMapThere", { society }) : t("track.noMap", { society })}
                 </div>
               }
             />
           </Suspense>
+          {live.lastSeenMin !== null && (
+            <figcaption className="text-xs leading-4 text-fg-secondary">
+              {t("track.lastSeen", { count: live.lastSeenMin })}
+            </figcaption>
+          )}
         </figure>
       )}
       <section className="flex items-center gap-3 rounded-md bg-surface px-3.5 py-3">
@@ -153,10 +140,11 @@ function Track() {
           {!delivered && (
             <span className="text-sm leading-5 text-fg-secondary">
               {arrived
-                ? place.captain
-                  ? t("track.captain", { captain: place.captain, time: doorBy })
+                ? captain
+                  ? t("track.captain", { captain, time: doorBy })
                   : t("track.captainNone", { time: doorBy })
-                : v && t("track.rider", { rider: v.rider.name, hub: v.hub.name })}
+                : live.stop?.stops_before !== undefined &&
+                  t("track.stopsBefore", { count: live.stop.stops_before })}
             </span>
           )}
         </div>

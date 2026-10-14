@@ -157,23 +157,6 @@ describe("the delivery day (HcOrders, HcTracking)", () => {
     const moving = await (await get(`/v1/orders/${TODAY_BOX_ID}`)).json();
     expect(moving.timeline.at(-1).status).toBe("dispatched");
   });
-
-  it("shows the van, the rider and the map's ends, not what the order already says", async () => {
-    const live = await (await get(`/v1/orders/${TODAY_BOX_ID}/tracking`)).json();
-    expect(Object.keys(live).sort()).toEqual([
-      "eta_at",
-      "hub",
-      "order_id",
-      "rider",
-      "society",
-      "updated_at",
-      "van",
-    ]);
-    expect(live.eta_at).toBe("2026-10-06T03:10:00Z");
-    expect((await get("/v1/orders/0199b000-0000-7000-8000-0000000000a5/tracking")).status).toBe(
-      404,
-    );
-  });
 });
 
 describe("tiffin orders", () => {
