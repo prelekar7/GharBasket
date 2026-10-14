@@ -42,7 +42,7 @@ function Tiffin() {
   const { data: c, isPending, isError, refetch } = useCurrentCycle(lang);
   const offers = useTiffinOffers(c);
   const offer = offers.data?.find((o) => o.date === date) ?? null;
-  const cook = usePublicPartner(offer?.kitchen_id, lang);
+  const cook = usePublicPartner(offer?.kitchen_id);
   const book = useAddTiffin();
   const [qty, setQty] = useState(2);
   const editable = isEditable(c);
@@ -113,7 +113,7 @@ function Tiffin() {
       {header}
       <KnowYourCookCard
         name={k.name}
-        kitchen={`${k.kitchen}, ${k.area}`}
+        kitchen={k.area}
         specialty={k.specialty}
         fssai={k.fssai_registered}
         hygiene={k.hygiene_trained}

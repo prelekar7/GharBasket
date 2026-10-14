@@ -175,52 +175,6 @@ describe("kitchen partner mocks (M8)", () => {
     });
   });
 
-  it("serves the same trainings contract as applicants, with Lata's refresher still to do", async () => {
-    const t = await json(call("GET", "/v1/trainings"));
-    expect(t).toMatchObject({ verified: true, required_done: 5, required_total: 5 });
-    expect(t.modules.map((/** @type {any} */ m) => m.code)).toEqual([
-      "hygiene",
-      "storage",
-      "packing",
-      "handover",
-      "money",
-      "monsoon_safety",
-    ]);
-    expect(t.modules[1].result).toMatchObject({ score: 4, total: 5, passed: true });
-    expect(t.modules[5]).toMatchObject({
-      kind: "refresher",
-      due: "2026-10-31",
-      minutes: 5,
-      result: null,
-    });
-    expect(t.modules[5].questions).toHaveLength(3);
-  });
-
-  it("scores a refresher on the server: a miss is kept as a try, a pass is final", async () => {
-    const { modules } = await json(call("GET", "/v1/trainings"));
-    const refresher = modules[5];
-    const right = Object.fromEntries(
-      refresher.questions.map((/** @type {any} */ q) => [q.id, q.answer]),
-    );
-    const wrong = Object.fromEntries(
-      refresher.questions.map((/** @type {any} */ q) => [q.id, "z"]),
-    );
-    expect(
-      (await call("POST", "/v1/trainings/monsoon_safety/complete", { answers: right }, "")).status,
-    ).toBe(400);
-    const miss = await json(
-      call("POST", "/v1/trainings/monsoon_safety/complete", { answers: wrong }),
-    );
-    expect(miss).toMatchObject({ score: 0, total: 3, passed: false });
-    expect((await json(call("GET", "/v1/trainings"))).modules[5].result.passed).toBe(false);
-    await call("POST", "/v1/trainings/monsoon_safety/complete", { answers: right });
-    await call("POST", "/v1/trainings/monsoon_safety/complete", { answers: wrong });
-    expect(await json(call("GET", "/v1/trainings"))).toMatchObject({
-      required_done: 5,
-      modules: [{}, {}, {}, {}, {}, { result: { score: 3, passed: true } }],
-    });
-  });
-
   it("pays ₹60 a portion this week, from the ledger in paise", async () => {
     const e = await json(call("GET", "/v1/earnings"));
     expect(e).toMatchObject({

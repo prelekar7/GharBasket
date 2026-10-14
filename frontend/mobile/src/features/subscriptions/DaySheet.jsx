@@ -31,7 +31,7 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
   const offer = day?.meals.some((m) => m.slot === "lunch" && m.tiffin)
     ? undefined
     : offers.data?.find((o) => o.date === day?.date);
-  const cook = usePublicPartner(editable ? offer?.kitchen_id : undefined, lang);
+  const cook = usePublicPartner(editable ? offer?.kitchen_id : undefined);
   /** @param {string} date @param {import("./queries.js").PlannedMeal["slot"]} slot */
   const swapMeal = (date, slot) =>
     swap.mutate(
@@ -94,7 +94,7 @@ export function DaySheet({ cycle, index, onClose, editable, onError }) {
               {cook.data && (
                 <KnowYourCookCard
                   name={cook.data.name}
-                  kitchen={`${cook.data.kitchen}, ${cook.data.area}`}
+                  kitchen={cook.data.area}
                   since={cook.data.since}
                   specialty={cook.data.specialty}
                   fssai={cook.data.fssai_registered}

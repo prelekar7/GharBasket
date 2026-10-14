@@ -6,7 +6,6 @@ import { RoleFrame } from "@/components/RoleFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { useTrainings } from "@/features/partners/queries.js";
 import { TrainingQuiz } from "@/features/partners/TrainingQuiz.jsx";
-import { ApiError } from "@/lib/api.js";
 
 /** Partner training: the next required module as a quiz (design HcPartnerQuiz, M8 US-3). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
@@ -39,13 +38,12 @@ function Training() {
       </>,
     );
   if (trainings.isPending) return wait(<Skeleton lines={8} />);
-  // Training comes after applying.
-  if (trainings.error instanceof ApiError && trainings.error.status === 404)
-    return <Navigate to="/partner" />;
   if (trainings.isError) return wait(<ScreenError onRetry={() => trainings.refetch()} />);
 
   const { modules } = trainings.data;
-  const m = modules.find((x) => x.kind === "required" && !x.result?.passed);
+  // No modules means no application or partner record yet: training comes after applying.
+  if (modules.length === 0) return <Navigate to="/partner" />;
+  const m = modules.find((x) => !x.result?.passed);
   if (!m)
     return frame(
       <>

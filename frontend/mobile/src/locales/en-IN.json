@@ -835,7 +835,8 @@
     "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
     "rejected": "Your application as {role} needs another look. The hub will call you about what to send again.",
     "docsCta": "Add your documents",
-    "trainingCta": "Start training"
+    "trainingCta": "Start training",
+    "inReview": "You applied as {role} on {date}. The hub is checking your documents. You can start training now."
   },
   "ghar": {
     "title": "Ghar Saathi",
@@ -1654,34 +1655,41 @@
       "hub": "Hub check"
     },
     "addedOf": "{added} of {total} added",
-    "added": "Added",
-    "todo": "To do",
     "safe": "Documents go to private storage that only the hub’s verifier can open. We show only the last digits, and we never ask for Aadhaar.",
     "cta": "Upload the next document",
     "done": "Next: training",
     "docs": {
-      "photo_id": {
-        "name": "Photo ID",
-        "note": "PAN, voter ID, driving licence or passport",
+      "id_proof": {
+        "name": "ID proof",
+        "note": "Voter ID, passport or driving licence",
         "added": "{idKind} · {masked}"
       },
-      "fssai": {
-        "name": "FSSAI registration",
-        "note": "Basic registration for home kitchens"
+      "pan": {
+        "name": "PAN card",
+        "note": "Your 10-character PAN number",
+        "added": "PAN · {masked}"
       },
       "bank": {
         "name": "Bank account",
         "note": "We send ₹1 to check the name",
         "added": "Account {masked} · ₹1 sent to check the name"
       },
+      "fssai": {
+        "name": "FSSAI registration",
+        "note": "Basic registration for home kitchens"
+      },
+      "driving_licence": {
+        "name": "Driving licence",
+        "note": "Licence number, valid-until date and your vehicle number",
+        "added": "Licence · {masked}"
+      },
       "kitchen_photos": {
         "name": "Kitchen photos",
-        "note": "3 photos: stove, storage, sink",
+        "note": "2 to 4 photos: stove, storage, sink",
         "added": "{n} photos added"
       }
     },
     "idKinds": {
-      "pan": "PAN card",
       "voter_id": "Voter ID",
       "driving_licence": "Driving licence",
       "passport": "Passport"
@@ -1691,43 +1699,66 @@
       "lead": "A clear photo or PDF, with every corner showing. Never send Aadhaar.",
       "idKind": "Type of ID",
       "number": {
-        "photo_id": "ID number",
         "fssai": "FSSAI registration number",
-        "bank": "Account number"
+        "bank": "Account number",
+        "id_proof": "ID number",
+        "pan": "PAN number",
+        "driving_licence": "Licence number"
       },
       "masked": "After this we show only the last 4 characters.",
       "ifsc": "IFSC",
       "invalid": {
-        "photo_id": "Use 4 to 20 letters and numbers",
         "fssai": "Enter the 14-digit number",
         "bank": "Enter 9 to 18 digits",
-        "ifsc": "An IFSC looks like SBIN0001234"
+        "ifsc": "An IFSC looks like SBIN0001234",
+        "id_proof": "Check the ID number (never Aadhaar)",
+        "pan": "A PAN looks like ABCDE1234F",
+        "driving_licence": "Use 15 or 16 letters and numbers",
+        "vehicle": "A vehicle number looks like MH46AB1234"
       },
       "file": "Choose a photo or PDF",
-      "photos": "Choose 3 photos",
+      "photos": "Choose 2 to 4 photos",
       "chosen": "{n, plural, one {# file chosen} other {# files chosen}}",
       "add": "Add document",
       "saved": "{doc} added.",
       "failed": "Couldn’t add the document. Check your internet and try again.",
-      "leadBank": "We send ₹1 to this account to check the name. Nothing else is taken."
-    }
+      "leadBank": "We send ₹1 to this account to check the name. Nothing else is taken.",
+      "holder": "Name on the account",
+      "vehicle": "Vehicle number",
+      "validUntil": "Valid until",
+      "errors": {
+        "number_invalid": "Check the number and try again.",
+        "aadhaar_not_accepted": "We never accept Aadhaar. Use another ID.",
+        "document_expired": "This document has expired.",
+        "file_key_invalid": "Add the files again and try once more.",
+        "doc_type_invalid": "Check the type of document.",
+        "application_closed": "This application is closed."
+      }
+    },
+    "status": {
+      "missing": "To do",
+      "submitted": "Added",
+      "accepted": "Accepted",
+      "rejected": "Add again"
+    },
+    "checkFailed": "We couldn’t check this automatically. The hub will look at it."
   },
   "training": {
     "close": "Close quiz",
     "eyebrow": "Training · module {n} of {total}",
     "q": "Question",
     "qValue": "{n} of {total}",
-    "right": "Right. {answer}.",
-    "wrong": "Not quite. The safe answer: {answer}.",
     "next": "Next question",
     "finish": "Finish module",
     "passed": "Module done: {score} of {total} right.",
-    "failed": "{score} of {total} right. Go through the module again to pass; one wrong answer is fine.",
+    "failed": "{score} of {total} right. You need {pass}% to pass. Go through the module again.",
     "retry": "Try the module again",
     "saveFailed": "Couldn’t save your answers. Check your internet and try again.",
     "doneTitle": "Training done",
     "doneBody": "The hub will check your documents and call you before your first day.",
-    "back": "Back to your application"
+    "back": "Back to your application",
+    "tooMany": "You have tried this module 5 times today. Try again tomorrow.",
+    "updated": "This module was updated. Start it again."
   },
   "impact": {
     "title": "Our impact",

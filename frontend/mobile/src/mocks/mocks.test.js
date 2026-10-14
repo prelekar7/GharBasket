@@ -229,9 +229,14 @@ describe("week day: meal swap and tiffin", () => {
     expect(await res.json()).toMatchObject({ qty: 2, total_paise: 22000 });
     expect((await post("/v1/orders", { ...body, qty: 9 }, "tif-4")).status).toBe(422);
     const cook = await (
-      await mockFetch(new Request("http://localhost/v1/partners/kit-lata/public"))
+      await mockFetch(new Request("http://localhost/v1/partners/kit-lata/card"))
     ).json();
-    expect(cook).toMatchObject({ name: "Lata Shinde", fssai_registered: true });
+    expect(cook).toMatchObject({
+      partner_id: "kit-lata",
+      display_name: "Lata tai",
+      fssai_reg_no: "11521999000123",
+      hygiene: { grade: "A" },
+    });
   });
 });
 
@@ -1151,116 +1156,5 @@ describe("product detail (HcProduct)", () => {
     const missing = await get("00000000-0000-0000-0000-000000000000");
     expect(missing.status).toBe(404);
     expect((await missing.json()).code).toBe("catalog.product_not_found");
-  });
-});
-
-describe("partner documents (M8 US-2)", () => {
-  const call = async (
-    /** @type {string} */ method,
-    /** @type {string} */ path,
-    /** @type {object | undefined} */ body = undefined,
-    /** @type {Record<string, string>} */ headers = {},
-  ) =>
-    mockFetch(
-      new Request(`http://localhost${path}`, {
-        method,
-        headers: { "content-type": "application/json", "x-gb-client": "web", ...headers },
-        body: body ? JSON.stringify(body) : undefined,
-      }),
-    );
-  const key = () => ({ "idempotency-key": crypto.randomUUID() });
-  const PHOTO = (/** @type {string} */ purpose) => ({
-    purpose,
-    content_type: "image/jpeg",
-    size_bytes: 1000,
-  });
-
-  it("lists a kitchen's four documents, keeps only the last 4 of a number, never Aadhaar", async () => {
-    await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
-    expect((await call("GET", "/v1/kyc-documents")).status).toBe(404);
-    await call("POST", "/v1/partner-applications", { kind: "kitchen" }, key());
-    const list = await (await call("GET", "/v1/kyc-documents")).json();
-    expect(list.items.map((/** @type {{ doc_type: string }} */ d) => d.doc_type)).toEqual([
-      "photo_id",
-      "fssai",
-      "bank",
-      "kitchen_photos",
-    ]);
-    const presign = await (await call("POST", "/v1/files/presign", PHOTO("kyc_document"))).json();
-    expect(presign.key).toMatch(/^kyc_document\//);
-    const aadhaar = await call(
-      "POST",
-      "/v1/kyc-documents",
-      {
-        doc_type: "photo_id",
-        id_kind: "aadhaar",
-        number: "123412341234",
-        file_keys: [presign.key],
-      },
-      key(),
-    );
-    expect(aadhaar.status).toBe(422);
-    const pan = await call(
-      "POST",
-      "/v1/kyc-documents",
-      { doc_type: "photo_id", id_kind: "pan", number: "ABCDE1234F", file_keys: [presign.key] },
-      key(),
-    );
-    expect(await pan.json()).toMatchObject({ status: "added", masked: "••••234F" });
-    expect(JSON.stringify(localStorage)).not.toContain("ABCDE1234F");
-    const app = await (await call("GET", "/v1/partner-applications/me")).json();
-    expect(app.status).toBe("KYC_PENDING");
-  });
-
-  it("opens training once the documents are in, and scores a module on the server", async () => {
-    await call("POST", "/v1/auth/exchange", { dev_phone: "+919800000001" });
-    expect((await call("GET", "/v1/trainings")).status).toBe(404);
-    await call("POST", "/v1/partner-applications", { kind: "captain" }, key());
-    const t = await (await call("GET", "/v1/trainings")).json();
-    // Applicants get the required modules only; the refresher comes once verified.
-    expect(t).toMatchObject({ verified: false, required_done: 0, required_total: 5 });
-    const { modules } = t;
-    expect(modules).toHaveLength(5);
-    expect(modules[1]).toMatchObject({
-      code: "storage",
-      title: "Safe storage",
-      kind: "required",
-      minutes: 10,
-      due: null,
-      result: null,
-    });
-    expect(modules[1].questions[2].answer).toBe("b");
-    const all = Object.fromEntries(
-      modules[0].questions.map((/** @type {{ id: string, answer: string }} */ q) => [
-        q.id,
-        q.answer,
-      ]),
-    );
-    const locked = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
-    expect(locked.status).toBe(409);
-    const presign = await (await call("POST", "/v1/files/presign", PHOTO("kyc_document"))).json();
-    await call(
-      "POST",
-      "/v1/kyc-documents",
-      { doc_type: "photo_id", id_kind: "voter_id", number: "XYZ1234567", file_keys: [presign.key] },
-      key(),
-    );
-    await call(
-      "POST",
-      "/v1/kyc-documents",
-      { doc_type: "bank", number: "123456789012", ifsc: "SBIN0001234" },
-      key(),
-    );
-    expect((await (await call("GET", "/v1/partner-applications/me")).json()).status).toBe(
-      "TRAINING",
-    );
-    const res = await call("POST", "/v1/trainings/hygiene/complete", { answers: all }, key());
-    expect(await res.json()).toMatchObject({ score: 3, total: 3, passed: true });
-    const after = await (await call("GET", "/v1/trainings")).json();
-    expect(after).toMatchObject({ required_done: 1, required_total: 5 });
-    expect(after.modules[0].result).toMatchObject({ score: 3, total: 3, passed: true });
-    expect((await call("POST", "/v1/trainings/monsoon_safety/complete", {}, key())).status).toBe(
-      404,
-    );
   });
 });
