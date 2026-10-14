@@ -1,6 +1,5 @@
 // M1 profile mocks (docs/modules/M1-identity.md §3): PATCH /v1/me, devices, data export and
-// account deletion, plus GET /v1/households/me for the Profile summary (our proposal; M1 lists
-// households but no read endpoint yet). Shapes beyond the frozen UserOut are our proposal.
+// account deletion, plus GET /v1/households/me for the Profile summary (M1). Shapes beyond the frozen UserOut are our proposal.
 import { HttpResponse, http } from "msw";
 import { caller, PROFILE_KEY, userFor } from "./handlers.js";
 import { identityStore } from "./identity.js";
@@ -17,20 +16,20 @@ const problem = (
 const LOCALES = ["en-IN", "hi-IN", "mr-IN"];
 const DEVICES_KEY = "gb-mock-devices";
 
-/** @returns {{ id: string, platform: "android" | "web", label: string, last_seen_at: string, current: boolean }[]} */
+/** DeviceOut, as the real API returns it. @returns {{ id: string, platform: "android" | "web", signed_in_at: string, last_seen_at: string, current: boolean }[]} */
 const devices = () =>
   JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "null") ?? [
     {
       id: "dev-this",
       platform: "web",
-      label: "This phone",
+      signed_in_at: "2026-10-01T09:15:00+05:30",
       last_seen_at: new Date().toISOString(),
       current: true,
     },
     {
       id: "dev-2",
       platform: "android",
-      label: "Redmi Note 13",
+      signed_in_at: "2026-09-12T18:02:00+05:30",
       last_seen_at: "2026-09-28T20:41:00+05:30",
       current: false,
     },
@@ -66,14 +65,21 @@ export const profileHandlers = [
         id: made.id,
         size: made.size,
         society_id: made.society_id,
-        flat: address ? `${String(address.tower ?? "").toUpperCase()}-${address.flat}` : null,
+        address: address
+          ? { flat: `${String(address.tower ?? "").toUpperCase()}-${address.flat}` }
+          : null,
       });
     if (phone === "+919800000005")
       return problem(404, "identity.household_not_found", "No household yet");
-    return HttpResponse.json({ id: "hh-1", size: 4, society_id: "sunrise-towers", flat: "B-402" });
+    return HttpResponse.json({
+      id: "hh-1",
+      size: 4,
+      society_id: "sunrise-towers",
+      address: { flat: "B-402" },
+    });
   }),
 
-  http.get("*/v1/me/devices", () => HttpResponse.json({ items: devices() })),
+  http.get("*/v1/me/devices", () => HttpResponse.json(devices())),
 
   // Revoking a device also ends its refresh token (M1).
   http.delete("*/v1/me/devices/:id", ({ params }) => {

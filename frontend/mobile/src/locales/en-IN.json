@@ -50,6 +50,8 @@
     "peopleLabel": "People",
     "flat": "Flat",
     "thisPhone": "This phone",
+    "deviceName": "{platform} · signed in {date}",
+    "platform": { "android": "Android phone", "web": "Browser" },
     "activeNow": "Active now",
     "lastSeen": "Last used {date}",
     "signOutDevice": "Sign out",

@@ -50,6 +50,8 @@
     "peopleLabel": "जण",
     "flat": "फ्लॅट",
     "thisPhone": "हा फोन",
+    "deviceName": "{platform} · {date} पासून साइन इन",
+    "platform": { "android": "Android फोन", "web": "ब्राउझर" },
     "activeNow": "आता सुरू",
     "lastSeen": "शेवटचा वापर {date}",
     "signOutDevice": "साइन आउट",

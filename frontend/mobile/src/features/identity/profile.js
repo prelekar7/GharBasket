@@ -3,11 +3,15 @@ import { request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 
 /**
- * @typedef {{ id: string, size: number, society_id: string, flat: string | null }} HouseholdSummary
- * @typedef {{ id: string, platform: "android" | "web", label: string, last_seen_at: string, current: boolean }} Device
+ * @typedef {{ id: string, size: number, society_id: string, address: { flat: string } | null }} HouseholdSummary the fields we read of HouseholdOut
+ * @typedef {{ id: string, platform: "android" | "web", signed_in_at: string, last_seen_at: string, current: boolean }} Device DeviceOut (identity/router.py my_devices)
  */
 
-/** Your household for the Profile summary (GET /v1/households/me, our proposal for M1). */
+/** "YYYY-MM-DD" in India for an ISO timestamp: the UTC date would be a day off after 18:30 UTC. @param {string} at */
+export const istDate = (at) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(at));
+
+/** Your household for the Profile summary (GET /v1/households/me, M1). */
 export function useMyHousehold() {
   return useQuery({
     queryKey: ["household", "me"],
@@ -41,11 +45,11 @@ export function useUpdateMe() {
   });
 }
 
-/** Phones signed in to this account (GET /v1/me/devices, M1). */
+/** Phones signed in to this account (GET /v1/me/devices, M1): a bare list of DeviceOut. */
 export function useDevices() {
   return useQuery({
     queryKey: ["devices"],
-    queryFn: async () => /** @type {{ items: Device[] }} */ (await request("/v1/me/devices")).items,
+    queryFn: () => /** @type {Promise<Device[]>} */ (request("/v1/me/devices")),
   });
 }
 

@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useWallet } from "@/features/billing/queries.js";
 import { useSociety } from "@/features/community/queries.js";
 import {
+  istDate,
   useDataExport,
   useDeleteAccount,
   useDevices,
@@ -49,11 +50,17 @@ function Profile() {
   const deleteAccount = useDeleteAccount();
 
   const senior = !!user?.senior_mode;
+  // DeviceOut has no name, so the list says what kind of device it is and since when.
+  const deviceName = (/** @type {import("@/features/identity/profile.js").Device} */ d) =>
+    t("profile.deviceName", {
+      platform: t(`profile.platform.${d.platform}`),
+      date: shortDate(istDate(d.signed_in_at), lang),
+    });
   const leave = async (/** @type {boolean} */ everywhere) => {
     await signOut({ everywhere });
     navigate({ to: "/login" });
   };
-  const where = [household.data?.flat, society?.name].filter(Boolean).join(", ");
+  const where = [household.data?.address?.flat, society?.name].filter(Boolean).join(", ");
   const phone = user?.phone_e164.replace(/^\+91(\d{5})(\d{5})$/, "+91 $1 $2") ?? "";
 
   /** @type {{ key: string, label: string, value?: string, onPress: () => void }[]} */
@@ -174,11 +181,20 @@ function Profile() {
         <RadioCards
           label={t("profile.language")}
           value={lang}
-          onChange={(lng) => {
-            i18n.changeLanguage(lng);
-            update.mutate({ locale: /** @type {typeof lang} */ (lng) });
-            setSheet(null);
-          }}
+          onChange={(lng) =>
+            // The screen changes language only once the server has it; otherwise the app would
+            // show Hindi while the account still says en-IN.
+            update.mutate(
+              { locale: /** @type {typeof lang} */ (lng) },
+              {
+                onSuccess: () => {
+                  i18n.changeLanguage(lng);
+                  setSheet(null);
+                },
+                onError: () => toast(t("profile.saveFailed")),
+              },
+            )
+          }
           options={LOCALES.map((value) => ({ value, title: LANGUAGE_NAMES[value] }))}
         />
       </Sheet>
@@ -195,7 +211,7 @@ function Profile() {
               t("profile.peopleLabel"),
               household.data && t("profile.people", { n: household.data.size }),
             ],
-            [t("profile.flat"), household.data?.flat],
+            [t("profile.flat"), household.data?.address?.flat],
             [t("society.title"), society?.name],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-3 border-b border-line py-2.5">
@@ -227,13 +243,13 @@ function Profile() {
               >
                 <span className="flex flex-col">
                   <span className="font-semibold">
-                    {d.current ? t("profile.thisPhone") : d.label}
+                    {d.current ? t("profile.thisPhone") : deviceName(d)}
                   </span>
                   <span className="text-sm text-fg-secondary">
                     {d.current
                       ? t("profile.activeNow")
                       : t("profile.lastSeen", {
-                          date: shortDate(d.last_seen_at.slice(0, 10), lang),
+                          date: shortDate(istDate(d.last_seen_at), lang),
                         })}
                   </span>
                 </span>
@@ -243,7 +259,7 @@ function Profile() {
                     isPending={revoke.isPending && revoke.variables === d.id}
                     onPress={() =>
                       revoke.mutate(d.id, {
-                        onSuccess: () => toast(t("profile.revoked", { device: d.label })),
+                        onSuccess: () => toast(t("profile.revoked", { device: deviceName(d) })),
                         onError: () => toast(t("profile.saveFailed")),
                       })
                     }
