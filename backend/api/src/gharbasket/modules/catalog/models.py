@@ -1,7 +1,8 @@
 """Tables of M2 Catalog & Pricing. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 Categories, products, the search terms that make one product findable by every spelling, hub
-price lists (spec §3.1), and recipes with their ingredients and the festival calendar (§3.2).
+price lists (spec §3.1), recipes with their ingredients and the festival calendar (§3.2), and
+kitchens' tiffin menus (§4; booked through M4 §3.5).
 """
 
 import uuid
@@ -43,6 +44,8 @@ CUISINES = ("maharashtrian", "gujarati", "north_indian", "south_indian", "bengal
 SLOTS = ("breakfast", "lunch", "dinner")
 DIETS = ("veg", "egg")
 INGREDIENT_UNITS = ("g", "ml", "piece", "bunch")
+MEALS = ("lunch", "dinner")
+MENU_STATUSES = ("draft", "approved", "withdrawn")
 
 # Search compares lower-cased, accent-free text. The migration creates `catalog.f_unaccent`, an
 # IMMUTABLE wrapper (unaccent() itself is only STABLE, so it cannot feed a generated column).
@@ -261,3 +264,33 @@ class Festival(Base):
     # {"fasting": bool, "no_onion_garlic": bool}
     rules: Mapped[dict[str, bool]] = mapped_column(JSONB)
     verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+
+
+class TiffinMenu(Base):
+    """One kitchen partner's tiffin offer for a date and meal (spec §4), shown to the customers of
+    her hub once a hub manager approves it. Its `partner_id` is the customer's preferred cook, not
+    a hard choice (M8 §3.4); `product_id` is the tiffin product whose tags carry the skills."""
+
+    __tablename__ = "tiffin_menus"
+    __table_args__ = (
+        UniqueConstraint("partner_id", "date", "meal"),
+        CheckConstraint(_one_of("meal", MEALS), name="meal"),
+        CheckConstraint(_one_of("status", MENU_STATUSES), name="status"),
+        CheckConstraint("price_paise > 0", name="price_paise"),
+        Index("ix_tiffin_menus_hub_id_date_status", "hub_id", "date", "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    # M6's hub and M8's kitchen partner: plain UUIDs, no foreign keys across schemas.
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    partner_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    on_date: Mapped[date] = mapped_column("date", Date)
+    meal: Mapped[str] = mapped_column(String(8))
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.products.id", ondelete="RESTRICT")
+    )
+    recipe_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), server_default=text("'{}'"))
+    price_paise: Mapped[int] = mapped_column(BigInteger)  # per portion
+    status: Mapped[str] = mapped_column(String(12), server_default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

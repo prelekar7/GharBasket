@@ -294,3 +294,34 @@ class ResolveIn(BaseModel):
         if self.outcome == "reject" and self.credit_paise:
             raise ValueError("A rejection credits nothing.")
         return self
+
+
+# --- tiffin menus and direct tiffin orders (§3.5) -----------------------------------------------
+
+Meal = Literal["lunch", "dinner"]
+
+
+class DishOut(BaseModel):
+    recipe_id: uuid.UUID
+    name: str = Field(description="In Accept-Language", examples=["Varan bhaat"])
+
+
+class MenuKitchenOut(BaseModel):
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Lata tai"])
+    photo_url: str | None = Field(description="Null for now (M8 §3.5)")
+
+
+class TiffinMenuOut(BaseModel):
+    id: uuid.UUID
+    date: date
+    meal: Meal
+    hub_id: uuid.UUID
+    dishes: list[DishOut]
+    price_paise: int = Field(description="Per portion", examples=[11000])
+    kitchen: MenuKitchenOut = Field(description="The menu's cook: a preference (M8 §3.4)")
+    order_by: datetime = Field(description="The cut-off of that date (T-1 21:00 IST)")
+
+
+class TiffinMenusOut(BaseModel):
+    items: list[TiffinMenuOut]

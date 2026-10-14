@@ -1,6 +1,6 @@
 """HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1),
 problems reported on an order (§3.2), the live timeline (§3.3), the console's triage of problems
-(§3.6), and paying a failed box (§3.4)."""
+(§3.6), and paying a failed box (§3.4). Tiffins (§3.5) are in `tiffin_router`."""
 
 import uuid
 from dataclasses import asdict
@@ -44,6 +44,7 @@ from gharbasket.modules.orders.schemas import (
     Status,
 )
 from gharbasket.modules.orders.service import IST, SlotLoad
+from gharbasket.modules.orders.tiffin_router import router as tiffin_router
 from gharbasket.platform import audit, files
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
@@ -55,6 +56,7 @@ from gharbasket.platform.permissions import Permit, forbidden, require
 from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["orders"])
+router.include_router(tiffin_router)
 
 CanRead = Annotated[Permit, require("orders:read")]
 CanWrite = Annotated[Permit, require("orders:write")]

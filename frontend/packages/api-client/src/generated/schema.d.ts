@@ -1844,6 +1844,23 @@ export interface paths {
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
         trace?: never;
     };
+    "/v1/tiffin-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Approved tiffin menus of your hub, tomorrow to a week ahead, still open to book */
+        get: operations["tiffin_menus_v1_tiffin_menus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/vehicles/{vehicle_id}": {
         parameters: {
             query?: never;
@@ -2481,6 +2498,20 @@ export interface components {
              * Format: date-time
              */
             signed_in_at: string;
+        };
+        /** DishOut */
+        DishOut: {
+            /**
+             * Name
+             * @description In Accept-Language
+             * @example Varan bhaat
+             */
+            name: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             */
+            recipe_id: string;
         };
         /** Entry */
         Entry: {
@@ -3776,6 +3807,24 @@ export interface components {
             health_tags?: ("diabetes" | "high_bp" | "pcos" | "low_oil" | "high_protein" | "weight_loss")[] | null;
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
+        };
+        /** MenuKitchenOut */
+        MenuKitchenOut: {
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Photo Url
+             * @description Null for now (M8 §3.5)
+             */
+            photo_url: string | null;
         };
         /** ModelMetricIn */
         ModelMetricIn: {
@@ -6201,6 +6250,50 @@ export interface components {
             items: components["schemas"]["TemplateOut"][];
             /** Kinds */
             kinds: components["schemas"]["KindOut"][];
+        };
+        /** TiffinMenuOut */
+        TiffinMenuOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dishes */
+            dishes: components["schemas"]["DishOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description The menu's cook: a preference (M8 §3.4) */
+            kitchen: components["schemas"]["MenuKitchenOut"];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Order By
+             * Format: date-time
+             * @description The cut-off of that date (T-1 21:00 IST)
+             */
+            order_by: string;
+            /**
+             * Price Paise
+             * @description Per portion
+             * @example 11000
+             */
+            price_paise: number;
+        };
+        /** TiffinMenusOut */
+        TiffinMenusOut: {
+            /** Items */
+            items: components["schemas"]["TiffinMenuOut"][];
         };
         /** TimelineEntry */
         TimelineEntry: {
@@ -14417,6 +14510,49 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tiffin_menus_v1_tiffin_menus_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+                meal?: ("lunch" | "dinner") | null;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenusOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required, orders.date_out_of_range, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

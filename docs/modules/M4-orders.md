@@ -358,6 +358,10 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 | 422 `orders.invalid_order` | 422 `orders.menu_unknown` (not approved, other hub, past `order_by`), `orders.kind_unavailable`, `orders.qty_invalid` (portions) |
 | 201 `{ id, delivery_date, slot, kitchen_id }` | 201 `OrderOut` with `tiffin` |
 
+**As built (tiffin menus).**
+- `catalog.tiffin_menus` is M2's table (M2 §4); M2 reads it through `catalog.api.tiffin_menus(hub_id, first, last, meal)` (approved only) and `catalog.api.tiffin_menu(id)` (any status). M2 has no endpoints to write or approve menus yet (M2 lists only the `tiffin_menus:write` permission), so menus are written by seed or tests until that flow is specified.
+- `GET /v1/tiffin-menus`: `date` is optional (default: every date from tomorrow to tomorrow + 6) and must lie in that window (else 422 `orders.date_out_of_range`); `meal` filters. Menus past their `order_by` are left out. A caller without a household gets 422 `orders.hub_required`. The kitchen's `display_name` comes from `partners.api.profile_card` (empty when the partner record is missing).
+
 ### 3.6 Issue triage contract (drafted 2026-10-09, frozen on approval)
 This is the console's queue for issues that stay `open` (§3.2), resolved through the existing `orders.api.resolve_issue`. M4 serves the endpoints because it owns the issues; the page sits in the console's Hub section. No console page or mock exists yet. Permission `order_issues:resolve` (§7).
 
