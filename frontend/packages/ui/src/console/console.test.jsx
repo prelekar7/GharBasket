@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { ChartCard } from "./ChartCard.jsx";
 import { cellSortValue, DataTable } from "./DataTable.jsx";
 import { FilterBar } from "./FilterBar.jsx";
 import { KpiTile, Sparkline } from "./Kpi.jsx";
+import { MapPanel } from "./MapPanel.jsx";
 
 const columns = [
   { key: "name", label: "Item", sortable: true },
@@ -167,5 +169,69 @@ describe("FilterBar", () => {
     expect(html).toContain("6 results");
     expect(html).toContain('aria-label="Remove filter: Tue 6 Oct"');
     expect(html).toContain("All stops");
+  });
+});
+
+describe("ChartCard", () => {
+  const series = [{ name: "Earnings", values: [620000, 845000] }];
+  it("puts the numbers in a table for screen readers, money from paise", () => {
+    const html = renderToStaticMarkup(
+      <ChartCard
+        title="Partner earnings"
+        kind="line"
+        format="money"
+        labels={["28 Sep", "5 Oct"]}
+        series={series}
+      />,
+    );
+    expect(html).toContain("<caption>Partner earnings</caption>");
+    expect(html).toContain("₹6,200");
+    expect(html).toContain("₹8,450");
+    expect(html).toContain('aria-hidden="true"'); // the drawing itself is not read aloud
+  });
+
+  it("formats percentages and units, and lists several series in a legend", () => {
+    const html = renderToStaticMarkup(
+      <ChartCard
+        title="Fill"
+        format="pct"
+        labels={["a"]}
+        series={[
+          { name: "One", values: [92] },
+          { name: "Two", values: [81] },
+        ]}
+        note="Example"
+      />,
+    );
+    expect(html).toContain("92%");
+    expect(html).toContain("Two");
+    expect(html).toContain("Example");
+    expect(
+      renderToStaticMarkup(
+        <ChartCard
+          title="Waste"
+          unit="kg"
+          labels={["a"]}
+          series={[{ name: "W", values: [1200] }]}
+        />,
+      ),
+    ).toContain("1,200 kg");
+  });
+});
+
+describe("MapPanel", () => {
+  it("renders its frame, legend and OpenStreetMap credit before the map library loads", () => {
+    const html = renderToStaticMarkup(
+      <MapPanel
+        label="Route"
+        markers={[{ id: "h", kind: "hub", label: "Hub", lng: 73, lat: 19 }]}
+        legend={[{ kind: "route", label: "Planned route" }]}
+        note="Example"
+      />,
+    );
+    expect(html).toContain('aria-label="Route"');
+    expect(html).toContain("Planned route");
+    expect(html).toContain("OpenFreeMap");
+    expect(html).toContain("Example");
   });
 });
