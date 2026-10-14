@@ -60,6 +60,12 @@ const STAGE_OF = /** @type {Record<string, string>} */ ({
   UNDELIVERED: "AT_SOCIETY",
   REDELIVERY: "AT_SOCIETY",
 });
+/** Tiffin timeline stages (handbook §6.3); ASSIGNED and READY count as the stage before them. */
+const TIFFIN_STAGES = ["LOCKED", "PREPARING", "PICKED_UP", "DELIVERED"];
+const TIFFIN_STAGE_OF = /** @type {Record<string, string>} */ ({
+  ASSIGNED: "LOCKED",
+  READY: "PREPARING",
+});
 const ISSUES = ["missing", "damaged", "late", "other"];
 
 function Orders() {
@@ -80,8 +86,12 @@ function Orders() {
     </header>
   );
 
+  // An order is "now" only on its delivery day or later: a box locked tonight for tomorrow is
+  // still "coming up" until the morning it is delivered.
   const current = data?.find(
-    (o) => ACTIVE.has(o.status) || (o.status === "DELIVERED" && o.delivery_date === today),
+    (o) =>
+      o.delivery_date <= today &&
+      (ACTIVE.has(o.status) || (o.status === "DELIVERED" && o.delivery_date === today)),
   );
   const report = useReportIssue(current?.id);
 
@@ -120,17 +130,19 @@ function Orders() {
   };
   const steps = current
     ? (() => {
-        const reached = STAGES.indexOf(STAGE_OF[current.status] ?? current.status);
+        const tiffin = current.kind === "tiffin";
+        const stages = tiffin ? TIFFIN_STAGES : STAGES;
+        const stageOf = tiffin ? TIFFIN_STAGE_OF : STAGE_OF;
+        const reached = stages.indexOf(stageOf[current.status] ?? current.status);
         const issueNow = current.status === "UNDELIVERED";
-        return STAGES.map((stage, i) => {
-          const event = current.events.find(
-            (e) => (STAGE_OF[e.to_status] ?? e.to_status) === stage,
-          );
+        return stages.map((stage, i) => {
+          const event = current.events.find((e) => (stageOf[e.to_status] ?? e.to_status) === stage);
           const done = i < reached || (i === reached && stage === "DELIVERED");
           return {
             label: t(`orders.stage.${stage}`, {
               hub: current.hub?.name ?? "",
               captain: current.captain?.name ?? "",
+              cook: current.cook?.name ?? "",
             }),
             time: event
               ? at(event.at, current.delivery_date)
@@ -172,7 +184,11 @@ function Orders() {
           </figure>
           <OrderTimeline
             steps={steps}
-            label={t("orders.box", { n: current.items_count ?? 0 })}
+            label={
+              current.kind === "tiffin"
+                ? t("orders.tiffinTitle", { dish: current.dish?.name ?? "" })
+                : t("orders.box", { n: current.items_count ?? 0 })
+            }
             labels={{
               done: t("orders.tl.done"),
               current: t("orders.tl.current"),

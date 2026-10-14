@@ -22,19 +22,21 @@ export function useOrders(lang) {
 }
 
 /**
- * Tell the hub something went wrong with a delivery (POST /v1/orders/{id}/issues, our proposal).
- * One Idempotency-Key per order and problem, so a retry never files it twice.
+ * Tell the hub something went wrong with a delivery (POST /v1/orders/{id}/issues, proposed in M4 §3).
+ * One Idempotency-Key per order and problem (keyed by both), so a retry never files it twice and
+ * reporting on another order never reuses the first order's key.
  * @param {string | undefined} orderId
  */
 export function useReportIssue(orderId) {
   const keys = useRef(/** @type {Record<string, string>} */ ({}));
   return useMutation({
     mutationFn: (/** @type {string} */ kind) => {
-      keys.current[kind] ??= crypto.randomUUID();
+      const slot = `${orderId}:${kind}`;
+      keys.current[slot] ??= crypto.randomUUID();
       return request(`/v1/orders/${orderId}/issues`, {
         method: "POST",
         body: { kind },
-        headers: { "idempotency-key": keys.current[kind] },
+        headers: { "idempotency-key": keys.current[slot] },
       });
     },
   });
