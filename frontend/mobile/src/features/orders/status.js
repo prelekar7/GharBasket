@@ -51,6 +51,27 @@ export const STAGE_OF = {
   undelivered: "at_society",
   redelivery: "at_society",
 };
+/**
+ * A tiffin's timeline (handbook 06 §6.3, M4 §3.5): it uses the box statuses but is cooked, not
+ * packed, and the kitchen hands it straight to the rider, so it never reaches `at_society`.
+ * `picking` is being cooked, `packed` (ready) counts as still cooking, `dispatched` is picked up.
+ */
+export const TIFFIN_STAGES = /** @type {const} */ ([
+  "locked",
+  "picking",
+  "dispatched",
+  "delivered",
+]);
+/** @type {Partial<Record<OrderStatus, (typeof TIFFIN_STAGES)[number]>>} */
+export const TIFFIN_STAGE_OF = { packed: "picking", undelivered: "dispatched" };
+/** The `orders.stage.*` words of the tiffin stages. */
+export const TIFFIN_STAGE_KEY = /** @type {const} */ ({
+  locked: "LOCKED",
+  picking: "PREPARING",
+  dispatched: "PICKED_UP",
+  delivered: "DELIVERED",
+});
+
 /** The existing `orders.stage.*` words are keyed in capitals (the Week screen shares them). */
 export const STAGE_KEY = /** @type {const} */ ({
   approved: "APPROVED",

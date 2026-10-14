@@ -708,6 +708,8 @@
       "LOCKED": "कट-ऑफ़ पर भुगतान",
       "PACKED": "{hub} हब पर पैक",
       "AT_SOCIETY": "{captain} (कैप्टन) के पास",
+      "PREPARING": "{cook} के यहाँ बन रहा है",
+      "PICKED_UP": "उठा लिया, रास्ते में",
       "DELIVERED": "आपके दरवाज़े पर"
     },
     "by": "{time} तक",

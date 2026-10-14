@@ -712,6 +712,8 @@
       "LOCKED": "Paid at cut-off",
       "PACKED": "Packed at {hub} hub",
       "AT_SOCIETY": "With {captain}, your captain",
+      "PREPARING": "Being cooked by {cook}",
+      "PICKED_UP": "Picked up, on the way",
       "DELIVERED": "Delivered to your door"
     },
     "by": "by {time}",

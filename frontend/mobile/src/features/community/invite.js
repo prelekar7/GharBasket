@@ -28,8 +28,7 @@ const PUBLIC_WEB_URL = (import.meta.env.VITE_PUBLIC_WEB_URL || "https://gharbask
 );
 
 /** The society's landing page that an invite points to (M9 `/s/<society>`, by slug). @param {string} societySlug */
-export const inviteLink = (societySlug) =>
-  `${PUBLIC_WEB_URL}/s/${encodeURIComponent(societySlug)}`;
+export const inviteLink = (societySlug) => `${PUBLIC_WEB_URL}/s/${encodeURIComponent(societySlug)}`;
 
 /** WhatsApp with the message ready to send (wa.me works in the app and on the web). @param {string} text */
 export const whatsappShare = (text) =>

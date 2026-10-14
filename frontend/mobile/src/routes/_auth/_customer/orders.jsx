@@ -29,6 +29,9 @@ import {
   STAGE_OF,
   STAGES,
   statusKey,
+  TIFFIN_STAGE_KEY,
+  TIFFIN_STAGE_OF,
+  TIFFIN_STAGES,
   TRACKABLE,
 } from "@/features/orders/status.js";
 import {
@@ -79,8 +82,12 @@ function Orders() {
 
   // The API lists the newest delivery first; the screen wants the soonest.
   const orders = [...(data ?? [])].sort(soonest);
+  // An order is "now" only from its delivery day: a box locked tonight for tomorrow is still
+  // "coming up" until the morning it is delivered.
   const current = orders.find(
-    (o) => ACTIVE.has(o.status) || (o.status === "delivered" && o.delivery_date >= yesterday),
+    (o) =>
+      (ACTIVE.has(o.status) && o.delivery_date <= today) ||
+      (o.status === "delivered" && o.delivery_date >= yesterday),
   );
   // The list has no lines or timeline: the one order on show is read in full.
   const detail = useOrder(current?.id, lang);
@@ -137,22 +144,35 @@ function Orders() {
   };
   const steps = current
     ? (() => {
-        const reached = STAGES.indexOf(
-          STAGE_OF[current.status] ?? /** @type {any} */ (current.status),
-        );
+        const tiffinOrder = current.kind === "tiffin";
+        /** @type {readonly string[]} */
+        const stages = tiffinOrder ? TIFFIN_STAGES : STAGES;
+        /** @type {Record<string, string | undefined>} */
+        const stageOf = tiffinOrder ? TIFFIN_STAGE_OF : STAGE_OF;
+        const reached = stages.indexOf(stageOf[current.status] ?? current.status);
         const issueNow = current.status === "undelivered";
-        return STAGES.map((stage, i) => {
+        /** @param {string} stage */
+        const label = (stage) => {
+          if (tiffinOrder)
+            return t(
+              `orders.stage.${TIFFIN_STAGE_KEY[/** @type {keyof typeof TIFFIN_STAGE_KEY} */ (stage)]}`,
+              {
+                cook: tiffin.data?.cook.name ?? "",
+              },
+            );
+          if (stage === "packed") return t("track.stage.packed");
+          if (stage === "at_society" && !place.captain) return t("orders.withCaptain");
+          return t(`orders.stage.${STAGE_KEY[/** @type {keyof typeof STAGE_KEY} */ (stage)]}`, {
+            captain: place.captain ?? "",
+          });
+        };
+        return stages.map((stage, i) => {
           const event = detail.data?.timeline.find(
-            (e) => (STAGE_OF[e.status] ?? e.status) === stage,
+            (e) => (stageOf[e.status] ?? e.status) === stage,
           );
           const done = i < reached || (i === reached && stage === "delivered");
           return {
-            label:
-              stage === "packed"
-                ? t("track.stage.packed")
-                : stage === "at_society" && !place.captain
-                  ? t("orders.withCaptain")
-                  : t(`orders.stage.${STAGE_KEY[stage]}`, { captain: place.captain ?? "" }),
+            label: label(stage),
             time: event
               ? at(event.at, current.delivery_date)
               : stage === "delivered"
