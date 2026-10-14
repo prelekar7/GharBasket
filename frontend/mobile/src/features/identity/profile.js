@@ -3,7 +3,8 @@ import { ApiError, request } from "@/lib/api.js";
 import { useSession } from "@/lib/session.js";
 
 /**
- * @typedef {{ id: string, size: number, society_id: string, flat: string | null }} HouseholdSummary
+ * @typedef {import("@/mocks/householdStore.js").Household} Household
+ * @typedef {Household} HouseholdSummary
  * @typedef {{ id: string, platform: "android" | "web", label: string, last_seen_at: string, current: boolean }} Device
  */
 
@@ -88,5 +89,26 @@ export function useDeleteAccount() {
       /** @type {Promise<{ status: string, purge_on: string }>} */ (
         request("/v1/me", { method: "DELETE" })
       ),
+  });
+}
+
+/**
+ * Pause Autopilot until a date, or resume with null (PATCH /v1/subscriptions/{id}, M3 `paused_until`).
+ * @param {string | undefined} subscriptionId
+ */
+export function usePause(subscriptionId) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (/** @type {string | null} */ until) =>
+      /** @type {Promise<{ id: string, status: string, paused_until: string | null }>} */ (
+        request(`/v1/subscriptions/${subscriptionId}`, {
+          method: "PATCH",
+          body: { paused_until: until },
+        })
+      ),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["household", "me"] });
+      client.invalidateQueries({ queryKey: ["cycle", "current"] });
+    },
   });
 }

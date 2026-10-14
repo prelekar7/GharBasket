@@ -161,18 +161,30 @@ function Week() {
         </section>
       )}
       {c.status === "skipped" ? (
-        <EmptyState
-          illustration={<EmptyBasket />}
-          title={t("week.skippedTitle")}
-          body={t("week.skippedBody", {
-            range: weekRange(c.week_start, lang),
-            next: `${weekdayName(nextWeek(c.delivery_date), lang)} ${shortDate(nextWeek(c.delivery_date), lang)}`,
-          })}
-          action={t("week.undoSkip")}
-          onAction={() =>
-            unskip.mutate(c, { onSuccess: () => toast(t("week.unskippedToast")), onError })
-          }
-        />
+        <>
+          <EmptyState
+            illustration={<EmptyBasket />}
+            title={t("week.skippedTitle")}
+            body={t("week.skippedBody", {
+              range: weekRange(c.week_start, lang),
+              next: `${weekdayName(nextWeek(c.delivery_date), lang)} ${shortDate(nextWeek(c.delivery_date), lang)}`,
+            })}
+            action={t("week.undoSkip")}
+            onAction={() =>
+              unskip.mutate(c, { onSuccess: () => toast(t("week.unskippedToast")), onError })
+            }
+          />
+          <p className="-mt-2 text-center text-sm text-fg-secondary">
+            {t("week.pauseLead")}{" "}
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/profile" })}
+              className="font-semibold text-link underline outline-none focus-visible:shadow-focus"
+            >
+              {t("week.pauseLink")}
+            </button>
+          </p>
+        </>
       ) : (
         <>
           <ThaliWeek

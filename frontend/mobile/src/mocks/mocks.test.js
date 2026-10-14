@@ -281,3 +281,70 @@ describe("society invites and unlock (M9, Core-S1/S4)", () => {
     expect(await r.json()).toMatchObject({ food_saved_kg: 42, items_donated: 18 });
   });
 });
+
+describe("household edits and pause (M1, M3)", () => {
+  const signedIn = async () => {
+    const ex = await mockFetch(
+      new Request("http://localhost/v1/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-gb-client": "web" },
+        body: JSON.stringify({ dev_phone: "+919800000001" }),
+      }),
+    );
+    return (await ex.json()).user;
+  };
+  const call = async (
+    /** @type {string} */ method,
+    /** @type {string} */ path,
+    /** @type {object | undefined} */ body = undefined,
+    /** @type {Record<string, string>} */ headers = {},
+  ) =>
+    mockFetch(
+      new Request(`http://localhost${path}`, {
+        method,
+        headers: { "content-type": "application/json", "x-gb-client": "web", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+      }),
+    );
+
+  it("changes the family with If-Match and keeps the size in step", async () => {
+    await signedIn();
+    const h = await (await call("GET", "/v1/households/me")).json();
+    expect(h).toMatchObject({ size: 4, version: 1 });
+    const res = await call(
+      "PATCH",
+      `/v1/households/${h.id}`,
+      { members: { ...h.members, children: 3 } },
+      { "if-match": "1" },
+    );
+    expect(await res.json()).toMatchObject({ size: 5, version: 2 });
+    expect(
+      (await call("PATCH", `/v1/households/${h.id}`, { diet: "egg" }, { "if-match": "1" })).status,
+    ).toBe(412);
+  });
+
+  it("refuses health tags without consent", async () => {
+    await signedIn();
+    const h = await (await call("GET", "/v1/households/me")).json();
+    const res = await call(
+      "PATCH",
+      `/v1/households/${h.id}`,
+      { health_consent: false, health: { "adults-1": ["diabetes"] } },
+      { "if-match": String(h.version) },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("pauses and resumes the subscription", async () => {
+    await signedIn();
+    const h = await (await call("GET", "/v1/households/me")).json();
+    const paused = await (
+      await call("PATCH", `/v1/subscriptions/${h.subscription.id}`, { paused_until: "2026-10-20" })
+    ).json();
+    expect(paused).toMatchObject({ status: "paused", paused_until: "2026-10-20" });
+    const on = await (
+      await call("PATCH", `/v1/subscriptions/${h.subscription.id}`, { paused_until: null })
+    ).json();
+    expect(on.status).toBe("active");
+  });
+});

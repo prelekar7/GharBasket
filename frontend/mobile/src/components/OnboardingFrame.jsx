@@ -2,7 +2,7 @@ import { IconButton, ProgressBar } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { HOUSEHOLD_STEPS } from "@/features/onboarding/draft.js";
+import { HOUSEHOLD_STEPS, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
 /**
  * Layout shared by the onboarding screens (designs Hf04–Hf15): back button, content, and a footer
@@ -14,6 +14,8 @@ import { HOUSEHOLD_STEPS } from "@/features/onboarding/draft.js";
 export function OnboardingFrame({ children, footer, step, back = true }) {
   const { t } = useTranslation();
   const router = useRouter();
+  // Editing from Profile is one screen, not a flow, so the step progress is left out.
+  const editing = useOnboardingDraft((s) => !!s.editing);
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-4 bg-bg px-5 pt-[calc(12px+env(safe-area-inset-top))] pb-6 text-fg">
       {back && (
@@ -27,7 +29,7 @@ export function OnboardingFrame({ children, footer, step, back = true }) {
           </IconButton>
         </div>
       )}
-      {step && (
+      {step && !editing && (
         <ProgressBar
           label={t("onboarding.household")}
           value={step}

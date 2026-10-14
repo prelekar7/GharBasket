@@ -3,7 +3,7 @@
 // households but no read endpoint yet). Shapes beyond the frozen UserOut are our proposal.
 import { HttpResponse, http } from "msw";
 import { caller, isNewUser, PROFILE_KEY, userFor } from "./handlers.js";
-import { identityStore } from "./identity.js";
+import { demoHousehold, householdOf, saveHousehold } from "./householdStore.js";
 
 const problem = (
   /** @type {number} */ status,
@@ -55,21 +55,60 @@ export const profileHandlers = [
     return HttpResponse.json(userFor(phone));
   }),
 
+  // GET /v1/households/me (our proposal; M1 has GET /v1/households/{id}): the caller's household
+  // with members, food rules, health (only with consent) and the subscription's pause.
   http.get("*/v1/households/me", ({ request }) => {
     const phone = caller(request);
     if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
-    // The household made in onboarding this session, else the designs' family of four.
-    const made = Object.values(identityStore.households).at(-1);
-    const address = identityStore.addresses.at(-1);
-    if (made)
-      return HttpResponse.json({
-        id: made.id,
-        size: made.size,
-        society_id: made.society_id,
-        flat: address ? `${String(address.tower ?? "").toUpperCase()}-${address.flat}` : null,
-      });
-    if (isNewUser(phone)) return problem(404, "identity.household_not_found", "No household yet");
-    return HttpResponse.json({ id: "hh-1", size: 4, society_id: "sunrise-towers", flat: "B-402" });
+    let h = householdOf(phone);
+    if (!h && !isNewUser(phone)) {
+      h = demoHousehold();
+      saveHousehold(phone, h);
+    }
+    if (!h) return problem(404, "identity.household_not_found", "No household yet");
+    return HttpResponse.json(h.health_consent ? h : { ...h, health: {} });
+  }),
+
+  // PATCH /v1/households/{id} with If-Match (M1). Member counts and health tags ride along here as a
+  // proposal shortcut for the Profile editor; the spec has them under …/members.
+  http.patch("*/v1/households/:id", async ({ request }) => {
+    const phone = caller(request);
+    const h = phone && householdOf(phone);
+    if (!phone || !h) return problem(404, "identity.household_not_found", "No household yet");
+    if (Number(request.headers.get("if-match")) !== h.version)
+      return problem(412, "identity.version_conflict", "Your household changed; reload it");
+    const body = /** @type {Record<string, any>} */ (await request.json());
+    if (
+      body.health &&
+      Object.keys(body.health).length &&
+      !(body.health_consent ?? h.health_consent)
+    )
+      return problem(403, "identity.health_consent_required", "Health tags need consent first");
+    const next = { ...h, ...body, id: h.id, version: h.version + 1 };
+    next.size = Object.values(next.members).reduce((a, b) => a + Number(b), 0);
+    if (next.size < 1) return problem(422, "identity.household_invalid", "At least one person");
+    if (!next.health_consent) next.health = {};
+    saveHousehold(phone, next);
+    return HttpResponse.json(next);
+  }),
+
+  // PATCH /v1/subscriptions/{id} (M3): { paused_until: "YYYY-MM-DD" | null } pauses or resumes.
+  http.patch("*/v1/subscriptions/:id", async ({ request }) => {
+    const phone = caller(request);
+    const h = phone && householdOf(phone);
+    if (!phone || !h) return problem(404, "subscriptions.not_found", "No subscription");
+    const { paused_until: until = null } = /** @type {{ paused_until?: string | null }} */ (
+      await request.json()
+    );
+    if (until !== null && !/^\d{4}-\d{2}-\d{2}$/.test(until))
+      return problem(422, "subscriptions.pause_invalid", "paused_until must be a date");
+    const subscription = {
+      ...h.subscription,
+      status: until ? "paused" : "active",
+      paused_until: until,
+    };
+    saveHousehold(phone, { ...h, subscription });
+    return HttpResponse.json(subscription);
   }),
 
   http.get("*/v1/me/devices", () => HttpResponse.json({ items: devices() })),

@@ -50,6 +50,9 @@ const EMPTY_HOUSEHOLD = {
  * @property {(patch: Partial<Pick<OnboardingDraft, "societyId" | "towerId" | "flat">>) => void} update
  * @property {(patch: Partial<HouseholdDraft>) => void} updateHousehold
  * @property {() => void} reset
+ * @property {{ id: string, version: number } | null} editing set while Profile edits a saved household
+ * @property {(household: import("@/features/identity/profile.js").Household) => void} startEdit
+ * @property {() => void} stopEdit
  */
 
 export const useOnboardingDraft = create(
@@ -62,7 +65,36 @@ export const useOnboardingDraft = create(
         household: EMPTY_HOUSEHOLD,
         update: (patch) => set(patch),
         updateHousehold: (patch) => set((s) => ({ household: { ...s.household, ...patch } })),
-        reset: () => set({ societyId: null, towerId: null, flat: "", household: EMPTY_HOUSEHOLD }),
+        reset: () =>
+          set({
+            societyId: null,
+            towerId: null,
+            flat: "",
+            household: EMPTY_HOUSEHOLD,
+            editing: null,
+          }),
+        editing: null,
+        // Profile reuses the onboarding steps to edit: load the saved household into the draft.
+        startEdit: (h) =>
+          set({
+            editing: { id: h.id, version: h.version },
+            household: {
+              ...EMPTY_HOUSEHOLD,
+              members: h.members,
+              diet: /** @type {HouseholdDraft["diet"]} */ (h.diet),
+              cuisines: h.cuisine_tags,
+              jain: h.rules.jain,
+              noOnionSomeDays: h.rules.no_onion_some_days,
+              fasting: h.fasting,
+              healthConsent: h.health_consent,
+              health: h.health,
+              weekdayCookMinutes: h.weekday_cook_minutes,
+              weekendCookMinutes: h.weekend_cook_minutes,
+              noCookDays: h.no_cook_days,
+              budgetLockPaise: h.budget_paise,
+            },
+          }),
+        stopEdit: () => set({ editing: null, household: EMPTY_HOUSEHOLD }),
       }),
       { name: "gb-onboarding", storage: createJSONStorage(() => sessionStorage) },
     )

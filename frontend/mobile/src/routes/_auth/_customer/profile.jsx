@@ -18,10 +18,12 @@ import {
   useDeleteAccount,
   useDevices,
   useMyHousehold,
+  usePause,
   useRevokeDevice,
   useUpdateMe,
 } from "@/features/identity/profile.js";
-import { shortDate } from "@/features/subscriptions/format.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { shortDate, todayIst } from "@/features/subscriptions/format.js";
 import { LOCALES } from "@/i18n.js";
 import { useSession } from "@/lib/session.js";
 
@@ -30,7 +32,23 @@ import { useSession } from "@/lib/session.js";
 export const Route = createFileRoute("/_auth/_customer/profile")({ component: Profile });
 
 const LANGUAGE_NAMES = { "en-IN": "English", "hi-IN": "हिन्दी", "mr-IN": "मराठी" };
-/** @typedef {"language" | "household" | "devices" | "privacy" | null} SheetName */
+/** @typedef {"language" | "household" | "autopilot" | "devices" | "privacy" | null} SheetName */
+
+/** Household parts Profile can change, each on its onboarding screen in edit mode. */
+const HOUSEHOLD_STEPS_EDIT = [
+  { key: "family", to: "/onboarding/family" },
+  { key: "food", to: "/onboarding/food" },
+  { key: "health", to: "/onboarding/health" },
+  { key: "cooking", to: "/onboarding/cooking" },
+  { key: "budget", to: "/onboarding/budget" },
+];
+
+/** "YYYY-MM-DD", `weeks` weeks from today in India. @param {string} weeks */
+function addWeeks(weeks) {
+  const d = new Date(`${todayIst()}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7 * Number(weeks));
+  return d.toISOString().slice(0, 10);
+}
 
 function Profile() {
   const { t, i18n } = useTranslation();
@@ -41,6 +59,27 @@ function Profile() {
   const { data: society } = useSociety(household.data?.society_id);
   const wallet = useWallet();
   const update = useUpdateMe();
+  const pause = usePause(household.data?.subscription.id);
+  const startEdit = useOnboardingDraft((d) => d.startEdit);
+  const [weeks, setWeeks] = useState("2");
+  const hh = household.data;
+  const paused = hh?.subscription.status === "paused";
+  const pausedUntil = household.data?.subscription.paused_until
+    ? shortDate(household.data.subscription.paused_until, lang)
+    : "";
+  /** The current setting, in words, for each editable part. @param {string} key @param {import("@/features/identity/profile.js").Household} h */
+  const householdValue = (key, h) =>
+    key === "family"
+      ? t("profile.people", { n: h.size })
+      : key === "food"
+        ? t(`onboarding.food.diets.${h.diet}`)
+        : key === "health"
+          ? t(h.health_consent ? "profile.edit.on" : "profile.edit.off")
+          : key === "cooking"
+            ? t("profile.edit.minutes", { n: h.weekday_cook_minutes })
+            : h.budget_paise
+              ? formatPaise(h.budget_paise)
+              : t("profile.edit.off");
   const [sheet, setSheet] = useState(/** @type {SheetName} */ (null));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const devices = useDevices();
@@ -69,6 +108,16 @@ function Profile() {
       label: t("profile.household"),
       value: household.data ? t("profile.people", { n: household.data.size }) : undefined,
       onPress: () => setSheet("household"),
+    },
+    {
+      key: "autopilot",
+      label: t("profile.pause.row"),
+      value: household.data
+        ? paused
+          ? t("profile.pause.pausedValue", { date: pausedUntil })
+          : t("profile.pause.on")
+        : undefined,
+      onPress: () => setSheet("autopilot"),
     },
     {
       key: "wallet",
@@ -187,23 +236,93 @@ function Profile() {
         open={sheet === "household"}
         onOpenChange={(o) => setSheet(o ? "household" : null)}
         title={t("profile.household")}
-        description={t("profile.householdLead")}
+        description={t("profile.edit.lead")}
       >
-        <dl className="text-sm">
-          {[
-            [
-              t("profile.peopleLabel"),
-              household.data && t("profile.people", { n: household.data.size }),
-            ],
-            [t("profile.flat"), household.data?.flat],
-            [t("society.title"), society?.name],
-          ].map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3 border-b border-line py-2.5">
-              <dt className="text-fg-secondary">{k}</dt>
-              <dd className="font-semibold">{v ?? "—"}</dd>
-            </div>
-          ))}
-        </dl>
+        {hh && (
+          <ul>
+            {HOUSEHOLD_STEPS_EDIT.map(({ key, to }) => (
+              <li key={key}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    startEdit(hh);
+                    setSheet(null);
+                    navigate({ to });
+                  }}
+                  className="flex min-h-14 w-full items-center justify-between gap-3 border-b border-line py-3 text-left outline-none focus-visible:shadow-focus"
+                >
+                  <span>{t(`profile.edit.${key}`)}</span>
+                  <span className="text-sm whitespace-nowrap text-fg-secondary">
+                    {householdValue(key, hh)} <span aria-hidden>›</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={sheet === "autopilot"}
+        onOpenChange={(o) => setSheet(o ? "autopilot" : null)}
+        title={t("profile.pause.title")}
+        description={t(paused ? "profile.pause.pausedLead" : "profile.pause.lead", {
+          date: pausedUntil,
+        })}
+        footer={
+          paused ? (
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              isPending={pause.isPending}
+              onPress={() =>
+                pause.mutate(null, {
+                  onSuccess: () => {
+                    setSheet(null);
+                    toast(t("profile.pause.resumed"));
+                  },
+                  onError: () => toast(t("profile.saveFailed")),
+                })
+              }
+            >
+              {t("profile.pause.resume")}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              isPending={pause.isPending}
+              onPress={() =>
+                pause.mutate(addWeeks(weeks), {
+                  onSuccess: (sub) => {
+                    setSheet(null);
+                    toast(
+                      t("profile.pause.paused", { date: shortDate(sub.paused_until ?? "", lang) }),
+                    );
+                  },
+                  onError: () => toast(t("profile.saveFailed")),
+                })
+              }
+            >
+              {t("profile.pause.cta", { n: Number(weeks) })}
+            </Button>
+          )
+        }
+      >
+        {!paused && (
+          <RadioCards
+            label={t("profile.pause.title")}
+            value={weeks}
+            onChange={setWeeks}
+            options={["1", "2", "4"].map((w) => ({
+              value: w,
+              title: t("profile.pause.weeks", { n: Number(w) }),
+              description: t("profile.pause.until", { date: shortDate(addWeeks(w), lang) }),
+            }))}
+          />
+        )}
       </Sheet>
 
       <Sheet
