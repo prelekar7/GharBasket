@@ -123,8 +123,9 @@ def _sees_hub(permit: Permit, hub_id: uuid.UUID) -> None:
     responses=SIGNED_IN,
 )
 async def list_hubs(permit: CanReadHubs, session: DbSession, response: Response) -> HubsOut:
-    unscoped = any(grant.scope_id is None for grant in permit.grants)
-    ids = None if unscoped else {g.scope_id for g in permit.grants if g.scope_id is not None}
+    ids = (
+        None if permit.is_global else {g.scope_id for g in permit.grants if g.scope_id is not None}
+    )
     hubs = await service.list_hubs(session, ids)
     response.headers["Cache-Control"] = "no-store"
     return HubsOut(items=[HubSummary.model_validate(hub, from_attributes=True) for hub in hubs])

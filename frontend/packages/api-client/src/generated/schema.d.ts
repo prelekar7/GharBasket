@@ -797,6 +797,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/route-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's route plans for a date, newest first (without routes) */
+        get: operations["list_plans_v1_hubs__hub_id__route_plans_get"];
+        put?: never;
+        /**
+         * Solve (or re-solve) a hub's routes for today or tomorrow (Idempotency-Key required)
+         * @description Answers at once with the queued plan; the solve runs in the background (the ML solver, or M7's fallback when it is down). Poll GET /v1/route-plans/{id}. A manual plan is never published automatically.
+         */
+        post: operations["solve_plan_v1_hubs__hub_id__route_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vehicles, by label */
+        get: operations["list_vehicles_v1_hubs__hub_id__vehicles_get"];
+        put?: never;
+        /** Add a vehicle to a hub (Idempotency-Key required) */
+        post: operations["create_vehicle_v1_hubs__hub_id__vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vendors": {
         parameters: {
             query?: never;
@@ -911,7 +950,8 @@ export interface paths {
         get: operations["me_v1_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete my account after a 30-day grace (signs out every device; spec §3.5) */
+        delete: operations["delete_me_v1_me_delete"];
         options?: never;
         head?: never;
         /** Change name, language or senior mode (only the fields sent) */
@@ -1135,6 +1175,26 @@ export interface paths {
         put?: never;
         /** Cancel before the cut-off (Idempotency-Key); nothing was paid yet */
         post: operations["cancel_order_v1_orders__order_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's live timeline: JSON for polling clients, or a Server-Sent Events stream
+         * @description `Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.
+         */
+        get: operations["order_events_v1_orders__order_id__events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1536,6 +1596,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/route-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A route plan with its routes (poll it after a solve) */
+        get: operations["get_plan_v1_route_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/route-plans/{plan_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a solved plan (Idempotency-Key required)
+         * @description The routes become published; the date's previously published plan is superseded and its routes cancelled, unless one of them has started. A plan with problems needs accept_problems (audited); one that leaves a stop off every route never publishes.
+         */
+        post: operations["publish_plan_v1_route_plans__plan_id__publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search": {
         parameters: {
             query?: never;
@@ -1723,6 +1820,26 @@ export interface paths {
         head?: never;
         /** Pause or resume, or set auto-approve */
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
+        trace?: never;
+    };
+    "/v1/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or deactivate a vehicle (If-Match: the vehicle's version)
+         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published. A vehicle of a hub outside the caller's roles answers 404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).
+         */
+        patch: operations["patch_vehicle_v1_vehicles__vehicle_id__patch"];
         trace?: never;
     };
     "/v1/vendors/{vendor_id}": {
@@ -2221,6 +2338,31 @@ export interface components {
             /** Meals */
             meals: components["schemas"]["MealOut"][];
         };
+        /**
+         * DeletionOut
+         * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+         *     in again before then.
+         */
+        DeletionOut: {
+            /**
+             * Purge On
+             * Format: date
+             * @description IST date, 30 days after the request
+             */
+            purge_on: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "scheduled";
+            /** @description The wallet balance on its way back to the original payment source */
+            wallet_refund: components["schemas"]["WalletRefundOut"] | null;
+        };
         /** DeliveryDayIn */
         DeliveryDayIn: {
             /**
@@ -2363,6 +2505,12 @@ export interface components {
             device: components["schemas"]["DeviceIn"];
             /** Firebase Id Token */
             firebase_id_token?: string | null;
+            /**
+             * Keep Account
+             * @description For an account whose deletion is scheduled: true (after the app asked "Keep my account?") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)
+             * @default false
+             */
+            keep_account: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -2373,6 +2521,12 @@ export interface components {
             access_expires_in: number;
             /** Access Token */
             access_token: string | null;
+            /**
+             * Deletion Cancelled
+             * @description True when this sign-in cancelled a scheduled deletion
+             * @default false
+             */
+            deletion_cancelled: boolean;
             /** Is New User */
             is_new_user: boolean;
             /** Refresh Token */
@@ -3636,6 +3790,29 @@ export interface components {
              */
             title: string;
         };
+        /**
+         * OrderEventsOut
+         * @description The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).
+         */
+        OrderEventsOut: {
+            /**
+             * Eta
+             * @description null until M7 publishes route progress
+             */
+            eta?: null;
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["TimelineEvent"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Version */
+            version: number;
+        };
         /** OrderLineOut */
         OrderLineOut: {
             /**
@@ -4381,6 +4558,60 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PlanSummary */
+        PlanSummary: {
+            /**
+             * Cost Paise
+             * @example 412000
+             */
+            cost_paise: number;
+            /**
+             * Km
+             * @example 61.2
+             */
+            km: number;
+            /**
+             * Late Min
+             * @example 0
+             */
+            late_min: number;
+            /**
+             * On Time
+             * @description Share of stops reached within the window
+             * @example 1
+             */
+            on_time: number;
+            /**
+             * Orders
+             * @example 212
+             */
+            orders: number;
+            /**
+             * Problems
+             * @description Empty, or the plan needs a hub manager's review before it is published
+             * @example [
+             *       "EV-2 trip 1: over capacity leaving the hub"
+             *     ]
+             */
+            problems: string[];
+            /**
+             * Routes
+             * @example 6
+             */
+            routes: number;
+            /**
+             * Stops
+             * @description Stops with orders, routed or not
+             * @example 18
+             */
+            stops: number;
+            /**
+             * Vehicles
+             * @description Vehicles used
+             * @example 4
+             */
+            vehicles: number;
+        };
         /** PlansOut */
         PlansOut: {
             /** Items */
@@ -4706,6 +4937,15 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** PublishIn */
+        PublishIn: {
+            /**
+             * Accept Problems
+             * @description Publish although summary.problems is not empty (audited)
+             * @default false
+             */
+            accept_problems: boolean;
+        };
         /** PushTokenIn */
         PushTokenIn: {
             /**
@@ -4908,6 +5148,20 @@ export interface components {
              */
             outcome: "credit" | "reject";
         };
+        /** RiderRef */
+        RiderRef: {
+            /**
+             * Name
+             * @description Shown to hub staff only
+             * @example Arjun Pawar
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /**
          * RoleGrantIn
          * @description Grant a role to an existing user (they must have signed in once).
@@ -4958,6 +5212,234 @@ export interface components {
              * @enum {string}
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
+        };
+        /** RoutePlanOut */
+        RoutePlanOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /** Routes */
+            routes: components["schemas"]["RouteSummary"][];
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlanSummary */
+        RoutePlanSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlansOut */
+        RoutePlansOut: {
+            /** Items */
+            items: components["schemas"]["RoutePlanSummary"][];
+        };
+        /** RouteSummary */
+        RouteSummary: {
+            /**
+             * Bags
+             * @example 52
+             */
+            bags: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Crates
+             * @example 18
+             */
+            crates: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Depart
+             * @description IST HH:MM
+             * @example 06:30
+             */
+            depart: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Km
+             * @description Estimate: the straight line x 1.3 along the stops
+             * @example 14.8
+             */
+            km: number;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /**
+             * Return By
+             * @description IST HH:MM
+             * @example 11:30
+             */
+            return_by: string;
+            /** @description Null until a rider is set */
+            rider: components["schemas"]["RiderRef"] | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @description draft while its plan is not published
+             * @enum {string}
+             */
+            status: "draft" | "published" | "in_progress" | "completed" | "cancelled";
+            /**
+             * Stops Done
+             * @example 0
+             */
+            stops_done: number;
+            /**
+             * Stops Total
+             * @example 6
+             */
+            stops_total: number;
+            /**
+             * Trip
+             * @description A vehicle's second trip of the day is 2
+             * @example 1
+             */
+            trip: number;
+            vehicle: components["schemas"]["VehicleRef"];
+            /** Version */
+            version: number;
         };
         /** SavedTemplatesOut */
         SavedTemplatesOut: {
@@ -5290,6 +5772,23 @@ export interface components {
              * @enum {string}
              */
             status: "prospect" | "unlocking" | "live" | "paused";
+        };
+        /** SolveIn */
+        SolveIn: {
+            /**
+             * Date
+             * Format: date
+             * @description Today or tomorrow (IST)
+             * @example 2026-12-29
+             */
+            date: string;
+            /**
+             * Kind
+             * @description tiffin plans come with M8 (§3.7)
+             * @default box
+             * @constant
+             */
+            kind: "box";
         };
         /** StartIn */
         StartIn: {
@@ -5653,6 +6152,34 @@ export interface components {
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
+         * TimelineEvent
+         * @description A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.
+         */
+        TimelineEvent: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The order_events row; also the SSE event id
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /**
          * Timings
          * @description The hub's day as IST `HH:MM`, in this order; display and job planning only.
          */
@@ -5824,6 +6351,163 @@ export interface components {
             /** Senior Mode */
             senior_mode: boolean;
         };
+        /** UserRef */
+        UserRef: {
+            /**
+             * Name
+             * @example Vikram Desai
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * VehicleIn
+         * @description Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;
+         *     two_wheeler 40 kg, 0 crates, 30 tiffins.
+         */
+        VehicleIn: {
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates?: number | null;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg?: number | null;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins?: number | null;
+            /**
+             * Default Rider User Id
+             * @description A rider of this hub (an active rider:<hub> role)
+             */
+            default_rider_user_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration?: string | null;
+        };
+        /** VehicleOut */
+        VehicleOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates: number;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg: number;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** @description Set as the rider of new routes */
+            default_rider: components["schemas"]["RiderRef"] | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description cargo_3w carries boxes and add-ons; two_wheeler tiffins
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @description Unique per hub, ignoring case
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * VehiclePatch
+         * @description Only the fields sent change; `registration` and `default_rider_user_id` may be null.
+         *     A change applies to the next solve, never to a route already published.
+         */
+        VehiclePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Capacity Crates */
+            capacity_crates?: number | null;
+            /** Capacity Kg */
+            capacity_kg?: number | null;
+            /** Capacity Tiffins */
+            capacity_tiffins?: number | null;
+            /** Default Rider User Id */
+            default_rider_user_id?: string | null;
+            /** Kind */
+            kind?: ("cargo_3w" | "two_wheeler") | null;
+            /** Label */
+            label?: string | null;
+            /** Registration */
+            registration?: string | null;
+        };
+        /** VehicleRef */
+        VehicleRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+        };
+        /** VehiclesOut */
+        VehiclesOut: {
+            /** Items */
+            items: components["schemas"]["VehicleOut"][];
+        };
         /** VendorIn */
         VendorIn: {
             /**
@@ -5959,6 +6643,19 @@ export interface components {
              * @example 869000
              */
             topup_room_paise: number;
+        };
+        /** WalletRefundOut */
+        WalletRefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -7110,6 +7807,15 @@ export interface operations {
             };
             /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9467,6 +10173,302 @@ export interface operations {
             };
         };
     };
+    list_plans_v1_hubs__hub_id__route_plans_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                /** @description Only this kind */
+                kind?: ("box" | "tiffin") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    solve_plan_v1_hubs__hub_id__route_plans_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.solve_running, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vehicles_v1_hubs__hub_id__vehicles_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vehicles */
+                active?: boolean | null;
+                /** @description Only this kind */
+                kind?: ("cargo_3w" | "two_wheeler") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehiclesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vehicle_v1_hubs__hub_id__vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vendors_v1_hubs__hub_id__vendors_get: {
         parameters: {
             query?: {
@@ -9886,6 +10888,53 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_me_v1_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.staff_account (with roles): an admin removes staff roles first */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10694,6 +11743,77 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    order_events_v1_orders__order_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: string | null;
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderEventsOut"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: hub staff of another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.too_many_streams: more than 3 open streams for this user */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12269,6 +13389,149 @@ export interface operations {
             };
         };
     };
+    get_plan_v1_route_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    publish_plan_v1_route_plans__plan_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_publishable, logistics.plan_incomplete, logistics.plan_has_problems, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     search_v1_search_get: {
         parameters: {
             query: {
@@ -13034,6 +14297,107 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vehicle_v1_vehicles__vehicle_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehiclePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
