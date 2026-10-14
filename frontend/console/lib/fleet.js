@@ -1,11 +1,5 @@
 // Small helpers shared by the fleet and partner pages (routes, deliveries, vehicles, partners, fairness).
 
-/** The two delivery slots of the pilot hub. Slots are hub configuration (M6); until that API is wired both are fixed here. */
-export const SLOTS = [
-  { value: "am", label: "8 to 10 AM" },
-  { value: "pm", label: "5 to 7 PM" },
-];
-
 const TZ = "Asia/Kolkata";
 
 /**
@@ -47,14 +41,6 @@ export function formatDay(iso) {
   }).formatToParts(new Date(iso));
   const get = (/** @type {string} */ type) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("weekday")} ${get("day")} ${get("month")}`;
-}
-
-/**
- * "18.6 km" for metres.
- * @param {number} metres
- */
-export function formatKm(metres) {
-  return `${(metres / 1000).toFixed(1)} km`;
 }
 
 /** @param {number} n @param {string} one @param {string} many */
