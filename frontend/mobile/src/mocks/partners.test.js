@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isoWeek } from "@/features/partners/earnings.js";
 import { mockFetch } from "./index.js";
 import { MODULES, REQUIRED } from "./trainingModules.js";
 
@@ -436,5 +437,96 @@ describe("Know your cook card (M8 §3.5)", () => {
       photo_url: null,
     });
     expect((await call("GET", "/v1/partners/nope/card")).status).toBe(404);
+  });
+});
+
+describe("earnings (M8 §3.6)", () => {
+  const istToday = () =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  const weeksAgo = (/** @type {number} */ n) =>
+    isoWeek(
+      new Date(Date.parse(`${istToday()}T00:00:00Z`) - n * 7 * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+    );
+  const earnings = (/** @type {string} */ query = "") => call("GET", `/v1/earnings${query}`);
+
+  it("works out ISO weeks around the new year", () => {
+    expect(isoWeek("2026-01-01")).toBe("2026-W01");
+    expect(isoWeek("2026-12-31")).toBe("2026-W53");
+    expect(isoWeek("2027-01-03")).toBe("2026-W53");
+    expect(isoWeek("2027-01-04")).toBe("2027-W01");
+  });
+
+  it("gives a kitchen's last week from the rate card, with the payout that followed", async () => {
+    await signIn("+919800001005");
+    const week = weeksAgo(1);
+    const res = await earnings(`?week=${week}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const e = await res.json();
+    expect(e).toMatchObject({
+      week,
+      total_paise: 204_000,
+      by_kind: [{ kind: "kitchen", basis: "tiffin_portion", units: 34, amount_paise: 204_000 }],
+      payouts: [
+        {
+          kind: "kitchen",
+          amount_paise: 204_000,
+          status: "processed",
+          hold_reason: null,
+          provider: "simulated",
+        },
+      ],
+    });
+    expect(e.days).toHaveLength(7);
+    expect(
+      e.days.reduce(
+        (/** @type {number} */ n, /** @type {{ amount_paise: number }} */ d) => n + d.amount_paise,
+        0,
+      ),
+    ).toBe(204_000);
+    expect(e.entries[0].at > e.entries[1].at).toBe(true);
+    expect(e.entries[0]).toMatchObject({
+      kind: "kitchen",
+      basis: "tiffin_portion",
+      ref: { type: "order" },
+    });
+    expect(e.days[0].date).toBe(e.from);
+    expect(e.days[6].date).toBe(e.to);
+  });
+
+  it("defaults to this week, which is not paid out yet, and pays riders, captains and packers by their basis", async () => {
+    await signIn("+919800001006");
+    const now = await (await earnings(`?week=${weeksAgo(0)}`)).json();
+    expect(now.payouts).toEqual([]);
+    const last = await (await earnings(`?week=${weeksAgo(1)}`)).json();
+    expect(last).toMatchObject({
+      total_paise: 90 * 800,
+      by_kind: [{ kind: "rider", basis: "dispatched_order", units: 90 }],
+    });
+    await signIn("+919800001004");
+    expect((await (await earnings(`?week=${weeksAgo(1)}`)).json()).by_kind[0]).toMatchObject({
+      basis: "bag_delivered",
+      amount_paise: 90 * 600,
+    });
+    await signIn("+919800001007");
+    expect((await (await earnings(`?week=${weeksAgo(1)}`)).json()).by_kind[0]).toMatchObject({
+      basis: "packed_order",
+      units: 173,
+    });
+  });
+
+  it("refuses a malformed or future week, and anyone who is not a partner", async () => {
+    await signIn("+919800001005");
+    for (const bad of ["2026-42", "nope", "2999-W01"]) {
+      const res = await earnings(`?week=${bad}`);
+      expect(res.status).toBe(422);
+      expect((await res.json()).code).toBe("partners.week_invalid");
+    }
+    await signIn();
+    const res = await earnings(`?week=${weeksAgo(1)}`);
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe("auth.forbidden");
   });
 });

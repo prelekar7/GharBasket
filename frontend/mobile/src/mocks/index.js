@@ -24,11 +24,12 @@ const all = [
   ...identityHandlers,
   ...subscriptionHandlers,
   ...billingHandlers,
+  // Before the role mocks: GET /v1/earnings?week= is answered for every partner kind here.
+  ...partnerHandlers,
   ...logisticsHandlers,
   ...orderHandlers,
   ...kindnessHandlers,
   ...profileHandlers,
-  ...partnerHandlers,
   ...trainingHandlers,
   ...kitchenHandlers,
   ...assistantHandlers,

@@ -3,8 +3,9 @@
 // simulated: a short while after every required document is in, the hub approves them, or sends
 // back a document whose simulated check failed. Training runs alongside (mocks/trainings.js).
 import { HttpResponse, http } from "msw";
-import { caller, isNewUser, userFor } from "./handlers.js";
+import { caller, isNewUser, rolesFor, userFor } from "./handlers.js";
 import { HUB_ID } from "./packer.js";
+import { uid } from "./subscriptions.js";
 import { progressOf, REQUIRED, SEED_PARTNERS } from "./trainingModules.js";
 
 const KEY = "gb-mock-partner-applications";
@@ -329,7 +330,163 @@ const KITCHENS =
     },
   });
 
+// ---- Earnings (§3.6): who earns what for which event, read back from the ledger -----------------
+/** The rate card seeded in every hub (owner, 2026-10-09), in paise per unit. */
+const RATES =
+  /** @type {Record<string, { basis: string, paise: number, days: [number, number][] }>} */ ({
+    // days: [weekday (0 = Monday), units] earned on that weekday of every week
+    kitchen: {
+      basis: "tiffin_portion",
+      paise: 6000,
+      days: [
+        [1, 18],
+        [4, 16],
+      ],
+    },
+    captain: {
+      basis: "bag_delivered",
+      paise: 600,
+      days: [
+        [1, 46],
+        [4, 44],
+      ],
+    },
+    rider: {
+      basis: "dispatched_order",
+      paise: 800,
+      days: [
+        [1, 46],
+        [4, 44],
+      ],
+    },
+    packer: {
+      basis: "packed_order",
+      paise: 400,
+      days: [
+        [0, 60],
+        [2, 58],
+        [4, 55],
+      ],
+    },
+  });
+const ROLE_KIND = /** @type {Record<string, string>} */ ({
+  captain: "captain",
+  kitchen_partner: "kitchen",
+  rider: "rider",
+  packer: "packer",
+});
+const DAY_MS = 86_400_000;
+const istDate = (/** @type {number} */ ms) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(ms));
+/** The Monday (UTC midnight, as a date) of the ISO week "YYYY-Www", or null when malformed. @param {string} week */
+function mondayOf(week) {
+  const m = /^(\d{4})-W(0[1-9]|[1-4]\d|5[0-3])$/.exec(week);
+  if (!m) return null;
+  const jan4 = Date.UTC(Number(m[1]), 0, 4);
+  const week1 = jan4 - ((new Date(jan4).getUTCDay() + 6) % 7) * DAY_MS;
+  return week1 + (Number(m[2]) - 1) * 7 * DAY_MS;
+}
+/** The ISO week "YYYY-Www" of a date. @param {number} ms UTC midnight of the date */
+function weekOf(ms) {
+  const thursday = ms + (3 - ((new Date(ms).getUTCDay() + 6) % 7)) * DAY_MS;
+  const year = new Date(thursday).getUTCFullYear();
+  const n =
+    1 + Math.floor((thursday - /** @type {number} */ (mondayOf(`${year}-W01`))) / (7 * DAY_MS));
+  return `${year}-W${String(n).padStart(2, "0")}`;
+}
+
+/** GET /v1/earnings?week=YYYY-Www for every kind the caller is a partner of; no week = this week. */
+function earningsWeek(/** @type {Request} */ request) {
+  const phone = caller(request);
+  if (!phone) return problem(401, "auth.invalid_token", "Sign in again");
+  const kinds = [
+    ...new Set([
+      ...(SEED_PARTNERS[phone] ? [SEED_PARTNERS[phone]] : []),
+      ...(load()[phone]?.partners.map((x) => x.kind) ?? []),
+      ...rolesFor(phone).flatMap((r) => ROLE_KIND[r.role] ?? []),
+    ]),
+  ];
+  if (kinds.length === 0) return problem(403, "auth.forbidden", "Only partners have earnings");
+  const today = Date.parse(`${istDate(Date.now())}T00:00:00Z`);
+  const week = new URL(request.url).searchParams.get("week") ?? weekOf(today);
+  const monday = mondayOf(week);
+  if (monday === null || monday > today)
+    return problem(422, "partners.week_invalid", "Use a week like 2027-W02, not a future one");
+  const at = (/** @type {number} */ d, /** @type {number} */ hour) =>
+    new Date(monday + d * DAY_MS + hour * 3_600_000 - 5.5 * 3_600_000).toISOString();
+  const entries = kinds.flatMap((kind) => {
+    const r = RATES[kind];
+    return r.days
+      .filter(([d]) => monday + d * DAY_MS <= today)
+      .map(([d, units]) => ({
+        id: uid(`earning:${week}:${kind}:${d}`),
+        kind,
+        basis: r.basis,
+        units,
+        amount_paise: units * r.paise,
+        ref: { type: "order", id: uid(`order:${week}:${kind}:${d}`) },
+        at: at(d, 18),
+      }));
+  });
+  const to = (/** @type {number} */ ms) => new Date(ms).toISOString().slice(0, 10);
+  const total = (/** @type {{ amount_paise: number }[]} */ rows) =>
+    rows.reduce((n, e) => n + e.amount_paise, 0);
+  const past = monday + 7 * DAY_MS <= today;
+  return HttpResponse.json(
+    {
+      week,
+      from: to(monday),
+      to: to(monday + 6 * DAY_MS),
+      total_paise: total(entries),
+      by_kind: kinds
+        .map((kind) => {
+          const rows = entries.filter((e) => e.kind === kind);
+          return {
+            kind,
+            basis: RATES[kind].basis,
+            units: rows.reduce((n, e) => n + e.units, 0),
+            amount_paise: total(rows),
+          };
+        })
+        .filter((b) => b.units > 0),
+      days: Array.from({ length: 7 }, (_, d) => ({
+        date: to(monday + d * DAY_MS),
+        amount_paise: total(entries.filter((e) => e.at.slice(0, 10) === to(monday + d * DAY_MS))),
+      })),
+      entries: [...entries].sort((a, b) => b.at.localeCompare(a.at)),
+      // M5 pays last week out on Monday 10:00 (simulated provider); under ₹100 is carried forward.
+      payouts: past
+        ? kinds
+            .map((kind) => ({ kind, amount: total(entries.filter((e) => e.kind === kind)) }))
+            .filter((k) => k.amount >= 10_000)
+            .map((k) => ({
+              id: uid(`payout:${phone}:${week}:${k.kind}`),
+              kind: k.kind,
+              partner_id: uid(`partner:${phone}:${k.kind}`),
+              week,
+              period: { from: to(monday), to: to(monday + 6 * DAY_MS) },
+              amount_paise: k.amount,
+              status: "processed",
+              hold_reason: null,
+              provider: "simulated",
+              provider_ref: `pout_sim_${week.replace(/\D/g, "")}${k.kind[0]}`,
+              created_at: at(7, 10),
+              processed_at: at(7, 10),
+            }))
+        : [],
+      generated_at: new Date().toISOString(),
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
+}
+
 export const partnerHandlers = [
+  // GET /v1/earnings?week= (M8 §3.6). The role mocks (captain, kitchen, rider) still answer the
+  // plain GET /v1/earnings their screens use until those screens move to this shape.
+  http.get("*/v1/earnings", ({ request }) =>
+    new URL(request.url).searchParams.has("week") ? earningsWeek(request) : undefined,
+  ),
+
   // GET /v1/partners/{id}/card: the Know your cook card, never the phone, address or KYC details.
   http.get("*/v1/partners/:id/card", ({ request, params }) => {
     const k = KITCHENS[String(params.id)];
