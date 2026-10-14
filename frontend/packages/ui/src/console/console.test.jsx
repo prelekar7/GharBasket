@@ -5,6 +5,7 @@ import { cellSortValue, DataTable } from "./DataTable.jsx";
 import { FilterBar } from "./FilterBar.jsx";
 import { KpiTile, Sparkline } from "./Kpi.jsx";
 import { MapPanel } from "./MapPanel.jsx";
+import { PolygonEditor } from "./PolygonEditor.jsx";
 
 const columns = [
   { key: "name", label: "Item", sortable: true },
@@ -233,5 +234,34 @@ describe("MapPanel", () => {
     expect(html).toContain("Planned route");
     expect(html).toContain("OpenFreeMap");
     expect(html).toContain("Example");
+  });
+});
+
+describe("PolygonEditor", () => {
+  const areas = [
+    {
+      id: "a",
+      label: "Sunrise Towers",
+      coordinates: /** @type {[number, number][]} */ ([
+        [73.06, 19.03],
+        [73.07, 19.03],
+        [73.07, 19.04],
+      ]),
+    },
+  ];
+
+  it("offers Draw boundary, Edit points and Undo point, with nothing to undo yet", () => {
+    const html = renderToStaticMarkup(<PolygonEditor areas={areas} selected="a" />);
+    expect(html).toContain("Draw boundary");
+    expect(html).toContain("Edit points");
+    expect(html).not.toContain("Move points");
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>(?:<svg.*?<\/svg>)?Undo point/);
+  });
+
+  it("takes the Undo label from `labels`", () => {
+    const html = renderToStaticMarkup(
+      <PolygonEditor areas={areas} selected="a" labels={{ undo: "Undo corner" }} />,
+    );
+    expect(html).toContain("Undo corner");
   });
 });

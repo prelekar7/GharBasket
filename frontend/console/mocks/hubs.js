@@ -6,13 +6,15 @@ import { problem, roleOf } from "./util.js";
 /** @type {{ id: string, name: string, city: string, status: "active" | "planned" }[]} */
 export const HUBS = [
   { id: "kharghar", name: "Kharghar hub", city: "Navi Mumbai", status: "active" },
+  // The second hub gives the KPI Hub filter something to compare. Only admins see it (see visibleHubs).
+  { id: "taloja", name: "Taloja hub", city: "Navi Mumbai", status: "active" },
 ];
 
 /**
  * Admins see every hub; hub managers and franchise owners see theirs (the seed gives them Kharghar).
  * @param {Request} request
  */
-function visibleHubs(request) {
+export function visibleHubs(request) {
   return roleOf(request) === "admin" ? HUBS : HUBS.filter((h) => h.id === "kharghar");
 }
 

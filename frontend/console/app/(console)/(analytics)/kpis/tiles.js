@@ -2,8 +2,8 @@ import { formatRupees, mulDivRound, toDecimalText } from "../../../../lib/money.
 
 /**
  * GET /v1/analytics/kpis?hub_id=&from=&to= (M12 section 3): one value per delivery week, oldest first.
- * Rates are basis points, waste is grams per 100 kg sold, money is paise.
- * @typedef {{ hub_id: string, data_source: "simulator" | "pilot", weeks: string[],
+ * `hub_id` is null for all hubs added up. Rates are basis points, waste is grams per 100 kg sold, money is paise.
+ * @typedef {{ hub_id: string | null, data_source: "simulator" | "pilot", weeks: string[],
  *   active_households: number[], weeks_accepted_bp: number[], waste_g_per_100kg: number[],
  *   on_time_bp: number[], partner_earnings_paise: number[] }} Kpis
  * @typedef {{ label: string, value: string, hint?: string, spark: number[],
