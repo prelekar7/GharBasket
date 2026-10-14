@@ -114,7 +114,7 @@ export const NAV = [
       { href: "/vehicles", label: "Vehicles", ready: true },
       { href: "/partners", label: "Partners and KYC", ready: true },
       { href: "/partners/[id]", label: "Partner", hidden: true, ready: true },
-      { href: "/fairness", label: "Fairness" },
+      { href: "/fairness", label: "Fairness", ready: true },
     ],
   },
   {
