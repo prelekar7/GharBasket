@@ -1,26 +1,30 @@
-"""The handover at a stop (spec §3.4).
+"""The handover at a stop and the captain's day (spec §3.4).
 
 The captain of a stop's society takes the crates by count with the rider's handover code (or a
 photo of the crates); in rider mode the route's rider hands over to himself. Every dispatched order
 of the stop then moves to `at_society` (actor `captain`, `rider` or `hub`) through `orders.api`.
 When the counts do not match, only the bags she scanned move; the rest ride back with the van.
-A captain acts only while M9 has her as the society's active captain (ADR-0026 §4).
+A captain acts only while M9 has her as the society's active captain (ADR-0026 §4). Flat labels
+are tower and flat only, for her own society's orders of today and yesterday.
 """
 
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import date
 
 from redis.asyncio import Redis
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import events, tracking
 from gharbasket.modules.logistics.execution import ensure_running, stop_not_found, tap
 from gharbasket.modules.logistics.models import Handover, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
 from gharbasket.modules.logistics.routing import DETOUR, metres
-from gharbasket.modules.logistics.schemas import HandoverIn
+from gharbasket.modules.logistics.schemas import CaptainFlat, HandoverIn
 from gharbasket.modules.logistics.views import now
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform.errors import ProblemError
@@ -29,6 +33,18 @@ from gharbasket.platform.permissions import Permit, forbidden
 
 MAX_CODE_TRIES = 5
 KINDS = ("box", "addon")
+# order status -> what the captain's checklist calls it
+FLAT_STATUS = {
+    "locked": "on_the_way",
+    "picking": "on_the_way",
+    "packed": "on_the_way",
+    "dispatched": "on_the_way",
+    "at_society": "with_you",
+    "delivered": "delivered",
+    "undelivered": "undelivered",
+    "redelivery": "undelivered",
+    "refunded": "undelivered",
+}
 
 
 @dataclass(frozen=True)
@@ -248,3 +264,68 @@ async def set_rider_mode(
         stop.rider_mode = on
         tap(session, route, "rider_mode", who, None, stop=stop, payload={"rider_mode": on})
         await session.flush()
+
+
+# --- the captain's and the rider's lists ------------------------------------------------------
+
+
+async def flats(
+    session: AsyncSession,
+    hub_id: uuid.UUID,
+    day: date,
+    society_id: uuid.UUID,
+    slot_id: uuid.UUID | None = None,
+) -> list[CaptainFlat]:
+    """The society's box and add-on orders of the day (one stop's when `slot_id` is given), by
+    tower and flat, with tower and flat labels only."""
+    found = await orders_api.orders_for_delivery(
+        session, hub_id, day, tuple(FLAT_STATUS), kinds=KINDS
+    )
+    orders = [
+        s.order
+        for s in found
+        if s.order.society_id == society_id and (slot_id is None or s.order.slot_id == slot_id)
+    ]
+    labels = await identity_api.delivery_labels(session, [o.household_id for o in orders])
+    society = (await community_api.society_labels(session, [society_id])).get(society_id)
+    towers = society.towers if society else {}
+    rows = []
+    for order in orders:
+        label = labels.get(order.household_id)
+        tower = towers.get(label.tower_id, label.tower_id) if label else ""
+        rows.append(
+            (
+                (tower, label.flat if label else ""),
+                CaptainFlat(
+                    order_id=order.id,
+                    flat_label=f"{tower}, {label.flat}" if label else None,
+                    kind=order.kind,  # pyright: ignore[reportArgumentType]
+                    bags=1,
+                    redelivery=False,
+                    status=FLAT_STATUS[order.status],  # pyright: ignore[reportArgumentType]
+                    hold_until=None,
+                ),
+            )
+        )
+    return [flat for _, flat in sorted(rows, key=lambda r: (_natural(r[0][0]), _natural(r[0][1])))]
+
+
+def _natural(value: str) -> tuple[object, ...]:
+    return tuple(int(p) if p.isdigit() else p.casefold() for p in re.split(r"(\d+)", value))
+
+
+async def society_stops(
+    session: AsyncSession, society_id: uuid.UUID, day: date
+) -> list[tuple[RouteStop, Route]]:
+    """The society's stops on the day's published, started or completed routes."""
+    rows = await session.execute(
+        select(RouteStop, Route)
+        .join(Route, Route.id == RouteStop.route_id)
+        .where(
+            RouteStop.society_id == society_id,
+            Route.delivery_date == day,
+            Route.status.in_(("published", "in_progress", "completed")),
+        )
+        .order_by(RouteStop.eta)
+    )
+    return [(stop, route) for stop, route in rows.all()]

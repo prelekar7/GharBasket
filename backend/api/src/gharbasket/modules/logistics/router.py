@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response, 
 from fastapi.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import (
     execution,
@@ -25,8 +26,13 @@ from gharbasket.modules.logistics import permissions as _permissions  # noqa: F4
 from gharbasket.modules.logistics import routes as route_ops
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.schemas import (
+    CaptainDay,
+    CaptainStop,
     CompleteIn,
+    Expected,
     FieldTap,
+    FlatCounts,
+    FlatsOut,
     HandoverIn,
     HandoverOut,
     LocationIn,
@@ -42,6 +48,7 @@ from gharbasket.modules.logistics.schemas import (
     RoutePlanSummary,
     RoutesOut,
     SkipIn,
+    SocietyRef,
     SolveIn,
     StartIn,
     StopOut,
@@ -687,6 +694,7 @@ async def live_route(
 # --- handover (§3.4) ----------------------------------------------------------------------------
 
 CanHandOver = Annotated[Permit, require("handover:write")]
+CanReadDeliveries = Annotated[Permit, require("deliveries:read")]
 STOP_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.stop_not_found")}
 
 
@@ -717,6 +725,92 @@ async def patch_stop(
     await session.commit()
     set_etag(response, route.version)
     return out
+
+
+def _captain_society(permit: Permit) -> uuid.UUID:
+    societies = {g.scope_id for g in permit.grants if g.role == "captain" and g.scope_id}
+    if len(societies) != 1:
+        raise forbidden("Choose your society with X-Active-Role: captain:<society>.")
+    return societies.pop()
+
+
+@router.get(
+    "/captains/me/today",
+    summary="The captain's day: the van's stops, the flats of her society and their counts",
+    description="The society of X-Active-Role (captain:<society>), today or yesterday. Flat "
+    "labels only: no names, no phones.",
+    responses={
+        **SIGNED_IN,
+        403: _problem("auth.forbidden, logistics.not_society_captain"),
+        422: _problem("logistics.date_out_of_range"),
+    },
+)
+async def captain_today(
+    permit: CanReadDeliveries, session: DbSession, response: Response, day: Day = None
+) -> CaptainDay:
+    society_id = _captain_society(permit)
+    on = _within(day or datetime.now(IST).date(), -1, 0)
+    await handover.ensure_captain(session, permit.principal.user_id, society_id)
+    society = await community_api.get_society(session, society_id)
+    labels = await community_api.society_labels(session, [society_id])
+    stops = []
+    for stop, route in await handover.society_stops(session, society_id, on):
+        [view] = await views.stop_views(session, route, [stop])
+        all_etas = views.eta_now(route, await views.stops_of(session, route.id))
+        stops.append(
+            CaptainStop(
+                stop_id=stop.id,
+                route_id=route.id,
+                slot=view.slot,
+                eta_now=all_etas[stop.id],
+                status=view.status,
+                expected=Expected(
+                    crates=stop.crates, bags=stop.bags, redelivery_bags=view.redelivery_bags
+                ),
+            )
+        )
+    hub_id = society.hub_id if society else None
+    flats = [] if hub_id is None else await handover.flats(session, hub_id, on, society_id)
+    counts = FlatCounts()
+    for flat in flats:
+        setattr(counts, flat.status, getattr(counts, flat.status) + 1)
+    response.headers["Cache-Control"] = "no-store"
+    label = labels.get(society_id)
+    return CaptainDay(
+        date=on,
+        society=SocietyRef(id=society_id, name=label.name if label else None),
+        stops=stops,
+        flats=flats,
+        counts=counts,
+    )
+
+
+@router.get(
+    "/stops/{stop_id}/deliveries",
+    summary="A stop's flats: for the rider of a rider-mode stop while the route runs, hub staff",
+    responses={**SIGNED_IN, **STOP_404},
+)
+async def stop_deliveries(
+    stop_id: uuid.UUID, permit: CanReadDeliveries, session: DbSession, response: Response
+) -> FlatsOut:
+    stop = await session.get(RouteStop, stop_id)
+    route = None if stop is None else await session.get(Route, stop.route_id)
+    if stop is None or route is None or stop.society_id is None:
+        raise execution.stop_not_found()
+    who = route_ops.caller(permit, route.hub_id)
+    riding = (
+        who.rider
+        and route.rider_user_id == who.user_id
+        and stop.rider_mode
+        and route.status == "in_progress"
+    )
+    if not (who.staff or riding):
+        raise execution.stop_not_found()
+    items = await handover.flats(
+        session, route.hub_id, route.delivery_date, stop.society_id, stop.slot_id
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return FlatsOut(items=items)
 
 
 @router.post(

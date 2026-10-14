@@ -19,7 +19,9 @@ PERMISSIONS.allow("rider", "routes:execute")
 # captain of a stop's society, a customer with an order on it).
 for role in ("rider", "hub_manager", "captain", "customer"):
     PERMISSIONS.allow(role, "routes:live")
-# The handover (§3.4): captains of their society (active in M9), riders on a
+# The handover and the flat lists (§3.4): captains of their society (active in M9), riders on a
 # rider-mode stop of their own route, hub staff of the hub.
 for role in ("captain", "rider", "hub_manager"):
     PERMISSIONS.allow(role, "handover:write")
+for role in ("captain", "rider", "hub_manager", "franchise_owner", "packer", "admin"):
+    PERMISSIONS.allow(role, "deliveries:read")

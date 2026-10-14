@@ -329,6 +329,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/captains/me/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The captain's day: the van's stops, the flats of her society and their counts
+         * @description The society of X-Active-Role (captain:<society>), today or yesterday. Flat labels only: no names, no phones.
+         */
+        get: operations["captain_today_v1_captains_me_today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/captains/{captain_id}/end": {
         parameters: {
             query?: never;
@@ -1938,6 +1958,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stops/{stop_id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A stop's flats: for the rider of a rider-mode stop while the route runs, hub staff */
+        get: operations["stop_deliveries_v1_stops__stop_id__deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/stops/{stop_id}/handover": {
         parameters: {
             query?: never;
@@ -2265,6 +2302,23 @@ export interface components {
             /** Photo Url */
             photo_url: string | null;
         };
+        /** CaptainDay */
+        CaptainDay: {
+            counts: components["schemas"]["FlatCounts"];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Flats
+             * @description By tower, then flat
+             */
+            flats: components["schemas"]["CaptainFlat"][];
+            society: components["schemas"]["gharbasket__modules__logistics__schemas__SocietyRef"];
+            /** Stops */
+            stops: components["schemas"]["CaptainStop"][];
+        };
         /** CaptainEndIn */
         CaptainEndIn: {
             /** Note */
@@ -2274,6 +2328,42 @@ export interface components {
              * @enum {string}
              */
             reason: "stepped_down" | "hub_decision";
+        };
+        /** CaptainFlat */
+        CaptainFlat: {
+            /**
+             * Bags
+             * @example 1
+             */
+            bags: number;
+            /**
+             * Flat Label
+             * @description Tower and flat only
+             * @example B wing, 402
+             */
+            flat_label: string | null;
+            /**
+             * Hold Until
+             * @example 20:00
+             */
+            hold_until: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "addon" | "tiffin";
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Redelivery */
+            redelivery: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "on_the_way" | "with_you" | "held" | "delivered" | "undelivered";
         };
         /** CaptainIn */
         CaptainIn: {
@@ -2288,6 +2378,28 @@ export interface components {
              * @default false
              */
             replace: boolean;
+        };
+        /** CaptainStop */
+        CaptainStop: {
+            /** Eta Now */
+            eta_now: string | null;
+            expected: components["schemas"]["Expected"];
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            slot: components["schemas"]["StopSlot"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "arrived" | "handed_over" | "skipped";
+            /**
+             * Stop Id
+             * Format: uuid
+             */
+            stop_id: string;
         };
         /** CaptainsOut */
         CaptainsOut: {
@@ -2672,6 +2784,15 @@ export interface components {
             refresh_token: string | null;
             user: components["schemas"]["UserOut"];
         };
+        /** Expected */
+        Expected: {
+            /** Bags */
+            bags: number;
+            /** Crates */
+            crates: number;
+            /** Redelivery Bags */
+            redelivery_bags: number;
+        };
         /** FastingRules */
         FastingRules: {
             /** Fasts */
@@ -2787,6 +2908,39 @@ export interface components {
              * @description When the tap happened on the phone (stored for audit)
              */
             client_at?: string | null;
+        };
+        /** FlatCounts */
+        FlatCounts: {
+            /**
+             * Delivered
+             * @default 0
+             */
+            delivered: number;
+            /**
+             * Held
+             * @default 0
+             */
+            held: number;
+            /**
+             * On The Way
+             * @default 0
+             */
+            on_the_way: number;
+            /**
+             * Undelivered
+             * @default 0
+             */
+            undelivered: number;
+            /**
+             * With You
+             * @default 0
+             */
+            with_you: number;
+        };
+        /** FlatsOut */
+        FlatsOut: {
+            /** Items */
+            items: components["schemas"]["CaptainFlat"][];
         };
         /**
          * GeoPolygon
@@ -4667,7 +4821,7 @@ export interface components {
             /** @description Kitchens with 5 ratings or more; else null */
             rating: components["schemas"]["RatingOut"] | null;
             /** @description Captains: the society on her application; null without one */
-            requested_society: components["schemas"]["SocietyRef"] | null;
+            requested_society: components["schemas"]["gharbasket__modules__partners__schemas__SocietyRef"] | null;
             /**
              * Status
              * @enum {string}
@@ -6053,16 +6207,6 @@ export interface components {
             /** Towers */
             towers: components["schemas"]["Tower"][];
         };
-        /** SocietyRef */
-        SocietyRef: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-        };
         /**
          * SocietyRequestIn
          * @description Ask GharBasket to come to a society that isn't listed (US-8).
@@ -7230,6 +7374,16 @@ export interface components {
              */
             empties_returned?: number | null;
         };
+        /** SocietyRef */
+        gharbasket__modules__logistics__schemas__SocietyRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string | null;
+        };
         /** StartIn */
         gharbasket__modules__logistics__schemas__StartIn: {
             /**
@@ -7243,6 +7397,16 @@ export interface components {
              * @default false
              */
             leave_behind: boolean;
+        };
+        /** SocietyRef */
+        gharbasket__modules__partners__schemas__SocietyRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * CaptainOut
@@ -8604,6 +8768,58 @@ export interface operations {
                 };
             };
             /** @description subscriptions.budget_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    captain_today_v1_captains_me_today_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptainDay"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_society_captain */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15247,6 +15463,66 @@ export interface operations {
                 };
             };
             /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    stop_deliveries_v1_stops__stop_id__deliveries_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlatsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
