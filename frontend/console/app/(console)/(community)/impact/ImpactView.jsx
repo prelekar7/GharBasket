@@ -1,60 +1,86 @@
 "use client";
 
-import { Button, EmptyState, formatPaise, toast } from "@gharbasket/ui";
+import { Button, EmptyState, formatPaise, Select, toast } from "@gharbasket/ui";
 import { ChartCard, DataTable, KpiTile } from "@gharbasket/ui/console";
+import { parseAsString, useQueryState } from "nuqs";
 import { LinkButton } from "@/components/LinkButton.jsx";
 import { PageHeader } from "@/components/PageHeader.jsx";
 import { Toasts } from "@/components/Toasts.jsx";
-import { downloadCsv } from "@/lib/csv.js";
+import { monthLabel, monthShort } from "@/lib/months.js";
 
-/** @typedef {import("@/mocks/impact.js").Impact} Impact */
-/** @typedef {import("@/lib/types.js").Column} Column */
+/**
+ * GET /v1/analytics/impact (M12 section 3.6). A total the API withholds (fewer than 5 contributors, or none
+ * reported) is null.
+ * @typedef {{
+ *   scope: "platform" | "hub" | "ngo", hub_id: string | null, ngo_id: string | null, month: string, as_of: string,
+ *   totals: { food_saved_kg: number, items_donated: number, kg_donated: number, donations_verified: number,
+ *     households_donating: number | null, meals_donated: number, meals_served: number,
+ *     people_reached: number | null, referrals_converted: number, societies_live: number,
+ *     partners_earned_paise: number | null, partners_paid: number | null, waste_g_per_100kg: number | null },
+ *   trend: { months: string[], food_saved_kg: number[], items_donated: number[], meals_served: number[] },
+ *   societies: { society_id: string, name: string, items_donated: number, kg_donated: number,
+ *     meals_donated: number, households_joined: number }[],
+ *   ngos: { ngo_id: string, name: string, handoffs: number, items: number, kg: number, meals: number,
+ *     people_reached: number | null }[],
+ * }} Impact
+ * @typedef {import("@/lib/types.js").Column} Column
+ */
 
 /** @type {Column[]} */
-const COLUMNS = [
+const SOCIETY_COLUMNS = [
   { key: "s", label: "Society" },
-  { key: "food", label: "Food saved", align: "end" },
   { key: "items", label: "Items donated", align: "end" },
-  { key: "earned", label: "Cooks and captains earned", align: "end" },
+  { key: "kg", label: "Kg donated", align: "end" },
+  { key: "meals", label: "Meals donated", align: "end" },
+  { key: "joined", label: "Households joined", align: "end" },
 ];
 
-/** @param {{ impact: Impact }} props */
-export function ImpactView({ impact }) {
-  const { totals: t, trend, societies, label } = impact;
-  const month = label.split(" ")[0];
+/** @type {Column[]} */
+const NGO_COLUMNS = [
+  { key: "n", label: "NGO" },
+  { key: "handoffs", label: "Hand-offs", align: "end" },
+  { key: "items", label: "Items", align: "end" },
+  { key: "kg", label: "Kg", align: "end" },
+  { key: "meals", label: "Meals", align: "end" },
+  { key: "people", label: "People reached", align: "end" },
+];
 
-  function download() {
-    downloadCsv(`gharbasket-impact-${impact.month}.csv`, [
-      ["Society", "Food saved (kg)", "Items donated", "Cooks and captains earned (rupees)"],
-      ...societies.map((s) => [s.name, s.food_saved_kg, s.items_donated, s.earned_paise / 100]),
-      ["All societies", t.food_saved_kg, t.items_donated, t.earned_paise / 100],
-    ]);
-    toast(`${month} report downloaded`);
-  }
+/** @param {{ impact: Impact, months: { value: string, label: string }[] }} props */
+export function ImpactView({ impact, months }) {
+  const { totals: t, trend, societies, ngos } = impact;
+  const [, setMonth] = useQueryState("month", parseAsString.withOptions({ shallow: false }));
+  const label = monthLabel(impact.month);
+  const name = label.split(" ")[0];
+  const nothing = t.items_donated === 0 && t.food_saved_kg === 0 && t.meals_served === 0;
+  const labels = trend.months.map(monthShort);
 
   return (
     <>
       <PageHeader
         title={`Impact · ${label}`}
         aside={
-          <div className="flex flex-wrap gap-2">
+          <div data-no-print className="flex flex-wrap items-end gap-2">
+            <div className="w-[180px]">
+              <Select label="Month" options={months} value={impact.month} onChange={setMonth} />
+            </div>
+            <Button variant="primary" onPress={() => window.print()}>
+              Print report
+            </Button>
             <LinkButton
               href={`/impact/report?month=${impact.month}`}
-              variant="primary"
               download
-              onClick={() => toast(`${month} report is downloading`)}
+              onClick={() => toast(`${name} report is downloading`)}
             >
-              Download report (PDF)
+              Download report (CSV)
             </LinkButton>
-            <Button onPress={download}>Download report (CSV)</Button>
           </div>
         }
       >
-        The same counters families see on their Society screen, added up for the hub. Refreshed
-        every hour.
+        The same counters families see on their Society screen, added up for{" "}
+        {impact.scope === "ngo" ? "your NGO" : "the hub"}. Refreshed every few minutes.
       </PageHeader>
       <Toasts />
-      {societies.length === 0 ? (
+      {nothing ? (
         <EmptyState
           title="No impact to show yet"
           body="Counters appear once a society has delivered boxes and its first donation is verified."
@@ -68,44 +94,77 @@ export function ImpactView({ impact }) {
               value={String(t.items_donated)}
               hint="Verified by the hub"
             />
-            <KpiTile
-              label="Earned by home cooks and captains"
-              value={formatPaise(t.earned_paise)}
-              hint="From the ledger"
-            />
+            {impact.scope === "ngo" ? (
+              <KpiTile
+                label="Meals served"
+                value={String(t.meals_served)}
+                hint="Donated by families"
+              />
+            ) : (
+              <KpiTile
+                label="Earned by home cooks and captains"
+                value={t.partners_earned_paise == null ? "—" : formatPaise(t.partners_earned_paise)}
+                hint={
+                  t.partners_earned_paise == null
+                    ? "Shown once 5 partners are paid"
+                    : "From the ledger"
+                }
+              />
+            )}
             <KpiTile
               label="People the NGO reached"
-              value={String(t.people_reached)}
-              hint="From hand-off reports"
+              value={t.people_reached == null ? "—" : String(t.people_reached)}
+              hint={
+                t.people_reached == null ? "No hand-off has reported it" : "From hand-off reports"
+              }
             />
           </div>
           <div className="grid items-start gap-4 min-[900px]:grid-cols-2">
             <ChartCard
               title="Food saved from waste"
               subtitle="Kilograms a month, via Imperfect Sabzi, kitchens and the NGO"
-              labels={trend.labels}
+              labels={labels}
               series={[{ name: "Food saved", values: trend.food_saved_kg }]}
               unit="kg"
             />
             <ChartCard
               title="Items donated"
               subtitle="Per month"
-              labels={trend.labels}
+              labels={labels}
               series={[{ name: "Items donated", values: trend.items_donated }]}
             />
           </div>
-          <DataTable
-            dense
-            caption={`Impact by society, ${month}`}
-            columns={COLUMNS}
-            rows={societies.map((s) => ({
-              id: s.id,
-              s: { text: s.name, strong: true },
-              food: `${s.food_saved_kg} kg`,
-              items: s.items_donated,
-              earned: { money: s.earned_paise },
-            }))}
-          />
+          {societies.length > 0 && (
+            <DataTable
+              dense
+              caption={`Impact by society, ${name}`}
+              columns={SOCIETY_COLUMNS}
+              rows={societies.map((s) => ({
+                id: s.society_id,
+                s: { text: s.name, strong: true },
+                items: s.items_donated,
+                kg: `${s.kg_donated} kg`,
+                meals: s.meals_donated,
+                joined: s.households_joined,
+              }))}
+            />
+          )}
+          {ngos.length > 0 && (
+            <DataTable
+              dense
+              caption={`Hand-offs by NGO, ${name}`}
+              columns={NGO_COLUMNS}
+              rows={ngos.map((n) => ({
+                id: n.ngo_id,
+                n: { text: n.name, strong: true },
+                handoffs: n.handoffs,
+                items: n.items,
+                kg: `${n.kg} kg`,
+                meals: n.meals,
+                people: n.people_reached ?? "—",
+              }))}
+            />
+          )}
         </>
       )}
     </>
