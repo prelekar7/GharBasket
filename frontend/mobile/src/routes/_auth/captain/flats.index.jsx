@@ -1,5 +1,4 @@
 import {
-  BagLabel,
   Button,
   FlatChecklist,
   ProgressBar,
@@ -15,33 +14,33 @@ import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScanField } from "@/components/ScanField.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
-import { nextBag } from "@/features/captain/day.js";
+import { bagQr, findFlat, isHandedOver, nextFlat, towerOf } from "@/features/captain/day.js";
 import { dayLabel, isOpen, proof } from "@/features/captain/parts.jsx";
 import { useCaptainDay, useCaptainWrite, useDrafts } from "@/features/captain/queries.js";
-import { normalizeCode } from "@/lib/scan.js";
+import { clockTime } from "@/features/subscriptions/format.js";
 import { useSession } from "@/lib/session.js";
 
 /** @typedef {Parameters<typeof import("@gharbasket/ui").StatusPill>[0]["status"]} PillStatus */
 
-/** @type {Record<import("@/features/captain/day.js").BagStatus, [PillStatus, string]>} */
+/** @type {Record<import("@/features/captain/day.js").FlatStatus, [PillStatus, string]>} */
 const PILL = {
-  planned: ["planned", "toDeliver"],
+  on_the_way: ["planned", "onTheWay"],
+  with_you: ["planned", "toDeliver"],
+  held: ["ready", "held"],
   delivered: ["delivered", "delivered"],
-  in_lobby: ["ready", "inLobby"],
-  returned: ["issue", "returned"],
-  reported: ["issue", "reported"],
-  missing: ["issue", "missing"],
+  undelivered: ["issue", "undelivered"],
 };
 
 /**
- * The flats of one wing in walking order, the next door highlighted, and the scan at the door
- * that marks a bag delivered (design CaptainFlats; M7 US-4). Works offline.
+ * The flats of one tower in walking order, the next door highlighted, and the scan at the door
+ * that marks a bag delivered (design CaptainFlats; M7 §3.4). Works offline.
  */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/captain/flats/")({ component: Flats });
 
 function Flats() {
   const { t, i18n } = useTranslation();
+  const lang = i18n.resolvedLanguage ?? "en-IN";
   const navigate = useNavigate();
   const senior = useSession((s) => !!s.user?.senior_mode);
   const day = useCaptainDay();
@@ -57,28 +56,29 @@ function Flats() {
   if (day.isError || !day.data) return <ScreenError onRetry={() => day.refetch()} />;
   const d = day.data;
   const issues = drafts.issues;
-  const next = nextBag(d.bags.filter((b) => !issues[b.code]));
-  const wings = [...new Set(d.bags.map((b) => b.wing))];
-  const shown = wing ?? next?.wing ?? wings[0];
-  const bags = d.bags.filter((b) => b.wing === shown);
+  const handedOver = isHandedOver(d);
+  const next = nextFlat(d.flats.filter((f) => !issues[f.order_id]));
+  const wings = [...new Set(d.flats.map(towerOf))];
+  const shown = wing ?? (next && towerOf(next)) ?? wings[0];
+  const flats = d.flats.filter((f) => towerOf(f) === shown);
+  const handled = flats.filter((f) => f.status !== "on_the_way" && f.status !== "with_you").length;
 
   const deliver = (/** @type {string} */ raw) => {
-    const code = normalizeCode(raw);
-    const bag = d.bags.find((b) => b.code === code);
-    if (!bag || !isOpen(bag)) {
+    const flat = findFlat(d.flats, raw);
+    if (!flat || !isOpen(flat)) {
       setLast({
         state: "error",
-        text: bag
-          ? t("captain.flats.alreadyDone", { code, flat: bag.flat })
-          : t("captain.flats.notToday", { code }),
+        text: flat
+          ? t("captain.flats.alreadyDone", { flat: flat.flat_label })
+          : t("captain.flats.notToday"),
       });
       return;
     }
-    write(proof(bag, false));
+    write(proof(flat));
     // The family turned up after all: the door scan settles a problem not yet sent.
-    if (issues[code]) setDrafts((x) => ({ ...x, issues: omit(x.issues, code) }));
-    setWing(bag.wing);
-    setLast({ state: "success", text: t("captain.flats.delivered", { code, flat: bag.flat }) });
+    if (issues[flat.order_id]) setDrafts((x) => ({ ...x, issues: omit(x.issues, flat.order_id) }));
+    setWing(towerOf(flat));
+    setLast({ state: "success", text: t("captain.flats.delivered", { flat: flat.flat_label }) });
   };
 
   return (
@@ -101,12 +101,9 @@ function Flats() {
       <ProgressBar
         tone="accent"
         label={t("captain.flats.progress", { wing: shown })}
-        value={bags.filter((b) => b.status !== "planned").length}
-        max={bags.length}
-        valueLabel={t("captain.ofTotal", {
-          done: bags.filter((b) => b.status !== "planned").length,
-          total: bags.length,
-        })}
+        value={handled}
+        max={flats.length}
+        valueLabel={t("captain.ofTotal", { done: handled, total: flats.length })}
       />
       {Object.keys(issues).length > 0 && (
         <Link
@@ -118,20 +115,27 @@ function Flats() {
       )}
       <FlatChecklist
         label={t("captain.flats.progress", { wing: shown })}
-        onSelect={(item) => setPicked(bags.find((b) => b.flat === item.flat)?.code ?? null)}
-        items={bags.map((b) => {
-          const issue = issues[b.code];
+        onSelect={(item) =>
+          setPicked(flats.find((f) => f.flat_label === item.flat)?.order_id ?? null)
+        }
+        items={flats.map((f) => {
+          const issue = issues[f.order_id];
           const [status, word] = issue
             ? ["issue", issue.kind === "not_home" ? "notHome" : "damaged"]
-            : b.code === next?.code
+            : f.order_id === next?.order_id
               ? ["out", "next"]
-              : PILL[b.status];
+              : PILL[f.status];
           return {
-            flat: b.flat,
-            note:
-              b.pickup === "lobby"
-                ? t("captain.flats.lobbyPickup")
-                : t(`captain.flats.contents.${b.contents}`),
+            flat: f.flat_label,
+            note: [
+              t(`captain.flats.contents.${f.kind}`),
+              f.redelivery ? t("captain.flats.redelivery") : null,
+              f.hold_until
+                ? t("captain.flats.holdUntil", { time: clockTime(f.hold_until, lang) })
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · "),
             status: /** @type {PillStatus} */ (status),
             statusLabel: t(`captain.flats.status.${word}`),
           };
@@ -141,11 +145,11 @@ function Flats() {
       <div
         className={`sticky mt-auto flex flex-col bg-bg pt-2 ${senior ? "bottom-[calc(76px+env(safe-area-inset-bottom))]" : "bottom-[calc(64px+env(safe-area-inset-bottom))]"}`}
       >
-        {d.stop.handed_over_at ? (
+        {handedOver ? (
           <ScanField
             label={t("captain.flats.scan")}
             manualLabel={t("captain.flats.manual")}
-            expected={next?.code}
+            expected={next ? bagQr(next.order_id) : undefined}
             state={last?.state}
             successLabel={last?.text}
             errorLabel={last?.text}
@@ -164,12 +168,11 @@ function Flats() {
         )}
       </div>
       <FlatSheet
-        bag={d.bags.find((b) => b.code === picked)}
+        flat={d.flats.find((f) => f.order_id === picked)}
         society={d.society.name}
-        canReport={!!d.stop.handed_over_at}
         onClose={() => setPicked(null)}
-        onIssue={(code, issue) => {
-          setDrafts((x) => ({ ...x, issues: { ...x.issues, [code]: issue } }));
+        onIssue={(orderId, issue) => {
+          setDrafts((x) => ({ ...x, issues: { ...x.issues, [orderId]: issue } }));
           setPicked(null);
           toast(t("captain.flat.added"));
         }}
@@ -182,16 +185,16 @@ const omit = (/** @type {Record<string, any>} */ o, /** @type {string} */ k) =>
   Object.fromEntries(Object.entries(o).filter(([key]) => key !== k));
 
 /**
- * A flat's bag label, and the two problems a captain meets at a door: no one home, or something
- * broken. They wait on Exceptions until she saves them.
- * @param {{ bag: import("@/features/captain/day.js").Bag | undefined, society: string, canReport: boolean,
- *   onClose: () => void, onIssue: (code: string, issue: import("@/features/captain/queries.js").Issue) => void }} props
+ * A flat's bag, and the two problems a captain meets at a door: no one home, or something broken.
+ * They wait on Exceptions until she saves them.
+ * @param {{ flat: import("@/features/captain/day.js").Flat | undefined, society: string,
+ *   onClose: () => void, onIssue: (orderId: string, issue: import("@/features/captain/queries.js").Issue) => void }} props
  */
-function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
+function FlatSheet({ flat, society, onClose, onIssue }) {
   const { t } = useTranslation();
   const [note, setNote] = useState("");
   const [damaged, setDamaged] = useState(false);
-  const open = !!bag && canReport && bag.status === "planned";
+  const open = flat?.status === "with_you";
   const close = () => {
     setNote("");
     setDamaged(false);
@@ -199,12 +202,12 @@ function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
   };
   return (
     <Sheet
-      open={!!bag}
+      open={!!flat}
       onOpenChange={(o) => !o && close()}
-      title={bag?.flat ?? ""}
+      title={flat?.flat_label ?? ""}
       footer={
         open &&
-        bag &&
+        flat &&
         (damaged ? (
           <Button
             variant="primary"
@@ -212,7 +215,7 @@ function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
             block
             isDisabled={!note.trim()}
             onPress={() => {
-              onIssue(bag.code, { kind: "damaged", note: note.trim(), photo_key: null });
+              onIssue(flat.order_id, { kind: "damaged", note: note.trim(), photo_key: null });
               close();
             }}
           >
@@ -220,10 +223,7 @@ function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
           </Button>
         ) : (
           <>
-            <Button
-              size="lg"
-              onPress={() => onIssue(bag.code, { kind: "not_home", outcome: "lobby" })}
-            >
+            <Button size="lg" onPress={() => onIssue(flat.order_id, { kind: "not_home" })}>
               {t("captain.flat.notHome")}
             </Button>
             <Button size="lg" onPress={() => setDamaged(true)}>
@@ -233,22 +233,14 @@ function FlatSheet({ bag, society, canReport, onClose, onIssue }) {
         ))
       }
     >
-      {bag && (
-        <BagLabel
-          code={bag.code}
-          flat={bag.flat}
-          society={society}
-          crate={bag.crate}
-          lines={bag.lines}
-          flags={bag.contents === "box" ? [] : ["tiffin"]}
-          labels={{
-            bag: t("captain.flat.bag"),
-            flat: t("captain.flat.flatWord"),
-            crate: t("captain.flat.crate", { crate: "{crate}" }),
-            lines: t("captain.flat.lines", { n: "{n}" }),
-            flags: { tiffin: t("captain.flats.contents.tiffin") },
-          }}
-        />
+      {flat && (
+        <p className="m-0 text-base">
+          {t("captain.flat.summary", {
+            kind: t(`captain.flats.contents.${flat.kind}`),
+            society,
+            bags: flat.bags,
+          })}
+        </p>
       )}
       {open && damaged && (
         <TextField
