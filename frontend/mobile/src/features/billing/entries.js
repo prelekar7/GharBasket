@@ -21,6 +21,13 @@ export function entryLabel(t, e, lang) {
         })
       : t("wallet.entry.boxNoDate", { date });
   }
-  const known = ["topup", "topup_bonus", "refund", "adjustment"];
+  const known = [
+    "topup",
+    "topup_bonus",
+    "refund",
+    "adjustment",
+    "refund_to_source",
+    "refund_to_source_failed",
+  ];
   return t(known.includes(e.kind) ? `wallet.entry.${e.kind}` : "wallet.entry.generic", { date });
 }

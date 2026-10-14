@@ -3,7 +3,6 @@ import {
   Chip,
   Dialog,
   formatPaise,
-  GullakMeter,
   IconButton,
   MoneyText,
   Sheet,
@@ -18,6 +17,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScreenError } from "@/components/ScreenError.jsx";
 import { entryLabel } from "@/features/billing/entries.js";
+import { KindnessGullak } from "@/features/billing/KindnessGullak.jsx";
 import { useKindness, useWallet } from "@/features/billing/queries.js";
 import { useTopUp } from "@/features/billing/useTopUp.jsx";
 import { shortDate, weekdayOf } from "@/features/subscriptions/format.js";
@@ -98,21 +98,14 @@ function Wallet() {
       />
       {kindness.data && (
         <section className="flex flex-col gap-2">
-          <GullakMeter
-            points={kindness.data.points}
-            goal={kindness.data.goal.points}
-            label={t(`wallet.goals.${kindness.data.goal.code}`)}
-            labels={{
-              title: t("wallet.kindness"),
-              progress: t("wallet.kindnessProgress"),
-              remaining: t("wallet.kindnessRemaining"),
-            }}
-          />
+          <KindnessGullak balance={kindness.data} />
           <p className="text-sm leading-[22px] text-fg-secondary">
-            {t("wallet.pointsNote", {
-              points: kindness.data.expiring[0]?.points ?? 0,
-              date: kindness.data.expiring[0] ? shortDate(kindness.data.expiring[0].on, lang) : "",
-            })}
+            {kindness.data.expiring[0]
+              ? t("wallet.pointsNote", {
+                  points: kindness.data.expiring[0].points,
+                  date: shortDate(kindness.data.expiring[0].on, lang),
+                })
+              : t("kindness.pointsNoteNoExpiry")}
           </p>
         </section>
       )}
