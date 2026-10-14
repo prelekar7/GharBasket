@@ -4,6 +4,6 @@ import { VehiclesView } from "./VehiclesView.jsx";
 export const metadata = { title: "Vehicles" };
 
 export default async function Page() {
-  const { items } = await getVehicles();
-  return <VehiclesView vehicles={items} />;
+  const { items, today, riders } = await getVehicles();
+  return <VehiclesView vehicles={items} today={today} riders={riders} />;
 }

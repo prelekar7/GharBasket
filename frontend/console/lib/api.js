@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { apiBase } from "./auth-api.js";
 import { ACCESS_COOKIE, FRESH_COOKIE, isMockApi, SESSION_COOKIE } from "./session.js";
+import { firstEvent } from "./sse.js";
 
 /**
  * The API layer of the console, for Server Components and Server Actions (never the browser: the
@@ -208,6 +209,36 @@ export async function apiDownload(path, { accept, ...options }) {
     body: await response.arrayBuffer(),
     contentType: response.headers.get("content-type") ?? accept,
   };
+}
+
+/**
+ * The first event named `event` of a server-sent stream (`GET /v1/routes/{id}/live` sends `snapshot` first), parsed as
+ * JSON. The stream is closed as soon as it arrives, so a page can poll a live endpoint without holding it open.
+ * Errors are thrown as `ApiProblem`; a stream that sends nothing within `timeoutMs` throws a 504 one.
+ * @param {string} path
+ * @param {string} event
+ * @param {GetOptions & { timeoutMs?: number }} [options]
+ * @returns {Promise<any>}
+ */
+export async function apiFirstEvent(path, event, { timeoutMs = 8000, ...options } = {}) {
+  const response = await dispatch("GET", path, {
+    ...options,
+    headers: { ...options.headers, accept: "text/event-stream" },
+  });
+  if (!response.ok) {
+    const isJson = /json/.test(response.headers.get("content-type") ?? "");
+    const parsed = isJson ? await response.json().catch(() => null) : null;
+    throw new ApiProblem(response.status, parsed && typeof parsed === "object" ? parsed : {});
+  }
+  if (!response.body) throw new ApiProblem(502, { code: "http.no_stream" });
+  const data = await firstEvent(response.body, event, timeoutMs);
+  if (data === null) {
+    throw new ApiProblem(504, {
+      code: "http.no_event",
+      detail: `The stream sent no ${event} event.`,
+    });
+  }
+  return data;
 }
 
 /**

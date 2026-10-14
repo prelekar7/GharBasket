@@ -3,39 +3,36 @@
 import { refresh } from "next/cache";
 import { ApiProblem, apiPost } from "@/lib/api.js";
 import { currentHub } from "@/lib/hub.js";
+import { fieldErrors, humanMessage } from "@/lib/ops-errors.js";
 
 /**
- * Adds a vehicle to the selected hub. The caller makes one Idempotency-Key per attempt and reuses it on retry.
- * Field problems come back by field name, so the form can show each next to its input.
+ * Adds a vehicle to the selected hub (`POST /v1/hubs/{id}/vehicles`, M7 §3.1). The caller makes one Idempotency-Key per
+ * attempt and reuses it on retry. Field problems come back by field name, so the form can show each next to its input.
  * @param {string} idempotencyKey
- * @param {{ kind: string, registration: string, capacity_kg: number, capacity_crates: number }} input
- * @returns {Promise<{ ok: true, name: string } | { ok: false, message: string, fields: Record<string, string> }>}
+ * @param {{ label: string, kind: string, registration?: string, capacity_kg?: number, capacity_crates?: number,
+ *   capacity_tiffins?: number, default_rider_user_id?: string }} input
+ * @returns {Promise<{ ok: true, label: string } | { ok: false, message: string, fields: Record<string, string> }>}
  */
 export async function addVehicle(idempotencyKey, input) {
   const hub = await currentHub();
   try {
-    const vehicle = await apiPost(`/v1/hubs/${hub.id}/vehicles`, input, { idempotencyKey });
+    const vehicle = await apiPost(`/v1/hubs/${encodeURIComponent(hub.id)}/vehicles`, input, {
+      idempotencyKey,
+    });
     refresh();
-    return { ok: true, name: vehicle.name };
+    return { ok: true, label: vehicle.label };
   } catch (e) {
-    if (e instanceof ApiProblem && e.code === "request.invalid") {
-      return {
-        ok: false,
-        message: "Check the highlighted fields.",
-        fields: Object.fromEntries(e.errors.map((x) => [x.field, x.message])),
-      };
-    }
-    if (e instanceof ApiProblem && e.code === "logistics.vehicle_exists") {
-      return {
-        ok: false,
-        message: "",
-        fields: { registration: "This registration is already on the list." },
-      };
+    const fields = fieldErrors(e);
+    const code = e instanceof ApiProblem ? e.code : "";
+    if (code === "logistics.vehicle_label_taken")
+      fields.label = "This label is already on the list.";
+    if (code === "logistics.rider_invalid") {
+      fields.default_rider_user_id = "That person is not an active rider of this hub.";
     }
     return {
       ok: false,
-      message: "We could not add the vehicle. Nothing was saved; try again.",
-      fields: {},
+      fields,
+      message: Object.keys(fields).length ? "" : humanMessage(e),
     };
   }
 }
