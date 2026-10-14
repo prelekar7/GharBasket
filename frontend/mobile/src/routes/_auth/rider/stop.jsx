@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FieldHeader } from "@/components/FieldFrame.jsx";
 import { ScreenError } from "@/components/ScreenError.jsx";
+import { Doors } from "@/features/logistics/Doors.jsx";
 import { nextStop, stopDone } from "@/features/logistics/format.js";
 import { useMyRoute, useRiderActions } from "@/features/logistics/queries.js";
 
@@ -71,7 +72,6 @@ function StopDetail({ route, stop }) {
   const handOver = async () => {
     await actions.handover(route, stop, counted);
     toast(t("rider.stop.handed", { society: stop.society?.name ?? "" }));
-    onward();
   };
 
   return (
@@ -110,6 +110,7 @@ function StopDetail({ route, stop }) {
             : t("rider.stop.noCaptain")}
         </p>
       </section>
+      {stop.rider_mode && stop.status === "handed_over" && started && <Doors stopId={stop.id} />}
       {!done && started && captain && (
         <section className="flex flex-col gap-1.5 rounded-md bg-surface p-3.5">
           <h2 className="m-0 text-[19px] leading-[26px] font-bold">{t("rider.stop.code")}</h2>

@@ -83,6 +83,26 @@ export function useHub(id) {
 }
 
 /**
+ * Saves a write in the outbox with its `client_at`, and once the outbox is empty reads the routes
+ * again, so what only the server knows (codes, a captain's handover) shows up.
+ * @param {import("@tanstack/react-query").QueryClient} client @param {{ path: string, body?: Record<string, unknown> }} action
+ */
+async function send(client, action) {
+  const key = await enqueue({
+    method: "POST",
+    path: action.path,
+    body: { ...action.body, client_at: new Date().toISOString() },
+  });
+  flush()
+    .then(async () => {
+      const waiting = await db.table("outbox").where("status").equals("waiting").count();
+      if (navigator.onLine && waiting === 0) client.invalidateQueries({ queryKey: ["routes"] });
+    })
+    .catch(() => {});
+  return key;
+}
+
+/**
  * Rider actions: each is saved in the outbox (sent now, or when there is signal again) and
  * applied to the cached route straight away. Once the outbox is empty the route is read again, so
  * what only the server knows (handover codes after start, a captain's handover) shows up.
@@ -95,18 +115,7 @@ export function useRiderActions() {
     client.setQueriesData({ queryKey: ["routes"] }, (/** @type {any} */ data) =>
       data?.route?.id === route.id ? { ...data, route: change(data.route) } : data,
     );
-    const key = await enqueue({
-      method: "POST",
-      path: action.path,
-      body: { ...action.body, client_at: new Date().toISOString() },
-    });
-    flush()
-      .then(async () => {
-        const waiting = await db.table("outbox").where("status").equals("waiting").count();
-        if (navigator.onLine && waiting === 0) client.invalidateQueries({ queryKey: ["routes"] });
-      })
-      .catch(() => {});
-    return key;
+    return send(client, action);
   };
   /** @param {string} id @param {(s: Stop) => Stop} change @returns {(r: Route) => Route} */
   const onStop = (id, change) => (r) => ({
@@ -180,6 +189,52 @@ export function useRiderActions() {
         })),
         { path: `/v1/stops/${stop.id}/pickups`, body: picked },
       ),
+  };
+}
+
+/**
+ * @typedef {{ order_id: string, flat_label: string, kind: "box" | "addon" | "tiffin", bags: number,
+ *   redelivery: boolean, status: "on_the_way" | "with_you" | "held" | "delivered" | "undelivered",
+ *   hold_until: string | null }} Door
+ */
+
+/** The bags to deliver at a rider-mode stop (GET /v1/stops/{id}/deliveries). @param {string} stopId @param {boolean} enabled */
+export function useDoors(stopId, enabled) {
+  return useQuery({
+    queryKey: ["routes", "doors", stopId],
+    queryFn: async () =>
+      /** @type {Door[]} */ ((await request(`/v1/stops/${stopId}/deliveries`)).items),
+    enabled,
+    networkMode: "always",
+  });
+}
+
+/**
+ * Door proof and undelivered at a rider-mode stop, through the outbox; the flat changes at once.
+ * @param {string} stopId
+ */
+export function useDoorActions(stopId) {
+  const client = useQueryClient();
+  /** @param {Door} door @param {Door["status"]} status @param {string} path @param {Record<string, unknown>} body */
+  const door = (door, status, path, body) => {
+    client.setQueryData(["routes", "doors", stopId], (/** @type {Door[] | undefined} */ doors) =>
+      doors?.map((d) => (d.order_id === door.order_id ? { ...d, status } : d)),
+    );
+    return send(client, { path, body });
+  };
+  return {
+    /**
+     * POST /v1/deliveries/{order_id}/proof: a rider needs the customer's code or a photo.
+     * @param {Door} d @param {{ proof: "otp", delivery_code: string } | { proof: "photo", photo_key: string }} proof
+     */
+    deliver: (d, proof) =>
+      door(d, "delivered", `/v1/deliveries/${d.order_id}/proof`, {
+        bag_qr: `GB1:${d.order_id.replaceAll("-", "")}`,
+        ...proof,
+      }),
+    /** POST /v1/deliveries/{order_id}/undelivered @param {Door} d @param {"not_home" | "refused" | "wrong_address" | "damaged" | "missing"} reason */
+    undeliver: (d, reason) =>
+      door(d, "undelivered", `/v1/deliveries/${d.order_id}/undelivered`, { reason }),
   };
 }
 
