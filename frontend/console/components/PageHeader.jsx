@@ -21,7 +21,10 @@ export function PageHeader({ title, children, aside }) {
  */
 export function Panel({ title, aside, label, children }) {
   return (
-    <section aria-label={label} className="flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4">
+    <section
+      aria-label={label}
+      className="isolate flex min-w-0 flex-col gap-3 rounded-md bg-surface p-4"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[17px] leading-6 font-bold">{title}</h2>
         {aside}
