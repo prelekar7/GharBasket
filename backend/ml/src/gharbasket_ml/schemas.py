@@ -400,3 +400,128 @@ class AssignResponse(BaseModel):
     summary: AssignSummary | None
     seconds: float
     model: str = "assignment-cpsat-v0"
+
+
+# --- POST /basket/rank (M10 §3.7): the next-basket ranker -------------------------------------
+
+
+class RankCandidate(BaseModel):
+    """A candidate product with the features the training job defines (backend/training
+    ranker.py); the API computes them from the household's past boxes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product: str = Field(min_length=1, max_length=80)
+    weeks_since: float = Field(
+        ge=0,
+        description=(
+            "Weeks since last bought, capped at 52; 52 when never bought (the training job's "
+            "value). Larger values are served as 52."
+        ),
+    )
+    frequency: float = Field(ge=0, le=1, description="Share of past weeks it was bought")
+    drafted: bool = False
+    removed_last: bool = False
+    popularity: float = Field(default=0, ge=0, le=1, description="Share of households last week")
+    price_paise: int = Field(default=0, ge=0)
+
+
+class RankRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidates: list[RankCandidate] = Field(min_length=1, max_length=500)
+    top_k: int = Field(default=10, ge=1, le=100)
+
+
+class RankedOut(BaseModel):
+    product: str
+    score: float
+    rank: int
+
+
+class RankResponse(BaseModel):
+    source: Literal["ml", "fallback"]
+    model: str
+    ranked: list[RankedOut]
+
+
+# --- POST /assistant/turn (M13 §3): one turn of Ghar Saathi -------------------------------------
+
+
+class AssistantMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class WeekLine(BaseModel):
+    """One line of the week as the assistant sees it: product facts and the API's prices."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    handle: str = Field(min_length=1, max_length=8, description="Opaque, this turn only (L1, L2)")
+    slug: str = Field(max_length=80)
+    name: str = Field(max_length=120, description="In the person's language")
+    qty: int = Field(ge=0, description="Steps")
+    unit: str = Field(max_length=40, description="One step, e.g. 250 g")
+    unit_price_paise: int = Field(ge=0)
+    line_total_paise: int = Field(ge=0)
+    reason_code: str = Field(max_length=40)
+
+
+class WeekMeal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str = Field(max_length=10)
+    slot: str = Field(max_length=20)
+    dishes: list[str] = Field(default_factory=list, max_length=10)
+
+
+class WeekContext(BaseModel):
+    """The trimmed week the API sends (M13 §3): no household, user, name or address."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    delivery_date: str = Field(max_length=10)
+    status: str = Field(max_length=20)
+    cutoff_at: str = Field(max_length=40)
+    can_edit: bool = Field(description="Still editable: an editable status, before the cut-off")
+    total_paise: int = Field(ge=0)
+    lines: list[WeekLine] = Field(default_factory=list, max_length=200)
+    meal_plan: list[WeekMeal] = Field(default_factory=list, max_length=21)
+
+
+class AssistantTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locale: str = Field(default="en-IN", max_length=10)
+    messages: list[AssistantMessage] = Field(min_length=1, max_length=40)
+    week: WeekContext | None = Field(default=None, description="null: no week planned yet")
+
+
+class AssistantIntent(BaseModel):
+    """A change the model asked for; the API resolves it into a proposal card (or says why not)."""
+
+    action: Literal["edit_box_line", "skip_week"]
+    op: Literal["remove", "add", "qty"] | None = None
+    line: str | None = Field(default=None, description="The line's handle, for remove and qty")
+    product: str | None = Field(default=None, description="The line's slug, or the name to add")
+    qty: int | None = Field(default=None, description="As the model gave it; the API checks it")
+    week: Literal["this", "next"] | None = Field(default=None, description="skip_week only")
+
+
+class AssistantUsage(BaseModel):
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
+
+
+class AssistantTurnResponse(BaseModel):
+    reply: str
+    intents: list[AssistantIntent]
+    tool_calls: list[str]
+    usage: AssistantUsage
+    model: str
+    stop_reason: str
