@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import service
 from gharbasket.platform.jobs import JobContext, job
@@ -127,6 +128,16 @@ async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
         await session.flush()
 
 
+async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
+    """M1 §3.5: the subscription ends and the weeks not yet paid are skipped."""
+    try:
+        household_id = uuid.UUID(str(event.payload["household_id"]))
+    except (KeyError, ValueError):
+        return  # no household: nothing to end
+    await service.end_for_deletion(session, household_id)
+
+
 subscribe(orders_api.LOCKED, on_order_locked)
 subscribe(orders_api.PAYMENT_FAILED, on_order_payment_failed)
 subscribe(orders_api.CANCELLED, on_order_cancelled)
+subscribe(identity_api.DELETION_REQUESTED, on_deletion_requested)

@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import state
+from gharbasket.modules.orders import fees, state
 from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
 from gharbasket.modules.orders.models import (
     Order,
@@ -191,7 +191,16 @@ class ApprovedCycle:
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
     order.subtotal_paise = sum(line.total_paise for line in lines)
+    _total(order)
+
+
+def _total(order: Order) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
+
+
+def food_paid(order: Order) -> int:
+    """The paid total without the delivery fee: what shortage and issue refunds may return."""
+    return order.total_paise - order.fees_paise
 
 
 async def by_cycle(
@@ -290,6 +299,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             await _replace_box_lines(session, existing, cycle)
         return existing
     products = await _box_products(session, cycle)
+    fee = await fees.box_fee(session, cycle.hub_id, cycle.society_id)  # frozen, as line prices
     order = Order(
         household_id=cycle.household_id,
         hub_id=cycle.hub_id,
@@ -301,7 +311,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         cutoff_at=cutoff_for(cycle.delivery_date),
         status="approved",
         subtotal_paise=0,
-        fees_paise=0,
+        fees_paise=fee,
         discount_paise=0,
         total_paise=0,
         data_source=cycle.data_source,
@@ -348,11 +358,30 @@ async def lines_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderLine
     return list(rows.scalars())
 
 
-async def timeline_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderEvent]:
-    rows = await session.execute(
-        select(OrderEvent).where(OrderEvent.order_id == order_id).order_by(OrderEvent.id)
-    )
+async def timeline_of(
+    session: AsyncSession, order_id: uuid.UUID, *, after: uuid.UUID | None = None
+) -> list[OrderEvent]:
+    """The order's timeline rows, oldest first (ids are uuidv7); only those after `after`."""
+    query = select(OrderEvent).where(OrderEvent.order_id == order_id)
+    if after is not None:
+        query = query.where(OrderEvent.id > after)
+    rows = await session.execute(query.order_by(OrderEvent.id))
     return list(rows.scalars())
+
+
+async def has_event(session: AsyncSession, order_id: uuid.UUID, event_id: uuid.UUID) -> bool:
+    found = await session.scalar(
+        select(OrderEvent.id).where(OrderEvent.order_id == order_id, OrderEvent.id == event_id)
+    )
+    return found is not None
+
+
+async def status_of(session: AsyncSession, order_id: uuid.UUID) -> tuple[str, int]:
+    """The order's status and version, read fresh (the live timeline polls this)."""
+    row = (
+        await session.execute(select(Order.status, Order.version).where(Order.id == order_id))
+    ).one()
+    return row.status, row.version
 
 
 async def list_orders(
@@ -515,11 +544,16 @@ async def debit_and_lock(session: AsyncSession, order: Order, *, actor: str) -> 
 
     The debit is M5's `box:<order id>` entry, the same for the cut-off, a top-up's retry and
     `pay`, so the order is never charged twice. `billing.insufficient_balance` is raised with
-    nothing changed (the debit runs in a savepoint).
+    nothing debited (the debit runs in a savepoint). A box whose society went live since it was
+    approved drops its delivery fee first (M9 §3.6).
     """
     owner = await identity_api.owner_of_household(session, order.household_id)
     if owner is None:
         raise ValueError(f"order {order.id} has no household owner")
+    if order.fees_paise > 0 and await fees.society_live(session, order.society_id):
+        order.fees_paise = 0  # went live after approval: free from this lock; never raised here
+        _total(order)
+        order.version += 1
     if order.total_paise > 0:
         async with session.begin_nested():
             await billing_api.debit_for_order(
