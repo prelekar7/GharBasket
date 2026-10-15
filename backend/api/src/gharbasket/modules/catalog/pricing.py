@@ -71,6 +71,28 @@ async def prices_for(
     }
 
 
+async def latest_prices_on(
+    session: AsyncSession, hub_id: uuid.UUID, product_ids: list[uuid.UUID], on: date
+) -> dict[uuid.UUID, int]:
+    """Each product's price at the hub in the newest list valid on `on` that holds it (an item
+    missing from the current list keeps its last earlier price); never-priced products are left
+    out. The ranker's training definition (backend/training ranker.PriceBook, M10 §3.7)."""
+    if not product_ids:
+        return {}
+    rows = await session.execute(
+        select(Price.product_id, Price.price_paise)
+        .join(PriceList, PriceList.id == Price.price_list_id)
+        .where(
+            PriceList.hub_id == hub_id,
+            PriceList.valid_from <= on,
+            Price.product_id.in_(product_ids),
+        )
+        .order_by(Price.product_id, PriceList.valid_from.desc())
+        .distinct(Price.product_id)
+    )
+    return {product_id: price for product_id, price in rows.all()}
+
+
 async def price_list(
     session: AsyncSession, hub_id: uuid.UUID, on: date
 ) -> tuple[PriceList, list[Price]]:

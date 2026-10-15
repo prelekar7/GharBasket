@@ -12,6 +12,7 @@ from gharbasket_ml.planner import (
     check,
     plan_week,
     relaxations,
+    score,
     scored_days,
 )
 from gharbasket_ml.schemas import PlanRequest, PlanResponse, Weights
@@ -269,3 +270,48 @@ def test_v1_drops_a_spiked_dish_for_an_unspiked_one() -> None:
     assert chosen in as_plan(calm).values() and chosen not in as_plan(spiked).values()
     assert spiked.score is not None and spiked.score.price_penalty is None
     assert calm.score is not None and calm.score.price_penalty is None
+
+
+def test_v2_liking_tilts_the_plan_towards_kept_dishes_and_is_scored() -> None:
+    body = v1_request().model_dump()
+    mains = [r for r in body["recipes"] if not r["is_side"] and "dinner" in r["slots"]]
+    assert len(mains) >= 2
+    for r in body["recipes"]:
+        r["preference"] = 0.0
+    liked = mains[0]
+    liked["preference"] = 1.0
+    answer = plan_week(PlanRequest.model_validate(body), deterministic=True)
+    assert answer.plan is not None and answer.score is not None
+    chosen = [m.recipe for m in answer.plan if m.recipe]
+    assert liked["slug"] in chosen and answer.score.liking is not None
+    assert answer.score.liking == round(chosen.count(liked["slug"]) / len(chosen), 3)
+
+    # With the liking weight off the term vanishes and the score still reports the mean.
+    body["weights"] = {"liking": 0}
+    off = plan_week(PlanRequest.model_validate(body), deterministic=True)
+    assert off.plan is not None and off.score is not None and off.score.liking is not None
+    # Unknown preferences: no liking in the score (v1 behaviour).
+    plain = plan_week(v1_request(), deterministic=True)
+    assert plain.score is not None and plain.score.liking is None
+
+
+def test_v2_liking_tilts_the_plan_without_collapsing_variety() -> None:
+    # Every main liked on a 0..1 ramp (as M3's rank-scaled preferences): v2 picks better-liked
+    # dishes than v1, keeps every rule, and gives up at most one distinct dish of variety.
+    v1 = v1_request()
+    body = v1.model_dump()
+    mains = sorted(r["slug"] for r in body["recipes"] if not r["is_side"])
+    for r in body["recipes"]:
+        if not r["is_side"]:
+            r["preference"] = round(mains.index(r["slug"]) / (len(mains) - 1), 3)
+    v2 = PlanRequest.model_validate(body)
+
+    before = plan_week(v1, deterministic=True)
+    after = plan_week(v2, deterministic=True)
+
+    verify(v2, after)
+    assert before.score is not None and after.score is not None
+    liked_before = score(Week.of(v2), as_plan(before)).liking
+    assert after.score.liking is not None and liked_before is not None
+    assert after.score.liking > liked_before
+    assert after.score.variety >= before.score.variety - 1

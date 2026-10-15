@@ -1,4 +1,5 @@
-"""Fixtures for hub_ops tests: the seed people (one per role) and the seed hub with its vendor."""
+"""Fixtures for hub_ops tests: the seed people (one per role), the seed hub with its vendor, and
+for packing the whole seed world."""
 
 import uuid
 
@@ -6,7 +7,7 @@ import httpx2
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.tools.seed import seed, seed_hubs
+from gharbasket.tools.seed import seed, seed_catalog, seed_households, seed_hubs, seed_societies
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
@@ -44,3 +45,14 @@ def hub_body(slug: str = "vashi", **changes: object) -> dict[str, object]:
 
 def key() -> dict[str, str]:
     return {"Idempotency-Key": uuid.uuid4().hex}
+
+
+@pytest.fixture
+async def floor(db_session: AsyncSession) -> None:
+    """The seed world (people, societies, households, catalog with prices) and the seed hub."""
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+    await seed_catalog(db_session)
+    await seed_hubs(db_session)
+    await db_session.commit()

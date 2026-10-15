@@ -486,28 +486,51 @@ erDiagram
 erDiagram
     VEHICLES {
         uuid id PK
-        uuid hub_id FK
+        uuid hub_id
+        text label
         text kind
-        numeric capacity_kg
+        int capacity_kg
         int capacity_crates
+        int capacity_tiffins
+        uuid default_rider_user_id
+        boolean active
+    }
+    ROUTE_PLANS {
+        uuid id PK
+        uuid hub_id
+        date delivery_date
+        text kind
+        text status
+        text trigger
+        text source
+        jsonb summary
+        text_array unserved
+        uuid prediction_id
     }
     ROUTES {
         uuid id PK
-        uuid hub_id FK
-        date route_date
-        uuid slot_id FK
+        uuid plan_id FK
+        date delivery_date
+        int trip
         uuid vehicle_id FK
-        uuid rider_id FK
+        uuid rider_user_id
         text status
-        jsonb solver_stats
+        time depart_time
+        time return_by
+        int version
     }
     ROUTE_STOPS {
+        uuid id PK
         uuid route_id FK
         int seq
-        uuid society_id FK
-        timestamptz eta
         text kind
-        jsonb payload
+        uuid society_id
+        uuid slot_id
+        time eta
+        text status
+        boolean rider_mode
+        int crates
+        int bags
     }
     HANDOVERS {
         uuid id PK
@@ -537,13 +560,14 @@ erDiagram
         timestamptz at
         geography location
     }
+    ROUTE_PLANS ||--o{ ROUTES : holds
     VEHICLES ||--o{ ROUTES : runs
     ROUTES ||--o{ ROUTE_STOPS : visits
     ROUTES ||--o{ HANDOVERS : "hands over"
     ROUTES ||--o{ REVERSE_PICKUPS : collects
 ```
 
-`gps_pings` is partitioned by month (`PARTITION BY RANGE (at)`) with a BRIN index on `at`.
+A route plan is one solve for a hub, a delivery date and a kind; at most one per (hub, date, kind) is queued or solving and one is published (partial unique indexes). Hub, society, slot and user ids are plain UUIDs (ADR-0026 §5). `gps_pings` is partitioned by month (`PARTITION BY RANGE (at)`) with a BRIN index on `at`.
 
 ### 5.5.8 partners
 
@@ -892,6 +916,7 @@ Cut-off locks about 2,000 orders using batched `UPDATE … RETURNING` inside one
 - Every hub-scoped table has `hub_id`. Row-Level Security policies compare it with `current_setting('app.hub_ids')`, which the API sets with `SET LOCAL` per transaction for hub managers and franchise owners.
 - KYC numbers are encrypted with pgcrypto using a key kept in Infisical and passed to the API as a secret; only masked forms are returned.
 - No Aadhaar storage; health tags only with consent; `DELETE /me` hard-deletes personal data and keeps anonymised aggregates.
+- The lake's nightly snapshots (`snapshots/date=<day>/`, M10 §6) hold no names, contacts, addresses or users; quasi-identifiers are coarsened (no society, only the hub; the budget as a band). Partitions are deleted after 180 days (proposed: a bucket lifecycle rule). An erased household is left out of every later snapshot and feature run; older partitions lose its random id as they age out.
 
 ## 5.10 The `data_source` tag
 
