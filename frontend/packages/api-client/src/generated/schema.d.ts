@@ -995,6 +995,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/pantry-priors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token) */
+        post: operations["put_pantry_priors_v1_internal_intel_pantry_priors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/price-index": {
         parameters: {
             query?: never;
@@ -4666,6 +4683,40 @@ export interface components {
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** PantryPriorIn */
+        PantryPriorIn: {
+            /**
+             * Cohort
+             * @enum {string}
+             */
+            cohort: "small" | "medium" | "large";
+            /**
+             * Prior Mean Per Ae
+             * @description Base units a week per adult equivalent (M3 scales by the household)
+             */
+            prior_mean_per_ae: number;
+            /** Prior Weeks */
+            prior_weeks: number;
+            /**
+             * Product
+             * @description The product's slug
+             */
+            product: string;
+        };
+        /** PantryPriorsIn */
+        PantryPriorsIn: {
+            /** Items */
+            items: components["schemas"]["PantryPriorIn"][];
+            /** Version */
+            version: string;
+        };
+        /** PantryPriorsOut */
+        PantryPriorsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Unknown Slugs */
+            unknown_slugs: string[];
         };
         /** PartnerOut */
         PartnerOut: {
@@ -11462,6 +11513,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelMetricsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_pantry_priors_v1_internal_intel_pantry_priors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PantryPriorsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PantryPriorsOut"];
                 };
             };
             /** @description http.400: the body cannot be read */

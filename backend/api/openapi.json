@@ -6245,6 +6245,91 @@
         "title": "Page[SocietySummary]",
         "type": "object"
       },
+      "PantryPriorIn": {
+        "properties": {
+          "cohort": {
+            "enum": [
+              "small",
+              "medium",
+              "large"
+            ],
+            "title": "Cohort",
+            "type": "string"
+          },
+          "prior_mean_per_ae": {
+            "description": "Base units a week per adult equivalent (M3 scales by the household)",
+            "minimum": 0.0,
+            "title": "Prior Mean Per Ae",
+            "type": "number"
+          },
+          "prior_weeks": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 52.0,
+            "title": "Prior Weeks",
+            "type": "number"
+          },
+          "product": {
+            "description": "The product's slug",
+            "maxLength": 60,
+            "title": "Product",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cohort",
+          "product",
+          "prior_mean_per_ae",
+          "prior_weeks"
+        ],
+        "title": "PantryPriorIn",
+        "type": "object"
+      },
+      "PantryPriorsIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PantryPriorIn"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "version": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "items"
+        ],
+        "title": "PantryPriorsIn",
+        "type": "object"
+      },
+      "PantryPriorsOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "unknown_slugs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Slugs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "accepted",
+          "unknown_slugs"
+        ],
+        "title": "PantryPriorsOut",
+        "type": "object"
+      },
       "PartnerOut": {
         "properties": {
           "display_name": {
@@ -19216,6 +19301,72 @@
           }
         ],
         "summary": "Store an evaluation run's metrics (the eval harness, training jobs; operator token)",
+        "tags": [
+          "intel_gateway"
+        ]
+      }
+    },
+    "/v1/internal/intel/pantry-priors": {
+      "post": {
+        "operationId": "put_pantry_priors_v1_internal_intel_pantry_priors_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PantryPriorsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PantryPriorsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "OperatorToken": []
+          }
+        ],
+        "summary": "Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token)",
         "tags": [
           "intel_gateway"
         ]

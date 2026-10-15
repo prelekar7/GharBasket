@@ -6,12 +6,11 @@ registry (`s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/`) and th
 API.
 
 The job does **not** promote: the Space serves what `basket_ranker/latest.json` points at, and
-moving that pointer is a manual decision after reading the card (ADR-0025). Until `just promote`
-exists, `--promote <data_source>` points `latest.json` at the version this run trained for that
-source; it is off by default.
+moving that pointer is a manual decision after reading the card (ADR-0025):
+`just promote basket_ranker <version>-<data_source>` is the only thing that moves it.
 
     uv run --directory backend/training python -m gharbasket_training.jobs.train_ranker \\
-        [--out data/models] [--push] [--version 2026-10-05] [--promote synthetic]
+        [--out data/models] [--push] [--version 2026-10-05]
 
 `--out` is a local folder with the layout the Space's `MODELS_DIR` expects
 (`basket_ranker/latest.json`, `basket_ranker/<version>/model.txt`).
@@ -112,18 +111,6 @@ def publish(registry: Registry, trained: Trained) -> str:
     return registry.key(ranker.MODEL_NAME, trained.version)
 
 
-def promote(registry: Registry, version: str) -> None:
-    """Point `<name>/latest.json` at a published version (the manual step, ADR-0025)."""
-    if registry.lake.read_bytes(registry.key(ranker.MODEL_NAME, version, "model.txt")) is None:
-        raise RuntimeError(f"{ranker.MODEL_NAME} {version} is not in the registry")
-    registry.lake.write_bytes(
-        registry.key(ranker.MODEL_NAME, "latest.json"),
-        (
-            json.dumps({"version": version, "promoted_at": datetime.now(UTC).isoformat()}) + "\n"
-        ).encode(),
-    )
-
-
 async def push_metrics(http: httpx2.AsyncClient, settings: Settings, card: dict[str, Any]) -> int:
     if not settings.api_url or settings.jobs_token is None:
         raise RuntimeError("set API_URL and JOBS_TOKEN to push the metrics")
@@ -162,8 +149,6 @@ async def run(settings: Settings, args: argparse.Namespace) -> dict[str, Any]:
     finally:
         await engine.dispose()
     trained = fit(tables, args.version)
-    if args.promote and args.promote not in {t.data_source for t in trained}:
-        raise RuntimeError(f"nothing trained for data_source={args.promote!r} to promote")
     registry = open_registry(settings, args.out)
     summary: dict[str, Any] = {"models": {}}
     for t in trained:
@@ -172,9 +157,6 @@ async def run(settings: Settings, args: argparse.Namespace) -> dict[str, Any]:
             "metrics": t.card["metrics"],
             "rows": t.card["train_rows"],
         }
-        if args.promote == t.data_source:
-            promote(registry, t.version)
-            summary["promoted"] = t.version
     if args.push:
         async with httpx2.AsyncClient() as http:
             summary["pushed"] = sum([await push_metrics(http, settings, t.card) for t in trained])
@@ -186,11 +168,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="a local MODELS_DIR instead of the bucket")
     parser.add_argument("--version", default=datetime.now(UTC).strftime("%Y-%m-%d"))
     parser.add_argument("--push", action="store_true")
-    parser.add_argument(
-        "--promote",
-        metavar="DATA_SOURCE",
-        help="also point latest.json at this run's model for that source (off by default)",
-    )
     args = parser.parse_args(argv)
     print(json.dumps(asyncio.run(run(Settings(), args)), indent=2, default=str))
     return 0

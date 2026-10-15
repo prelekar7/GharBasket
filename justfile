@@ -152,6 +152,10 @@ cloud-ml url token="":
 eval *args:
     uv run python -m gharbasket_training.eval {{args}}
 
+# Point a model's latest.json in the registry at a version (also rolls back), e.g. `just promote basket_ranker 2026-10-05`
+promote model version *args:
+    uv run --directory backend/training python -m gharbasket_training.jobs.promote {{model}} {{version}} {{args}}
+
 # Score Ghar Saathi on data/eval/assistant_utterances.jsonl (needs ANTHROPIC_API_KEY), e.g. `just eval-assistant --models claude-opus-5-5 claude-sonnet-5-5`
 eval-assistant *args:
     uv run --directory backend/ml python -m gharbasket_ml.eval_assistant {{args}}

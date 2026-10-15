@@ -21,9 +21,11 @@ from gharbasket.modules.subscriptions.models import (
 from gharbasket.platform.locale import Language, localised
 
 MAX_QTY = service.MAX_QTY  # steps a line may hold
+DailyUseShare = service.DailyUseShare
 
 __all__ = [
     "MAX_QTY",
+    "DailyUseShare",
     "LineEdit",
     "WeekLineView",
     "WeekView",
@@ -32,6 +34,7 @@ __all__ = [
     "current_cycle_of",
     "cycle_after",
     "cycle_for",
+    "daily_use_history",
     "delete_for_user",
     "edit_cycle_lines",
     "export_for_user",
@@ -52,6 +55,17 @@ async def cycle_for(
     session: AsyncSession, household_id: uuid.UUID, delivery_date: date
 ) -> WeeklyCycle | None:
     return await service.cycle_for(session, household_id, delivery_date)
+
+
+async def daily_use_history(
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+) -> list[DailyUseShare]:
+    """Every locked box's daily-use share of the twin products (milk, curd) and its tap, oldest
+    first, exactly as the serving twin observes them (M10 §3.3): the pantry priors' refit
+    (`backend/training`, `refit_pantry`) reads it so the priors learn what the twin sees."""
+    return await service.daily_use_history(session, profile, catalog)
 
 
 async def current_cycle_of(session: AsyncSession, household_id: uuid.UUID) -> WeeklyCycle | None:
