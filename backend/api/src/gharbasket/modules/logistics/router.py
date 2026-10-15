@@ -748,10 +748,15 @@ async def hand_over(
     session: DbSession,
     idem: Idempotent,
     valkey: Valkey,
+    request: Request,
 ) -> HandoverOut:
     stop, route, actor = await handover.stop_actor(session, permit, stop_id)
+    store = getattr(request.app.state, "storage", None)
+    photo_valid = body.photo_key is not None and await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    )
     try:
-        proof = handover.check_proof(route, stop, actor, body)
+        proof = handover.check_proof(route, stop, actor, body, photo_valid)
     except handover.CodeInvalid as wrong:
         # The wrong try counts, and a replay of this key answers the same.
         await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
@@ -759,6 +764,8 @@ async def hand_over(
         raise
     made, moved, still = await handover.hand_over(session, valkey, route, stop, actor, body, proof)
     [view] = await views.stop_views(session, route, [stop])
+    if actor.kind == "captain":  # the code is the rider's and hub staff's only
+        view.handover_code = None
     out = HandoverOut(
         handover_id=made.id,
         stop=view,
