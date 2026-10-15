@@ -2,7 +2,8 @@
 uncommitted demand per hub x product x delivery day for the 7 days after the run, with newsvendor
 order quantities, from the module tables (read-only role), handed to
 `POST /v1/internal/intel/forecasts`; the backtest's metrics per model go to
-`POST /v1/internal/intel/model-metrics`.
+`POST /v1/internal/intel/model-metrics`. v1 adds what is known in advance as LightGBM features:
+the festival calendar (M2) and the mandi price index (`intel.price_index`).
 
 - Only complete weeks are used: the run's current week is still filling (tomorrow's boxes have
   just locked), so it is left out of training and of `committed`.
@@ -24,8 +25,8 @@ import argparse
 import asyncio
 import sys
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
-from typing import Any
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import httpx2
@@ -33,18 +34,17 @@ import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.orders.models import STATUSES, Order, OrderLine
+from gharbasket.modules.catalog import api as catalog_api
+from gharbasket.modules.intel_gateway.models import PriceIndex
+from gharbasket.modules.orders.api import SOLD
+from gharbasket.modules.orders.models import Order, OrderLine
 from gharbasket.platform.db import create_engine
 from gharbasket_training import forecast
 from gharbasket_training.settings import Settings
 
 IST = ZoneInfo("Asia/Kolkata")
-# Demand that happened: every status that has passed `locked`, whether or not the delivery went
-# well (undelivered, redelivery and refunded orders were still bought for). Statuses before or
-# off the locked path are not demand. A new status in orders.models must be placed in one of the
-# two (a test checks they cover STATUSES exactly).
-NOT_SOLD = ("approved", "payment_failed", "cancelled")
-SOLD = tuple(s for s in STATUSES if s not in NOT_SOLD)
+# Demand that happened is orders.api.SOLD: every status past `locked`, delivered or not, the
+# same definition M10's monitor_drift scores the forecasts against.
 # The protocol's label → the orders table's `data_source` (the pilot's and later rows are "real").
 ORDER_SOURCE = {"synthetic": "synthetic", "pilot": "real", "live": "real"}
 
@@ -78,6 +78,63 @@ async def order_lines(session: AsyncSession, data_source: str = "synthetic") -> 
             for hub, product, order, day, kind, qty in rows
         ],
         columns=forecast.LINE_COLUMNS,
+    )
+
+
+def weeks_frame(days: list[tuple[date, str, dict[str, Any]]]) -> pd.DataFrame:
+    """Festival days per week (Monday) and how many of them are fasts."""
+    festival: dict[date, set[date]] = {}
+    fasting: dict[date, set[date]] = {}
+    for day, _code, rules in days:
+        monday = forecast.monday_of(day)
+        festival.setdefault(monday, set()).add(day)
+        if rules.get("fasting"):
+            fasting.setdefault(monday, set()).add(day)
+    return pd.DataFrame(
+        [
+            {
+                "ds": pd.Timestamp(monday),
+                "festival_days": float(len(days_)),
+                "fast_days": float(len(fasting.get(monday, ()))),
+            }
+            for monday, days_ in sorted(festival.items())
+        ],
+        columns=["ds", "festival_days", "fast_days"],
+    )
+
+
+def prices_frame(rows: Sequence[tuple[Any, date, float]]) -> pd.DataFrame:
+    """The price index per product x week (Monday), averaged over the week's markets and days."""
+    if not rows:
+        return pd.DataFrame(columns=["unique_id", "ds", "price_index"])
+    df = pd.DataFrame(
+        [
+            {"unique_id": str(pid), "ds": pd.Timestamp(forecast.monday_of(day)), "price_index": ix}
+            for pid, day, ix in rows
+        ]
+    )
+    return cast(pd.DataFrame, df.groupby(["unique_id", "ds"], as_index=False)["price_index"].mean())
+
+
+async def exogenous(session: AsyncSession, series: pd.DataFrame, cutoff: date) -> forecast.Exog:
+    """The festival calendar over the series' weeks and the two forecast weeks (known in
+    advance), and the price index up to `cutoff`, the end of the run's last complete week: no
+    later price is read, so no feature can see one."""
+    if series.empty:
+        return forecast.Exog()
+    weeks = [cast(pd.Timestamp, pd.Timestamp(ds)).date() for ds in series["ds"]]
+    first, last = min(weeks), max(weeks) + timedelta(weeks=forecast.HORIZON + 1)
+    days = await catalog_api.festivals_between(session, first, last)
+    rows = (
+        await session.execute(
+            select(PriceIndex.product_id, PriceIndex.day, PriceIndex.index_4w).where(
+                PriceIndex.day >= first, PriceIndex.day <= cutoff
+            )
+        )
+    ).all()
+    return forecast.Exog(
+        weeks=weeks_frame([(d, c, dict(r)) for d, c, r in days]),
+        prices=prices_frame([(p, d, float(i)) for p, d, i in rows]),
     )
 
 
@@ -151,7 +208,7 @@ async def push(
             f"{base}/v1/internal/intel/forecasts",
             json={
                 "hub_id": hub_id,
-                "model": f"forecast-{test.champion.lower()}-v0",
+                "model": f"forecast-{test.champion.lower()}-v1",
                 "data_source": data_source,
                 "items": forecast.as_rows(lines),
             },
@@ -197,15 +254,17 @@ async def run(settings: Settings, args: argparse.Namespace) -> list[dict[str, An
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             lines = await order_lines(session, args.data_source)
+            today: date = args.today
+            last_week = forecast.last_complete_week(today)
+            series = forecast.weekly_series(lines, last_week)
+            exog = await exogenous(session, series, last_week + timedelta(days=6))
     finally:
         await engine.dispose()
-    today: date = args.today
-    series = forecast.weekly_series(lines, forecast.last_complete_week(today))
     costs = forecast.Costs(underage=args.tau, overage=1 - args.tau)
     out = []
     async with httpx2.AsyncClient() as http:
         for hub_id in sorted(str(h) for h in series["hub_id"].unique()):
-            planned, test = forecast.forecast_hub(series, lines, hub_id, today, costs)
+            planned, test = forecast.forecast_hub(series, lines, hub_id, today, costs, exog)
             summary = summarise(hub_id, planned, test)
             if args.push:
                 summary["pushed"] = await push(
