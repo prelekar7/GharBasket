@@ -14326,7 +14326,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.route_not_found */
+            /** @description logistics.route_not_found, logistics.vehicle_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;

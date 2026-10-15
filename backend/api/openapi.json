@@ -24311,7 +24311,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_found"
+            "description": "logistics.route_not_found, logistics.vehicle_not_found"
           },
           "409": {
             "content": {
