@@ -130,15 +130,18 @@ async def start_session(
     *,
     platform: str,
     push_token: str | None = None,
+    auth_time: datetime | None = None,
     now: datetime | None = None,
 ) -> IssuedTokens:
-    """Sign a device in: a new session with its first refresh token and an access token."""
+    """Sign a device in: a new session with its first refresh token and an access token.
+    `auth_time` is when the OTP was entered (default: now, as for the dev login)."""
     at = _now(now)
     login = LoginSession(
         user_id=user.id,
         platform=platform,
         push_token=push_token,
         created_at=at,
+        auth_time=auth_time or at,
         last_seen_at=at,
         expires_at=at + SESSION_LIFETIME,
     )

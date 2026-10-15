@@ -11,6 +11,10 @@ How events travel (ADR-0021, no broker):
   handler (retried with backoff).
 
 An event with no consumer is marked sent: the outbox is a delivery queue, not a replay log.
+That is only safe once every module's consumers are registered, so `relay` refuses to run until
+`gharbasket.modules.registry.load_modules()` has been called in this process (the app factory and
+every tool that relays do): it raises `ConsumersNotLoadedError` and leaves every event pending, to
+be sent by a process that has them all.
 """
 
 import asyncio
@@ -37,6 +41,27 @@ BACKOFF_BASE = timedelta(seconds=30)
 BACKOFF_MAX = timedelta(hours=1)
 ERROR_LENGTH = 500
 log = structlog.get_logger("gharbasket.outbox")
+
+
+class ConsumersNotLoadedError(RuntimeError):
+    """`relay` was called in a process that has not loaded every module's consumers."""
+
+
+@dataclass
+class _Registry:
+    loaded: bool = False
+
+
+_registry = _Registry()
+
+
+def mark_consumers_loaded() -> None:
+    """Every module's consumers are registered (called by `modules.registry.load_modules`)."""
+    _registry.loaded = True
+
+
+def consumers_loaded() -> bool:
+    return _registry.loaded
 
 
 async def publish(session: AsyncSession, event_type: str, payload: dict[str, Any]) -> uuid.UUID:
@@ -76,7 +101,16 @@ async def relay(session: AsyncSession, *, limit: int = 100) -> Relayed:
     run at the same time without delivering an event twice. Each event's handlers run inside a
     savepoint: a failing handler's writes roll back, the event stays unsent with a backoff, and
     the others still go out.
+
+    Raises `ConsumersNotLoadedError`, touching no event, until `load_modules()` has run: an event
+    whose consumers this process never imported would otherwise be marked sent without them.
     """
+    if not _registry.loaded:
+        log.error("outbox_consumers_not_loaded")
+        raise ConsumersNotLoadedError(
+            "outbox consumers are not loaded: call gharbasket.modules.registry.load_modules() "
+            "before relaying"
+        )
     # clock_timestamp(), not now(): now() is when the transaction began, so a long transaction
     # (a job, or a test) would treat events that fell due since then as not yet due.
     rows = await session.execute(

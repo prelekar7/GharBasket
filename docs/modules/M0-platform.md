@@ -34,7 +34,8 @@ Order-issue photos (M4 §3.2), donation photos (M9) and KYC documents (M8) uploa
 
 ```
 POST /v1/files/presign             signed in; no Idempotency-Key (it changes nothing a retry could repeat)
-  request : { "purpose": "order_issue_photo" | "donation_photo" | "kyc_document",
+  request : { "purpose": "order_issue_photo" | "donation_photo" | "kyc_document"
+                         | "delivery_photo" | "handoff_photo",
               "content_type": "image/jpeg", "size_bytes": 834221 }
   200     : { "key": "order_issue_photo/<user_id>/<uuidv7>.jpg",
               "url": "<presigned PUT URL>", "method": "PUT",
@@ -50,6 +51,8 @@ Purposes, limits and retention below were confirmed by the owner on 2026-10-08.
 | `order_issue_photo` | `image/jpeg`, `image/png`, `image/webp` | 5 MB | M4 issues | 90 days after the issue is resolved |
 | `donation_photo` | `image/jpeg`, `image/png`, `image/webp` | 5 MB | M9 donations | 90 days after the pickup |
 | `kyc_document` | `image/jpeg`, `image/png`, `application/pdf` | 10 MB | M8 KYC | 30 days after the application is rejected or the partner leaves; never an Aadhaar card (handbook 13) |
+| `delivery_photo` | `image/jpeg`, `image/webp` | 5 MB | M7 handover and door proof (M7 §3.4) | 90 days after the delivery |
+| `handoff_photo` | `image/jpeg`, `image/png`, `image/webp` | 5 MB | M9 NGO hand-offs (M9 §3.5) | 3 years (impact proof); never beneficiaries' faces |
 | `data_export` (server only, not presignable) | `application/json` | — | M1 export | 7 days |
 
 **Rules**
@@ -100,7 +103,7 @@ Purposes, limits and retention below were confirmed by the owner on 2026-10-08.
 | `cleanup_idempotency_keys` | Daily 04:03 IST (GitHub Actions) | Deletes keys older than 24 h |
 | Backups | — | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
 
-Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected by `JOBS_TOKEN`; each is idempotent, takes a Postgres advisory lock for its name and uses the request's `scheduled_for` rather than the clock. Triggers: the `jobs-staging.yml` workflow (daily and weekly jobs, and "Run workflow" by hand), an external HTTPS cron (cron-job.org) for minute-level timing such as the 21:00 cut-off, because a private repository has 2,000 free Actions minutes a month, and `just job <name>` locally. Modules register jobs with `@platform.jobs.job("name", "…")` in their `jobs.py`, imported by their router, and consumers with `platform.outbox.subscribe(event_type, handler)`. Taskiq workers replace the trigger at the pilot (ADR-0021).
+Scheduled jobs are internal endpoints `POST /v1/internal/jobs/<name>`, protected by `JOBS_TOKEN`; each is idempotent, takes a Postgres advisory lock for its name and uses the request's `scheduled_for` rather than the clock. Triggers: the `jobs-staging.yml` workflow (daily and weekly jobs, and "Run workflow" by hand), an external HTTPS cron (cron-job.org) for minute-level timing such as the 21:00 cut-off, because a private repository has 2,000 free Actions minutes a month, and `just job <name>` locally. Modules register jobs with `@platform.jobs.job("name", "…")` and consumers with `platform.outbox.subscribe(event_type, handler)`, both only in their `jobs.py`; `gharbasket.modules.registry.load_modules()` imports every one, and the app factory and every tool that runs jobs or relays (`just job`, `just seed`, `just sim --write-db`) call it first. The relay refuses to run in a process that has not (it raises and leaves every event pending), because an event whose consumers were never imported would otherwise be marked sent without them. Taskiq workers replace the trigger at the pilot (ADR-0021).
 
 ## 7. Permissions
 Provides the `require(permission, scope)` dependency and the permission registry that modules contribute to. `audit:read` → admin.
