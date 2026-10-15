@@ -42,6 +42,7 @@ jobs:
       S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
       S3_REGION: auto
       S3_BUCKET_LAKE: gb-lake
+      S3_BUCKET_MLFLOW: gb-mlflow
       API_URL: ${{ secrets.STAGING_API_URL }}
       JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
       DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}

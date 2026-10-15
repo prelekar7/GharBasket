@@ -7,7 +7,8 @@ slow, failing or refuses the token, a rule-based answer is returned instead, mar
 
 import uuid
 from collections.abc import Callable
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 import httpx2
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
-from gharbasket.modules.intel_gateway.models import FeatureSnapshot, Prediction
+from gharbasket.modules.intel_gateway.models import FeatureSnapshot, ModelMetric, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
     KitchenAssignment,
@@ -45,12 +46,16 @@ ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a c
 __all__ = [
     "AssignRequest",
     "HardRule",
+    "HubDrift",
     "KitchenAssignment",
+    "MetricRow",
+    "ModelHealth",
     "PantryItem",
     "PantryObservation",
     "PantryQuantities",
     "PantryRequest",
     "PlanRequest",
+    "PredictionCount",
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
@@ -58,6 +63,7 @@ __all__ = [
     "delete_for_user",
     "latest_metrics",
     "latest_prediction",
+    "model_health",
     "next_recipe",
     "pantry_quantities",
     "plan_week",
@@ -139,6 +145,112 @@ async def pantry_quantities(
             model_name=answer.model,
         )
     return answer
+
+
+@dataclass(frozen=True)
+class MetricRow:
+    metric: str
+    value: float
+    split: str
+    data_source: str
+    version: str
+    computed_at: datetime
+    hub_id: str | None = None  # a row about one hub (`details.hub_id`)
+
+
+@dataclass(frozen=True)
+class HubDrift:
+    """monitor_drift's live rows of one hub and data source over the window."""
+
+    hub_id: str
+    data_source: str
+    drift: bool  # any live `drift` row of this hub and source in the window says 1
+    drifted_days: int
+    scored_days: int
+    for_date: str | None  # the newest scored delivery day
+    wape: float | None  # its realised WAPE
+    backtest_wape: float | None  # the same hub and source's backtest it was compared with
+
+
+@dataclass(frozen=True)
+class ModelHealth:
+    model_name: str
+    metrics: tuple[MetricRow, ...]
+    drift: bool  # any hub drifted in the window (`hubs`)
+    hubs: tuple[HubDrift, ...] = ()
+
+
+@dataclass(frozen=True)
+class PredictionCount:
+    kind: str
+    source: str  # ml | fallback
+    count: int
+
+
+def _detail(row: ModelMetric, key: str) -> Any:
+    return (row.details or {}).get(key)
+
+
+def _hub_drift(rows: list[ModelMetric]) -> list[HubDrift]:
+    """Group a model's live per-hub rows (newest first) by hub and data source."""
+    groups: dict[tuple[str, str], list[ModelMetric]] = {}
+    for row in rows:
+        groups.setdefault((service.hub_of(row) or "", row.data_source), []).append(row)
+    out = []
+    for (hub, source), part in sorted(groups.items()):
+        drifts = [r for r in part if r.metric == "drift"]
+        wapes = [r for r in part if r.metric == "wape"]
+        newest = wapes[0] if wapes else None
+        out.append(
+            HubDrift(
+                hub_id=hub,
+                data_source=source,
+                drift=any(r.value >= 1 for r in drifts),
+                drifted_days=len({_detail(r, "for_date") for r in drifts if r.value >= 1}),
+                scored_days=len({_detail(r, "for_date") for r in wapes}),
+                for_date=None if newest is None else _detail(newest, "for_date"),
+                wape=None if newest is None else newest.value,
+                backtest_wape=None if newest is None else _detail(newest, "backtest_wape"),
+            )
+        )
+    return out
+
+
+async def model_health(
+    session: AsyncSession, *, since: datetime
+) -> tuple[list[ModelHealth], list[PredictionCount]]:
+    """What the console's AI health table shows (M12): every model's newest value per
+    (metric, split, data source, hub) from `model_metrics`; per hub and data source, the live
+    rows of `monitor_drift` since `since` (the model drifts when any hub does); and how often
+    each kind of prediction came from the ML service or the fallback since `since`."""
+    models = []
+    for name in await service.model_names(session):
+        rows = await service.latest_metrics(session, name)
+        hubs = _hub_drift(await service.live_hub_metrics(session, name, since))
+        models.append(
+            ModelHealth(
+                name,
+                tuple(
+                    MetricRow(
+                        m.metric,
+                        m.value,
+                        m.split,
+                        m.data_source,
+                        m.version,
+                        m.computed_at,
+                        service.hub_of(m),
+                    )
+                    for m in rows
+                ),
+                any(h.drift for h in hubs),
+                tuple(hubs),
+            )
+        )
+    counts = [
+        PredictionCount(kind, source, count)
+        for kind, source, count in await service.prediction_counts(session, since)
+    ]
+    return models, counts
 
 
 async def hub_forecast(
