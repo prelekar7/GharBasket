@@ -2,7 +2,7 @@
 (M9 §3.4, §4, §11)
 
 Revision ID: 97369d57cea9
-Revises: 058901d53044
+Revises: 6414c91b9017
 Create Date: 2026-10-10 03:52:24.129804+00:00
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "97369d57cea9"
-down_revision: str | Sequence[str] | None = "058901d53044"
+down_revision: str | Sequence[str] | None = "6414c91b9017"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
