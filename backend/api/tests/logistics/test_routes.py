@@ -168,11 +168,11 @@ async def test_a_hub_manager_changes_the_rider_and_the_vehicle_before_the_start(
     assert null_van.status_code == 422
     bike = await vehicle(db_session, "Bike", kind="two_wheeler")
     tiny = await vehicle(db_session, "Mini", kg=10, crates=1)
-    for vehicle_id, code in (
-        (bike.id, "request.invalid"),
-        (uuid.uuid4(), "request.invalid"),
-        (day.vehicle_id, None),  # unchanged: nothing to check
-        (tiny.id, "logistics.vehicle_too_small"),
+    for vehicle_id, status, code in (
+        (bike.id, 422, "request.invalid"),
+        (uuid.uuid4(), 404, "logistics.vehicle_not_found"),
+        (day.vehicle_id, 200, None),  # unchanged: nothing to check
+        (tiny.id, 422, "logistics.vehicle_too_small"),
     ):
         answer = await api.patch(
             path, json={"vehicle_id": str(vehicle_id)}, headers={**manager, "If-Match": '"2"'}
@@ -180,7 +180,7 @@ async def test_a_hub_manager_changes_the_rider_and_the_vehicle_before_the_start(
         if code is None:
             assert answer.status_code == 200 and answer.headers["ETag"] == '"2"'
         else:
-            assert (answer.status_code, answer.json()["code"]) == (422, code), answer.text
+            assert (answer.status_code, answer.json()["code"]) == (status, code), answer.text
 
     ev2 = await vehicle(db_session, "EV-2")
     changed = await api.patch(

@@ -10,7 +10,7 @@ import uuid
 from datetime import date, datetime
 from typing import ClassVar, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 VehicleKind = Literal["cargo_3w", "two_wheeler"]
 REGISTRATION = r"^[A-Z0-9]{4,16}$"
@@ -334,7 +334,7 @@ class PingIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    at: datetime = Field(examples=["2026-12-29T01:41:15Z"])
+    at: AwareDatetime = Field(examples=["2026-12-29T01:41:15Z"], description="With a time zone")
     lat: float = Field(ge=-90, le=90, examples=[19.0331])
     lng: float = Field(ge=-180, le=180, examples=[73.0298])
     accuracy_m: int = Field(ge=0, le=10_000, examples=[12])

@@ -462,8 +462,8 @@ async def get_route(
     description="A new rider gets logistics.route_published again (with previous_rider_user_id).",
     responses={
         **EDITS,
-        **ROUTE_404,
         409: _problem("logistics.routes_started, logistics.route_closed"),
+        404: _problem("logistics.route_not_found, logistics.vehicle_not_found"),
         422: _problem("logistics.rider_invalid, logistics.vehicle_too_small, request.invalid"),
     },
 )
