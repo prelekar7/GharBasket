@@ -14103,7 +14103,7 @@
                 }
               }
             },
-            "description": "orders.issue_not_open"
+            "description": "orders.issue_not_open, orders.order_refunded"
           },
           "422": {
             "content": {
@@ -17025,7 +17025,7 @@
                 }
               }
             },
-            "description": "request.invalid"
+            "description": "logistics.photo_key_invalid, request.invalid"
           }
         },
         "security": [

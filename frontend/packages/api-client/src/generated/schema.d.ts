@@ -8473,7 +8473,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description orders.issue_not_open */
+            /** @description orders.issue_not_open, orders.order_refunded */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10247,7 +10247,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description request.invalid */
+            /** @description logistics.photo_key_invalid, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

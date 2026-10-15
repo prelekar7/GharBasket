@@ -145,17 +145,45 @@ async def deliver(
 
 
 async def refund(
-    session: AsyncSession, delivery: Delivery, order_id: uuid.UUID, amount: int, reason: str
+    session: AsyncSession,
+    delivery: Delivery,
+    order_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
 ) -> None:
-    """undelivered → refunded (actor system); M4 pays the wallet."""
+    """undelivered → refunded (actor system; a manager's triage names the manager); M4 pays the
+    wallet."""
     await orders_api.transition(
         session,
         order_id,
         "refunded",
         actor="system",
+        actor_user_id=actor_user_id,
         payload={"refund_paise": amount, "reason": reason},
     )
     delivery.status, delivery.refund_paise, delivery.at = "refunded", amount, now()
+
+
+async def try_refund(
+    session: AsyncSession,
+    delivery: Delivery,
+    order_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
+) -> bool:
+    """`refund` in a savepoint; False (nothing changed) when M5 refuses it because the wallet would
+    go over its cap (`billing.wallet_limit`), so the caller can leave the order for triage."""
+    try:
+        async with session.begin_nested():
+            await refund(session, delivery, order_id, amount, reason, actor_user_id)
+    except ProblemError as exc:
+        if exc.code != "billing.wallet_limit":
+            raise
+        await session.refresh(delivery)
+        return False
+    return True
 
 
 async def fail(
@@ -169,6 +197,12 @@ async def fail(
     undelivered, then refunded at once (damaged, missing) or left for triage."""
     _ensure_open(delivery, order)
     if body.reason == "not_home" and actor.kind == "captain":
+        # Only a bag in her hands today: not a replay after hold_expiry, not a triage attempt.
+        if order.status != "at_society" or delivery.status not in ("with_captain", "held"):
+            raise conflict(
+                "logistics.delivery_closed",
+                f"This bag cannot be held now ({delivery.status}).",
+            )
         if delivery.status != "held":
             delivery.status, delivery.hold_until, delivery.reason = "held", HOLD_UNTIL, "not_home"
             delivery.by_actor, delivery.user_id, delivery.at = "captain", actor.user_id, now()
@@ -197,7 +231,8 @@ async def fail(
     delivery.photo_key, delivery.client_at, delivery.at = body.photo_key, body.client_at, now()
     if body.reason in REFUND_AT_ONCE:
         amount = await orders_api.refundable_paise(session, order.id)
-        await refund(session, delivery, order.id, amount, body.reason)
+        if not await try_refund(session, delivery, order.id, amount, body.reason):
+            delivery.status = "triage"  # the wallet is full: the hub refunds to the source
     elif body.reason in TRIAGE:
         delivery.status = "triage"
     await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)

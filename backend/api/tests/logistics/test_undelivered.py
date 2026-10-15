@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing.models import JournalEntry
+from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
 from gharbasket.modules.logistics.models import Delivery, RouteStop
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders.models import Order
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_SOCIETY_ID
@@ -31,6 +33,7 @@ from .conftest import (
     key,
     pack,
     published_day,
+    user_id,
 )
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
@@ -196,3 +199,81 @@ async def test_a_riders_not_home_rides_back_and_refused_goes_to_triage(
         headers={**rider, **key()},
     )
     assert (closed.status_code, closed.json()["code"]) == (409, "orders.illegal_transition")
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_a_late_issue_and_a_damaged_bag_never_pay_twice(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, stops = await started(api, google, db_session)
+    captain, priya = await as_user(api, google, MEENA), await as_user(api, google, PRIYA)
+    manager = await as_user(api, google, VIKRAM)
+    await hand_over(api, captain, stops[SEED_SOCIETY_ID], 2)
+    order_id = day.orders[PRIYA]
+    late = await api.post(
+        f"/v1/orders/{order_id}/issues",
+        json={"kind": "late", "note": "came at noon"},
+        headers={**priya, **key()},
+    )
+    assert late.status_code == 201, late.text
+    assert late.json()["status"] == "open"
+    damaged = await api.post(
+        f"/v1/deliveries/{order_id}/undelivered",
+        json={"reason": "damaged"},
+        headers={**captain, **key()},
+    )
+    assert damaged.json()["status"] == "refunded"
+    order = await db_session.get(Order, order_id, populate_existing=True)
+    assert order is not None
+    assert await orders_api.refundable_paise(db_session, order_id) == 0
+    credit = await api.post(
+        f"/v1/admin/order-issues/{late.json()['id']}/resolve",
+        json={"outcome": "credit", "credit_paise": 1000, "note": "sorry"},
+        headers={**manager, **key()},
+    )
+    assert (credit.status_code, credit.json()["code"]) == (409, "orders.order_refunded")
+    refunds = await db_session.execute(
+        select(JournalEntry.idempotency_key).where(
+            JournalEntry.idempotency_key.like(f"refund:{order_id}:%")
+        )
+    )
+    assert list(refunds.scalars()) == [f"refund:{order_id}:damaged"]  # paid once
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_a_hold_needs_the_bag_with_her_and_a_full_wallet_sends_damaged_to_triage(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, stops = await started(api, google, db_session)
+    captain = await as_user(api, google, MEENA)
+    await hand_over(api, captain, stops[SEED_SOCIETY_ID], 2)
+    meena_order, priya_order = day.orders[MEENA], day.orders[PRIYA]
+    refused = await api.post(
+        f"/v1/deliveries/{meena_order}/undelivered",
+        json={"reason": "refused"},
+        headers={**captain, **key()},
+    )
+    assert refused.json()["status"] == "triage"
+    late_hold = await api.post(
+        f"/v1/deliveries/{meena_order}/undelivered",
+        json={"reason": "not_home"},
+        headers={**captain, **key()},
+    )
+    assert (late_hold.status_code, late_hold.json()["code"]) == (409, "logistics.delivery_closed")
+
+    # Priya's wallet is nearly at its cap: the refund cannot land, so the hub decides.
+    owner = await user_id(db_session, PRIYA)
+    await credit_topup(
+        db_session, owner, CAP_PAISE - 100, payment_ref=uuid.uuid4().hex, topup_id=uuid.uuid4()
+    )
+    await db_session.commit()
+    damaged = await api.post(
+        f"/v1/deliveries/{priya_order}/undelivered",
+        json={"reason": "damaged"},
+        headers={**captain, **key()},
+    )
+    assert damaged.status_code == 200, damaged.text
+    assert (damaged.json()["status"], damaged.json()["reason"]) == ("triage", "damaged")
+    assert await status(db_session, priya_order) == "undelivered"

@@ -177,18 +177,12 @@ async def _publish_resolved(session: AsyncSession, issue: OrderIssue) -> None:
 
 
 async def _creditable(session: AsyncSession, order: Order) -> int:
-    """What may still be refunded on a row-locked order: its paid total without the delivery fee
-    (never credited back for a problem, M9 §3.6) minus the issue credits already made on it.
-    Shortage refunds at packing are already out of the total, which follows the lines
-    (`service.mark_shortage`); billing.api has no per-order refund total."""
-    credited = (
-        await session.execute(
-            select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
-                OrderIssue.order_id == order.id, OrderIssue.status == "credited"
-            )
-        )
-    ).scalar_one()
-    return max(0, service.food_paid(order) - int(credited))
+    """What may still be credited on a row-locked order: its paid total without the delivery fee
+    (never credited back for a problem, M9 §3.6) minus all that was already paid back, issue
+    credits and M7's refund alike (`service.refunded_paise`). Nothing on a refunded order."""
+    if order.status == "refunded":
+        return 0
+    return max(0, service.food_paid(order) - await service.refunded_paise(session, order))
 
 
 async def _auto_credit(session: AsyncSession, order: Order, issue: OrderIssue) -> str | None:
@@ -321,6 +315,10 @@ async def resolve(
         return issue
     if outcome != "credit":
         raise ValueError("outcome is 'credit' or 'reject'")
+    if order.status == "refunded":
+        raise ProblemError(
+            409, "orders.order_refunded", "This order was refunded; reject the issue instead."
+        )
     most = min(
         issue.amount_paise if issue.kind in LINE_KINDS else service.food_paid(order),
         await _creditable(session, order),
