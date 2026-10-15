@@ -525,6 +525,13 @@ class DeliveryOut(BaseModel):
 class DeliveriesPage(BaseModel):
     items: list[DeliveryOut]
     next_cursor: str | None
+    left_behind: list[uuid.UUID] = Field(
+        description="First page only: orders the day's routes left behind, not on a van since"
+    )
+    orphans: list[uuid.UUID] = Field(
+        description="First page only: redeliveries no van will take (their day's plan was "
+        "published without them, or the day has passed)"
+    )
 
 
 class Window(BaseModel):

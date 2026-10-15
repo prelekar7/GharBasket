@@ -986,9 +986,11 @@ async def mark_undelivered(
 async def resolve_delivery(
     order_id: uuid.UUID, body: ResolveIn, permit: CanResolve, session: DbSession, idem: Idempotent
 ) -> DeliveryOut:
+    if await attempts.latest(session, order_id) is None:
+        raise deliveries.delivery_not_found()
+    order = await orders_api.get(session, order_id, for_update=True)  # the order, then its attempt
     attempt = await attempts.latest(session, order_id, for_update=True)
-    order = None if attempt is None else await orders_api.get(session, order_id, for_update=True)
-    if attempt is None or order is None or not permit.allows(order.hub_id):
+    if attempt is None or not permit.allows(order.hub_id):
         raise deliveries.delivery_not_found()
     tomorrow = datetime.now(IST).date() + timedelta(days=1)
     await deliveries.resolve(session, attempt, order, permit.principal.user_id, body, tomorrow)
@@ -1058,7 +1060,10 @@ async def hub_deliveries(
     rows = await card.board(session, hub_id, on, delivery_status, after, limit + 1)
     page = rows[:limit]
     response.headers["Cache-Control"] = "no-store"
+    first = after is None
     return DeliveriesPage(
         items=[attempts.delivery_out(r) for r in page],
         next_cursor=encode_cursor({"after": str(page[-1].id)}) if len(rows) > limit else None,
+        left_behind=await card.left_behind(session, hub_id, on) if first else [],
+        orphans=await card.orphans(session, hub_id, on) if first else [],
     )

@@ -9,8 +9,9 @@ by the bag's scan alone; a rider needs the household's code or a photo.
 """
 
 import uuid
-from datetime import date, time
+from datetime import date, time, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import events
@@ -21,7 +22,7 @@ from gharbasket.modules.logistics.handover import (
     CodeInvalid,
     ensure_captain,
 )
-from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RoutePlan, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
 from gharbasket.modules.logistics.schemas import ProofIn, ResolveIn, UndeliveredIn
 from gharbasket.modules.logistics.views import hhmm, now
@@ -239,6 +240,26 @@ async def fail(
     await session.flush()
 
 
+async def redelivery_day(session: AsyncSession, hub_id: uuid.UUID, earliest: date) -> date:
+    """The first day from `earliest` with no box plan solving, solved or published (M3 review)."""
+    day = earliest
+    for _ in range(14):
+        taken = await session.scalar(
+            select(RoutePlan.id)
+            .where(
+                RoutePlan.hub_id == hub_id,
+                RoutePlan.delivery_date == day,
+                RoutePlan.kind == "box",
+                RoutePlan.status.in_(("solving", "solved", "published")),
+            )
+            .limit(1)
+        )
+        if taken is None:
+            return day
+        day += timedelta(days=1)
+    return day
+
+
 async def schedule_redelivery(
     session: AsyncSession,
     delivery: Delivery,
@@ -248,8 +269,10 @@ async def schedule_redelivery(
     actor: str,
     actor_user_id: uuid.UUID | None,
 ) -> Delivery:
-    """The one free redelivery (§3.4): undelivered → redelivery and attempt 2 on `day`, in the
-    same slot's window; T+1's 23:15 solve gives the society a stop for it."""
+    """The one free redelivery (§3.4): undelivered → redelivery and attempt 2 on the first day
+    from `day` whose plan is not solved yet (a plan already solved would never carry it), in the
+    same slot's window; that day's 23:15 solve gives the society a stop for it."""
+    day = await redelivery_day(session, order.hub_id, day)
     await orders_api.transition(
         session, order.id, "redelivery", actor=actor, actor_user_id=actor_user_id
     )
@@ -313,7 +336,7 @@ async def resolve(
                 "That is more than is left to refund on this order.",
                 extra={"max_paise": most},
             )
-        await refund(session, delivery, order.id, amount, "triage")
+        await refund(session, delivery, order.id, amount, "triage", user_id)
     delivery.note, delivery.by_actor, delivery.user_id = body.note, "hub", user_id
     await audit.record(
         session,

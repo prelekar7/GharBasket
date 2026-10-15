@@ -2792,8 +2792,18 @@ export interface components {
         DeliveriesPage: {
             /** Items */
             items: components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"][];
+            /**
+             * Left Behind
+             * @description First page only: orders the day's routes left behind, not on a van since
+             */
+            left_behind: string[];
             /** Next Cursor */
             next_cursor: string | null;
+            /**
+             * Orphans
+             * @description First page only: redeliveries no van will take (their day's plan was published without them, or the day has passed)
+             */
+            orphans: string[];
         };
         /** DeliveryCard */
         DeliveryCard: {
