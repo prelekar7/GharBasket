@@ -12436,7 +12436,8 @@
                   "missing",
                   "other",
                   "returned_to_hub",
-                  "not_confirmed"
+                  "not_confirmed",
+                  "left_behind"
                 ],
                 "type": "string"
               },

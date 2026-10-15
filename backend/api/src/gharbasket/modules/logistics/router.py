@@ -914,11 +914,20 @@ async def _door_answer(
     },
 )
 async def prove_delivery(
-    order_id: uuid.UUID, body: ProofIn, permit: CanDeliver, session: DbSession, idem: Idempotent
+    order_id: uuid.UUID,
+    body: ProofIn,
+    permit: CanDeliver,
+    session: DbSession,
+    idem: Idempotent,
+    request: Request,
 ) -> DeliveryOut:
     attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
+    store = getattr(request.app.state, "storage", None)
+    photo_valid = body.photo_key is not None and await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    )
     try:
-        deliveries.check_proof(attempt, order, actor, body)
+        deliveries.check_proof(attempt, order, actor, body, photo_valid)
     except handover.CodeInvalid as wrong:
         await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
         await session.commit()

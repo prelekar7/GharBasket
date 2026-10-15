@@ -489,6 +489,7 @@ class DeliveryOut(BaseModel):
             "other",
             "returned_to_hub",
             "not_confirmed",
+            "left_behind",
         ]
         | None
     )

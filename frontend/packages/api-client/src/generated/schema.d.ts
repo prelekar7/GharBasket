@@ -7636,7 +7636,7 @@ export interface components {
             /** Proof */
             proof: ("scan" | "otp" | "photo") | null;
             /** Reason */
-            reason: ("not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed") | null;
+            reason: ("not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed" | "left_behind") | null;
             /**
              * Society Id
              * Format: uuid
