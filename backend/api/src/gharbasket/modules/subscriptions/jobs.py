@@ -120,7 +120,33 @@ async def on_order_payment_failed(session: AsyncSession, event: OutboxEvent) -> 
         await service.mark_payment_failed(session, cycle)
 
 
+async def on_tiffin_booked(session: AsyncSession, event: OutboxEvent) -> None:
+    """M4 §3.5: the booked meal becomes `tiffin` in the week, while it can still be edited."""
+    try:
+        household_id = uuid.UUID(str(event.payload["household_id"]))
+        on = date.fromisoformat(str(event.payload["delivery_date"]))
+        meal = str(event.payload["meal"])
+    except (KeyError, ValueError):
+        return
+    await service.mark_tiffin_meal(session, household_id, on, meal, booked=True)
+
+
+async def _tiffin_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
+    """A cancelled tiffin sets its meal back to the plan (M4 §3.5)."""
+    try:
+        household_id = uuid.UUID(str(event.payload["household_id"]))
+        on = date.fromisoformat(str(event.payload["delivery_date"]))
+        slot = await orders_api.slot_ref(session, uuid.UUID(str(event.payload["slot_id"])))
+    except (KeyError, ValueError):
+        return
+    if slot is not None and slot.meal is not None:
+        await service.mark_tiffin_meal(session, household_id, on, slot.meal, booked=False)
+
+
 async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
+    if event.payload.get("kind") == "tiffin":
+        await _tiffin_cancelled(session, event)
+        return
     if event.payload.get("reason") != "payment" or not _about_the_box(event):
         return  # a skip or a customer cancellation already changed the cycle
     cycle = await service.cycle_for(
@@ -146,4 +172,5 @@ async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> No
 subscribe(orders_api.LOCKED, on_order_locked)
 subscribe(orders_api.PAYMENT_FAILED, on_order_payment_failed)
 subscribe(orders_api.CANCELLED, on_order_cancelled)
+subscribe(orders_api.TIFFIN_BOOKED, on_tiffin_booked)
 subscribe(identity_api.DELETION_REQUESTED, on_deletion_requested)

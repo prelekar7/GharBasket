@@ -1044,6 +1044,47 @@ async def set_meal(
     return await _saved(session, cycle, lines)
 
 
+async def mark_tiffin_meal(
+    session: AsyncSession, household_id: uuid.UUID, on: date, slot: str, *, booked: bool
+) -> bool:
+    """A tiffin booked for a meal sets that meal to `tiffin` (its ingredients leave the box), and
+    a cancelled one sets it back to the plan, exactly as `PUT /v1/cycles/{id}/meals` does, while
+    the week can still be edited (M4 §3.5). Returns whether the week changed."""
+    cycle = (
+        await session.execute(
+            select(WeeklyCycle)
+            .where(
+                WeeklyCycle.household_id == household_id,
+                WeeklyCycle.week_start <= on,
+                WeeklyCycle.week_start > on - timedelta(days=7),
+                WeeklyCycle.status.in_(EDITABLE),
+            )
+            .order_by(WeeklyCycle.delivery_date.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    day = next((d for d in cycle.meal_plan if d["date"] == on.isoformat()), None) if cycle else None
+    meal = next((m for m in day["meals"] if m["slot"] == slot), None) if day else None
+    if cycle is None or meal is None or bool(meal.get("tiffin")) == booked:
+        return False
+    if not booked and meal.get("source") != "customer":
+        return False
+    try:
+        async with session.begin_nested():
+            await set_meal(
+                session,
+                cycle,
+                on=on,
+                slot=slot,
+                choice="tiffin" if booked else "planned",
+                recipe_id=None,
+                expected_version=cycle.version,
+            )
+    except ProblemError:  # past the cut-off, or over the Budget Lock: the box stays as it is
+        return False
+    return True
+
+
 def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.ApprovedCycle:
     return orders_api.ApprovedCycle(
         cycle_id=cycle.id,

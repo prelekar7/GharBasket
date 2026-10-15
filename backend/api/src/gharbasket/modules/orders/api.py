@@ -18,7 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
-from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
+from gharbasket.modules.orders.events import (
+    CANCELLED,
+    DELIVERED,
+    LOCKED,
+    PAYMENT_FAILED,
+    TIFFIN_BOOKED,
+)
 from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     Order,
@@ -44,6 +50,7 @@ __all__ = [
     "DELIVERED",
     "LOCKED",
     "PAYMENT_FAILED",
+    "TIFFIN_BOOKED",
     "ApprovedCycle",
     "CycleLine",
     "Order",
@@ -147,6 +154,7 @@ class SlotRef:
     start: time
     end: time
     active: bool
+    meal: str | None = None  # lunch or dinner for a tiffin slot (§3.5)
 
 
 async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
@@ -156,7 +164,14 @@ async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
     except Exception:
         return None
     return SlotRef(
-        slot.id, slot.hub_id, slot.label, slot.kind, slot.start_time, slot.end_time, slot.active
+        slot.id,
+        slot.hub_id,
+        slot.label,
+        slot.kind,
+        slot.start_time,
+        slot.end_time,
+        slot.active,
+        slot.meal,
     )
 
 
