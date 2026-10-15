@@ -97,6 +97,9 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
+    # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
+    real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
@@ -28,6 +28,7 @@ __all__ = [
     "WeekLineView",
     "WeekView",
     "WeeklyCycle",
+    "acceptance_on",
     "current_cycle_of",
     "cycle_after",
     "cycle_for",
@@ -196,6 +197,34 @@ async def skip_cycle(
         service.check_editable(cycle, expected_version=expected_version)
     await service.skip(session, cycle)
     return _summary(cycle, await service.lines_of(session, cycle.id))
+
+
+ACCEPTED = ("approved", "locked")
+
+
+async def acceptance_on(
+    session: AsyncSession, delivery_date: date
+) -> dict[tuple[str, str], tuple[int, int]]:
+    """Per (plan source `ml` | `fallback`, cycle data source `real` | `synthetic`): (accepted,
+    offered) weeks for a delivery day, where offered is every cycle past draft and accepted means
+    approved or locked (M10 monitoring; sources are never pooled)."""
+    rows = (
+        await session.execute(
+            select(
+                WeeklyCycle.plan_source, WeeklyCycle.data_source, WeeklyCycle.status, func.count()
+            )
+            .where(WeeklyCycle.delivery_date == delivery_date, WeeklyCycle.status != "draft")
+            .group_by(WeeklyCycle.plan_source, WeeklyCycle.data_source, WeeklyCycle.status)
+        )
+    ).all()
+    out: dict[tuple[str, str], tuple[int, int]] = {}
+    for plan_source, data_source, status, count in rows:
+        accepted, offered = out.get((plan_source, data_source), (0, 0))
+        out[plan_source, data_source] = (
+            accepted + (count if status in ACCEPTED else 0),
+            offered + count,
+        )
+    return out
 
 
 async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid.UUID) -> None:

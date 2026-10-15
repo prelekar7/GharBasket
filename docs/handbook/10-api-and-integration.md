@@ -140,6 +140,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
+| Daily 03:33 | `monitor_drift` (realised WAPE per hub, delivery day and data source, acceptance per source → `model_metrics`, drift flags against the same hub and source's backtest) | intel |
 
 ## 10.5 Key endpoints per module (v1)
 
@@ -157,7 +158,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M9 community | `/societies`, `/societies/{id}/unlock`, `/referrals`, `/donations`, `/drives`, `/ngo-handoffs`, `/impact` |
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
-| M12 analytics | `/analytics/*` (KPIs, unit economics, impact) |
+| M12 analytics | `/analytics/ai-health` (built, admin), `/analytics/*` (KPIs, unit economics, impact) |
 | M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations
