@@ -35,5 +35,17 @@ pings `/health` every 10 minutes so the Space does not sleep.
 Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the image to
 the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `OSRM_TIMEOUT_S`
 (default 2.5: `/route/solve` prices with haversine when OSRM is slower), `MODELS_MANIFEST`
-(a local stand-in for the R2 registry pointer). The service is stateless and receives no personal
-data (DPDP; the Space is hosted outside India).
+(a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry
+layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer),
+`MODELS_RELOAD_S` (how often the models are re-read, default 600: a promotion is served within ten
+minutes, and a bad pointer or model keeps the last good one or the fallback, never a 500), `ANTHROPIC_API_KEY`
+(a Space secret; Ghar Saathi's `POST /assistant/turn` answers 503 without it), `ASSISTANT_MODEL`
+(`claude-opus-5-5` until the S8 evaluation, ADR-0013), `ASSISTANT_REQUEST_TIMEOUT_S` (default 12, one
+retry) and `ASSISTANT_TURN_TIMEOUT_S` (default 25, below the API's 30 s; 504 `ml.assistant_timeout`).
+The service is stateless and receives no personal data (DPDP; the Space is hosted outside India). For
+Ghar Saathi the API sends only the conversation, already scrubbed of phones, e-mails, Aadhaar numbers,
+PIN codes, addresses and the household's own names, and a trimmed week (delivery date, status, cut-off,
+whether it can still change, lines with per-turn handles, prices in paise and reason codes, the total
+and the meal plan's dish names): no household or user id, name, address or token. The assistant answers
+`get_my_week` and `explain_item` from that week and calls nothing back; `edit_box_line` and `skip_week`
+come back as intents, which the API resolves into the cards the person confirms (M13 §3).
