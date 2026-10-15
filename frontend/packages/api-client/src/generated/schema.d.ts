@@ -5068,6 +5068,7 @@ export interface components {
             /**
              * At
              * Format: date-time
+             * @description With a time zone
              * @example 2026-12-29T01:41:15Z
              */
             at: string;
@@ -15008,7 +15009,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.route_not_found */
+            /** @description logistics.route_not_found, logistics.vehicle_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;

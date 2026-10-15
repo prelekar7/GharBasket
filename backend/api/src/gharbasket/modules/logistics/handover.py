@@ -27,11 +27,13 @@ from gharbasket.modules.logistics.routing import DETOUR, metres
 from gharbasket.modules.logistics.schemas import CaptainFlat, HandoverIn
 from gharbasket.modules.logistics.views import now
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.platform import files
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.permissions import Permit, forbidden
 
 MAX_CODE_TRIES = 5
+PHOTO_PURPOSE = "delivery_photo"  # M0
 KINDS = ("box", "addon")
 # order status -> what the captain's checklist calls it
 FLAT_STATUS = {
@@ -104,19 +106,27 @@ async def stop_actor(
             route,
             Actor("captain", user_id, await ensure_captain(session, user_id, society)),
         )
+    if any(g.role == "captain" for g in permit.grants):
+        raise forbidden("This stop is another society's.")
     raise stop_not_found()
 
 
-def photo_ok(key: str, user_id: uuid.UUID) -> bool:
-    """A `delivery_photo` upload of the caller (M0); the M0 purpose itself is still to come, so
-    the key is checked by its shape until then."""
-    return (
-        re.fullmatch(rf"delivery_photo/{user_id}/[0-9a-f-]{{32,36}}\.(jpg|png|webp)", key)
-        is not None
-    )
+async def photo_ok(
+    session: AsyncSession, store: files.ObjectStore | None, key: str, user_id: uuid.UUID
+) -> bool:
+    """True for an uploaded photo of the caller with M0's `delivery_photo` purpose: its upload row
+    names the caller and the purpose, and the object is in storage. Until M0 registers the purpose
+    (PR #316) every photo key is refused, so an invented key never stands in for a code."""
+    if PHOTO_PURPOSE not in files.PURPOSES or store is None:
+        return False
+    if await files.verify(session, key, user_id=user_id, purpose=PHOTO_PURPOSE) is None:
+        return False
+    return await store.head(key) is not None
 
 
-def check_proof(route: Route, stop: RouteStop, actor: Actor, body: HandoverIn) -> str:
+def check_proof(
+    route: Route, stop: RouteStop, actor: Actor, body: HandoverIn, photo_valid: bool
+) -> str:
     """The handover's proof, or 422/429 (409 on a closed route or stop). A wrong code is counted
     on the stop (the caller commits the count before answering)."""
     ensure_running(route)
@@ -129,7 +139,7 @@ def check_proof(route: Route, stop: RouteStop, actor: Actor, body: HandoverIn) -
             422, "request.invalid", "Send exactly one of handover_code and photo_key."
         )
     if body.photo_key is not None:
-        if not photo_ok(body.photo_key, actor.user_id):
+        if not photo_valid:
             raise ProblemError(
                 422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
             )
