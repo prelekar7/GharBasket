@@ -41,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.smoke:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
-        args.planners = [p for p in args.planners if p != "cpsat"]
+        args.planners = [p for p in args.planners if not p.startswith("cpsat")]
 
     catalog = from_seed_files()
     shocks = None if args.no_shocks else config.load_shocks()
@@ -104,6 +104,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     if "verdict" in built["planner_targets"]:
         holds = built["planner_targets"]["verdict"]["holds"]
         print(f"M-C on acceptance (>= 0.70, above greedy and random): {'holds' if holds else 'no'}")
+    if "v2_verdict" in built["planner_targets"]:
+        targets = built["planner_targets"]
+        lift = targets.get("v2_acceptance_over_v1")
+        holds = targets["v2_verdict"]["holds"]
+        first = built["planner_paired_later"]["from_week"]
+        if lift is None:
+            verdict = f"no verdict: the run has no week >= {first}"
+        elif holds is None:
+            verdict = "no verdict: fewer than 5 paired seeds"
+        else:
+            verdict = "holds" if holds else "does not hold"
+        print(
+            "v2 vs v1 acceptance"
+            + (f", weeks >= {first}: {lift['value']:+.3f} ± {lift['ci95']:.3f}" if lift else "")
+            + f" ({verdict})"
+        )
     print(
         f"pantry  rule table MAE {built['pantry']['rule_table_mae']['mean']:.3f}; running mean "
         + ", ".join(

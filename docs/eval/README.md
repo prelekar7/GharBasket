@@ -6,12 +6,15 @@ JSON report here per run, named `<date>-<commit>`, following the pre-registered 
 `intel.model_metrics` through `POST /v1/internal/intel/model-metrics` with `--push`.
 
 What a report holds (v0, October 2026):
-- **RQ2 — meal planner A/B:** `cpsat` against the `rules` fallback and two baselines the simulator
+- **RQ2 — meal planner A/B:** `cpsat` (v1) and `cpsat_v2` (the liking term from each household's observed acceptance, M10 §3.2 v2) against the `rules` fallback and two baselines the simulator
   provides, `greedy` (the cheapest allowed dish per slot) and `random` (a random valid plan), over the
   protocol's five seeds: acceptance, edits per box, distinct perishables, variety, preference, relaxed
   and infeasible weeks, cost and hard-rule violations (`planner.check()`, must be 0); each arm against
   each baseline as the per-seed paired difference (mean ± 95 % t-CI, acceptance first); the M-C
-  hypotheses with their intervals and a verdict on the primary metric, acceptance.
+  hypotheses with their intervals and a verdict on the primary metric, acceptance. `cpsat_v2` is
+  paired with `cpsat` instead, over all weeks and over weeks ≥ 2 (before them it plans exactly as
+  v1), with its own verdict: paired acceptance CI lower bound ≥ 0, hard rules kept, perishables
+  ≤ v1 + 1, none below 5 seeds (protocol §7, 8 Oct).
 - **RQ1 — pantry baseline:** predicting each daily-use item's consumption a week ahead, as quantity MAE
   over the weekly quantity (Σ |error| / Σ actual per household item, zero weeks kept): the family-size
   rule table (static) and a running mean of the weeks observed so far (the cold-start curve, k observed
