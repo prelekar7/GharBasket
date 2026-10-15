@@ -2,7 +2,9 @@ import { Button, QtyStepper } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { MAX_MEMBERS } from "@/features/onboarding/members.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 /** @type {("adults" | "seniors" | "children" | "little")[]} */
 const GROUPS = ["adults", "seniors", "children", "little"];
@@ -13,8 +15,9 @@ export const Route = createFileRoute("/_auth/onboarding/family")({ component: Fa
 
 function Family() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household, updateHousehold } = useOnboardingDraft();
+  const step = useStepGo("/onboarding/family");
   const { members } = household;
   const total = GROUPS.reduce((n, g) => n + members[g], 0);
 
@@ -27,9 +30,10 @@ function Family() {
           size="lg"
           block
           isDisabled={total === 0}
-          onPress={() => navigate({ to: nextStep("/onboarding/family") })}
+          isPending={step.busy}
+          onPress={step.go}
         >
-          {t("onboarding.next")}
+          {step.label}
         </Button>
       }
     >
@@ -43,7 +47,7 @@ function Family() {
         {GROUPS.map((g) => (
           <div
             key={g}
-            className="flex min-h-16 items-center justify-between gap-3 border-b border-line"
+            className="flex min-h-[72px] items-center justify-between gap-3 border-b border-line"
           >
             <div className="flex flex-col">
               <strong>{t(`onboarding.family.${g}`)}</strong>
@@ -53,14 +57,14 @@ function Family() {
               label={t(`onboarding.family.${g}`)}
               value={members[g]}
               min={0}
-              max={10}
+              max={Math.min(10, members[g] + MAX_MEMBERS - total)}
               onChange={(n) => updateHousehold({ members: { ...members, [g]: n } })}
               labels={{ decrease: t("onboarding.decrease"), increase: t("onboarding.increase") }}
             />
           </div>
         ))}
       </div>
-      <p className="text-sm leading-[22px] text-fg-secondary">
+      <p className="text-sm leading-5 text-fg-secondary">
         {t("onboarding.family.total", { count: total })}
       </p>
     </OnboardingFrame>
