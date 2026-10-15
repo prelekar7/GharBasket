@@ -204,6 +204,21 @@ Tomorrow's tiffin portions to home kitchens for a hub (M8 §6 `assign_kitchens` 
 - **Quantities:** `order_qty = committed + Q_tau(uncommitted)`, tau = C_u / (C_u + C_o) (default 0.3 / 0.5 → 0.375, `--tau`); `committed` here is the same weekday's boxes in the last complete week, which M6 replaces with the cut-off's exact count.
 - v1 (P4): MLForecast LightGBM with festival, weekday, price and weather features; MinT reconciliation.
 
+### 3.7 `POST /basket/rank` and the ranker job (v0, M-B)
+The next-basket ranker: which candidates belong in a household's box this week. The training job (`backend/training`, `train_ranker`, weekly) learns from every household's boxes and edits; the Space serves the model from the registry.
+
+```
+  request:  "candidates": [ { "product", "weeks_since", "frequency", "drafted", "removed_last",
+                              "popularity", "price_paise" } ], "top_k": 10
+  200:      "source": "ml" | "fallback", "model", "ranked": [ { "product", "score", "rank" } ]
+```
+- **Baskets and labels:** one basket per household x week whose cycle is `approved` or `locked` (draft, skipped and cancelled cycles are not final boxes; a skipped week is a gap); a candidate's label is 1 when it is in the final box (kept or added), 0 when drafted and removed or never taken.
+- **Candidates:** the household's own past items, the frequent items of its 5 nearest households (Jaccard on their baskets dated before this week; ties broken by product id, so the data never depends on the hash seed), and the week's drafted lines.
+- **Features** (as of the cut-off, from earlier weeks only, never from the final box): weeks since last bought (capped at 52, and 52 when never bought, in training and serving), share of past baskets bought, drafted this week, removed last time, share of households buying it last week, unit price from the hub's price list valid at the cut-off (else the newest earlier list holding it, else 0). `drafted_rule` was dropped in v0: removed lines lose their reason code, so it leaked the label; it returns once a draft snapshot exists.
+- **Model:** LightGBM LambdaRank grouped by basket, one model per `data_source` (never pooled); **leave-last-basket-out** NDCG@10, Recall@10 and Recall@|basket| (eval protocol §4 and §7) against "repeat last week" (the household's previous approved or locked basket, however many weeks ago) and "top frequency", with the candidates' coverage of the final box, in the model card and in `model_metrics`.
+- **Registry (ADR-0025):** `s3://gb-mlflow/models/basket_ranker/<version>-<data_source>/{model.txt, card.json}` and `models/basket_ranker/latest.json`; `--out X` writes the same layout without the `models/` prefix, which is what the Space's `MODELS_DIR` holds. The job never moves `latest.json`: promotion is manual (`just promote`, or `train_ranker --promote <data_source>` until it exists). The Space re-reads the pointer every `MODELS_RELOAD_S` (600 s); a malformed pointer, a corrupt model or a model with other features is logged and listed as `unreadable` on `/models`, and the last good model or the fallback answers. Without a model the fallback ranks by frequency then popularity (`source: "fallback"`).
+- v1 (P4): SHAP explanations, price delta and festival features, `drafted_rule` from a draft snapshot, the ranker's preference term in planner v2.
+
 ### 3.2 Household simulator v1a (`data/simulator`, `just sim`)
 Not an endpoint: a command-line tool (handbook 05 §5.11, ADR-0008) that runs against the local database only.
 - **Input:**

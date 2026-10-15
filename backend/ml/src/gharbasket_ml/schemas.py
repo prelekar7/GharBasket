@@ -400,3 +400,46 @@ class AssignResponse(BaseModel):
     summary: AssignSummary | None
     seconds: float
     model: str = "assignment-cpsat-v0"
+
+
+# --- POST /basket/rank (M10 §3.7): the next-basket ranker -------------------------------------
+
+
+class RankCandidate(BaseModel):
+    """A candidate product with the features the training job defines (backend/training
+    ranker.py); the API computes them from the household's past boxes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product: str = Field(min_length=1, max_length=80)
+    weeks_since: float = Field(
+        ge=0,
+        description=(
+            "Weeks since last bought, capped at 52; 52 when never bought (the training job's "
+            "value). Larger values are served as 52."
+        ),
+    )
+    frequency: float = Field(ge=0, le=1, description="Share of past weeks it was bought")
+    drafted: bool = False
+    removed_last: bool = False
+    popularity: float = Field(default=0, ge=0, le=1, description="Share of households last week")
+    price_paise: int = Field(default=0, ge=0)
+
+
+class RankRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidates: list[RankCandidate] = Field(min_length=1, max_length=500)
+    top_k: int = Field(default=10, ge=1, le=100)
+
+
+class RankedOut(BaseModel):
+    product: str
+    score: float
+    rank: int
+
+
+class RankResponse(BaseModel):
+    source: Literal["ml", "fallback"]
+    model: str
+    ranked: list[RankedOut]

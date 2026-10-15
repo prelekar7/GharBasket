@@ -35,5 +35,8 @@ pings `/health` every 10 minutes so the Space does not sleep.
 Settings: `ML_SERVICE_TOKEN` (required outside local development), `OSRM_URL` (set by the image to
 the bundled road network; `/health/ai` reports `ok`, `down` or `not_configured`), `OSRM_TIMEOUT_S`
 (default 2.5: `/route/solve` prices with haversine when OSRM is slower), `MODELS_MANIFEST`
-(a local stand-in for the R2 registry pointer). The service is stateless and receives no personal
+(a local stand-in for the R2 registry pointer), `MODELS_DIR` (the learned models' folder in the registry
+layout, `<name>/latest.json` and `<name>/<version>/model.txt`; unset: the fallbacks answer),
+`MODELS_RELOAD_S` (how often the models are re-read, default 600: a promotion is served within ten
+minutes, and a bad pointer or model keeps the last good one or the fallback, never a 500). The service is stateless and receives no personal
 data (DPDP; the Space is hosted outside India).

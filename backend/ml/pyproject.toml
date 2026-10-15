@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.142.2",
     "httpx2>=2.13.1",
+    "lightgbm>=4.5",
     "ortools>=9.15.6755",
     "pydantic-settings>=2.15.0",
     "scipy>=1.14",
