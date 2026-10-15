@@ -1,1 +1,21 @@
 @import "@gharbasket/ui/styles.css";
+
+/* Sonner's action button ("Undo") must not wrap inside the toast; @gharbasket/ui's classes leave it shrinkable. */
+[data-sonner-toast] [data-button] {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Printing a report page (Impact, NGO hand-offs; there is no server PDF, M12 section 3.6): leave out the
+   shell and the controls, keep the numbers. */
+@media print {
+  aside,
+  header,
+  [data-no-print],
+  [data-sonner-toaster] {
+    display: none;
+  }
+  main {
+    padding: 0;
+  }
+}

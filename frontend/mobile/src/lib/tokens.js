@@ -30,7 +30,7 @@ export const tokens = {
   },
   /**
    * Keep the tokens from /v1/auth/exchange or /v1/auth/refresh. Web ignores them.
-   * @param {{ access_token?: string, refresh_token?: string }} pair
+   * @param {{ access_token?: string | null, refresh_token?: string | null }} pair
    */
   async save(pair) {
     if (!NATIVE) return;

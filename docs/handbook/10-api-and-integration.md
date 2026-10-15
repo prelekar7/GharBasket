@@ -110,7 +110,7 @@ flowchart LR
 | orders | `orders.locked`, `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` |
 | billing | `billing.wallet_topped_up`, `billing.payment_failed`, `billing.refund_issued` |
 | ops | `hub_ops.procurement_plan_ready`, `hub_ops.waste_logged` |
-| logistics | `logistics.route_published`, `logistics.pickup_completed` |
+| logistics | `logistics.route_published`, `logistics.route_cancelled`, `logistics.plan_needs_review`, `logistics.pickup_completed` |
 | partners | `partners.verified`, `partners.assignment_created` |
 | community | `community.donation_verified` |
 | intel | `intel.plans_ready`, `intel.forecast_ready` |
@@ -128,15 +128,16 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T-1 20:55 | `apply_auto_approve` | subscriptions |
 | **T-1 21:00** | **`cutoff_lock`** (Postgres advisory lock; idempotent; cron-job.org) | orders / billing |
 | T-1 23:00 | `payment_grace_expiry` (cron-job.org) | orders |
+| T-1 23:15 | `solve_routes` (a box plan per active hub for T; published when M7's check finds no problems, else `logistics.plan_needs_review`; also solves manual plans left queued; cron-job.org) | logistics ← intel |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops |
 | T-1 21:30 | `assign_kitchens` (tiffin for day T) | intel → partners |
 | T 05:00 | `build_packing_tasks` | ops |
-| T 07:00 | `solve_routes` (per slot) | intel → logistics |
 | T 12:30 | `surplus_cascade` | ops |
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
 | Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
+| Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
 
