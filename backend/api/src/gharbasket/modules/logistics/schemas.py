@@ -11,6 +11,7 @@ from datetime import date, datetime
 from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -341,7 +342,7 @@ class PingIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    at: datetime = Field(examples=["2026-12-29T01:41:15Z"])
+    at: AwareDatetime = Field(examples=["2026-12-29T01:41:15Z"], description="With a time zone")
     lat: float = Field(ge=-90, le=90, examples=[19.0331])
     lng: float = Field(ge=-180, le=180, examples=[73.0298])
     accuracy_m: int = Field(ge=0, le=10_000, examples=[12])
@@ -511,6 +512,7 @@ class DeliveryOut(BaseModel):
             "other",
             "returned_to_hub",
             "not_confirmed",
+            "left_behind",
         ]
         | None
     )
@@ -523,6 +525,13 @@ class DeliveryOut(BaseModel):
 class DeliveriesPage(BaseModel):
     items: list[DeliveryOut]
     next_cursor: str | None
+    left_behind: list[uuid.UUID] = Field(
+        description="First page only: orders the day's routes left behind, not on a van since"
+    )
+    orphans: list[uuid.UUID] = Field(
+        description="First page only: redeliveries no van will take (their day's plan was "
+        "published without them, or the day has passed)"
+    )
 
 
 class Window(BaseModel):

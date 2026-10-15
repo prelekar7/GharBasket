@@ -340,6 +340,7 @@ DELIVERY_REASONS = (
     "other",
     "returned_to_hub",
     "not_confirmed",
+    "left_behind",  # not packed when its route started; the day-end sweep sends it to triage
 )
 
 

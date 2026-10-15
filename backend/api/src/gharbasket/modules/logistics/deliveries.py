@@ -22,9 +22,8 @@ from gharbasket.modules.logistics.handover import (
     Actor,
     CodeInvalid,
     ensure_captain,
-    photo_ok,
 )
-from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RoutePlan, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
 from gharbasket.modules.logistics.schemas import ProofIn, ResolveIn, UndeliveredIn
 from gharbasket.modules.logistics.views import hhmm, now
@@ -49,10 +48,12 @@ async def door_actor(
 ) -> tuple[Delivery, orders_api.Order, Actor]:
     """The order's current attempt and who acts at its door: a hub manager of its hub, the rider
     of its rider-mode stop while the route runs, or its society's active captain."""
-    delivery = await latest(session, order_id, for_update=True)
-    if delivery is None:
+    if await latest(session, order_id) is None:
         raise delivery_not_found()
+    # One lock order everywhere: the order, then its attempt.
     order = await orders_api.get(session, order_id, for_update=True)
+    delivery = await latest(session, order_id, for_update=True)
+    assert delivery is not None
     who = caller(permit, order.hub_id)
     user_id = permit.principal.user_id
     if who.manager:
@@ -73,7 +74,9 @@ def _ensure_open(delivery: Delivery, order: orders_api.Order) -> None:
         raise conflict("logistics.delivery_closed", f"This delivery is {order.status}.")
 
 
-def check_proof(delivery: Delivery, order: orders_api.Order, actor: Actor, body: ProofIn) -> None:
+def check_proof(
+    delivery: Delivery, order: orders_api.Order, actor: Actor, body: ProofIn, photo_valid: bool
+) -> None:
     """The bag is this order's and the proof fits the deliverer; a wrong code is counted (the
     caller commits the count before answering)."""
     _ensure_open(delivery, order)
@@ -86,7 +89,7 @@ def check_proof(delivery: Delivery, order: orders_api.Order, actor: Actor, body:
             )
         return
     if body.proof == "photo":
-        if body.photo_key is None or not photo_ok(body.photo_key, actor.user_id):
+        if not photo_valid:
             raise ProblemError(
                 422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
             )
@@ -144,17 +147,45 @@ async def deliver(
 
 
 async def refund(
-    session: AsyncSession, delivery: Delivery, order_id: uuid.UUID, amount: int, reason: str
+    session: AsyncSession,
+    delivery: Delivery,
+    order_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
 ) -> None:
-    """undelivered → refunded (actor system); M4 pays the wallet."""
+    """undelivered → refunded (actor system; a manager's triage names the manager); M4 pays the
+    wallet."""
     await orders_api.transition(
         session,
         order_id,
         "refunded",
         actor="system",
+        actor_user_id=actor_user_id,
         payload={"refund_paise": amount, "reason": reason},
     )
     delivery.status, delivery.refund_paise, delivery.at = "refunded", amount, now()
+
+
+async def try_refund(
+    session: AsyncSession,
+    delivery: Delivery,
+    order_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
+) -> bool:
+    """`refund` in a savepoint; False (nothing changed) when M5 refuses it because the wallet would
+    go over its cap (`billing.wallet_limit`), so the caller can leave the order for triage."""
+    try:
+        async with session.begin_nested():
+            await refund(session, delivery, order_id, amount, reason, actor_user_id)
+    except ProblemError as exc:
+        if exc.code != "billing.wallet_limit":
+            raise
+        await session.refresh(delivery)
+        return False
+    return True
 
 
 async def fail(
@@ -168,6 +199,12 @@ async def fail(
     undelivered, then refunded at once (damaged, missing) or left for triage."""
     _ensure_open(delivery, order)
     if body.reason == "not_home" and actor.kind == "captain":
+        # Only a bag in her hands today: not a replay after hold_expiry, not a triage attempt.
+        if order.status != "at_society" or delivery.status not in ("with_captain", "held"):
+            raise conflict(
+                "logistics.delivery_closed",
+                f"This bag cannot be held now ({delivery.status}).",
+            )
         if delivery.status != "held":
             delivery.status, delivery.hold_until, delivery.reason = "held", HOLD_UNTIL, "not_home"
             delivery.by_actor, delivery.user_id, delivery.at = "captain", actor.user_id, now()
@@ -196,11 +233,32 @@ async def fail(
     delivery.photo_key, delivery.client_at, delivery.at = body.photo_key, body.client_at, now()
     if body.reason in REFUND_AT_ONCE:
         amount = await orders_api.refundable_paise(session, order.id)
-        await refund(session, delivery, order.id, amount, body.reason)
+        if not await try_refund(session, delivery, order.id, amount, body.reason):
+            delivery.status = "triage"  # the wallet is full: the hub refunds to the source
     elif body.reason in TRIAGE:
         delivery.status = "triage"
     await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)
     await session.flush()
+
+
+async def redelivery_day(session: AsyncSession, hub_id: uuid.UUID, earliest: date) -> date:
+    """The first day from `earliest` with no box plan solving, solved or published (M3 review)."""
+    day = earliest
+    for _ in range(14):
+        taken = await session.scalar(
+            select(RoutePlan.id)
+            .where(
+                RoutePlan.hub_id == hub_id,
+                RoutePlan.delivery_date == day,
+                RoutePlan.kind == "box",
+                RoutePlan.status.in_(("solving", "solved", "published")),
+            )
+            .limit(1)
+        )
+        if taken is None:
+            return day
+        day += timedelta(days=1)
+    return day
 
 
 async def schedule_redelivery(
@@ -212,8 +270,10 @@ async def schedule_redelivery(
     actor: str,
     actor_user_id: uuid.UUID | None,
 ) -> Delivery:
-    """The one free redelivery (§3.4): undelivered → redelivery and attempt 2 on `day`, in the
-    same slot's window; T+1's 23:15 solve gives the society a stop for it."""
+    """The one free redelivery (§3.4): undelivered → redelivery and attempt 2 on the first day
+    from `day` whose plan is not solved yet (a plan already solved would never carry it), in the
+    same slot's window; that day's 23:15 solve gives the society a stop for it."""
+    day = await redelivery_day(session, order.hub_id, day)
     await orders_api.transition(
         session, order.id, "redelivery", actor=actor, actor_user_id=actor_user_id
     )
@@ -277,7 +337,7 @@ async def resolve(
                 "That is more than is left to refund on this order.",
                 extra={"max_paise": most},
             )
-        await refund(session, delivery, order.id, amount, "triage")
+        await refund(session, delivery, order.id, amount, "triage", user_id)
     delivery.note, delivery.by_actor, delivery.user_id = body.note, "hub", user_id
     await audit.record(
         session,

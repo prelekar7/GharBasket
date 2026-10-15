@@ -494,8 +494,8 @@ async def get_route(
     description="A new rider gets logistics.route_published again (with previous_rider_user_id).",
     responses={
         **EDITS,
-        **ROUTE_404,
         409: _problem("logistics.routes_started, logistics.route_closed"),
+        404: _problem("logistics.route_not_found, logistics.vehicle_not_found"),
         422: _problem("logistics.rider_invalid, logistics.vehicle_too_small, request.invalid"),
     },
 )
@@ -696,8 +696,9 @@ async def live_route(
     who = await live.audience(session, permit, route)
     user_id = permit.principal.user_id
     body = live.stream(session, valkey, route.id, who)
-    if valkey is not None and await live.claim(valkey, user_id):
-        body = live.counted(body, valkey, user_id)
+    stream_id = await live.claim(valkey, user_id)
+    if valkey is not None and stream_id is not None:
+        body = live.counted(body, valkey, user_id, stream_id)
     return EventSourceResponse(
         body, headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
     )
@@ -853,10 +854,15 @@ async def hand_over(
     session: DbSession,
     idem: Idempotent,
     valkey: Valkey,
+    request: Request,
 ) -> HandoverOut:
     stop, route, actor = await handover.stop_actor(session, permit, stop_id)
+    store = getattr(request.app.state, "storage", None)
+    photo_valid = body.photo_key is not None and await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    )
     try:
-        proof = handover.check_proof(route, stop, actor, body)
+        proof = handover.check_proof(route, stop, actor, body, photo_valid)
     except handover.CodeInvalid as wrong:
         # The wrong try counts, and a replay of this key answers the same.
         await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
@@ -864,6 +870,8 @@ async def hand_over(
         raise
     made, moved, still = await handover.hand_over(session, valkey, route, stop, actor, body, proof)
     [view] = await views.stop_views(session, route, [stop])
+    if actor.kind == "captain":  # the code is the rider's and hub staff's only
+        view.handover_code = None
     out = HandoverOut(
         handover_id=made.id,
         stop=view,
@@ -915,11 +923,20 @@ async def _door_answer(
     },
 )
 async def prove_delivery(
-    order_id: uuid.UUID, body: ProofIn, permit: CanDeliver, session: DbSession, idem: Idempotent
+    order_id: uuid.UUID,
+    body: ProofIn,
+    permit: CanDeliver,
+    session: DbSession,
+    idem: Idempotent,
+    request: Request,
 ) -> DeliveryOut:
     attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
+    store = getattr(request.app.state, "storage", None)
+    photo_valid = body.photo_key is not None and await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    )
     try:
-        deliveries.check_proof(attempt, order, actor, body)
+        deliveries.check_proof(attempt, order, actor, body, photo_valid)
     except handover.CodeInvalid as wrong:
         await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
         await session.commit()
@@ -934,7 +951,7 @@ async def prove_delivery(
     description="A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. "
     "Damaged or missing is refunded in full at once; refused, wrong address and other go to the "
     "hub's triage.",
-    responses={**DOOR_MOVES, 422: _problem("request.invalid")},
+    responses={**DOOR_MOVES, 422: _problem("logistics.photo_key_invalid, request.invalid")},
 )
 async def mark_undelivered(
     order_id: uuid.UUID,
@@ -942,9 +959,13 @@ async def mark_undelivered(
     permit: CanDeliver,
     session: DbSession,
     idem: Idempotent,
+    request: Request,
 ) -> DeliveryOut:
     attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
-    if body.photo_key is not None and not handover.photo_ok(body.photo_key, actor.user_id):
+    store = getattr(request.app.state, "storage", None)
+    if body.photo_key is not None and not await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    ):
         raise ProblemError(
             422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
         )
@@ -965,9 +986,11 @@ async def mark_undelivered(
 async def resolve_delivery(
     order_id: uuid.UUID, body: ResolveIn, permit: CanResolve, session: DbSession, idem: Idempotent
 ) -> DeliveryOut:
+    if await attempts.latest(session, order_id) is None:
+        raise deliveries.delivery_not_found()
+    order = await orders_api.get(session, order_id, for_update=True)  # the order, then its attempt
     attempt = await attempts.latest(session, order_id, for_update=True)
-    order = None if attempt is None else await orders_api.get(session, order_id, for_update=True)
-    if attempt is None or order is None or not permit.allows(order.hub_id):
+    if attempt is None or not permit.allows(order.hub_id):
         raise deliveries.delivery_not_found()
     tomorrow = datetime.now(IST).date() + timedelta(days=1)
     await deliveries.resolve(session, attempt, order, permit.principal.user_id, body, tomorrow)
@@ -1037,7 +1060,10 @@ async def hub_deliveries(
     rows = await card.board(session, hub_id, on, delivery_status, after, limit + 1)
     page = rows[:limit]
     response.headers["Cache-Control"] = "no-store"
+    first = after is None
     return DeliveriesPage(
         items=[attempts.delivery_out(r) for r in page],
         next_cursor=encode_cursor({"after": str(page[-1].id)}) if len(rows) > limit else None,
+        left_behind=await card.left_behind(session, hub_id, on) if first else [],
+        orphans=await card.orphans(session, hub_id, on) if first else [],
     )

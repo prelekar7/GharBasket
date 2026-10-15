@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.logistics.attempts import latest
-from gharbasket.modules.logistics.models import Delivery, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
     DeliveryCard,
@@ -111,3 +111,53 @@ async def board(
     if after is not None:
         stmt = stmt.where(Delivery.id > after)
     return list((await session.execute(stmt.order_by(Delivery.id).limit(limit))).scalars())
+
+
+async def left_behind(session: AsyncSession, hub_id: uuid.UUID, day: date) -> list[uuid.UUID]:
+    """Orders the day's routes left behind at their start that have not ridden since (M4 review):
+    still locked, picking or packed, with no attempt yet."""
+    rows = await session.execute(
+        select(Route.left_behind).where(Route.hub_id == hub_id, Route.delivery_date == day)
+    )
+    wanted = sorted({o for ids in rows.scalars() for o in ids})
+    if not wanted:
+        return []
+    tried = set(
+        (
+            await session.execute(select(Delivery.order_id).where(Delivery.order_id.in_(wanted)))
+        ).scalars()
+    )
+    out = []
+    for order_id in (o for o in wanted if o not in tried):
+        order = await orders_api.get(session, order_id)
+        if order.status in ("locked", "picking", "packed"):
+            out.append(order_id)
+    return out
+
+
+async def orphans(session: AsyncSession, hub_id: uuid.UUID, day: date) -> list[uuid.UUID]:
+    """Redeliveries booked on or before `day` that are still waiting although their day's plan is
+    published or the day has passed: no van will take them without the hub (M3 review)."""
+    rows = await session.execute(
+        select(Delivery.order_id, Delivery.delivery_date)
+        .where(
+            Delivery.hub_id == hub_id,
+            Delivery.attempt == 2,
+            Delivery.status == "scheduled",
+            Delivery.delivery_date <= day,
+        )
+        .order_by(Delivery.order_id)
+    )
+    out = []
+    for order_id, booked in rows.all():
+        planned = await session.scalar(
+            select(RoutePlan.id).where(
+                RoutePlan.hub_id == hub_id,
+                RoutePlan.delivery_date == booked,
+                RoutePlan.kind == "box",
+                RoutePlan.status == "published",
+            )
+        )
+        if planned is not None or booked < day:
+            out.append(order_id)
+    return out

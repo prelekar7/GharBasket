@@ -27,6 +27,7 @@ from .conftest import (
     key,
     pack,
     published_day,
+    user_id,
 )
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
@@ -162,6 +163,18 @@ async def test_a_rider_in_rider_mode_needs_the_households_code_or_a_photo(
         headers={**rider, **key()},
     )
     assert (photo.status_code, photo.json()["code"]) == (422, "logistics.photo_key_invalid")
+    # His own key in the right shape but never uploaded: refused too, and the code limit holds.
+    arjun = await user_id(db_session, ARJUN)
+    own = await api.post(
+        path,
+        json={
+            "bag_qr": bag(order),
+            "proof": "photo",
+            "photo_key": f"delivery_photo/{arjun}/{uuid.uuid4()}.jpg",
+        },
+        headers={**rider, **key()},
+    )
+    assert (own.status_code, own.json()["code"]) == (422, "logistics.photo_key_invalid")
     done = await api.post(path, json={**body, "delivery_code": code}, headers={**rider, **key()})
     assert done.status_code == 200, done.text
     assert (done.json()["proof"], done.json()["by"]) == ("otp", "rider")

@@ -3,15 +3,16 @@
 left; the exceptions board pages the hub's deliveries."""
 
 import uuid
+from datetime import date
 from typing import Any
 
 import pytest
 import time_machine
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.logistics.models import Delivery, RouteStop
-from gharbasket.modules.orders.models import Order
+from gharbasket.modules.logistics.models import Delivery, RoutePlan, RouteStop
+from gharbasket.modules.orders.models import Order, OrderEvent
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
@@ -257,3 +258,95 @@ async def test_the_exceptions_board_pages_the_hubs_deliveries(
     bad = await api.get(path, params={"cursor": "nonsense"}, headers=manager)
     assert bad.status_code == 422
     assert await user_id(db_session, VIKRAM)
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_a_redelivery_waits_for_an_unsolved_day_and_the_board_flags_what_no_van_takes(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day = await published_day(db_session)
+    await pack(db_session, *[o for p, o in day.orders.items() if p != MEENA])
+    rider, manager = await as_user(api, google, ARJUN), await as_user(api, google, VIKRAM)
+    started = await api.post(
+        f"/v1/routes/{day.route_id}/start", json={"leave_behind": True}, headers={**rider, **key()}
+    )
+    assert started.status_code == 200, started.text
+    board = (await api.get(f"/v1/hubs/{SEED_HUB_ID}/deliveries", headers=manager)).json()
+    assert board["left_behind"] == [str(day.orders[MEENA])]  # Meena's bag was not packed
+
+    stops = dict(
+        (
+            await db_session.execute(
+                select(RouteStop.society_id, RouteStop.id).where(RouteStop.route_id == day.route_id)
+            )
+        ).all()
+    )
+    green = stops[GREEN_VALLEY]
+    done = await api.post(
+        f"/v1/stops/{green}/handover", json={"crates": 1, "bags": 1}, headers={**rider, **key()}
+    )
+    assert done.status_code == 200, done.text
+    sunita = day.orders[SUNITA]
+    await api.post(
+        f"/v1/deliveries/{sunita}/undelivered",
+        json={"reason": "refused"},
+        headers={**rider, **key()},
+    )
+    # Tomorrow's plan is already published: the redelivery goes on the day after.
+    db_session.add(
+        RoutePlan(
+            hub_id=SEED_HUB_ID,
+            delivery_date=date(2026, 10, 14),
+            kind="box",
+            status="published",
+            trigger="job",
+        )
+    )
+    await db_session.commit()
+    again = await api.post(
+        f"/v1/deliveries/{sunita}/resolve",
+        json={"outcome": "redeliver", "note": "next free day"},
+        headers={**manager, **key()},
+    )
+    assert again.status_code == 200, again.text
+    assert again.json()["delivery_date"] == "2026-10-15"
+    # Booked on a day whose plan went out without it: the board flags it.
+    await db_session.execute(
+        update(Delivery)
+        .where(Delivery.order_id == sunita, Delivery.attempt == 2)
+        .values(delivery_date=date(2026, 10, 14))
+    )
+    await db_session.commit()
+    flagged = await api.get(
+        f"/v1/hubs/{SEED_HUB_ID}/deliveries", params={"date": "2026-10-14"}, headers=manager
+    )
+    assert flagged.json()["orphans"] == [str(sunita)]
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_a_triage_refund_names_the_manager(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, stops = await started(api, google, db_session)
+    rider, manager = await as_user(api, google, ARJUN), await as_user(api, google, VIKRAM)
+    await hand_over(api, rider, stops[GREEN_VALLEY], 1)
+    sunita = day.orders[SUNITA]
+    await api.post(
+        f"/v1/deliveries/{sunita}/undelivered",
+        json={"reason": "refused"},
+        headers={**rider, **key()},
+    )
+    refunded = await api.post(
+        f"/v1/deliveries/{sunita}/resolve",
+        json={"outcome": "refund", "note": "refused at the door"},
+        headers={**manager, **key()},
+    )
+    assert refunded.status_code == 200, refunded.text
+    moved = await db_session.execute(
+        select(OrderEvent.actor, OrderEvent.actor_user_id).where(
+            OrderEvent.order_id == sunita, OrderEvent.to_status == "refunded"
+        )
+    )
+    assert moved.all() == [("system", await user_id(db_session, VIKRAM))]

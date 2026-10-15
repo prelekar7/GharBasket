@@ -2792,8 +2792,18 @@ export interface components {
         DeliveriesPage: {
             /** Items */
             items: components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"][];
+            /**
+             * Left Behind
+             * @description First page only: orders the day's routes left behind, not on a van since
+             */
+            left_behind: string[];
             /** Next Cursor */
             next_cursor: string | null;
+            /**
+             * Orphans
+             * @description First page only: redeliveries no van will take (their day's plan was published without them, or the day has passed)
+             */
+            orphans: string[];
         };
         /** DeliveryCard */
         DeliveryCard: {
@@ -5188,6 +5198,7 @@ export interface components {
             /**
              * At
              * Format: date-time
+             * @description With a time zone
              * @example 2026-12-29T01:41:15Z
              */
             at: string;
@@ -7796,7 +7807,7 @@ export interface components {
             /** Proof */
             proof: ("scan" | "otp" | "photo") | null;
             /** Reason */
-            reason: ("not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed") | null;
+            reason: ("not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed" | "left_behind") | null;
             /**
              * Society Id
              * Format: uuid
@@ -8628,7 +8639,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description orders.issue_not_open */
+            /** @description orders.issue_not_open, orders.order_refunded */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10545,7 +10556,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description request.invalid */
+            /** @description logistics.photo_key_invalid, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -15488,7 +15499,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.route_not_found */
+            /** @description logistics.route_not_found, logistics.vehicle_not_found */
             404: {
                 headers: {
                     [name: string]: unknown;

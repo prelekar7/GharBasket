@@ -1165,6 +1165,15 @@
             "title": "Items",
             "type": "array"
           },
+          "left_behind": {
+            "description": "First page only: orders the day's routes left behind, not on a van since",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Left Behind",
+            "type": "array"
+          },
           "next_cursor": {
             "anyOf": [
               {
@@ -1175,11 +1184,22 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "orphans": {
+            "description": "First page only: redeliveries no van will take (their day's plan was published without them, or the day has passed)",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Orphans",
+            "type": "array"
           }
         },
         "required": [
           "items",
-          "next_cursor"
+          "next_cursor",
+          "left_behind",
+          "orphans"
         ],
         "title": "DeliveriesPage",
         "type": "object"
@@ -6834,6 +6854,7 @@
             "type": "integer"
           },
           "at": {
+            "description": "With a time zone",
             "examples": [
               "2026-12-29T01:41:15Z"
             ],
@@ -12701,7 +12722,8 @@
                   "missing",
                   "other",
                   "returned_to_hub",
-                  "not_confirmed"
+                  "not_confirmed",
+                  "left_behind"
                 ],
                 "type": "string"
               },
@@ -14395,7 +14417,7 @@
                 }
               }
             },
-            "description": "orders.issue_not_open"
+            "description": "orders.issue_not_open, orders.order_refunded"
           },
           "422": {
             "content": {
@@ -17554,7 +17576,7 @@
                 }
               }
             },
-            "description": "request.invalid"
+            "description": "logistics.photo_key_invalid, request.invalid"
           }
         },
         "security": [
@@ -26335,7 +26357,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_found"
+            "description": "logistics.route_not_found, logistics.vehicle_not_found"
           },
           "409": {
             "content": {
