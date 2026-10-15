@@ -23,6 +23,7 @@ name: Scheduled jobs (staging)
 
 on:
   schedule:
+    - cron: "03 22 * * *" # 03:33 IST daily: purge_deleted_users
     - cron: "33 22 * * *" # 04:03 IST daily: cleanup_idempotency_keys
     - cron: "3 22 * * *" # 03:33 IST daily: monitor_drift
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
@@ -68,6 +69,7 @@ jobs:
             exit 0
           fi
           case "$SCHEDULE" in
+            "03 22 * * *") job=purge_deleted_users ;;
             "33 22 * * *") job=cleanup_idempotency_keys ;;
             "3 22 * * *") job=monitor_drift ;;
             "43 22 * * *") job=sweep_uploads ;;

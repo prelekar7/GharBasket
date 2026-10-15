@@ -51,16 +51,19 @@ async def test_two_approved_weeks_rank_the_household_and_tilt_the_plan(
     assert household is not None
     removed: str | None = None
     approved_ids: list[uuid.UUID] = []
-    for week, (scheduled_for, delivery) in enumerate(
+    for week, (scheduled_for, notice_at, delivery) in enumerate(
         (
-            ("2026-10-10T12:30:00Z", date(2026, 10, 13)),
-            ("2026-10-17T12:30:00Z", date(2026, 10, 20)),
+            ("2026-10-10T12:30:00Z", "2026-10-10T13:00:00Z", date(2026, 10, 13)),
+            ("2026-10-17T12:30:00Z", "2026-10-17T13:00:00Z", date(2026, 10, 20)),
         )
     ):
-        ran = await api.post(
-            "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": scheduled_for}
-        )
-        assert ran.status_code == 200, ran.text
+        # Drafted at 18:00, editable once the box-ready notice goes out at 18:30 IST (#140).
+        for job, at in (
+            ("generate_weekly_plans", scheduled_for),
+            ("send_box_ready_notices", notice_at),
+        ):
+            ran = await api.post(f"/v1/internal/jobs/{job}", json={"scheduled_for": at})
+            assert ran.status_code == 200, ran.text
         cycle = await service.cycle_for(db_session, household.id, delivery)
         assert cycle is not None
         version = cycle.version

@@ -21,7 +21,16 @@ from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..subscriptions.test_cycles import GENERATE_AT, MEENA, NOW, PRIYA, VIKRAM, as_user, subscribe
+from ..subscriptions.test_cycles import (
+    GENERATE_AT,
+    MEENA,
+    NOTICE_AT,
+    NOW,
+    PRIYA,
+    VIKRAM,
+    as_user,
+    subscribe,
+)
 
 pytestmark = pytest.mark.services
 
@@ -237,6 +246,11 @@ async def test_plan_acceptance_is_scored_per_data_source_from_real_cycles(
             "/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": GENERATE_AT}
         )
         assert generated.json()["summary"]["created"] == 2, generated.text
+        # A generated week is a draft until its box-ready notice goes out (M3, 18:30 IST).
+        notice = await api.post(
+            "/v1/internal/jobs/send_box_ready_notices", json={"scheduled_for": NOTICE_AT}
+        )
+        assert notice.status_code == 200, notice.text
         cycle = (await api.get("/v1/cycles/current", headers=priya)).json()
         approved = await api.post(
             f"/v1/cycles/{cycle['id']}/approve",

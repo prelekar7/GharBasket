@@ -13,11 +13,12 @@ from typing import Any
 
 import httpx2
 import structlog
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
-from gharbasket.modules.intel_gateway.models import ModelMetric
+from gharbasket.modules.intel_gateway.models import FeatureSnapshot, ModelMetric, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
     KitchenAssignment,
@@ -67,6 +68,7 @@ __all__ = [
     "RouteRequest",
     "WeekPlan",
     "assign_kitchens",
+    "delete_for_user",
     "latest_metrics",
     "latest_prediction",
     "model_health",
@@ -454,3 +456,19 @@ SOLVER_SHARE_OF_TIMEOUT = 0.5
 def _solver_budget(settings: Settings, request: PlanRequest) -> float:
     """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
     return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))
+
+
+async def delete_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 3): predictions and feature snapshots about the household.
+    Model metrics are aggregates and stay."""
+    if household_id is None:
+        return {"predictions": 0, "feature_snapshots": 0}
+    counts = {}
+    for model in (Prediction, FeatureSnapshot):
+        gone = await session.execute(
+            delete(model).where(model.subject_type == "household", model.subject_id == household_id)
+        )
+        counts[model.__tablename__] = gone.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+    return counts

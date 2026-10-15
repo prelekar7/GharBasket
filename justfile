@@ -95,6 +95,11 @@ test:
     uv run --directory data/simulator pytest --cov
     uv run --directory backend/training pytest --cov
 
+# The backend end-to-end "simulated day" on its own fresh database (gharbasket_e2e, Valkey db 14),
+# ML service down; `E2E_ML=1 just e2e-day` with `just dev-ml` running, `E2E_KEEP_DB=1` to keep the DB
+e2e-day *args:
+    uv run --directory e2e/backend pytest {{args}}
+
 # Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
 job name *args:
     uv run python -m gharbasket.tools.run_job {{name}} {{args}}

@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity import households, service
+from gharbasket.modules.identity import events, households, service
 from gharbasket.modules.identity.models import (
     Address,
     Consent,
@@ -18,6 +18,11 @@ from gharbasket.modules.identity.models import (
     User,
     UserRole,
 )
+
+# Events other modules consume (spec §3.5): the deletion request, its cancelling, the purge.
+DELETION_REQUESTED = events.DELETION_REQUESTED
+DELETION_CANCELLED = events.DELETION_CANCELLED
+USER_DELETED = events.USER_DELETED
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
@@ -311,3 +316,29 @@ async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[u
         return {}
     rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
     return {user_id: name for user_id, name in rows.all() if name is not None}
+
+
+async def holds_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID
+) -> bool:
+    """True if an active user holds a verified `role` scoped to exactly `scope_id` (a society,
+    hub or NGO): M7 checks that a vehicle's default rider rides for its hub. A blocked or deleted
+    user holds nothing."""
+    query = (
+        select(UserRole.id)
+        .join(User, User.id == UserRole.user_id)
+        .where(
+            UserRole.user_id == user_id,
+            UserRole.role == role,
+            UserRole.scope_id == scope_id,
+            UserRole.status == "verified",
+            User.status == "active",
+        )
+    )
+    return (await session.execute(query.limit(1))).first() is not None
+
+
+async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
+    """False while the account's deletion is scheduled, once it is purged, and for a blocked
+    account (spec §3.5): M11 checks it before sending anything."""
+    return await session.scalar(select(User.status).where(User.id == user_id)) == "active"
