@@ -3,6 +3,10 @@ import { Toaster as SonnerToaster } from "sonner";
 import { Drawer } from "vaul";
 import { Button } from "./Button.jsx";
 
+const TOAST_OFFSET = {
+  bottom: "var(--gb-toast-offset, 88px)",
+};
+
 /**
  * @typedef {object} SheetProps
  * @property {string} title
@@ -113,12 +117,17 @@ export function Dialog({
 /**
  * Mount once in the app root. Show messages with `toast("Methi removed", { action: { label: "Undo", onClick } })`.
  * Inked background (`fg`) with `bg` text reads in both themes.
+ *
+ * The distance from the bottom edge is the CSS variable `--gb-toast-offset` (any length, e.g.
+ * `calc(80px + env(safe-area-inset-bottom))`) when an ancestor such as `<html>` sets it, so a shell
+ * with a fixed bottom bar can lift toasts above it; otherwise 88px.
  */
 export function Toaster() {
   return (
     <SonnerToaster
       position="bottom-center"
-      offset={88}
+      offset={TOAST_OFFSET}
+      mobileOffset={TOAST_OFFSET}
       toastOptions={{
         unstyled: true,
         classNames: {

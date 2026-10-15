@@ -11,9 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog.models import Category, Product, Recipe, RecipeIngredient
-from gharbasket.modules.catalog.pricing import prices_for
+from gharbasket.modules.catalog.pricing import latest_prices_on, prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
-from gharbasket.modules.catalog.service import step_label
+from gharbasket.modules.catalog.service import search, step_label
 from gharbasket.modules.catalog.substitutes import substitutes
 from gharbasket.platform.errors import ProblemError
 
@@ -23,7 +23,11 @@ __all__ = [
     "PlanIngredient",
     "PlanProduct",
     "PlanRecipe",
+    "ProductMatch",
     "festivals_between",
+    "find_products",
+    "latest_prices_on",
+    "line_grams",
     "line_products",
     "plan_catalog",
     "product_ids_by_slug",
@@ -81,6 +85,55 @@ async def line_products(
         )
         for p, order, category in found
     }
+
+
+@dataclass(frozen=True)
+class ProductMatch:
+    """A product a person may mean, with today's price at their hub."""
+
+    id: uuid.UUID
+    slug: str
+    names: dict[str, str]
+    step_qty: int
+    step_unit: str
+    price_paise: int
+    exact: bool  # the words are its slug or one of its spellings exactly
+    score: float  # how well the words match (1.0 for an exact spelling)
+
+
+async def find_products(
+    session: AsyncSession, words: str, hub_id: uuid.UUID | None, *, limit: int = 4
+) -> list[ProductMatch]:
+    """Products the hub sells today that `words` may name (a slug, or any spelling in English,
+    Hindi, Marathi or Hinglish), best first; products without a price at the hub are left out."""
+    term = " ".join(words.split())
+    if not term or hub_id is None:
+        return []
+    slug = term.lower().replace(" ", "-")
+    exact_ids = await product_ids_by_slug(session, [slug])
+    if exact_ids:
+        ranked = [(exact_ids[slug], True, 1.0)]
+    else:
+        hits = await search(session, term, limit=limit)
+        ranked = [(h.product.id, h.matched.lower() == term.lower(), h.score) for h in hits]
+    products = await line_products(session, [pid for pid, _, _ in ranked], hub_id=hub_id)
+    found = []
+    for pid, exact, score in ranked:
+        product = products.get(pid)
+        if product is not None and product.price_paise is not None:
+            found.append(
+                ProductMatch(
+                    product.id,
+                    product.slug,
+                    product.names,
+                    product.step_qty,
+                    product.step_unit,
+                    product.price_paise,
+                    exact,
+                    score,
+                )
+            )
+    return found
 
 
 async def substitute_ids(
@@ -182,6 +235,27 @@ def grams_of(product: PlanProduct, qty_base_units: float) -> float | None:
         return qty_base_units
     unit_g = (product.nutrition or {}).get("unit_g")
     return None if unit_g is None else qty_base_units * unit_g
+
+
+async def line_grams(
+    session: AsyncSession, lines: list[tuple[uuid.UUID, int, int, str]]
+) -> list[float | None]:
+    """The weight in grams of order lines given as (product id, steps, step_qty, step_unit), by
+    `grams_of`'s rule (M7's van loads): g and ml by the unit, a piece or bunch through the
+    product's `unit_g`; None where that is unknown (a pack, or a piece without `unit_g`)."""
+    ids = sorted({product_id for product_id, *_ in lines})
+    rows = await session.execute(select(Product.id, Product.nutrition).where(Product.id.in_(ids)))
+    unit_g = {pid: (nutrition or {}).get("unit_g") for pid, nutrition in rows.all()}
+    weights: list[float | None] = []
+    for product_id, steps, step_qty, step_unit in lines:
+        if step_unit not in BASE_UNIT:  # a pack has no weight of its own
+            weights.append(None)
+            continue
+        base, factor = BASE_UNIT[step_unit]
+        per_unit = 1 if base in ("g", "ml") else unit_g.get(product_id)
+        weight = None if per_unit is None else steps * step_qty * factor * float(per_unit)
+        weights.append(weight)
+    return weights
 
 
 async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanCatalog:

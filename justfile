@@ -95,6 +95,11 @@ test:
     uv run --directory data/simulator pytest --cov
     uv run --directory backend/training pytest --cov
 
+# The backend end-to-end "simulated day" on its own fresh database (gharbasket_e2e, Valkey db 14),
+# ML service down; `E2E_ML=1 just e2e-day` with `just dev-ml` running, `E2E_KEEP_DB=1` to keep the DB
+e2e-day *args:
+    uv run --directory e2e/backend pytest {{args}}
+
 # Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
 job name *args:
     uv run python -m gharbasket.tools.run_job {{name}} {{args}}
@@ -146,3 +151,11 @@ cloud-ml url token="":
 # Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
 eval *args:
     uv run python -m gharbasket_training.eval {{args}}
+
+# Point a model's latest.json in the registry at a version (also rolls back), e.g. `just promote basket_ranker 2026-10-05`
+promote model version *args:
+    uv run --directory backend/training python -m gharbasket_training.jobs.promote {{model}} {{version}} {{args}}
+
+# Score Ghar Saathi on data/eval/assistant_utterances.jsonl (needs ANTHROPIC_API_KEY), e.g. `just eval-assistant --models claude-opus-5-5 claude-sonnet-5-5`
+eval-assistant *args:
+    uv run --directory backend/ml python -m gharbasket_ml.eval_assistant {{args}}
