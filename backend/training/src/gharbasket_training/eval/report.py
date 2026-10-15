@@ -19,6 +19,7 @@ import httpx2
 from gharbasket_sim import config
 from gharbasket_sim.catalog import SEED_FILES
 
+from gharbasket_training.eval import assignment_sweep
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import (
     METRICS,
@@ -78,9 +79,12 @@ def build(
     pantry_runs: list[PantryRun],
     *,
     args: dict[str, Any],
+    sweep_runs: list[assignment_sweep.SweepRun] | None = None,
 ) -> dict[str, Any]:
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
+    sweep_runs = sweep_runs or []
+    sweep = assignment_sweep.summarise(sweep_runs)
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
     curve = [estimate([r.cold_start[k] for r in pantry_runs]) for k in range(weeks)]
     rule = estimate([r.rule_table_mae for r in pantry_runs])
@@ -92,8 +96,13 @@ def build(
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": commit(),
         "args": args,
-        "provenance": provenance(),
-        "seeds": sorted({r.seed for r in planner_runs} | {r.seed for r in pantry_runs}),
+        "provenance": provenance()
+        | ({"assignment": assignment_sweep.settings()} if sweep_runs else {}),
+        "seeds": sorted(
+            {r.seed for r in planner_runs}
+            | {r.seed for r in pantry_runs}
+            | {r.seed for r in sweep_runs}
+        ),
         "planner": {
             p: {m: e.as_dict() for m, e in metrics.items()} for p, metrics in summary.items()
         },
@@ -136,9 +145,16 @@ def build(
                 "holds": None,
             },
         },
+        # λ (or "greedy") → metric, over the seeds where every point solved (paired by seed);
+        # `extra_cost` is the per-seed cost_λ / cost_greedy - 1.
+        "assignment": {
+            key: {m: e.as_dict() for m, e in metrics.items()} for key, metrics in sweep.items()
+        },
+        "assignment_targets": assignment_sweep.against_target(sweep_runs),
         "runs": {
             "planner": [asdict(r) for r in planner_runs],
             "pantry": [asdict(r) for r in pantry_runs],
+            "assignment": [asdict(r) for r in sweep_runs],
         },
     }
 
@@ -191,6 +207,40 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             },
         }
     )
+    target = report.get("assignment_targets", {}).get("gini_le_0_25_at_le_5pct_cost", {})
+    paired_seeds = set(target.get("seeds", []))
+
+    def sweep_per_seed(key: str, metric: str) -> dict[str, float]:
+        out = {}
+        for r in runs.get("assignment", []):
+            if r["seed"] not in paired_seeds:
+                continue
+            points = {assignment_sweep.key(p["fairness_lambda"]): p for p in r["points"]}
+            if metric == "extra_cost":
+                base = points["greedy"]["cost_paise_per_portion"]
+                out[str(r["seed"])] = points[key]["cost_paise_per_portion"] / base - 1
+            else:
+                out[str(r["seed"])] = points[key][metric]
+        return out
+
+    for key, metrics in report.get("assignment", {}).items():
+        for metric, e in metrics.items():
+            rows.append(
+                {
+                    "model_name": "assignment_greedy" if key == "greedy" else "assignment_cpsat",
+                    "version": report["commit"],
+                    "metric": metric if key == "greedy" else f"{metric}_lambda_{key}",
+                    "value": e["mean"],
+                    "split": "holdout",
+                    "data_source": "synthetic",
+                    "details": {
+                        **details,
+                        "ci95": e["ci95"],
+                        "per_seed": sweep_per_seed(key, metric),
+                        "dropped_seeds": target.get("dropped_seeds", []),
+                    },
+                }
+            )
     scope = report["pantry"]["twin_scope"]
     for metric, series, field in (
         ("mae_pct", scope["twin_mae"], "twin"),
@@ -348,6 +398,7 @@ def to_html(report: dict[str, Any]) -> str:
         "(ADR-0008); mean ± 95 % CI across seeds (docs/research/eval-protocol.md). Targets are "
         "hypotheses registered before any model was trained."
     )
+    sweep_table = _sweep_html(report)
     source = (
         f"Simulator {html.escape(prov['simulator_version'])} (source sha256 "
         f"{prov['simulator_source_sha256'][:12]}), cohorts.json {prov['cohorts_sha256'][:12]}, "
@@ -366,8 +417,75 @@ def to_html(report: dict[str, Any]) -> str:
         "table (cold-start target &lt; 4 weeks). With the simulator's daily-use noise as small as "
         "it is (lognormal sigma 0.1), the 15 % target is easy for a naive baseline and is to be "
         "revisited (protocol change log).</p>"
-        "</body></html>\n"
+        f"{sweep_table}</body></html>\n"
     )
+
+
+def _rupees(e: dict[str, Any]) -> str:
+    """A paise estimate, shown in rupees."""
+    mean, ci = e["mean"] / 100, e["ci95"] / 100
+    return f"{mean:.2f} ± {ci:.2f}" if e["n"] > 1 else f"{mean:.2f}"
+
+
+def _sweep_html(report: dict[str, Any]) -> str:
+    """RQ4: the λ sweep table and the M-G target, per λ."""
+    sweep = report.get("assignment", {})
+    target = report.get("assignment_targets", {}).get("gini_le_0_25_at_le_5pct_cost")
+    if target is None:
+        return ""
+    table = (
+        _table(
+            "RQ4 — fair kitchen assignment: the λ sweep over a simulated week (7 evenings, "
+            "earnings carried forward from 0); per seed, then mean ± 95 % t-CI over the paired "
+            "seeds",
+            [
+                "λ (paise a portion of imbalance)",
+                "Gini of weekly earnings (eligible kitchens)",
+                "Gini (every kitchen)",
+                "cost a portion (distance + quality penalty, ₹)",
+                "rider ₹ a portion",
+                "km a portion",
+                "cost vs greedy (per-seed ratio - 1)",
+            ],
+            [
+                [
+                    key,
+                    _cell(m["gini"]),
+                    _cell(m["gini_all"]),
+                    _rupees(m["cost_paise_per_portion"]),
+                    _rupees(m["rider_paise_per_portion"]),
+                    _cell(m["km_per_portion"]),
+                    _cell(m["extra_cost"]) if "extra_cost" in m else "—",
+                ]
+                for key, m in sweep.items()
+            ],
+        )
+        if sweep
+        else ""
+    )
+    checks = _table(
+        "M-G hypothesis: Gini ≤ 0.25 at ≤ +5 % cost against greedy (95 % CI upper bounds; "
+        "λ = 0 is cost only and not eligible)",
+        ["λ", "cost vs greedy, upper", "Gini, upper", "holds"],
+        [
+            [k, f"{v['extra_cost_upper']:+.3f}", f"{v['gini_upper']:.3f}", _verdict(v["holds"])]
+            for k, v in target["per_lambda"].items()
+        ],
+    )
+    if target["holds"] is None:
+        verdict = f"no verdict: {target['n']} paired seed(s), the protocol needs 5"
+    elif target["holds"]:
+        verdict = f"holds from λ = {target['lambda']:g}"
+    else:
+        verdict = "does not hold at any λ"
+    dropped = target["dropped_seeds"]
+    note = (
+        f'<p class="note">M-G target (greedy Gini {_cell(target["greedy_gini"])}): {verdict}. '
+        f"Paired seeds {target['seeds']}"
+        + (f"; dropped (a point did not solve): {dropped}" if dropped else "")
+        + ".</p>"
+    )
+    return table + checks + note
 
 
 def write(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
