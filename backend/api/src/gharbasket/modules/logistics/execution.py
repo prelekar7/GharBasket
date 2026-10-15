@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
@@ -113,8 +113,13 @@ async def route_orders(
 
 
 async def _ensure_free(session: AsyncSession, route: Route) -> None:
-    """No other route of the rider in progress, and the vehicle's earlier trips completed."""
+    """No other route of the rider in progress, and the vehicle's earlier trips completed. The
+    rider is locked first (M1 owns the user row, so a key), so two starts run one at a time."""
     if route.rider_user_id is not None:
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"logistics:rider:{route.rider_user_id}"},
+        )
         busy = await session.scalar(
             select(Route.id).where(
                 Route.rider_user_id == route.rider_user_id,

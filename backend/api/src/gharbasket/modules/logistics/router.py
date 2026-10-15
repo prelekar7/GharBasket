@@ -463,8 +463,8 @@ async def get_route(
     description="A new rider gets logistics.route_published again (with previous_rider_user_id).",
     responses={
         **EDITS,
-        **ROUTE_404,
         409: _problem("logistics.routes_started, logistics.route_closed"),
+        404: _problem("logistics.route_not_found, logistics.vehicle_not_found"),
         422: _problem("logistics.rider_invalid, logistics.vehicle_too_small, request.invalid"),
     },
 )
@@ -665,8 +665,9 @@ async def live_route(
     who = await live.audience(session, permit, route)
     user_id = permit.principal.user_id
     body = live.stream(session, valkey, route.id, who)
-    if valkey is not None and await live.claim(valkey, user_id):
-        body = live.counted(body, valkey, user_id)
+    stream_id = await live.claim(valkey, user_id)
+    if valkey is not None and stream_id is not None:
+        body = live.counted(body, valkey, user_id, stream_id)
     return EventSourceResponse(
         body, headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
     )
