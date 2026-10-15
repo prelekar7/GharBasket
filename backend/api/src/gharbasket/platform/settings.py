@@ -109,6 +109,8 @@ class Settings(DatabaseSettings):
     razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
+    # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
+    kindness_goal: int = Field(default=500, ge=1, le=100_000)
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None

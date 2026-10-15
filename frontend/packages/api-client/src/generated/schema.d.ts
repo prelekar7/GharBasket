@@ -1217,6 +1217,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/kindness/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points, the next expiry dates and the next meal's goal */
+        get: operations["get_kindness_balance_v1_kindness_balance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give Kindness points as donated meals (a meal for a child); the only way to use them */
+        post: operations["donate_meals_v1_kindness_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points history, newest first */
+        get: operations["list_kindness_entries_v1_kindness_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -2776,27 +2827,6 @@ export interface components {
              */
             signed_in_at: string;
         };
-        /** DonationIn */
-        DonationIn: {
-            /** Drive Id */
-            drive_id?: string | null;
-            /**
-             * Items
-             * @description 1 to 5 lines, distinct codes
-             */
-            items: components["schemas"]["DonationLineIn"][];
-            /**
-             * Photo Keys
-             * @description Your own `donation_photo` uploads (POST /v1/files/presign)
-             */
-            photo_keys?: string[];
-            /**
-             * Pickup On
-             * Format: date
-             * @description One of `pickup_dates`
-             */
-            pickup_on: string;
-        };
         /** DonationLine */
         DonationLine: {
             /** Code */
@@ -2838,56 +2868,10 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** DonationOut */
-        DonationOut: {
-            /** Cancel Reason */
-            cancel_reason: ("customer" | "not_ready") | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            drive: components["schemas"]["DriveRef"] | null;
-            /**
-             * Estimated Points
-             * @description From the declared items, before counting
-             */
-            estimated_points: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Items */
-            items: components["schemas"]["DonationLine"][];
-            /** @description Once handed over (§3.5) */
-            ngo: components["schemas"]["DonationNgo"] | null;
-            /**
-             * Photos
-             * @description How many; customers never get links back
-             */
-            photos: number;
-            /**
-             * Pickup On
-             * Format: date
-             */
-            pickup_on: string;
-            /** Points Awarded */
-            points_awarded: number | null;
-            /** Reject Reason */
-            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
-            /** Timeline */
-            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
-        };
         /** DonationsOut */
         DonationsOut: {
             /** Items */
-            items: components["schemas"]["DonationOut"][];
+            items: components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"][];
             /** Next Cursor */
             next_cursor: string | null;
             /**
@@ -4145,6 +4129,36 @@ export interface components {
              */
             placeholders: string[];
         };
+        /** KindnessBalanceOut */
+        KindnessBalanceOut: {
+            /**
+             * Expiring
+             * @description Soonest first, the next 3 dates within 90 days; [] if none
+             */
+            expiring: components["schemas"]["PointsExpiring"][];
+            /** @description What the next donated meal needs */
+            goal: components["schemas"]["KindnessGoal"] | null;
+            /**
+             * Points
+             * @description Points that can be donated now
+             * @example 340
+             */
+            points: number;
+        };
+        /** KindnessGoal */
+        KindnessGoal: {
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Points
+             * @description The points one donated meal takes
+             * @example 500
+             */
+            points: number;
+        };
         /**
          * Label
          * @description A short name in each app language.
@@ -5170,6 +5184,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[PointsEntry] */
+        Page_PointsEntry_: {
+            /** Items */
+            items: components["schemas"]["PointsEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[ProductOut] */
         Page_ProductOut_: {
             /** Items */
@@ -5540,6 +5561,65 @@ export interface components {
         PointRatesOut: {
             /** Items */
             items: components["schemas"]["PointRateOut"][];
+        };
+        /** PointsEntry */
+        PointsEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Expires On
+             * @description IST, for points_earned
+             */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "points_earned" | "points_expired" | "points_donated";
+            /**
+             * Points
+             * @description Into the balance +, out of it -
+             * @example 120
+             */
+            points: number;
+            /** @description What earned the points (earned and expired) */
+            ref: components["schemas"]["PointsRef"] | null;
+        };
+        /** PointsExpiring */
+        PointsExpiring: {
+            /**
+             * On
+             * Format: date
+             * @description The IST date these points expire at the end of
+             */
+            on: string;
+            /**
+             * Points
+             * @example 120
+             */
+            points: number;
+        };
+        /** PointsRef */
+        PointsRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "donation" | "referral";
         };
         /** PredictionCountOut */
         PredictionCountOut: {
@@ -7788,6 +7868,110 @@ export interface components {
              * @description Per status update: applied, duplicate, unchanged or unknown_delivery
              */
             outcomes: string[];
+        };
+        /** DonationIn */
+        gharbasket__modules__billing__schemas__DonationIn: {
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+        };
+        /** DonationOut */
+        gharbasket__modules__billing__schemas__DonationOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Id
+             * Format: uuid
+             * @description The journal entry
+             */
+            id: string;
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+            /**
+             * Points
+             * @example 500
+             */
+            points: number;
+        };
+        /** DonationIn */
+        gharbasket__modules__community__kindness_schemas__DonationIn: {
+            /** Drive Id */
+            drive_id?: string | null;
+            /**
+             * Items
+             * @description 1 to 5 lines, distinct codes
+             */
+            items: components["schemas"]["DonationLineIn"][];
+            /**
+             * Photo Keys
+             * @description Your own `donation_photo` uploads (POST /v1/files/presign)
+             */
+            photo_keys?: string[];
+            /**
+             * Pickup On
+             * Format: date
+             * @description One of `pickup_dates`
+             */
+            pickup_on: string;
+        };
+        /** DonationOut */
+        gharbasket__modules__community__kindness_schemas__DonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
         };
         /** TimelineEntry */
         gharbasket__modules__community__kindness_schemas__TimelineEntry: {
@@ -10891,7 +11075,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DonationIn"];
+                "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationIn"];
             };
         };
         responses: {
@@ -10901,7 +11085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DonationOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
                 };
             };
             /** @description request.idempotency_key_required */
@@ -10981,7 +11165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DonationOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
                 };
             };
             /** @description request.idempotency_key_required */
@@ -11065,7 +11249,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DonationOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
                 };
             };
             /** @description request.idempotency_key_required */
@@ -11149,7 +11333,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DonationOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
                 };
             };
             /** @description request.idempotency_key_required */
@@ -13205,6 +13389,181 @@ export interface operations {
             };
             /** @description platform.job_failed, with the run id (problem+json) */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_kindness_balance_v1_kindness_balance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindnessBalanceOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    donate_meals_v1_kindness_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.not_enough_points (with points and needed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid: meals is 1 to 10 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_kindness_entries_v1_kindness_entries_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PointsEntry_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
