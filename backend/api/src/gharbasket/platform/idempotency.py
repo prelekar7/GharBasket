@@ -25,7 +25,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, update
+from sqlalchemy import delete, func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -133,3 +133,9 @@ async def _replay(_request: Request, exc: Exception) -> JSONResponse:
 
 def register_idempotency(app: FastAPI) -> None:
     app.add_exception_handler(IdempotentReplay, _replay)
+
+
+async def forget_scope(session: AsyncSession, scope: str) -> int:
+    """Delete every stored key and response of one caller (a purged account, M1 §3.5)."""
+    deleted = await session.execute(delete(IdempotencyKey).where(IdempotencyKey.scope == scope))
+    return deleted.rowcount  # pyright: ignore[reportAttributeAccessIssue]
