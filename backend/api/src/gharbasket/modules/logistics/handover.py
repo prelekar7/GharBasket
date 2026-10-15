@@ -8,6 +8,7 @@ A captain acts only while M9 has her as the society's active captain (ADR-0026 Â
 are tower and flat only, for her own society's orders of today and yesterday.
 """
 
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import date
