@@ -30,7 +30,7 @@ def _problem(description: str) -> dict[str, Any]:
 def covers(permit: Permit, hub_id: uuid.UUID | None) -> bool:
     """A society without a hub is only an admin's."""
     if hub_id is None:
-        return any(grant.scope_id is None for grant in permit.grants)
+        return permit.is_global
     return permit.allows(hub_id)
 
 

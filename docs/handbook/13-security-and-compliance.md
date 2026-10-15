@@ -65,7 +65,7 @@ flowchart LR
     RZP -- "signed webhooks" --> RTLS
     API -- "orders, refunds, payouts" --> RZP
     API -- "templated messages" --> WA
-    API -- "scrubbed prompts, user-scoped tools" --> LLM
+    API -- "scrubbed text and a trimmed week; intents back" --> LLM
 ```
 *Figure 13.1 — Trust boundaries and main data flows. Everything before the platform TLS edge (Vercel, Render) is untrusted; the data stores are never exposed publicly. The ML service runs on a Hugging Face Space (D25): it answers only calls that carry the service token, and no household ids or other personal data are sent to it.*
 
@@ -90,6 +90,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 - Roles: `customer`, `captain` (society), `kitchen_partner` (hub), `rider` (hub), `packer` (hub), `hub_manager` (hub), `franchise_owner` (hub), `ngo_coordinator` (ngo), `admin` (global).
 - A permission matrix in code maps `permission → roles`. Every endpoint declares its permission: `Depends(require("orders:read", scope=hub_id))`.
 - The mobile app's role switch sends `X-Active-Role`, which narrows a request to one of the caller's roles; it never adds a role. The server re-checks the role and scope on every request.
+- Each grant counts only within its own scope, with or without `X-Active-Role`: a hub or society role covers that one hub or society, `admin` covers every scope, and `customer` covers no scope at all, only the customer's own household, orders and wallet (checked by ownership). A person who is both a customer and staff of hub A therefore cannot read hub B's orders.
 - Partner roles stay inactive until status is `verified` (KYC gate, §13.7).
 - **Defence in depth — Postgres Row-Level Security** on hub-scoped tables (`orders`, `inventory_lots`, `partners`, `routes`). The API runs `SET LOCAL app.hub_ids = '…'` per transaction, so a missed check in application code still cannot leak another franchise's data.
 
@@ -103,7 +104,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 | No Aadhaar storage | We never store Aadhaar numbers or images. Identity is verified, then only a "verified" flag + masked reference is kept |
 | Private files | KYC documents and delivery proofs in a private bucket; reads use signed URLs valid for 5 minutes |
 | Payment card data | Never touches our servers (Razorpay hosted checkout) |
-| Logs | structlog with a PII scrubber (phone, address, names masked); LLM conversation logs scrubbed before storage |
+| Logs | structlog with a PII scrubber (phone, address, names masked); assistant messages scrubbed in the API (phones, e-mails, Aadhaar, PIN codes, addresses, the household's own names) before they are stored or sent to the ML service |
 | Backups | Neon point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow |
 | Retention | GPS pings 90 days; webhook payloads 180 days; audit log 3 years; deleted accounts purged within 30 days |
 
@@ -159,7 +160,7 @@ In the prototype, KYC checks are **simulated** (no real document verification AP
 | Web | CSP and security headers on the console; Capacitor navigation locked to our origins |
 | Secrets | In Infisical, synced to GitHub Actions secrets; never in the client bundle or the repo; gitleaks in CI and pre-commit |
 | Dependencies | Renovate updates, `pip-audit`, `pnpm audit`, Trivy image scan (planned) |
-| LLM | The assistant calls our API **as the user** (same permissions); every write is a proposal the user confirms; per-user daily token cap; no prices computed by the LLM |
+| LLM | The assistant never calls our API and holds no token: the API sends it scrubbed text and a trimmed week (no household or user id, name or address), it returns intents, and the API resolves them for the caller's own household; every write is a proposal the user confirms; per-user daily token cap; no prices computed by the LLM (M13 §3) |
 | Standard | OWASP ASVS Level 1 checklist reviewed before the pilot (Rhythm Thakur and Manish Raje) |
 
 ## 13.11 Audit log

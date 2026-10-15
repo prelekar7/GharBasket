@@ -2,7 +2,7 @@
 (M5 §3.6, §4.1)
 
 Revision ID: 6414c91b9017
-Revises: 058901d53044
+Revises: 3ccd4884a270
 Create Date: 2026-10-10 03:50:19.863870+00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "6414c91b9017"
-down_revision: str | Sequence[str] | None = "058901d53044"
+down_revision: str | Sequence[str] | None = "3ccd4884a270"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

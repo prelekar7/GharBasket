@@ -1,9 +1,9 @@
 """Which events become a message, for whom, with which values (spec §3.1 event map).
 
 One small function per mapped event. Household events go to the household's owner, the person
-whose wallet pays; billing and account events name their `user_id`. Each event's raw values are
-renamed to the placeholders of its kind (`kinds.py`) and only those are kept, so a message never
-stores more of an event than its text shows.
+whose wallet pays; billing, account and partner events name their `user_id`. Each event's raw
+values are renamed to the placeholders of its kind (`kinds.py`) and only those are kept, so a
+message never stores more of an event than its text shows.
 
 A payload that is missing a value or holds one of the wrong type raises KeyError, ValueError or
 TypeError here; the consumer logs it and moves on (`jobs.py`).
@@ -108,6 +108,20 @@ async def data_export_ready(session: AsyncSession, payload: dict[str, Any]) -> R
     return _to_user("identity.data_export_ready", payload)
 
 
+async def partner_verified(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """To the person M8 just verified, in the words of their kind (M8 §10). A captain hears
+    again once M9 gives her a society (`community.captain_assigned`)."""
+    kind = f"partners.verified.{payload['kind']}"
+    if kind not in KINDS:
+        raise ValueError(f"unknown partner kind {payload['kind']!r}")
+    return _to_user(kind, payload)
+
+
+async def captain_assigned(session: AsyncSession, payload: dict[str, Any]) -> Route | None:
+    """To the captain M9 appointed (M9 §3.2); like the event, it names no society or flat."""
+    return _to_user("community.captain_assigned", payload)
+
+
 ROUTES: dict[str, RouteFn] = {
     "subscriptions.box_ready": to_owner("subscriptions.box_ready"),
     "subscriptions.cutoff_reminder": to_owner("subscriptions.cutoff_reminder"),
@@ -123,4 +137,6 @@ ROUTES: dict[str, RouteFn] = {
     "orders.issue_resolved": issue_resolved,
     "billing.wallet_topped_up": wallet_topped_up,
     "identity.data_export_ready": data_export_ready,
+    "partners.verified": partner_verified,
+    "community.captain_assigned": captain_assigned,
 }
