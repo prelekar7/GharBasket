@@ -27,6 +27,10 @@ from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     PantryQuantities,
     PantryRequest,
     PlanRequest,
+    RankCandidate,
+    RankedOut,
+    RankRequest,
+    RankResponse,
     RoutePlan,
     RouteRequest,
     WeekPlan,
@@ -56,6 +60,10 @@ __all__ = [
     "PantryRequest",
     "PlanRequest",
     "PredictionCount",
+    "RankCandidate",
+    "RankRequest",
+    "RankResponse",
+    "RankedOut",
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
@@ -68,6 +76,7 @@ __all__ = [
     "pantry_quantities",
     "plan_week",
     "price_spikes",
+    "rank_basket",
     "record_metrics",
     "route_timeout_s",
     "rule_breaks",
@@ -251,6 +260,41 @@ async def model_health(
         for kind, source, count in await service.prediction_counts(session, since)
     ]
     return models, counts
+
+
+async def rank_basket(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: RankRequest,
+    *,
+    session: AsyncSession | None = None,
+    household_id: uuid.UUID | None = None,
+    week_monday: date | None = None,
+) -> RankResponse:
+    """Scores for a household's candidate products (M10 §3.7): the learned ranker on the ML
+    service, else frequency then popularity. With `session`, `household_id` and `week_monday`
+    the answer is kept in `intel.predictions` (kind `basket_rank`); the caller commits."""
+    ranked = await _call(
+        http,
+        settings,
+        "/basket/rank",
+        request.model_dump(mode="json"),
+        parse=RankResponse.model_validate,
+        fallback_to=lambda: fallback.rank_basket(request),
+        call="rank_basket",
+    )
+    if session is not None and household_id is not None and week_monday is not None:
+        await service.record_prediction(
+            session,
+            kind="basket_rank",
+            subject_type="household",
+            subject_id=household_id,
+            for_date=week_monday,
+            source=ranked.source,
+            payload=ranked.model_dump(mode="json", exclude={"source", "model"}),
+            model_name=ranked.model,
+        )
+    return ranked
 
 
 async def hub_forecast(

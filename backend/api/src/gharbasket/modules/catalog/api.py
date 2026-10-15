@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog.models import Category, Product, Recipe, RecipeIngredient
-from gharbasket.modules.catalog.pricing import prices_for
+from gharbasket.modules.catalog.pricing import latest_prices_on, prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
 from gharbasket.modules.catalog.service import search, step_label
 from gharbasket.modules.catalog.substitutes import substitutes
@@ -26,6 +26,7 @@ __all__ = [
     "ProductMatch",
     "festivals_between",
     "find_products",
+    "latest_prices_on",
     "line_grams",
     "line_products",
     "perishable_ids",
