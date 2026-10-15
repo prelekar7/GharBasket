@@ -6,14 +6,22 @@ it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains thr
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime
+from typing import Any, Literal
 
 from geoalchemy2 import Geometry
 from sqlalchemy import cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED
+from gharbasket.modules.community import donations
+from gharbasket.modules.community.events import (
+    CAPTAIN_ASSIGNED,
+    CAPTAIN_ENDED,
+    DONATION_CANCELLED,
+    DONATION_REJECTED,
+    DONATION_SCHEDULED,
+    DONATION_VERIFIED,
+)
 from gharbasket.modules.community.models import Captain, Society, SocietyRequest
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.geo import geography
@@ -21,8 +29,13 @@ from gharbasket.platform.geo import geography
 __all__ = [
     "CAPTAIN_ASSIGNED",
     "CAPTAIN_ENDED",
+    "DONATION_CANCELLED",
+    "DONATION_REJECTED",
+    "DONATION_SCHEDULED",
+    "DONATION_VERIFIED",
     "CaptainCard",
     "CaptainRef",
+    "DonationPickup",
     "SocietyLabels",
     "SocietyRef",
     "anonymise_for_user",
@@ -33,6 +46,8 @@ __all__ = [
     "get_society",
     "hubs_with_societies",
     "is_active_captain",
+    "pickups_for",
+    "record_pickup",
     "society_labels",
     "society_points",
 ]
@@ -185,8 +200,54 @@ async def is_active_captain(
     return found.first() is not None
 
 
+# --- donation pickups (§3.4, §3.8): M7's return leg and the captain's flat checklist -----------
+
+
+@dataclass(frozen=True)
+class DonationPickup:
+    donation_id: uuid.UUID
+    household_id: uuid.UUID
+    items_summary: str  # "clothes 2.5 kg, toys 3": no names, flats or photos
+
+
+async def pickups_for(
+    session: AsyncSession, society_id: uuid.UUID, on: date
+) -> list[DonationPickup]:
+    """The society's donations to collect on `on`; M7 adds the flat (identity.api)."""
+    return [
+        DonationPickup(
+            donation_id=d.id,
+            household_id=d.household_id,
+            items_summary=", ".join(
+                f"{line['code']} {line['qty']:g}{' kg' if line['unit'] == 'kg' else ''}"
+                for line in d.items
+            ),
+        )
+        for d in await donations.pickups_for(session, society_id, on)
+    ]
+
+
+async def record_pickup(
+    session: AsyncSession,
+    donation_id: uuid.UUID,
+    outcome: Literal["collected", "not_ready"],
+    *,
+    by_user_id: uuid.UUID | None,
+    on: date,
+) -> bool:
+    """One donation's outcome from a stop (M7's `logistics.pickup_completed`, §3.4), in the
+    caller's transaction: `collected` makes it `picked_up` (by the rider or captain, on `on`);
+    `not_ready` rolls it once to the next delivery date, then cancels it. False when it was no
+    longer scheduled (a redelivered report), so calling twice is harmless."""
+    done = await donations.record_pickup(
+        session, donation_id, outcome, by_user_id=by_user_id, on=on
+    )
+    return done is not None
+
+
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
-    """M9's section of the user's data export (M1 §3.3): her own captain appointments."""
+    """M9's section of the user's data export (M1 §3.3): her captain appointments and her
+    donations (photos counted, not included)."""
     rows = await session.execute(
         select(Captain, Society.name)
         .join(Society, Society.id == Captain.society_id)
@@ -203,7 +264,8 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
                 "until": captain.until,
             }
             for captain, name in rows.all()
-        ]
+        ],
+        "donations": await donations.export(session, user_id),
     }
 
 

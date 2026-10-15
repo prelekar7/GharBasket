@@ -1,5 +1,7 @@
 """HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1),
-and captain appointments (§3.2, captain_router.py)."""
+and captain appointments (§3.2, captain_router.py); point rates and drives (§3.4, drive_router.py),
+and donations with their verification (donation_router.py).
+"""
 
 import uuid
 from dataclasses import asdict
@@ -12,6 +14,8 @@ from gharbasket.modules.community import jobs as _jobs  # noqa: F401 (registers 
 from gharbasket.modules.community import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.community import service
 from gharbasket.modules.community.captain_router import router as captain_router
+from gharbasket.modules.community.donation_router import router as donation_router
+from gharbasket.modules.community.drive_router import router as drive_router
 from gharbasket.modules.community.models import Society
 from gharbasket.modules.community.schemas import (
     CaptainCard,
@@ -33,6 +37,8 @@ from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["community"])
 router.include_router(captain_router)
+router.include_router(drive_router)
+router.include_router(donation_router)
 
 SEARCH_LIMIT = 50
 # Society requests per user per day (spec §3.1).
