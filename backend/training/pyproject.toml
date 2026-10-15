@@ -8,8 +8,10 @@ dependencies = [
     "boto3>=1.43.108",
     "gharbasket-sim",
     "httpx2>=2.13.1",
+    "pandas>=2.2",
     "pyarrow>=25.0.1",
     "pydantic-settings>=2.15.0",
+    "statsforecast>=2.0",
 ]
 
 [project.optional-dependencies]

@@ -2,7 +2,8 @@ import { Button, Checkbox, Chip, SegmentedControl } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const CUISINES = ["maharashtrian", "north_indian", "gujarati", "south_indian", "bengali"];
 const FASTING = ["shravan_mondays", "ekadashi", "navratri", "tuesdays"];
@@ -16,8 +17,9 @@ export const Route = createFileRoute("/_auth/onboarding/food")({ component: Food
 
 function Food() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
+  const step = useStepGo("/onboarding/food");
   const section = "flex flex-col gap-2";
   const label = "text-sm leading-5 font-semibold";
 
@@ -25,13 +27,8 @@ function Food() {
     <OnboardingFrame
       step={2}
       footer={
-        <Button
-          variant="primary"
-          size="lg"
-          block
-          onPress={() => navigate({ to: nextStep("/onboarding/food") })}
-        >
-          {t("onboarding.next")}
+        <Button variant="primary" size="lg" block isPending={step.busy} onPress={step.go}>
+          {step.label}
         </Button>
       }
     >
@@ -44,7 +41,11 @@ function Food() {
           label={t("onboarding.food.diet")}
           value={h.diet}
           onChange={(diet) =>
-            updateHousehold({ diet: /** @type {"veg" | "egg" | "nonveg"} */ (diet) })
+            // A Jain household eats veg (M1 identity.diet_conflict): leaving veg turns Jain off.
+            updateHousehold({
+              diet: /** @type {"veg" | "egg" | "nonveg"} */ (diet),
+              ...(diet !== "veg" && { jain: false }),
+            })
           }
           options={["veg", "egg", "nonveg"].map((value) => ({
             value,
@@ -72,7 +73,7 @@ function Food() {
           label={t("onboarding.food.jain")}
           description={t("onboarding.food.jainDesc")}
           isSelected={h.jain}
-          onChange={(jain) => updateHousehold({ jain })}
+          onChange={(jain) => updateHousehold(jain ? { jain, diet: "veg" } : { jain })}
         />
         <Checkbox
           label={t("onboarding.food.noOnion")}
@@ -93,7 +94,7 @@ function Food() {
             </Chip>
           ))}
         </div>
-        <p className="text-sm leading-[22px] text-fg-secondary">{t("onboarding.food.fastNote")}</p>
+        <p className="text-sm leading-5 text-fg-secondary">{t("onboarding.food.fastNote")}</p>
       </div>
     </OnboardingFrame>
   );

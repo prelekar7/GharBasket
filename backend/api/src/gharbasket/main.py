@@ -25,6 +25,7 @@ from gharbasket.modules.logistics.router import router as logistics_router
 from gharbasket.modules.notifications.router import router as notifications_router
 from gharbasket.modules.orders.router import router as orders_router
 from gharbasket.modules.partners.router import router as partners_router
+from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions.router import router as subscriptions_router
 from gharbasket.platform import files, health, jobs, openapi, outbox
 from gharbasket.platform.db import create_engine, create_sessionmaker
@@ -103,6 +104,7 @@ def _lifespan(settings: Settings):
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, json=settings.log_json)
+    load_modules()  # every module's jobs and outbox consumers, before anything relays
 
     docs = settings.docs_enabled
     app = FastAPI(
