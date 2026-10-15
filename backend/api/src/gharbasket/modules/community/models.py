@@ -80,6 +80,9 @@ class Society(Base):
     # Households needed for free delivery (US-2).
     unlock_threshold: Mapped[int] = mapped_column(Integer, server_default=text("20"))
     status: Mapped[str] = mapped_column(String(16), server_default="prospect")
+    # Set once, when the society first goes live; never cleared (M9 §3.6). A box pays the hub's
+    # pre-live delivery fee while it is null (M4 `box_fee`).
+    live_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     search_text: Mapped[str] = mapped_column(Text, Computed(SEARCH_TEXT, persisted=True))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

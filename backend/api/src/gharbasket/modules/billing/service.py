@@ -30,14 +30,17 @@ def entry_conflict(key: str) -> ProblemError:
     )
 
 
-async def platform_account(session: AsyncSession, code: str) -> LedgerAccount:
-    """One of the accounts the migration creates (razorpay_clearing, unearned_revenue, …)."""
+async def platform_account(
+    session: AsyncSession, code: str, currency: str = "INR"
+) -> LedgerAccount:
+    """One of the accounts the migrations create (razorpay_clearing, unearned_revenue, …, and
+    kindness_expense in KINDNESS_PTS)."""
     return (
         await session.execute(
             select(LedgerAccount).where(
                 LedgerAccount.code == code,
                 LedgerAccount.owner_type == "platform",
-                LedgerAccount.currency == "INR",
+                LedgerAccount.currency == currency,
             )
         )
     ).scalar_one()
