@@ -1,7 +1,12 @@
-// MSW handlers for the frozen auth contract (docs/modules/M1-identity.md §3.1, Part 3). Shapes
-// must match the backend exactly; later these come from openapi.json. /v1/auth/refresh, logout
-// and logout-all are not in §3.1 yet, so their shapes here are our proposal (see the PR).
+// MSW handlers for the auth contract (docs/modules/M1-identity.md §3.1, Part 3), matching the
+// backend's /v1/auth/exchange, refresh, logout and logout-all. Shapes must match the backend
+// exactly; later these are typed from the generated api-client's schema.d.ts.
 import { HttpResponse, http } from "msw";
+import { seedShortWallet } from "./billing.js";
+import { clearRatings } from "./orders.js";
+import { HUB_ID } from "./packer.js";
+import { seedPaymentFailed } from "./subscriptions.js";
+import { restartTrip } from "./tracking.js";
 
 const ACCESS_TTL_S = 900;
 const WEB_SESSION_KEY = "gb-mock-web-session"; // stands in for the httpOnly cookie on web
@@ -14,34 +19,90 @@ const problem = (status, code, title) =>
   );
 
 /** Fictional dev numbers: …02 is a customer who is also Captain of Sunrise Towers, …03 a rider. */
-function rolesFor(/** @type {string} */ phone) {
+export function rolesFor(/** @type {string} */ phone) {
   /** @type {import("@/lib/api.js").RoleGrant[]} */
   const roles = [{ role: "customer", scope_type: null, scope_id: null, status: "verified" }];
   if (phone === "+919800000002") {
     roles.push({
       role: "captain",
       scope_type: "society",
-      scope_id: "sunrise-towers",
+      scope_id: "0190f0aa-5000-7000-8000-000000000001", // Sunrise Towers
       status: "verified",
     });
   }
+  // The backend seed's field people (backend/api/README.md): Meena tai (captain, Sunrise Towers),
+  // Lata Shinde (kitchen), Arjun Pawar (rider) and Kavita More (packer), all at the Kharghar hub.
+  /** @type {Record<string, import("@/lib/api.js").RoleGrant>} */
+  const SEED_FIELD = {
+    "+919800001004": {
+      role: "captain",
+      scope_type: "society",
+      scope_id: "sunrise-towers",
+      status: "verified",
+    },
+    "+919800001005": {
+      role: "kitchen_partner",
+      scope_type: "hub",
+      scope_id: "hub-kharghar",
+      status: "verified",
+    },
+    "+919800001006": {
+      role: "rider",
+      scope_type: "hub",
+      scope_id: HUB_ID,
+      status: "verified",
+    },
+    "+919800001007": {
+      role: "packer",
+      scope_type: "hub",
+      scope_id: HUB_ID,
+      status: "verified",
+    },
+  };
+  if (SEED_FIELD[phone])
+    return phone === "+919800001004" ? [...roles, SEED_FIELD[phone]] : [SEED_FIELD[phone]];
   if (phone === "+919800000003") {
     roles.splice(0, 1, {
       role: "rider",
       scope_type: "hub",
-      scope_id: "hub-thane-1",
+      scope_id: "0190f0aa-6000-7000-8000-000000000001", // Kharghar hub
       status: "verified",
     });
   }
   return roles;
 }
 
-const userFor = (/** @type {string} */ phone) => ({
+/**
+ * Who has a household already, like the real server: the designs' demo households (…00001 to
+ * …00004) do, every other number is new until it finishes onboarding (POST /v1/households, see
+ * mocks/identity.js). …00005 always starts fresh, to walk through onboarding again.
+ */
+const DEMO_HOUSEHOLD = /^\+9198000000(0[1-4])$/;
+export const HOUSEHOLDS_KEY = "gb-mock-households";
+export const isNewUser = (/** @type {string} */ phone) =>
+  phone === "+919800000005" ||
+  (!DEMO_HOUSEHOLD.test(phone) &&
+    !JSON.parse(localStorage.getItem(HOUSEHOLDS_KEY) ?? "[]").includes(phone));
+
+/** Profile edits from PATCH /v1/me (mocks/profile.js), by phone; they survive reloads. */
+export const PROFILE_KEY = "gb-mock-me";
+/** @type {Record<string, string>} */
+const SEED_NAMES = {
+  "+919800001004": "Meena Jadhav",
+  "+919800001005": "Lata Shinde",
+  "+919800001006": "Arjun Pawar",
+  "+919800001007": "Kavita More",
+};
+
+export const userFor = (/** @type {string} */ phone) => ({
   id: `0190f0aa-0000-7000-8000-${phone.replace(/\D/g, "").slice(-12).padStart(12, "0")}`,
   phone_e164: phone,
-  name: null,
-  locale: /** @type {const} */ ("en-IN"),
+  // The designs' household is Priya's, the field people are the seed's; anyone else has not told
+  // us a name yet.
+  name: DEMO_HOUSEHOLD.test(phone) ? "Priya" : (SEED_NAMES[phone] ?? null),
+  locale: /** @type {"en-IN" | "hi-IN" | "mr-IN"} */ ("en-IN"),
   senior_mode: false,
+  ...JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "{}")[phone],
 });
 
 /** @type {Map<string, { phone: string, exp: number }>} */ const accessTokens = new Map();
@@ -51,6 +112,8 @@ const REFRESH_KEY = "gb-mock-refresh-tokens";
   JSON.parse(localStorage.getItem(REFRESH_KEY) ?? "[]"),
 ); // refresh token → phone
 const saveRefresh = () => localStorage.setItem(REFRESH_KEY, JSON.stringify([...refreshTokens]));
+/** Rotated-out refresh tokens → phone. Presenting one again means it was copied (M1 §3.1). */
+/** @type {Map<string, string>} */ const usedRefresh = new Map();
 let counter = Date.now();
 
 function issue(/** @type {string} */ phone) {
@@ -98,6 +161,7 @@ function phoneFromIdToken(/** @type {string} */ token) {
 export const handlers = [
   http.post("*/v1/auth/exchange", async ({ request }) => {
     const body = /** @type {any} */ (await request.json());
+    if (!body.device?.platform) return problem(422, "request.invalid", "The request is not valid.");
     const phone = body.firebase_id_token
       ? phoneFromIdToken(body.firebase_id_token)
       : body.dev_phone;
@@ -105,12 +169,23 @@ export const handlers = [
     if (phone === "+919800000429")
       return problem(429, "auth.rate_limited", "Too many attempts. Try again later.");
     const pair = issue(phone);
+    // Every sign-in starts the demo delivery day again: today's van leaves the hub.
+    restartTrip();
+    clearRatings();
+    // 98000 00004 signs in to the "payment didn't go through" week (design Core-D4).
+    if (phone === "+919800000004") {
+      seedShortWallet();
+      seedPaymentFailed();
+    }
     if (request.headers.get("x-gb-client") === "web")
       webSession.set({ phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
-    // +91 98000 00005 is a brand-new household, to walk through onboarding.
+    const web = request.headers.get("x-gb-client") === "web";
     return HttpResponse.json({
-      ...pair,
-      is_new_user: phone === "+919800000005",
+      // Browsers get null tokens: the httpOnly cookies carry them (ExchangeOut).
+      ...(web
+        ? { access_token: null, access_expires_in: ACCESS_TTL_S, refresh_token: null }
+        : pair),
+      is_new_user: isNewUser(phone),
       user: userFor(phone),
     });
   }),
@@ -126,21 +201,46 @@ export const handlers = [
       const session = webSession.get();
       if (!session) return problem(401, "auth.invalid_token", "Please sign in again.");
       webSession.set({ phone: session.phone, exp: Date.now() + ACCESS_TTL_S * 1000 });
-      return HttpResponse.json({ access_expires_in: ACCESS_TTL_S });
+      // TokensOut: browsers get null tokens, the cookies carry them.
+      return HttpResponse.json({
+        access_token: null,
+        access_expires_in: ACCESS_TTL_S,
+        refresh_token: null,
+      });
     }
     const { refresh_token: token } = /** @type {any} */ (await request.json());
+    const reused = usedRefresh.get(token);
+    if (reused) {
+      // A rotated token came back: someone copied it, so the whole session ends.
+      for (const [t, owner] of refreshTokens) if (owner === reused) refreshTokens.delete(t);
+      saveRefresh();
+      return problem(
+        401,
+        "auth.refresh_reused",
+        "This sign-in was used from somewhere else, so it has been ended. Sign in again.",
+      );
+    }
     const phone = refreshTokens.get(token);
     if (!phone) return problem(401, "auth.invalid_token", "Please sign in again.");
     refreshTokens.delete(token); // rotation: each refresh token works once
+    usedRefresh.set(token, phone);
     saveRefresh();
     return HttpResponse.json(issue(phone));
   }),
 
-  http.post("*/v1/auth/logout", async ({ request }) => {
-    const body = /** @type {any} */ (await request.json().catch(() => ({})));
-    if (body.refresh_token) refreshTokens.delete(body.refresh_token);
-    saveRefresh();
-    webSession.set(null);
+  // Like the backend: only a signed-in caller can log out (an expired access token gets a 401, so
+  // the app refreshes and retries), and it ends this device's session and clears the cookies.
+  http.post("*/v1/auth/logout", ({ request }) => {
+    const phone = caller(request);
+    if (!phone) return problem(401, "auth.invalid_token", "Your session has expired.");
+    const bearer = request.headers.get("authorization")?.replace(/^Bearer /, "");
+    if (bearer) {
+      accessTokens.delete(bearer);
+      // One device = one session: its refresh token is the newest one issued for this phone.
+      const mine = [...refreshTokens].filter(([, owner]) => owner === phone).at(-1);
+      if (mine) refreshTokens.delete(mine[0]);
+      saveRefresh();
+    } else webSession.set(null);
     return new HttpResponse(null, { status: 204 });
   }),
 

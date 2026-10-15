@@ -1,0 +1,12 @@
+{
+  "appId": "in.gharbasket.app",
+  "appName": "GharBasket S-2",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["phone"]
+    }
+  }
+}

@@ -10,6 +10,7 @@ on:
   schedule:
     - cron: "3 13 * * *" # 18:33 IST daily: collect_mandi (Agmarknet publishes during the day)
     - cron: "33 20 * * *" # 02:03 IST daily: export_snapshots (the lake and the feature snapshots)
+    - cron: "40 15 * * *" # 21:10 IST daily: forecast (next week's uncommitted demand, after the cut-off)
   workflow_dispatch:
     inputs:
       job:
@@ -18,7 +19,7 @@ on:
         type: string
         default: collect_mandi
       args:
-        description: Extra arguments (blank = the job's default; collect_mandi --push-index, export_snapshots --push-features)
+        description: Extra arguments (blank = the job's default; collect_mandi --push-index, export_snapshots --push-features, forecast --push)
         required: false
         type: string
 
@@ -44,8 +45,9 @@ jobs:
       API_URL: ${{ secrets.STAGING_API_URL }}
       JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
       DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}
-      # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots.
-      JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || 'collect_mandi') }}
+      # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots,
+      # 21:10 IST the forecast.
+      JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || 'collect_mandi') }}
       ARGS: ${{ inputs.args }} # blank: the job's default, set in the run step
     steps:
       - name: Check that the secrets exist
@@ -81,6 +83,7 @@ jobs:
             case "$JOB" in
               collect_mandi) ARGS="--push-index" ;;
               export_snapshots) ARGS="--push-features" ;;
+              forecast) ARGS="--push" ;;
             esac
           fi
           uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS

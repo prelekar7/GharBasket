@@ -1,30 +1,41 @@
 import { IconButton, ProgressBar } from "@gharbasket/ui";
 import { ArrowLeftIcon } from "@phosphor-icons/react";
-import { useRouter } from "@tanstack/react-router";
+import { useLocation, useRouter } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { HOUSEHOLD_STEPS } from "@/features/onboarding/draft.js";
+import { HOUSEHOLD_STEPS, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
 /**
  * Layout shared by the onboarding screens (designs Hf04–Hf15): back button, content, and a footer
  * pinned to the bottom.
  * `step` (1–5) adds the "Household · Step N of 5" progress bar of designs Hf07–Hf11.
- * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode, step?: number }} props
+ * `back={false}` hides the back button on the last screen, where there is nothing to go back to (Hf15).
+ * @param {{ children: import("react").ReactNode, footer?: import("react").ReactNode, step?: number, back?: boolean }} props
  */
-export function OnboardingFrame({ children, footer, step }) {
+export function OnboardingFrame({ children, footer, step, back = true }) {
   const { t } = useTranslation();
   const router = useRouter();
+  // Editing from Profile is one screen, not a flow, so the step progress is left out.
+  const editing = useOnboardingDraft((s) => !!s.editing);
+  const { pathname } = useLocation();
+  // Remember how far a new household got, so coming back resumes here and not at step 1.
+  useEffect(() => {
+    if (!editing) useOnboardingDraft.getState().markReached(pathname);
+  }, [pathname, editing]);
   return (
     <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-4 bg-bg px-5 pt-[calc(12px+env(safe-area-inset-top))] pb-6 text-fg">
-      <div className="-ml-3 flex min-h-12 items-center">
-        <IconButton
-          label={t("onboarding.back")}
-          variant="quiet"
-          onPress={() => router.history.back()}
-        >
-          <ArrowLeftIcon size={24} />
-        </IconButton>
-      </div>
-      {step && (
+      {back && (
+        <div className="-ml-3 flex min-h-12 items-center">
+          <IconButton
+            label={t("onboarding.back")}
+            variant="quiet"
+            onPress={() => router.history.back()}
+          >
+            <ArrowLeftIcon size={24} />
+          </IconButton>
+        </div>
+      )}
+      {step && !editing && (
         <ProgressBar
           label={t("onboarding.household")}
           value={step}
@@ -33,7 +44,7 @@ export function OnboardingFrame({ children, footer, step }) {
         />
       )}
       {children}
-      {footer && <div className="mt-auto flex flex-col gap-1 pt-2">{footer}</div>}
+      {footer && <div className="mt-auto flex flex-col gap-2 pt-2">{footer}</div>}
     </main>
   );
 }
