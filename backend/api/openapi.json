@@ -6744,6 +6744,7 @@
             "type": "integer"
           },
           "at": {
+            "description": "With a time zone",
             "examples": [
               "2026-12-29T01:41:15Z"
             ],
@@ -25084,7 +25085,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_found"
+            "description": "logistics.route_not_found, logistics.vehicle_not_found"
           },
           "409": {
             "content": {

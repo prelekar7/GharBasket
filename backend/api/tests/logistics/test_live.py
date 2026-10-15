@@ -4,16 +4,19 @@ ends at the viewer's handover, at the route's end or for a reconnect; 3 streams 
 import json
 import uuid
 from collections.abc import AsyncIterator
+from datetime import timedelta
 from typing import Any
 
 import pytest
 import time_machine
 from redis.asyncio import Redis
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.logistics import live, tracking
 from gharbasket.modules.logistics.models import Route, RouteStop
+from gharbasket.modules.logistics.schemas import PingIn
+from gharbasket.platform.errors import ProblemError
 from gharbasket.tools.seed import SEED_SOCIETY_ID
 
 from ..identity.conftest import ClientFactory
@@ -24,6 +27,7 @@ from .conftest import (
     MEENA,
     MORNING,
     PRIYA,
+    RAMESH,
     VIKRAM,
     Day,
     as_user,
@@ -34,6 +38,9 @@ from .conftest import (
 )
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
+
+SAVITA = "+919800001012"  # Krishna Kunj's captain
+GREEN_VALLEY = uuid.UUID("0199a000-0000-7000-8000-00000000b002")
 
 SSE = {"Accept": "text/event-stream"}
 
@@ -84,22 +91,51 @@ async def test_the_stream_shows_each_audience_its_part_and_ends_at_the_handover(
         json.dumps({"at": MORNING.isoformat(), "lat": 19.033123, "lng": 73.029876, "heading": 7}),
     )
 
-    # A captain and a customer of Sunrise Towers: one stop, the stops before it, rounded for the
-    # customer. Their stop is handed over, so each stream ends at once.
-    await db_session.execute(
-        update(RouteStop).where(RouteStop.id == sunrise_id).values(status="handed_over")
-    )
-    await db_session.commit()
-    for phone, digits in ((MEENA, 6), (PRIYA, 4)):
+    # A captain and a customer of Sunrise Towers: one stop, the stops before it, the van rounded
+    # for the customer, until the stop is handed over; then `stop`, `end` and no more positions.
+    for customer, digits in ((False, 6), (True, 4)):
+        await db_session.execute(
+            update(RouteStop).where(RouteStop.id == sunrise_id).values(status="pending")
+        )
+        await db_session.commit()
+
+        async def hand_over() -> None:
+            await db_session.execute(
+                update(RouteStop).where(RouteStop.id == sunrise_id).values(status="handed_over")
+            )
+            await db_session.commit()
+
+        steps = [hand_over]
+
+        async def sleep(_: float, steps: list[Any] = steps) -> None:
+            if steps:
+                await steps.pop(0)()
+
+        body = live.stream(
+            db_session,
+            valkey,
+            day.route_id,
+            live.Audience(sunrise_id, customer=customer),
+            sleep=sleep,
+            clock=lambda: 0.0,
+        )
+        frames = parse(b"".join([chunk async for chunk in body]).decode())
+        assert [f["event"] for f in frames] == ["snapshot", "stop", "end"]
+        snapshot = frames[0]["data"]
+        assert [s["seq"] for s in snapshot["stops"]] == [sunrise_seq]
+        assert snapshot["stops_before"] == sunrise_seq - 1
+        assert snapshot["position"]["lat"] == round(19.033123, digits)
+        assert frames[1]["data"]["status"] == "handed_over"
+        assert frames[2]["data"] == {"reason": "handed_over"}
+
+    # Through the API, once the stop is handed over: the snapshot carries no position.
+    for phone in (MEENA, PRIYA):
         who = await as_user(api, google, phone)
         answer = await api.get(path, headers={**who, **SSE})
         assert answer.status_code == 200, answer.text
         assert answer.headers["x-accel-buffering"] == "no"
         snapshot, end = parse(answer.text)
-        assert snapshot["event"] == "snapshot"
-        assert [s["seq"] for s in snapshot["data"]["stops"]] == [sunrise_seq]
-        assert snapshot["data"]["stops_before"] == sunrise_seq - 1
-        assert snapshot["data"]["position"]["lat"] == round(19.033123, digits)
+        assert snapshot["data"]["position"] is None
         assert end == {"event": "end", "data": {"reason": "handed_over"}}
 
     stranger = await as_user(api, google, KAVITA)
@@ -179,3 +215,76 @@ async def test_a_running_stream_sends_positions_stops_keep_alives_and_reconnects
         "age_s": 0,
     }
     assert frames[-1]["data"] == {"reason": "reconnect"}
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_another_societys_captain_or_customer_is_refused(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, _ = await started(api, google, db_session)
+    # Krishna Kunj leaves the route: its captain (Savita, who lives there with no order today)
+    # and its customer (Ramesh) have nothing to watch on it.
+    await db_session.execute(
+        delete(RouteStop).where(
+            RouteStop.route_id == day.route_id,
+            RouteStop.society_id.not_in([SEED_SOCIETY_ID, GREEN_VALLEY]),
+        )
+    )
+    await db_session.commit()
+    for phone in (SAVITA, RAMESH):
+        who = await as_user(api, google, phone)
+        refused = await api.get(f"/v1/routes/{day.route_id}/live", headers={**who, **SSE})
+        assert (refused.status_code, refused.json()["code"]) == (403, "auth.forbidden")
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_without_valkey_the_stream_reads_the_latest_persisted_ping_every_15_s(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, _ = await started(api, google, db_session)
+    arjun = await user_id(db_session, ARJUN)
+    seen = PingIn(at=MORNING - timedelta(seconds=30), lat=19.05, lng=73.01, accuracy_m=5)
+    await tracking.insert_pings(db_session, [tracking._row(arjun, day.route_id, seen)])  # pyright: ignore[reportPrivateUsage]
+    await db_session.commit()
+    waits: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        await db_session.execute(
+            update(Route).where(Route.id == day.route_id).values(status="completed")
+        )
+        await db_session.commit()
+
+    body = live.stream(
+        db_session, None, day.route_id, live.Audience(None), sleep=sleep, clock=lambda: 0.0
+    )
+    frames = parse(b"".join([chunk async for chunk in body]).decode())
+    assert frames[0]["data"]["position"]["lat"] == 19.05
+    assert frames[0]["data"]["position"]["age_s"] == 30
+    assert frames[-1]["data"] == {"reason": "route_completed"}
+    assert waits == [live.SLOW_POLL_S]
+
+
+async def test_the_stream_limit_forgets_streams_past_their_30_minutes_and_releases_its_own(
+    valkey: Redis,
+) -> None:
+    user = uuid.uuid4()
+    key = f"gb:logistics:streams:{user}"
+    # Three streams of a process that died an hour ago hold no slot.
+    await valkey.zadd(key, {f"dead{i}": 1_000.0 + i for i in range(3)})
+    first = await live.claim(valkey, user)
+    assert first is not None and await valkey.zcard(key) == 1
+
+    async def body() -> AsyncIterator[bytes]:
+        yield b"x"
+
+    chunks = [c async for c in live.counted(body(), valkey, user, first)]
+    assert chunks == [b"x"] and await valkey.zcard(key) == 0  # released, never below zero
+    ids = [await live.claim(valkey, user) for _ in range(3)]
+    assert all(ids)
+    with pytest.raises(ProblemError) as full:
+        await live.claim(valkey, user)
+    assert full.value.code == "logistics.too_many_streams"
+    assert await valkey.zcard(key) == 3

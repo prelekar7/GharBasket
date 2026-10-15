@@ -36,6 +36,8 @@ from .conftest import (
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
 
+SAVITA = "+919800001012"  # Krishna Kunj's captain
+
 GREEN_VALLEY = uuid.UUID("0199a000-0000-7000-8000-00000000b002")
 
 
@@ -253,7 +255,19 @@ async def test_an_ended_captain_wrong_codes_and_photos(
         .values(status="active", until=None, end_reason=None)
     )
     await db_session.commit()
-    ok = await api.post(path, json={**body, "photo_key": photo}, headers={**captain, **key()})
+    # Her own key in the right shape, but nothing uploaded through M0: refused (until the
+    # delivery_photo purpose lands every photo key is), so it cannot stand in for the code.
+    invented = await api.post(path, json={**body, "photo_key": photo}, headers={**captain, **key()})
+    assert (invented.status_code, invented.json()["code"]) == (422, "logistics.photo_key_invalid")
+    await db_session.execute(
+        update(RouteStop).where(RouteStop.id == sunrise_id).values(code_attempts=0)
+    )
+    await db_session.commit()
+    savita = await as_user(api, google, SAVITA)  # Krishna Kunj's captain
+    other = await api.post(path, json={**body, "handover_code": code}, headers={**savita, **key()})
+    assert (other.status_code, other.json()["code"]) == (403, "auth.forbidden")
+    ok = await api.post(path, json={**body, "handover_code": code}, headers={**captain, **key()})
     assert ok.status_code == 200, ok.text
+    assert ok.json()["stop"]["handover_code"] is None  # the rider's code, not hers to see
     [handover] = (await db_session.execute(select(Handover))).scalars()
-    assert (handover.proof, handover.photo_key) == ("photo", photo)
+    assert (handover.proof, handover.photo_key) == ("code", None)
