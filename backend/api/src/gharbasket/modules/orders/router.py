@@ -650,7 +650,7 @@ async def triage_detail(
     responses={
         403: _problem("auth.forbidden: another hub"),
         404: _problem("orders.issue_not_found"),
-        409: _problem("orders.issue_not_open"),
+        409: _problem("orders.issue_not_open, orders.order_refunded"),
         422: _problem(
             "orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; "
             "the issue stays open)"

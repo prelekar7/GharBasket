@@ -817,15 +817,28 @@ async def mark_shortage(
     return line
 
 
-async def refundable_paise(session: AsyncSession, order: Order) -> int:
-    """What may still be refunded on an order: its paid total (net of shortage refunds, which
-    follow the lines) minus the issue credits already made on it."""
+async def refunded_paise(session: AsyncSession, order: Order) -> int:
+    """Everything already paid back on an order after packing: its issue credits and the money
+    of its move to `refunded` (M7's refunds). Shortage refunds are already out of the total, which
+    follows the lines. The one count every later refund subtracts, so nothing is paid twice."""
     credited = await session.scalar(
         select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
             OrderIssue.order_id == order.id, OrderIssue.status == "credited"
         )
     )
-    return max(0, order.total_paise - int(credited or 0))
+    moved = await session.execute(
+        select(OrderEvent.payload).where(
+            OrderEvent.order_id == order.id, OrderEvent.to_status == "refunded"
+        )
+    )
+    refunded = sum(int((p or {}).get("refund_paise") or 0) for p in moved.scalars())
+    return int(credited or 0) + refunded
+
+
+async def refundable_paise(session: AsyncSession, order: Order) -> int:
+    """What a refund of the order may still pay back: its paid total minus all that was already
+    paid back (`refunded_paise`)."""
+    return max(0, order.total_paise - await refunded_paise(session, order))
 
 
 async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> int:

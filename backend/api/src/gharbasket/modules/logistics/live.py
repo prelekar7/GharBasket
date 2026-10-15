@@ -8,7 +8,7 @@ reconnect needs no `Last-Event-ID`. The stream reads the route and its stops and
 position every 5 s (15 s without Valkey) and ends its read transaction after each read; it closes
 with `end` after 30 minutes (`reconnect`), at the handover of the viewer's stop (`handed_over`)
 or when the route is completed (`route_completed`). At most 3 streams per user are open at once
-(counted in Valkey, the way M4's live timeline counts them).
+(a sorted set of open streams in Valkey, pruned of streams past the 30-minute limit).
 """
 
 import json
@@ -119,7 +119,8 @@ async def _read(
         before = sum(s.seq < mine.seq and s.status in ("pending", "arrived") for s in stops)
         live, own = {mine.seq: live[mine.seq]}, mine.status
     position = None
-    if route.status == "in_progress":
+    # The viewer's stop is done: no more positions for a captain or a customer.
+    if route.status == "in_progress" and own not in ("handed_over", "skipped"):
         position = await tracking.latest(session, valkey, route_id)
     await session.commit()  # read-only; gives the connection back between reads
     return _View(route.status, live, before, own, position)
@@ -185,23 +186,27 @@ def _streams_key(user_id: uuid.UUID) -> str:
     return f"gb:logistics:streams:{user_id}"
 
 
-async def claim(valkey: Redis | None, user_id: uuid.UUID) -> bool:
-    """Count one open stream for the user; 429 `logistics.too_many_streams` past 3. True when a
-    stream was counted (and must be released)."""
+async def claim(valkey: Redis | None, user_id: uuid.UUID) -> str | None:
+    """Open one stream for the user: a member of a sorted set scored by its start, pruned of
+    streams older than the 30-minute limit (a crashed process cannot hold a slot longer).
+    429 `logistics.too_many_streams` past 3. Returns the stream's id to release, or None when
+    nothing was counted (no Valkey)."""
     if valkey is None:
-        return False
-    key = _streams_key(user_id)
+        return None
+    key, stream_id, now = _streams_key(user_id), uuid.uuid4().hex, time.time()
     try:
         async with valkey.pipeline(transaction=True) as pipe:
-            pipe.incr(key)
-            pipe.expire(key, int(MAX_S) + 60)  # a crashed process cannot leak a slot for long
-            count, _ = await pipe.execute()
+            pipe.zremrangebyscore(key, "-inf", now - MAX_S - 60)
+            pipe.zadd(key, {stream_id: now})
+            pipe.zcard(key)
+            pipe.expire(key, int(MAX_S) + 120)
+            _, _, count, _ = await pipe.execute()
         full = int(count) > MAX_STREAMS
         if full:
-            await valkey.decr(key)
+            await valkey.zrem(key, stream_id)
     except Exception as exc:
         log.warning("stream_count_skipped", error=type(exc).__name__)
-        return False
+        return None
     if full:
         raise ProblemError(
             429,
@@ -209,11 +214,11 @@ async def claim(valkey: Redis | None, user_id: uuid.UUID) -> bool:
             f"At most {MAX_STREAMS} live route streams are open at once.",
             headers={"Retry-After": "20"},
         )
-    return True
+    return stream_id
 
 
 async def counted(
-    body: AsyncIterator[bytes], valkey: Redis, user_id: uuid.UUID
+    body: AsyncIterator[bytes], valkey: Redis, user_id: uuid.UUID, stream_id: str
 ) -> AsyncIterator[bytes]:
     """`body`, releasing the user's stream slot however it ends."""
     try:
@@ -222,6 +227,6 @@ async def counted(
     finally:
         with anyio.CancelScope(shield=True):  # runs while a disconnect cancels the stream
             try:
-                await valkey.decr(_streams_key(user_id))
+                await valkey.zrem(_streams_key(user_id), stream_id)
             except Exception as exc:
                 log.warning("stream_release_skipped", error=type(exc).__name__)

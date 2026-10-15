@@ -6834,6 +6834,7 @@
             "type": "integer"
           },
           "at": {
+            "description": "With a time zone",
             "examples": [
               "2026-12-29T01:41:15Z"
             ],
@@ -12701,7 +12702,8 @@
                   "missing",
                   "other",
                   "returned_to_hub",
-                  "not_confirmed"
+                  "not_confirmed",
+                  "left_behind"
                 ],
                 "type": "string"
               },
@@ -14395,7 +14397,7 @@
                 }
               }
             },
-            "description": "orders.issue_not_open"
+            "description": "orders.issue_not_open, orders.order_refunded"
           },
           "422": {
             "content": {
@@ -17554,7 +17556,7 @@
                 }
               }
             },
-            "description": "request.invalid"
+            "description": "logistics.photo_key_invalid, request.invalid"
           }
         },
         "security": [
@@ -26335,7 +26337,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_found"
+            "description": "logistics.route_not_found, logistics.vehicle_not_found"
           },
           "409": {
             "content": {
