@@ -59,6 +59,8 @@ class PlanRecipe(BaseModel):
     sides: list[str] = Field(default_factory=list)
     is_side: bool = False
     price_spike: float | None = Field(default=None, ge=0)
+    # v2: the household's learned liking of the dish's ingredients (the ranker), 0..1.
+    preference: float | None = Field(default=None, ge=0, le=1)
 
 
 class PlanWeights(BaseModel):
@@ -67,6 +69,7 @@ class PlanWeights(BaseModel):
     perishables: int = 4
     nutrition: int = 4
     price: int = 3
+    liking: int = 3
 
 
 class PlanRequest(BaseModel):
@@ -95,6 +98,37 @@ class PlanScore(BaseModel):
     cost_paise: int
     nutrition: float | None = None
     price_penalty: float | None = None
+    liking: float | None = None  # v2: the mean preference of the chosen dishes
+
+
+class RankCandidate(BaseModel):
+    """A product the ranker scores for a household's next box, with the features the training
+    job defines (M10 §3.7); M3 computes them from the household's past boxes."""
+
+    product: str = Field(min_length=1, max_length=80)
+    weeks_since: float = Field(ge=0)
+    frequency: float = Field(ge=0, le=1)
+    drafted: bool = False
+    removed_last: bool = False
+    popularity: float = Field(default=0, ge=0, le=1)
+    price_paise: int = Field(default=0, ge=0)
+
+
+class RankRequest(BaseModel):
+    candidates: list[RankCandidate] = Field(min_length=1, max_length=500)
+    top_k: int = Field(default=10, ge=1, le=100)  # the ML service's cap
+
+
+class RankedOut(BaseModel):
+    product: str
+    score: float
+    rank: int
+
+
+class RankResponse(BaseModel):
+    source: Literal["ml", "fallback"]
+    model: str
+    ranked: list[RankedOut]
 
 
 class WeekPlan(BaseModel):
