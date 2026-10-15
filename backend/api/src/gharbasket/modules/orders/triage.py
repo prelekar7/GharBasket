@@ -109,9 +109,10 @@ async def facts(session: AsyncSession, found: list[OrderIssue]) -> dict[uuid.UUI
     out: dict[uuid.UUID, Facts] = {}
     for issue in found:
         order = orders[issue.order_id]
-        creditable = max(0, order.total_paise - int(credited.get(order.id, 0)))
+        creditable = max(0, service.food_paid(order) - int(credited.get(order.id, 0)))
         is_open = issue.status == "open"
-        allowed = issue.amount_paise if issue.kind in issues.LINE_KINDS else order.total_paise
+        food = service.food_paid(order)
+        allowed = issue.amount_paise if issue.kind in issues.LINE_KINDS else food
         out[issue.id] = Facts(
             society_id=order.society_id,
             delivery_date=order.delivery_date,
