@@ -19,7 +19,6 @@ from gharbasket.modules.billing import service
 from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Payment, Posting
 from gharbasket.modules.billing.service import Leg
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
 CAP_PAISE = 1_000_000  # ₹10,000
 MONTHLY_TOPUP_PAISE = 2_000_000  # ₹20,000 a calendar month (IST)
@@ -200,24 +199,8 @@ async def entries(
 async def _entries(
     session: AsyncSession, wallet: LedgerAccount, cursor: str | None, limit: int
 ) -> tuple[list[WalletEntry], str | None]:
-    """Newest first. Entry ids are uuidv7 (time-ordered), so the cursor is the last id seen."""
-    stmt = (
-        select(JournalEntry, Posting.amount)
-        .join(Posting, Posting.entry_id == JournalEntry.id)
-        .where(Posting.account_id == wallet.id)
-    )
-    if cursor is not None:
-        try:
-            before = uuid.UUID(str(decode_cursor(cursor).get("before")))
-        except ValueError as exc:
-            raise ProblemError(422, "request.invalid_cursor", "The cursor is not valid.") from exc
-        stmt = stmt.where(JournalEntry.id < before)
-    rows = (await session.execute(stmt.order_by(JournalEntry.id.desc()).limit(limit + 1))).all()
-    found = [WalletEntry(entry, -amount) for entry, amount in rows[:limit]]
-    next_cursor = None
-    if len(rows) > limit:
-        next_cursor = encode_cursor({"before": str(found[-1].entry.id)})
-    return found, next_cursor
+    rows, next_cursor = await service.account_entries(session, wallet, cursor, limit)
+    return [WalletEntry(entry, amount) for entry, amount in rows], next_cursor
 
 
 async def topped_up_this_month(session: AsyncSession, wallet: LedgerAccount) -> int:

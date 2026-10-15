@@ -63,6 +63,28 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
 
 
 @dataclass(frozen=True)
+class DeliveryLabel:
+    tower_id: str
+    flat: str
+
+
+async def delivery_labels(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, DeliveryLabel]:
+    """Tower and flat per household, for bag labels and hub queues (ADR-0026): never a name
+    or a phone. Households without an address are left out."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Address.household_id, Address.tower_id, Address.flat).where(
+            Address.household_id.in_(ids)
+        )
+    )
+    return {household_id: DeliveryLabel(tower, flat) for household_id, tower, flat in rows.all()}
+
+
+@dataclass(frozen=True)
 class UserContact:
     name: str | None
     phone_e164: str
@@ -290,27 +312,6 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         else (await households.view(session, household)).model_dump(mode="json"),
         "consents": [c.as_dict() for c in await rows(Consent, Consent.user_id == user_id)],
     }
-
-
-@dataclass(frozen=True)
-class DeliveryLabel:
-    tower_id: str
-    flat: str
-
-
-async def delivery_labels(
-    session: AsyncSession, household_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, DeliveryLabel]:
-    """Tower and flat of each household's address, for bag labels (ADR-0026 §6): no names, no
-    phones. Households without an address are left out."""
-    if not household_ids:
-        return {}
-    rows = await session.execute(
-        select(Address.household_id, Address.tower_id, Address.flat).where(
-            Address.household_id.in_(household_ids)
-        )
-    )
-    return {household: DeliveryLabel(tower, flat) for household, tower, flat in rows.all()}
 
 
 async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:

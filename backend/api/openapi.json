@@ -1324,6 +1324,665 @@
         "title": "DeviceOut",
         "type": "object"
       },
+      "DonationLine": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "counted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set by the hub at verification",
+            "title": "Counted"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "qty": {
+            "description": "As declared",
+            "title": "Qty",
+            "type": "number"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "each"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "unit",
+          "qty",
+          "counted",
+          "points"
+        ],
+        "title": "DonationLine",
+        "type": "object"
+      },
+      "DonationLineIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "clothes"
+            ],
+            "maxLength": 20,
+            "title": "Code",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,7}|(?=[\\d.]{1,8}0*$)\\d*\\.\\d*0*$)",
+                "type": "string"
+              }
+            ],
+            "description": "In the rate's unit: whole pieces, or kg in 0.5 steps",
+            "examples": [
+              3
+            ],
+            "title": "Qty"
+          }
+        },
+        "required": [
+          "code",
+          "qty"
+        ],
+        "title": "DonationLineIn",
+        "type": "object"
+      },
+      "DonationNgo": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DonationNgo",
+        "type": "object"
+      },
+      "DonationsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "pickup_dates": {
+            "description": "The next two dates this household can choose",
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Pickup Dates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "pickup_dates"
+        ],
+        "title": "DonationsOut",
+        "type": "object"
+      },
+      "DriveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "diwali-2026"
+            ],
+            "maxLength": 60,
+            "minLength": 3,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "codes": {
+            "examples": [
+              [
+                "clothes",
+                "toys"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Codes",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Texts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ends_on": {
+            "format": "date",
+            "title": "Ends On",
+            "type": "string"
+          },
+          "goal_items": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Items"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for a hub drive",
+            "title": "Hub Id"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$",
+                "type": "string"
+              }
+            ],
+            "examples": [
+              2.0
+            ],
+            "title": "Multiplier"
+          },
+          "name": {
+            "$ref": "#/components/schemas/Label"
+          },
+          "ngo_id": {
+            "description": "Accepted once NGOs exist (§3.5)",
+            "title": "Ngo Id",
+            "type": "null"
+          },
+          "scope": {
+            "enum": [
+              "platform",
+              "hub",
+              "society"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only for a society drive",
+            "title": "Society Id"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "scope",
+          "codes",
+          "multiplier",
+          "starts_on",
+          "ends_on"
+        ],
+        "title": "DriveIn",
+        "type": "object"
+      },
+      "DriveNgo": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "DriveNgo",
+        "type": "object"
+      },
+      "DriveOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "diwali-2026"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "codes": {
+            "description": "What it multiplies",
+            "examples": [
+              [
+                "clothes",
+                "toys"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "ends_on": {
+            "description": "IST, inclusive",
+            "format": "date",
+            "title": "Ends On",
+            "type": "string"
+          },
+          "goal_items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Items"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Also set for a society drive (its hub)",
+            "title": "Hub Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "multiplier": {
+            "examples": [
+              2.0
+            ],
+            "title": "Multiplier",
+            "type": "number"
+          },
+          "name": {
+            "description": "In the request language",
+            "examples": [
+              "Diwali drive"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "ngo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriveNgo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who receives the items; null until NGOs (§3.5)"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/DriveProgress"
+          },
+          "scope": {
+            "enum": [
+              "platform",
+              "hub",
+              "society"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "society_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Society Id"
+          },
+          "starts_on": {
+            "description": "IST, inclusive",
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "state": {
+            "description": "From the dates in IST, except cancelled",
+            "enum": [
+              "upcoming",
+              "running",
+              "ended",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "description": "Send it back in If-Match to change the drive",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "scope",
+          "hub_id",
+          "society_id",
+          "codes",
+          "multiplier",
+          "starts_on",
+          "ends_on",
+          "state",
+          "ngo",
+          "goal_items",
+          "progress",
+          "version"
+        ],
+        "title": "DriveOut",
+        "type": "object"
+      },
+      "DrivePatch": {
+        "additionalProperties": false,
+        "description": "Any field below, or `state: cancelled`. Scope, hub and society stay as created.",
+        "properties": {
+          "codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codes"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Texts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "goal_items": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal Items"
+          },
+          "multiplier": {
+            "anyOf": [
+              {
+                "maximum": 3.0,
+                "minimum": 1.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiplier"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Label"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "const": "cancelled",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Donations already scheduled keep the multiplier",
+            "title": "State"
+          }
+        },
+        "title": "DrivePatch",
+        "type": "object"
+      },
+      "DriveProgress": {
+        "description": "Items (pieces, and kilograms counted as one item per kg); no households, no names. Null\nfor customers while fewer than 5 households took part (k = 5, §3.7).",
+        "properties": {
+          "pledged": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "In scheduled and picked-up donations",
+            "examples": [
+              40
+            ],
+            "title": "Pledged"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Counted by the hub",
+            "examples": [
+              31
+            ],
+            "title": "Verified"
+          }
+        },
+        "required": [
+          "pledged",
+          "verified"
+        ],
+        "title": "DriveProgress",
+        "type": "object"
+      },
+      "DriveRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "multiplier": {
+            "title": "Multiplier",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "multiplier"
+        ],
+        "title": "DriveRef",
+        "type": "object"
+      },
+      "DrivesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DriveOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "DrivesOut",
+        "type": "object"
+      },
       "Entry": {
         "properties": {
           "amount_paise": {
@@ -3793,6 +4452,101 @@
         "title": "KindOut",
         "type": "object"
       },
+      "KindnessBalanceOut": {
+        "properties": {
+          "expiring": {
+            "description": "Soonest first, the next 3 dates within 90 days; [] if none",
+            "items": {
+              "$ref": "#/components/schemas/PointsExpiring"
+            },
+            "title": "Expiring",
+            "type": "array"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KindnessGoal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the next donated meal needs"
+          },
+          "points": {
+            "description": "Points that can be donated now",
+            "examples": [
+              340
+            ],
+            "title": "Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "points",
+          "expiring",
+          "goal"
+        ],
+        "title": "KindnessBalanceOut",
+        "type": "object"
+      },
+      "KindnessGoal": {
+        "properties": {
+          "code": {
+            "const": "child_meal",
+            "title": "Code",
+            "type": "string"
+          },
+          "points": {
+            "description": "The points one donated meal takes",
+            "examples": [
+              500
+            ],
+            "title": "Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "points",
+          "code"
+        ],
+        "title": "KindnessGoal",
+        "type": "object"
+      },
+      "Label": {
+        "additionalProperties": false,
+        "description": "A short name in each app language.",
+        "properties": {
+          "en": {
+            "examples": [
+              "Diwali drive"
+            ],
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "En",
+            "type": "string"
+          },
+          "hi": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Hi",
+            "type": "string"
+          },
+          "mr": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Mr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "en",
+          "hi",
+          "mr"
+        ],
+        "title": "Label",
+        "type": "object"
+      },
       "LatLng": {
         "description": "A pin on the map, as every API shape carries it.",
         "properties": {
@@ -5136,7 +5890,7 @@
           },
           "timeline": {
             "items": {
-              "$ref": "#/components/schemas/TimelineEntry"
+              "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__TimelineEntry"
             },
             "title": "Timeline",
             "type": "array"
@@ -6160,6 +6914,34 @@
         "title": "Page[PartnerStaffOut]",
         "type": "object"
       },
+      "Page_PointsEntry_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PointsEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[PointsEntry]",
+        "type": "object"
+      },
       "Page_ProductOut_": {
         "properties": {
           "items": {
@@ -6242,6 +7024,34 @@
           "next_cursor"
         ],
         "title": "Page[SocietySummary]",
+        "type": "object"
+      },
+      "Page_StaffDonationOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StaffDonationOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[StaffDonationOut]",
         "type": "object"
       },
       "PantryPriorIn": {
@@ -6645,6 +7455,25 @@
         "title": "PaymentDueOut",
         "type": "object"
       },
+      "PhotoUrl": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "title": "PhotoUrl",
+        "type": "object"
+      },
       "PickIn": {
         "additionalProperties": false,
         "properties": {
@@ -6677,6 +7506,26 @@
           "picked_qty"
         ],
         "title": "PickIn",
+        "type": "object"
+      },
+      "PickedUpBy": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PickedUpBy",
         "type": "object"
       },
       "PlanOut": {
@@ -6818,6 +7667,226 @@
           "items"
         ],
         "title": "PlansOut",
+        "type": "object"
+      },
+      "PointRateIn": {
+        "additionalProperties": false,
+        "description": "Applies to donations verified from now on.",
+        "properties": {
+          "label": {
+            "$ref": "#/components/schemas/Label"
+          },
+          "max_qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,1}0*$",
+                "type": "string"
+              }
+            ],
+            "description": "Whole pieces, or kg in 0.5 steps",
+            "title": "Max Qty"
+          },
+          "points": {
+            "examples": [
+              40
+            ],
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "points",
+          "max_qty",
+          "label"
+        ],
+        "title": "PointRateIn",
+        "type": "object"
+      },
+      "PointRateOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "clothes"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "description": "In the request language",
+            "examples": [
+              "Clothes"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "max_qty": {
+            "description": "The most one donation may declare",
+            "examples": [
+              15
+            ],
+            "title": "Max Qty",
+            "type": "number"
+          },
+          "points": {
+            "description": "Points per kg or per piece",
+            "examples": [
+              40
+            ],
+            "title": "Points",
+            "type": "integer"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "each"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "unit",
+          "points",
+          "max_qty"
+        ],
+        "title": "PointRateOut",
+        "type": "object"
+      },
+      "PointRatesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PointRateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PointRatesOut",
+        "type": "object"
+      },
+      "PointsEntry": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IST, for points_earned",
+            "title": "Expires On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Show a generic label for a kind the app doesn't know",
+            "enum": [
+              "points_earned",
+              "points_expired",
+              "points_donated"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "points": {
+            "description": "Into the balance +, out of it -",
+            "examples": [
+              120
+            ],
+            "title": "Points",
+            "type": "integer"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointsRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What earned the points (earned and expired)"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "points",
+          "ref",
+          "expires_on",
+          "at"
+        ],
+        "title": "PointsEntry",
+        "type": "object"
+      },
+      "PointsExpiring": {
+        "properties": {
+          "on": {
+            "description": "The IST date these points expire at the end of",
+            "format": "date",
+            "title": "On",
+            "type": "string"
+          },
+          "points": {
+            "examples": [
+              120
+            ],
+            "title": "Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "points",
+          "on"
+        ],
+        "title": "PointsExpiring",
+        "type": "object"
+      },
+      "PointsRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "donation",
+              "referral"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "PointsRef",
         "type": "object"
       },
       "PredictionCountOut": {
@@ -7997,6 +9066,38 @@
           }
         },
         "title": "ReinstateIn",
+        "type": "object"
+      },
+      "RejectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "unusable",
+              "not_accepted",
+              "unsafe",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RejectIn",
         "type": "object"
       },
       "ReplacedOut": {
@@ -9717,6 +10818,235 @@
         "title": "SolveIn",
         "type": "object"
       },
+      "StaffDonationOut": {
+        "description": "The verification queue's row: tower and flat match the bag's label at the hub.",
+        "properties": {
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "customer",
+                  "not_ready"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drive": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriveRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimated_points": {
+            "description": "From the declared items, before counting",
+            "title": "Estimated Points",
+            "type": "integer"
+          },
+          "flat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "A-1203"
+            ],
+            "title": "Flat"
+          },
+          "household_id": {
+            "format": "uuid",
+            "title": "Household Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DonationLine"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "ngo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationNgo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Once handed over (§3.5)"
+          },
+          "photo_urls": {
+            "description": "5-minute links; minting them is audit-logged",
+            "items": {
+              "$ref": "#/components/schemas/PhotoUrl"
+            },
+            "title": "Photo Urls",
+            "type": "array"
+          },
+          "photos": {
+            "description": "How many; customers never get links back",
+            "title": "Photos",
+            "type": "integer"
+          },
+          "picked_up_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PickedUpBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "picked_up_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picked Up On"
+          },
+          "pickup_on": {
+            "format": "date",
+            "title": "Pickup On",
+            "type": "string"
+          },
+          "points_awarded": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Awarded"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unusable",
+                  "not_accepted",
+                  "unsafe",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "society": {
+            "$ref": "#/components/schemas/StaffSociety"
+          },
+          "status": {
+            "enum": [
+              "scheduled",
+              "picked_up",
+              "verified",
+              "rejected",
+              "handed_over",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__TimelineEntry"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "tower": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "A wing"
+            ],
+            "title": "Tower"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "items",
+          "photos",
+          "drive",
+          "pickup_on",
+          "estimated_points",
+          "points_awarded",
+          "reject_reason",
+          "cancel_reason",
+          "ngo",
+          "timeline",
+          "created_at",
+          "household_id",
+          "society",
+          "tower",
+          "flat",
+          "picked_up_by",
+          "picked_up_on",
+          "photo_urls"
+        ],
+        "title": "StaffDonationOut",
+        "type": "object"
+      },
+      "StaffSociety": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "StaffSociety",
+        "type": "object"
+      },
       "StartIn": {
         "additionalProperties": false,
         "properties": {
@@ -10448,52 +11778,34 @@
         "title": "TemplatesOut",
         "type": "object"
       },
-      "TimelineEntry": {
+      "Texts": {
+        "additionalProperties": false,
         "properties": {
-          "actor": {
-            "description": "Who moved it, as a kind of actor only: never a name or id",
-            "enum": [
-              "customer",
-              "system",
-              "hub",
-              "packer",
-              "rider",
-              "captain",
-              "kitchen"
-            ],
-            "title": "Actor",
+          "en": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "En",
             "type": "string"
           },
-          "at": {
-            "format": "date-time",
-            "title": "At",
+          "hi": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Hi",
             "type": "string"
           },
-          "status": {
-            "enum": [
-              "approved",
-              "locked",
-              "payment_failed",
-              "cancelled",
-              "picking",
-              "packed",
-              "dispatched",
-              "at_society",
-              "delivered",
-              "undelivered",
-              "redelivery",
-              "refunded"
-            ],
-            "title": "Status",
+          "mr": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Mr",
             "type": "string"
           }
         },
         "required": [
-          "status",
-          "at",
-          "actor"
+          "en",
+          "hi",
+          "mr"
         ],
-        "title": "TimelineEntry",
+        "title": "Texts",
         "type": "object"
       },
       "TimelineEvent": {
@@ -11661,6 +12973,57 @@
         "title": "VendorsOut",
         "type": "object"
       },
+      "VerifyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "counted": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "What the hub found, in each rate's unit; codes not declared may be added",
+            "examples": [
+              {
+                "clothes": 2.5,
+                "toys": 0
+              }
+            ],
+            "maxProperties": 10,
+            "title": "Counted",
+            "type": "object"
+          },
+          "has_unsuitable": {
+            "default": false,
+            "description": "Some items were set aside",
+            "title": "Has Unsuitable",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "counted"
+        ],
+        "title": "VerifyIn",
+        "type": "object"
+      },
       "WalletOut": {
         "properties": {
           "balance_paise": {
@@ -11754,6 +13117,277 @@
           "outcomes"
         ],
         "title": "WhatsAppAck",
+        "type": "object"
+      },
+      "gharbasket__modules__billing__schemas__DonationIn": {
+        "properties": {
+          "meals": {
+            "examples": [
+              1
+            ],
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Meals",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "meals"
+        ],
+        "title": "DonationIn",
+        "type": "object"
+      },
+      "gharbasket__modules__billing__schemas__DonationOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "const": "child_meal",
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "description": "The journal entry",
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meals": {
+            "examples": [
+              1
+            ],
+            "title": "Meals",
+            "type": "integer"
+          },
+          "points": {
+            "examples": [
+              500
+            ],
+            "title": "Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "meals",
+          "points",
+          "code",
+          "at"
+        ],
+        "title": "DonationOut",
+        "type": "object"
+      },
+      "gharbasket__modules__community__kindness_schemas__DonationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "drive_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Id"
+          },
+          "items": {
+            "description": "1 to 5 lines, distinct codes",
+            "items": {
+              "$ref": "#/components/schemas/DonationLineIn"
+            },
+            "maxItems": 5,
+            "title": "Items",
+            "type": "array"
+          },
+          "photo_keys": {
+            "description": "Your own `donation_photo` uploads (POST /v1/files/presign)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Photo Keys",
+            "type": "array"
+          },
+          "pickup_on": {
+            "description": "One of `pickup_dates`",
+            "format": "date",
+            "title": "Pickup On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "pickup_on"
+        ],
+        "title": "DonationIn",
+        "type": "object"
+      },
+      "gharbasket__modules__community__kindness_schemas__DonationOut": {
+        "properties": {
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "customer",
+                  "not_ready"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "drive": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriveRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "estimated_points": {
+            "description": "From the declared items, before counting",
+            "title": "Estimated Points",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DonationLine"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "ngo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DonationNgo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Once handed over (§3.5)"
+          },
+          "photos": {
+            "description": "How many; customers never get links back",
+            "title": "Photos",
+            "type": "integer"
+          },
+          "pickup_on": {
+            "format": "date",
+            "title": "Pickup On",
+            "type": "string"
+          },
+          "points_awarded": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points Awarded"
+          },
+          "reject_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unusable",
+                  "not_accepted",
+                  "unsafe",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reject Reason"
+          },
+          "status": {
+            "enum": [
+              "scheduled",
+              "picked_up",
+              "verified",
+              "rejected",
+              "handed_over",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__TimelineEntry"
+            },
+            "title": "Timeline",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "items",
+          "photos",
+          "drive",
+          "pickup_on",
+          "estimated_points",
+          "points_awarded",
+          "reject_reason",
+          "cancel_reason",
+          "ngo",
+          "timeline",
+          "created_at"
+        ],
+        "title": "DonationOut",
+        "type": "object"
+      },
+      "gharbasket__modules__community__kindness_schemas__TimelineEntry": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "scheduled",
+              "picked_up",
+              "verified",
+              "rejected",
+              "handed_over",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at"
+        ],
+        "title": "TimelineEntry",
         "type": "object"
       },
       "gharbasket__modules__community__schemas__CaptainOut": {
@@ -11878,6 +13512,54 @@
           "end_reason"
         ],
         "title": "CaptainOut",
+        "type": "object"
+      },
+      "gharbasket__modules__orders__schemas__TimelineEntry": {
+        "properties": {
+          "actor": {
+            "description": "Who moved it, as a kind of actor only: never a name or id",
+            "enum": [
+              "customer",
+              "system",
+              "hub",
+              "packer",
+              "rider",
+              "captain",
+              "kitchen"
+            ],
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "locked",
+              "payment_failed",
+              "cancelled",
+              "picking",
+              "packed",
+              "dispatched",
+              "at_society",
+              "delivered",
+              "undelivered",
+              "redelivery",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "actor"
+        ],
+        "title": "TimelineEntry",
         "type": "object"
       },
       "gharbasket__modules__subscriptions__schemas__CaptainOut": {
@@ -12128,6 +13810,491 @@
         "tags": [
           "identity",
           "households"
+        ]
+      }
+    },
+    "/v1/admin/donations": {
+      "get": {
+        "operationId": "hub_donations_v1_admin_donations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "e.g. picked_up",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "scheduled",
+                    "picked_up",
+                    "verified",
+                    "rejected",
+                    "handed_over",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. picked_up",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StaffDonationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's donations, oldest first: the verification queue (5-minute photo links)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/drives": {
+      "post": {
+        "operationId": "create_drive_v1_admin_drives_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub, or a platform drive (admin only)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.drive_code_taken"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Start a drive (hub manager: their hub or a society in it; admin: any; Idempotency-Key required)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/admin/drives/{drive_id}": {
+      "patch": {
+        "operationId": "patch_drive_v1_admin_drives__drive_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "drive_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Drive Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DrivePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: another hub, or a platform drive (admin only)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.drive_not_found"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change or cancel a drive (If-Match: its version; a running drive only extends)",
+        "tags": [
+          "community"
         ]
       }
     },
@@ -13313,6 +15480,138 @@
         "summary": "Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged)",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/v1/admin/point-rates/{code}": {
+      "put": {
+        "operationId": "put_point_rate_v1_admin_point_rates__code__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "maxLength": 20,
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PointRateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.item_code_unknown"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change a point rate (admin; applies to donations verified from now on; audit-logged)",
+        "tags": [
+          "community"
         ]
       }
     },
@@ -16499,6 +18798,890 @@
         "summary": "Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/donations": {
+      "get": {
+        "operationId": "my_donations_v1_donations_get",
+        "parameters": [
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "My household's donations, newest first, and the next two pickup dates",
+        "tags": [
+          "community"
+        ]
+      },
+      "post": {
+        "operationId": "schedule_donation_v1_donations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.too_many_open_donations"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.no_items, community.item_code_unknown, community.donation_qty_invalid, community.pickup_date_invalid (dates), community.no_pickup_day, community.drive_not_open, community.photo_key_invalid, request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable (photos sent while storage is down)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Schedule a donation pickup on one of the next pickup dates (Idempotency-Key)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/donations/{donation_id}/cancel": {
+      "post": {
+        "operationId": "cancel_donation_v1_donations__donation_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_cancellable (donation_status)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Cancel a donation still waiting for pickup (Idempotency-Key)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/donations/{donation_id}/reject": {
+      "post": {
+        "operationId": "reject_donation_v1_donations__donation_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_found (also outside your hubs)"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_picked_up, community.donation_already_verified (donation_status)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Reject a picked-up donation; its items go to a recycler (Idempotency-Key)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/donations/{donation_id}/verify": {
+      "post": {
+        "operationId": "verify_donation_v1_donations__donation_id__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "donation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Donation Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__community__kindness_schemas__DonationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_found (also outside your hubs)"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.donation_not_picked_up, community.donation_already_verified (donation_status)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.item_code_unknown, community.donation_qty_invalid, community.nothing_counted, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Record what the hub counted; points are computed and sent to M5 (Idempotency-Key)",
+        "tags": [
+          "community"
+        ]
+      }
+    },
+    "/v1/drives": {
+      "get": {
+        "operationId": "list_drives_v1_drives_get",
+        "parameters": [
+          {
+            "description": "Default: running and upcoming",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "upcoming",
+                    "running",
+                    "ended",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: running and upcoming",
+              "title": "State"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DrivesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Donation drives: running and upcoming ones (customers), every state (hub staff)",
+        "tags": [
+          "community"
         ]
       }
     },
@@ -19851,6 +23034,310 @@
         "summary": "Run a job now (operator token); the trigger for schedules and crons",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/v1/kindness/balance": {
+      "get": {
+        "operationId": "get_kindness_balance_v1_kindness_balance_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KindnessBalanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's Kindness points, the next expiry dates and the next meal's goal",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/kindness/donations": {
+      "post": {
+        "operationId": "donate_meals_v1_kindness_donations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/gharbasket__modules__billing__schemas__DonationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__billing__schemas__DonationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.not_enough_points (with points and needed)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid: meals is 1 to 10"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Give Kindness points as donated meals (a meal for a child); the only way to use them",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/kindness/entries": {
+      "get": {
+        "operationId": "list_kindness_entries_v1_kindness_entries_get",
+        "parameters": [
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PointsEntry_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's Kindness points history, newest first",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -23514,6 +27001,71 @@
         "summary": "The plan catalogue",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/point-rates": {
+      "get": {
+        "operationId": "point_rates_v1_point_rates_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointRatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Kindness points per kg or per piece, by item category",
+        "tags": [
+          "community"
         ]
       }
     },

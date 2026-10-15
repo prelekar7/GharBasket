@@ -3,11 +3,12 @@
 - Captains follow M8's verification and suspension (§3.2). `partners.reinstated` is deliberately
   not consumed: the hub manager decides whether a reinstated captain serves again.
 - A new household, or one that moved society, may unlock its society (§3.6).
+- `sweep_missed_pickups` closes each delivery day's donation pickups (§3.4).
 """
 
 from typing import Any
 
-from gharbasket.modules.community import unlock
+from gharbasket.modules.community import donations, drives, unlock
 from gharbasket.modules.community.captains import on_partner_suspended, on_partner_verified
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import api as partners_api
@@ -26,3 +27,14 @@ subscribe(identity_api.HOUSEHOLD_UPDATED, unlock.on_household_updated)
 )
 async def recompute_unlock_thresholds(ctx: JobContext) -> dict[str, Any]:
     return await unlock.recompute_thresholds(ctx.session)
+
+
+@job(
+    "sweep_missed_pickups",
+    "Daily 22:30 IST: today's donation pickups that no stop reported count as not ready",
+)
+async def sweep_missed_pickups(ctx: JobContext) -> dict[str, Any]:
+    today = ctx.scheduled_for.astimezone(drives.IST).date()
+    counts: dict[str, Any] = await donations.sweep_missed(ctx.session, today)
+    counts["date"] = today.isoformat()
+    return counts
