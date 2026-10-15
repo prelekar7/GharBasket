@@ -11,3 +11,4 @@ for role in ("hub_manager", "admin"):
 PERMISSIONS.allow("admin", "point_rates:write")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "drives:write")
+PERMISSIONS.allow("customer", "donations:create", "donations:read", "donations:cancel")

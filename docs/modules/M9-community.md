@@ -402,6 +402,8 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 
 **As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
 
+**As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
+
 | Mock today | Contract |
 |---|---|
 | Mobile `GET /v1/drives` → `{ id, code, starts_on, ends_on, multiplier }`, title from i18n `kindness.drives.<code>` | `Drive` adds `name`, `description`, `scope`, `codes`, `state`, `ngo`, `progress`; the app may keep its i18n key by `code` but should show `name` |

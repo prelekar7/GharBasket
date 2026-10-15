@@ -13,7 +13,13 @@ from geoalchemy2 import Geometry
 from sqlalchemy import cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED
+from gharbasket.modules.community import donations
+from gharbasket.modules.community.events import (
+    CAPTAIN_ASSIGNED,
+    CAPTAIN_ENDED,
+    DONATION_CANCELLED,
+    DONATION_SCHEDULED,
+)
 from gharbasket.modules.community.models import Captain, Society, SocietyRequest
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.geo import geography
@@ -21,6 +27,8 @@ from gharbasket.platform.geo import geography
 __all__ = [
     "CAPTAIN_ASSIGNED",
     "CAPTAIN_ENDED",
+    "DONATION_CANCELLED",
+    "DONATION_SCHEDULED",
     "CaptainCard",
     "CaptainRef",
     "SocietyLabels",
@@ -186,7 +194,8 @@ async def is_active_captain(
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
-    """M9's section of the user's data export (M1 §3.3): her own captain appointments."""
+    """M9's section of the user's data export (M1 §3.3): her captain appointments and her
+    donations (photos counted, not included)."""
     rows = await session.execute(
         select(Captain, Society.name)
         .join(Society, Society.id == Captain.society_id)
@@ -203,7 +212,8 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
                 "until": captain.until,
             }
             for captain, name in rows.all()
-        ]
+        ],
+        "donations": await donations.export(session, user_id),
     }
 
 

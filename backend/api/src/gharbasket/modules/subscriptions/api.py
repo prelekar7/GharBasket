@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -36,6 +36,7 @@ __all__ = [
     "cycle_for",
     "daily_use_history",
     "delete_for_user",
+    "delivery_dates",
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
@@ -247,6 +248,21 @@ async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid
     cycle = await session.get(WeeklyCycle, cycle_id)
     if cycle is not None:
         await service.mark_locked(session, cycle, order_id)
+
+
+async def delivery_dates(
+    session: AsyncSession, society_id: uuid.UUID, after: date, n: int
+) -> list[date]:
+    """The society's next `n` delivery dates strictly after `after`, soonest first; [] without
+    delivery days (M9's donation pickup dates, M9 §3.4)."""
+    weekdays = {day.weekday for day in await service.delivery_days(session, society_id)}
+    found: list[date] = []
+    day = after
+    while weekdays and len(found) < n:
+        day += timedelta(days=1)
+        if day.weekday() in weekdays:
+            found.append(day)
+    return found
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

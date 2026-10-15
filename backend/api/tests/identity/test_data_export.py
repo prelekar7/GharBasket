@@ -309,7 +309,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "community",
     }
     assert sections["partners"] == {"partners": []}
-    assert sections["community"] == {"captain_appointments": []}
+    assert sections["community"] == {"captain_appointments": [], "donations": []}
     assert sections["notifications"] == {"messages": []}
     assert sections["identity"]["user"]["phone_e164"] == "+919800000001"
     assert sections["identity"]["household"]["address"]["flat"] == "A-1203"
