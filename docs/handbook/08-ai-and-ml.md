@@ -52,7 +52,7 @@ flowchart LR
 - **Data mix:** train on `synthetic + pilot + live` data (D8). **Report** metrics separately for `pilot`/`live` rows. This is the paper's honesty guarantee.
 - **Point-in-time features:** features are computed *as of the cut-off time*, stored in `intel.feature_snapshots`, so future information never leaks into training.
 - **Time-based splits only.** Random splits on time-series data overstate accuracy.
-- **Monitoring:** a daily job compares forecast vs actual (WAPE), plan acceptance rate and waste %. Results appear on the console **AI health** page, with an alert when drift exceeds a threshold.
+- **Monitoring:** a daily job compares forecast vs actual (WAPE), plan acceptance rate and waste %. Results appear on the console **AI health** page, with an alert when drift exceeds a threshold. *Built (5 Oct 2026, F25):* `monitor_drift` (M10 §6) writes live WAPE per hub, delivery day and data source and acceptance per data source to `intel.model_metrics`, with a `drift` flag (more than 10 points worse than the same hub and source's backtest); `GET /v1/analytics/ai-health` (M12, admin) serves the table per hub; waste joins when M6 counts it.
 
 ```mermaid
 flowchart TD
@@ -139,6 +139,7 @@ sequenceDiagram
 - **Features:** recency, frequency, last accept/reject, price delta vs 4-week average, season, festival flag, cohort popularity, substitution-acceptance history.
 - **Model:** LightGBM LambdaRank. Label = kept in final box vs removed.
 - **Metrics:** Recall@10, NDCG@10, box acceptance rate, edits per box. Baselines: "repeat last week", top-frequency.
+- **Status (5 Oct 2026, v0; leakage fixes 8 Oct):** `train_ranker` in `backend/training` (LambdaRank on approved and locked boxes and their edits, one model per data source, leave-last-basket-out against both baselines, model and card to the registry, promotion manual) and `POST /basket/rank` on the Space with a frequency fallback and a 10-minute reload (M10 §3.7). v0 features are computed as of the cut-off: prices from the price list, not the final box; `drafted_rule` is dropped until a draft snapshot exists. Recall is reported as Recall@|basket| beside Recall@10 (eval protocol §7). SHAP and the planner's preference term are v1.
 
 ### M-C Meal planner — CP-SAT (research, deepest; core of Kitchen Autopilot)
 - **Variables:** `x[d,s,r]` ∈ {0,1} (day, meal slot, recipe); `t[d,s]` = tiffin on no-cook slots.
@@ -158,7 +159,7 @@ sequenceDiagram
 - **Performance:** at most 5 s per household (`time_limit_s`, 1 s by default for the whole request; the gateway caps it at half its 3 s timeout); v1 warm-starts from a v0 plan (M10 §3.2); the weekly batch runs in parallel across CPU cores.
 - **Spike S-4 (4 Oct 2026, passed):** optimal week plans in 10 to 50 ms for the seed households, and 0.07 s with 126 recipes. When strict households (e.g. diabetic with 20-minute meals, or Jain during Navratri) leave too few dishes, the planner relaxes comfort rules only (repeats, then cook time, then budget), never diet, Jain, diabetic or fasting rules. See [S-4 note](../spikes/S-4-meal-plan.md).
 - **Metrics:** constraint satisfaction 100%, nutrition adherence, variety index, ingredient-reuse ratio, plan acceptance. Baselines: random valid plan, greedy.
-- **Status (5 Oct 2026, v1):** the nutrition term (ICMR-NIN targets per member, days within ±20 % of kcal and protein), the price-spike penalty from `intel.price_index`, sides paired per meal and reason codes are served; M3 sends members, nutrition and spikes. First five-seed numbers (eval harness v0, v0 objective): acceptance 0.80, 3.7 distinct perishables a week against 6.2 greedy and 11.3 random, no hard-rule violation.
+- **Status (5 Oct 2026, v1):** the nutrition term (ICMR-NIN targets per member, days within ±20 % of kcal and protein), the price-spike penalty from `intel.price_index`, sides paired per meal and reason codes are served; M3 sends members, nutrition and spikes. First five-seed numbers (eval harness v0, v0 objective): acceptance 0.80, 3.7 distinct perishables a week against 6.2 greedy and 11.3 random, no hard-rule violation. Pre-registered M-C primary target (acceptance above greedy) does not hold in the v0 eval (cpsat − greedy −0.031 ± 0.009); reported as a finding, no tuning (decided 8 Oct 2026).
 
 ### M-D Budget Lock optimiser
 - The M-C model with the monthly Budget Lock as a hard constraint, plus a substitution penalty using `catalog.substitutions`.
@@ -174,7 +175,7 @@ sequenceDiagram
 - **Procurement:** `order_qty = committed + Q_τ(uncommitted)`, where τ = C<sub>u</sub> / (C<sub>u</sub> + C<sub>o</sub>).
   C<sub>o</sub> = cost − salvage value from the surplus cascade. Shelf life caps the buffer.
 - **Metrics:** WAPE, MASE, pinball loss; downstream waste kg per 100 kg sold, stock-out %. Baselines: seasonal naive, "buy last week".
-- **Status (8 Oct 2026, v0):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
+- **Status (8 Oct 2026, v0 + v1 LightGBM):** the `forecast` job in `backend/training` (StatsForecast AutoETS / Croston / SeasonalNaive / Naive and a global LightGBM, direct multi-step with one booster per step and festival, fast-day and as-of-origin price-index features, a rolling-origin backtest with weekly origins and a 2-week horizon, scaled split-conformal q_tau, newsvendor `order_qty`) stores a hub's lines per delivery day in `intel.predictions` and announces them with `intel.forecast_ready`; M6 reads them through `intel_gateway.api.hub_forecast(hub, delivery_date)`. WAPE, q_tau coverage, pinball and MASE per model go to `intel.model_metrics` per data source (M10 §3.6). The simulator's uncommitted demand is sparse until the add-on behaviour lands, so the first WAPE numbers wait for that.
 
 ### M-F Routing (OR-Tools)
 - **Problem:** capacitated vehicle routing with time windows and pickups/deliveries.
@@ -191,7 +192,7 @@ sequenceDiagram
   - Constraints: capacity, menu skills, rating floor, distance ≤ X km.
 - **Objective:** minimise distance + quality penalty + **λ × earnings inequality**. The inequality term is the maximum deviation from the fair share over a rolling 4 weeks (a linear proxy for the Gini coefficient).
 - **Metrics:** Gini of weekly partner earnings, cost per portion, rating. Compared with a greedy nearest-kitchen baseline. A λ-sweep produces a Pareto curve (paper figure).
-- **Status (5 Oct 2026, v0):** `POST /assign/kitchens` serves the CP-SAT model with the λ term and greedy nearest as baseline and fallback; the gateway records the plan per hub. The λ sweep in the eval harness and M8's tables and job come with the January product PR. λ is in paise per portion of imbalance among the kitchens that can cook tonight (default 300); orders no kitchen can take come back in `unassigned` with `status: partial` (M10 §3.5).
+- **Status (5 Oct 2026, v0):** `POST /assign/kitchens` serves the CP-SAT model with the λ term and greedy nearest as baseline and fallback; the gateway records the plan per hub. The λ sweep is in the eval harness (`just eval`, RQ4 table): per seed one simulated week of 7 evenings with each kitchen's earnings carried forward from 0, greedy and every λ paired by seed, and the target judged on 95 % CI upper bounds (eval protocol §7, 8 Oct); M8's tables and job come with the January product PR. λ is in paise per portion of imbalance among the kitchens that can cook tonight (default 300); orders no kitchen can take come back in `unassigned` with `status: partial` (M10 §3.5).
 
 ### M-H Slot pricing ("green slots")
 - The marginal insertion cost of an address into existing tentative routes → slot discount ranking.
@@ -248,15 +249,17 @@ Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI;
 ## 8.6 LLM usage
 
 ### Assistant "Ghar Saathi" (text MVP, D5)
-- Built with the Anthropic Python SDK. Tools call **our own API as the user**:
-  - `get_my_week`, `edit_box_line`, `skip_week`, `book_tiffin`, `track_order`, `explain_item`.
-- Tools use `strict: true` schemas with `tool_choice: auto` (current Claude models reject forced tool choice).
+
+**Built 5 Oct 2026 (F23/F24):** the loop in `backend/ml/src/gharbasket_ml/assistant.py` (`POST /assistant/turn`, four tools, strict schemas, caching, refusal fallback, four tool rounds a turn), the API module `assistant` (sessions, scrubbed messages, 15-minute proposals, `usage_daily` cap, `expire_proposals`), and `just eval-assistant` (intent accuracy, slot F1, the injection rule, cost a turn) on `data/eval/assistant_utterances.jsonl`. The Space needs the secret `ANTHROPIC_API_KEY`; without it the API answers with a fixed fallback reply (`source: fallback`).
+- Built with the Anthropic Python SDK. **The Space never calls our API** (decided 8 Oct 2026, M13 §3): the API sends the scrubbed conversation and a trimmed week (no household or user id, name, address or token), the read tools answer from that week, and the write tools come back as intents that the API resolves into proposals:
+  - `get_my_week`, `edit_box_line`, `skip_week`, `explain_item` (S8); `book_tiffin`, `track_order` later.
+- Tools use `strict: true` schemas (no numeric bounds; ranges are in the descriptions and the API checks them) with `tool_choice: auto` (current Claude models reject forced tool choice); low effort, thinking blocks echoed unchanged between tool rounds.
 - Every write returns a **proposed change** that the user must confirm in the UI; the LLM never commits changes on its own.
 - **Prompt caching** on the system prompt and tool definitions.
 - **Guardrails:**
   - per-user daily token cap;
-  - refusal fallback enabled;
-  - conversation logs stored with PII scrubbed.
+  - the server-side refusal fallback (`fallbacks: "default"`), then a canned reply;
+  - conversation logs stored with PII scrubbed, by the API, before anything leaves it.
 - **Eval set:** 200 labelled Hinglish / Marathi / English utterances, written by Rhythm Thakur and Manish Raje. Metrics: intent accuracy and slot-filling F1.
 
 ### Model choice and cost (decided after the S8 eval, D13)

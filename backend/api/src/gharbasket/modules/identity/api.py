@@ -197,6 +197,32 @@ async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uu
     return list(rows.scalars())
 
 
+@dataclass(frozen=True)
+class PrivateTerms:
+    """The household's own words that must not leave the API in free text (M13's scrub, DPDP):
+    the owner's name (whole and each part) and the flat and tower of the address."""
+
+    names: tuple[str, ...]
+    places: tuple[str, ...]
+
+
+async def private_terms(session: AsyncSession, household_id: uuid.UUID) -> PrivateTerms:
+    row = (
+        await session.execute(
+            select(User.name, Address.flat, Address.tower_id)
+            .select_from(Household)
+            .join(User, User.id == Household.owner_user_id)
+            .outerjoin(Address, Address.household_id == Household.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    if row is None:
+        return PrivateTerms((), ())
+    name, flat, tower = row
+    names = (name, *name.split()) if name else ()
+    return PrivateTerms(names, tuple(p for p in (flat, tower) if p))
+
+
 async def user_locale(session: AsyncSession, user_id: uuid.UUID) -> str:
     """en-IN, hi-IN or mr-IN: the language of pushes and WhatsApp messages (M11)."""
     locale = await session.scalar(select(User.locale).where(User.id == user_id))
