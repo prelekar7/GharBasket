@@ -210,3 +210,161 @@ async def test_metrics_are_pushed_through_the_api() -> None:
     with pytest.raises(RuntimeError):
         async with httpx2.AsyncClient(transport=httpx2.MockTransport(handler)) as http:
             await report.push(http, Settings(), rows)
+
+
+def _week_point(lam: float | None, gini: float, cost: float, status: str = "solved") -> Any:
+    from gharbasket_training.eval.assignment_sweep import SweepPoint
+
+    return SweepPoint(
+        fairness_lambda=lam,
+        status=status,
+        evening_status=[status] * 7,
+        greedy_evenings=7 if lam is None else 0,
+        seconds=0.1,
+        gini=gini,
+        gini_all=gini,
+        cost_paise_per_portion=cost,
+        rider_paise_per_portion=cost - 300,
+        km_per_portion=1.0,
+        kitchens_used=4,
+    )
+
+
+def _sweep_run(seed: int, points: dict[float | None, tuple[float, float]], **status: str) -> Any:
+    """A seed's sweep: λ → (Gini, cost a portion in paise); unlisted λs copy greedy."""
+    from gharbasket_training.eval.assignment_sweep import LAMBDAS, SweepRun
+
+    greedy = points[None]
+    return SweepRun(
+        seed,
+        7,
+        30,
+        90,
+        [
+            _week_point(lam, *points.get(lam, greedy), status=status.get(str(lam), "solved"))
+            for lam in (None, *LAMBDAS)
+        ],
+    )
+
+
+def test_a_high_lambda_spreads_a_hand_built_week_over_the_kitchens() -> None:
+    from gharbasket_training.eval import assignment_sweep
+    from gharbasket_training.eval.assignment_sweep import Week
+
+    # Two kitchens: one beside the society, one 1.7 km away. Cost alone sends every order to the
+    # near one; a high λ must hand some to the far one.
+    society = (19.0300, 73.0690)
+    evenings = [
+        [
+            {"id": f"o{d}-{i}", "lat": society[0], "lng": society[1], "portions": 2, "skills": []}
+            for i in range(2)
+        ]
+        for d in range(7)
+    ]
+    kitchens = [
+        {"id": "near", "lat": society[0], "lng": society[1], "skills": ["veg"], "rating": 4.5},
+        {"id": "far", "lat": 19.0450, "lng": society[1], "skills": ["veg"], "rating": 4.5},
+    ]
+    week = Week(evenings, kitchens)
+
+    greedy = assignment_sweep.run_week(week, None)
+    cost_only = assignment_sweep.run_week(week, 0.0)
+    fair = assignment_sweep.run_week(week, 2000.0)
+
+    assert greedy.solved and cost_only.solved and fair.solved
+    assert len(fair.evening_status) == 7 and fair.greedy_evenings == 0
+    assert greedy.greedy_evenings == 7
+    assert cost_only.gini == greedy.gini == 0.5 and cost_only.kitchens_used == 1
+    assert fair.gini < cost_only.gini and fair.kitchens_used == 2
+    assert fair.cost_paise_per_portion > cost_only.cost_paise_per_portion
+    # The quality penalty is ₹2.50 a portion (half a star below 5); the rest is the rider.
+    assert cost_only.cost_paise_per_portion - cost_only.rider_paise_per_portion == 250
+
+
+def test_the_m_g_target_needs_both_upper_bounds_five_seeds_and_a_positive_lambda() -> None:
+    from gharbasket_training.eval import assignment_sweep
+
+    def target(runs: list[Any]) -> dict[str, Any]:
+        return assignment_sweep.against_target(runs)["gini_le_0_25_at_le_5pct_cost"]
+
+    def seeds(cost_300: float, n: int = 5, zero_gini: float = 0.6) -> list[Any]:
+        return [
+            _sweep_run(
+                s,
+                {
+                    None: (0.6, 1000.0),
+                    0.0: (zero_gini, 1000.0),
+                    100.0: (0.4, 1010.0),
+                    300.0: (0.2 + 0.002 * s, cost_300 + s),
+                },
+            )
+            for s in range(n)
+        ]
+
+    holds = target(seeds(1020.0))
+    assert holds["holds"] is True and holds["lambda"] == 300.0 and holds["n"] == 5
+    assert holds["per_lambda"]["300"]["holds"] is True
+    assert holds["per_lambda"]["100"]["holds"] is False  # Gini 0.4
+    assert holds["per_lambda"]["300"]["extra_cost_upper"] <= 0.05
+    assert holds["dropped_seeds"] == [] and holds["greedy_gini"]["mean"] == 0.6
+
+    costly = target(seeds(1100.0))  # +10 % cost
+    assert costly["holds"] is False and costly["lambda"] is None
+
+    # λ = 0 is the cost-only plan: even a fair cost-only week does not meet the target.
+    zero = target(seeds(1100.0, zero_gini=0.1))
+    assert zero["per_lambda"]["0"]["holds"] is False and zero["holds"] is False
+
+    few = target(seeds(1020.0, n=3))
+    assert few["holds"] is None and few["lambda"] is None
+    assert all(v["holds"] is None for v in few["per_lambda"].values())
+
+    # A seed where one point did not solve is dropped for every λ, and named.
+    runs = seeds(1020.0)
+    runs[2] = _sweep_run(2, {None: (0.6, 1000.0)}, **{"700.0": "partial"})
+    dropped = target(runs)
+    assert dropped["dropped_seeds"] == [2] and dropped["n"] == 4 and dropped["holds"] is None
+    summary = assignment_sweep.summarise(runs)
+    assert all(m["gini"].n == 4 for m in summary.values())
+    assert summary["300"]["extra_cost"].n == 4 and "extra_cost" not in summary["greedy"]
+
+
+def test_the_sweep_table_shows_rupees_not_paise() -> None:
+    runs = [_sweep_run(s, {None: (0.6, 1234.0), 300.0: (0.3, 1300.0)}) for s in (7, 11)]
+    built = report.build([], [], args={"smoke": True}, sweep_runs=runs)
+    page = report.to_html(built)
+
+    assert "cost a portion (distance + quality penalty, ₹)" in page
+    assert "<td>12.34 ± 0.00</td>" in page and "<td>13.00 ± 0.00</td>" in page  # paise ÷ 100
+    assert "<td>9.34 ± 0.00</td>" in page  # the rider's part
+    assert "1234" not in page
+    assert "no verdict: 2 paired seed(s)" in page
+
+
+def test_the_lambda_sweep_solves_every_point_of_a_small_week() -> None:
+    from gharbasket_training.eval import assignment_sweep
+
+    catalog = from_seed_files()
+    run = assignment_sweep.run_sweep(7, catalog, adoption=0.02)
+
+    assert run is not None and run.orders > 0 and run.portions >= run.orders
+    assert run.evenings == 7  # Sunday's no-cook households and the weekday draws
+    assert [p.fairness_lambda for p in run.points] == [None, *assignment_sweep.LAMBDAS]
+    assert all(p.solved and p.evening_status == ["solved"] * 7 for p in run.points)
+    assert all(p.greedy_evenings == 0 for p in run.points[1:])
+    assert all(0 <= p.gini <= 1 and p.cost_paise_per_portion > 0 for p in run.points)
+    by_lambda = {p.fairness_lambda: p for p in run.points}
+    assert by_lambda[2000.0].gini < by_lambda[0.0].gini
+
+    built = report.build([], [], args={"smoke": True}, sweep_runs=[run])
+    assert built["seeds"] == [7] and set(built["assignment"]) >= {"greedy", "0", "2000"}
+    prov = built["provenance"]["assignment"]
+    assert prov["lambdas"] == list(assignment_sweep.LAMBDAS) and prov["ortools_version"]
+    assert prov["model"] == "assignment-cpsat-v0" and len(prov["societies_sha256"]) == 64
+    target = built["assignment_targets"]["gini_le_0_25_at_le_5pct_cost"]
+    assert target["holds"] is None and target["seeds"] == [7] and target["dropped_seeds"] == []
+    rows = report.metrics_rows(built)
+    assert {r["model_name"] for r in rows} >= {"assignment_cpsat", "assignment_greedy"}
+    extra = next(r for r in rows if r["metric"] == "extra_cost_lambda_2000")
+    assert set(extra["details"]["per_seed"]) == {"7"} and extra["details"]["dropped_seeds"] == []
+    assert "λ sweep" in report.to_html(built)
