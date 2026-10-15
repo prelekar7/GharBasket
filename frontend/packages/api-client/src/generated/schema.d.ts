@@ -1145,7 +1145,11 @@ export interface paths {
         /** Orders of the caller's household, or of a hub for its staff (newest delivery first) */
         get: operations["list_orders_v1_orders_get"];
         put?: never;
-        post?: never;
+        /**
+         * Book a kitchen's tiffin for one meal (Idempotency-Key); paid at the cut-off
+         * @description Only `kind: tiffin` (§3.5): add-ons ride on the box. The menu fixes the date, meal, price and the preferred cook; the server picks the hub's tiffin slot for the meal.
+         */
+        post: operations["book_tiffin_v1_orders_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4039,6 +4043,8 @@ export interface components {
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
             /** Subtotal Paise */
             subtotal_paise: number;
+            /** @description Tiffin orders (§3.5): the booked menu; null otherwise */
+            tiffin?: components["schemas"]["TiffinOut"] | null;
             /** Timeline */
             timeline: components["schemas"]["TimelineEntry"][];
             /** Total Paise */
@@ -5644,6 +5650,11 @@ export interface components {
              */
             label: string;
             /**
+             * Meal
+             * @description Required for a tiffin slot, absent for a box slot (§3.5)
+             */
+            meal?: ("lunch" | "dinner") | null;
+            /**
              * Start
              * Format: time
              * @example 07:00
@@ -5683,6 +5694,11 @@ export interface components {
             kind: "box" | "tiffin";
             /** Label */
             label: string;
+            /**
+             * Meal
+             * @description Tiffin slots only (§3.5)
+             */
+            meal: ("lunch" | "dinner") | null;
             /**
              * Start
              * Format: time
@@ -6294,6 +6310,40 @@ export interface components {
         TiffinMenusOut: {
             /** Items */
             items: components["schemas"]["TiffinMenuOut"][];
+        };
+        /** TiffinOrderIn */
+        TiffinOrderIn: {
+            /**
+             * Kind
+             * @description tiffin (else 422 orders.kind_unavailable)
+             * @example tiffin
+             */
+            kind: string;
+            /**
+             * Menu Id
+             * @description From GET /v1/tiffin-menus
+             */
+            menu_id?: string | null;
+            /**
+             * Portions
+             * @description 1 to 12 (else 422 orders.qty_invalid); default the household size
+             */
+            portions?: number | null;
+        };
+        /** TiffinOut */
+        TiffinOut: {
+            /** Dishes */
+            dishes: components["schemas"]["DishOut"][];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Menu Id
+             * Format: uuid
+             */
+            menu_id: string;
         };
         /** TimelineEntry */
         TimelineEntry: {
@@ -11712,6 +11762,79 @@ export interface operations {
                 };
             };
             /** @description orders.hub_required, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    book_tiffin_v1_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TiffinOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.tiffin_already_booked (order_id), orders.slot_full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.kind_unavailable, orders.menu_unknown, orders.qty_invalid, orders.hub_required, orders.slot_invalid, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

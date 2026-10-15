@@ -13,12 +13,13 @@ from fastapi.sse import EventSourceResponse
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import issues, live, service, triage
+from gharbasket.modules.orders import issues, live, service, tiffins, triage
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
 from gharbasket.modules.orders.schemas import (
     AddonsIn,
+    DishOut,
     IssueContact,
     IssueIn,
     IssueItemOut,
@@ -42,6 +43,8 @@ from gharbasket.modules.orders.schemas import (
     SlotRef,
     SlotsOut,
     Status,
+    TiffinOrderIn,
+    TiffinOut,
 )
 from gharbasket.modules.orders.service import IST, SlotLoad
 from gharbasket.modules.orders.tiffin_router import router as tiffin_router
@@ -76,6 +79,7 @@ def _slot(load: SlotLoad) -> SlotOut:
         kind=s.kind,  # pyright: ignore[reportArgumentType]
         start=s.start_time,
         end=s.end_time,
+        meal=s.meal,  # pyright: ignore[reportArgumentType]
         capacity=s.capacity,
         booked=load.booked,
         available=load.available,
@@ -177,7 +181,16 @@ async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
         )
     timeline = [live.entry(e) for e in await service.timeline_of(session, order.id)]
     summary = await _summary(session, order)
-    return OrderOut(**summary.model_dump(), lines=out_lines, timeline=timeline)
+    tiffin = None
+    if order.tiffin_menu_id is not None:
+        menu = await catalog_api.tiffin_menu(session, order.tiffin_menu_id)
+        if menu is not None:
+            tiffin = TiffinOut(
+                menu_id=menu.id,
+                meal=menu.meal,  # pyright: ignore[reportArgumentType]
+                dishes=[DishOut(recipe_id=r, name=localised(n, lang)) for r, n in menu.dishes],
+            )
+    return OrderOut(**summary.model_dump(), lines=out_lines, timeline=timeline, tiffin=tiffin)
 
 
 # --- slots --------------------------------------------------------------------------------------
@@ -228,6 +241,7 @@ async def create_slot(
         start=body.start,
         end=body.end,
         capacity=body.capacity,
+        meal=body.meal,
     )
     await audit.record(
         session,
@@ -398,6 +412,37 @@ async def set_addons(
     await idem.save(200, out)
     await session.commit()
     set_etag(response, order.version)
+    return out
+
+
+@router.post(
+    "/orders",
+    status_code=status.HTTP_201_CREATED,
+    summary="Book a kitchen's tiffin for one meal (Idempotency-Key); paid at the cut-off",
+    description="Only `kind: tiffin` (§3.5): add-ons ride on the box. The menu fixes the date, "
+    "meal, price and the preferred cook; the server picks the hub's tiffin slot for the meal.",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        409: _problem("orders.tiffin_already_booked (order_id), orders.slot_full"),
+        422: _problem(
+            "orders.kind_unavailable, orders.menu_unknown, orders.qty_invalid, "
+            "orders.hub_required, orders.slot_invalid, request.invalid"
+        ),
+    },
+)
+async def book_tiffin(
+    body: TiffinOrderIn, permit: CanWrite, session: DbSession, idem: Idempotent, lang: Lang
+) -> OrderOut:
+    if body.kind != "tiffin":
+        raise ProblemError(
+            422, "orders.kind_unavailable", "Only tiffins are booked here; add-ons ride on a box."
+        )
+    if body.menu_id is None:
+        raise tiffins.menu_unknown("Choose a menu.")
+    order, _ = await tiffins.book(session, permit.principal.user_id, body.menu_id, body.portions)
+    out = await _full(session, order, lang)
+    await idem.save(201, out)
+    await session.commit()
     return out
 
 

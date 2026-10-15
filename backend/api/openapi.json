@@ -4896,6 +4896,17 @@
             "title": "Subtotal Paise",
             "type": "integer"
           },
+          "tiffin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TiffinOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin orders (§3.5): the booked menu; null otherwise"
+          },
           "timeline": {
             "items": {
               "$ref": "#/components/schemas/TimelineEntry"
@@ -8571,6 +8582,22 @@
             "title": "Label",
             "type": "string"
           },
+          "meal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lunch",
+                  "dinner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for a tiffin slot, absent for a box slot (§3.5)",
+            "title": "Meal"
+          },
           "start": {
             "examples": [
               "07:00"
@@ -8632,6 +8659,22 @@
             "title": "Label",
             "type": "string"
           },
+          "meal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lunch",
+                  "dinner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin slots only (§3.5)",
+            "title": "Meal"
+          },
           "start": {
             "description": "IST clock time",
             "examples": [
@@ -8649,6 +8692,7 @@
           "kind",
           "start",
           "end",
+          "meal",
           "capacity",
           "booked",
           "available"
@@ -9928,6 +9972,81 @@
           "items"
         ],
         "title": "TiffinMenusOut",
+        "type": "object"
+      },
+      "TiffinOrderIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "tiffin (else 422 orders.kind_unavailable)",
+            "examples": [
+              "tiffin"
+            ],
+            "maxLength": 16,
+            "title": "Kind",
+            "type": "string"
+          },
+          "menu_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From GET /v1/tiffin-menus",
+            "title": "Menu Id"
+          },
+          "portions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1 to 12 (else 422 orders.qty_invalid); default the household size",
+            "title": "Portions"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TiffinOrderIn",
+        "type": "object"
+      },
+      "TiffinOut": {
+        "properties": {
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "menu_id": {
+            "format": "uuid",
+            "title": "Menu Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "menu_id",
+          "meal",
+          "dishes"
+        ],
+        "title": "TiffinOut",
         "type": "object"
       },
       "TimelineEntry": {
@@ -19474,6 +19593,143 @@
           }
         ],
         "summary": "Orders of the caller's household, or of a hub for its staff (newest delivery first)",
+        "tags": [
+          "orders"
+        ]
+      },
+      "post": {
+        "description": "Only `kind: tiffin` (§3.5): add-ons ride on the box. The menu fixes the date, meal, price and the preferred cook; the server picks the hub's tiffin slot for the meal.",
+        "operationId": "book_tiffin_v1_orders_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TiffinOrderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.tiffin_already_booked (order_id), orders.slot_full"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.kind_unavailable, orders.menu_unknown, orders.qty_invalid, orders.hub_required, orders.slot_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Book a kitchen's tiffin for one meal (Idempotency-Key); paid at the cut-off",
         "tags": [
           "orders"
         ]

@@ -37,6 +37,7 @@ SCHEMA = "orders"
 ORDER_KINDS = ("box", "tiffin", "addon")
 LINE_KINDS = ("box", "addon")
 SLOT_KINDS = ("box", "tiffin")
+MEALS = ("lunch", "dinner")  # a tiffin slot's meal (§3.5)
 STATUSES = (
     "approved",
     "locked",
@@ -75,6 +76,11 @@ class Slot(Base):
         CheckConstraint(_one_of("kind", SLOT_KINDS), name="kind"),
         CheckConstraint("end_time > start_time", name="times"),
         CheckConstraint("capacity BETWEEN 1 AND 2000", name="capacity"),
+        CheckConstraint(
+            f"(kind = 'tiffin' AND {_one_of('meal', MEALS)})"
+            " OR (kind <> 'tiffin' AND meal IS NULL)",
+            name="meal",
+        ),
         UniqueConstraint("hub_id", "label"),
         {"schema": SCHEMA},
     )
@@ -86,6 +92,8 @@ class Slot(Base):
     start_time: Mapped[time] = mapped_column(Time)  # IST clock time
     end_time: Mapped[time] = mapped_column(Time)
     capacity: Mapped[int] = mapped_column(SmallInteger)
+    # lunch or dinner for a tiffin slot, so the server picks it (§3.5); null for box slots.
+    meal: Mapped[str | None] = mapped_column(String(8))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -115,6 +123,12 @@ class Order(Base):
             name="money",
         ),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        CheckConstraint(
+            "kind = 'tiffin' OR (tiffin_menu_id IS NULL AND preferred_partner_id IS NULL"
+            " AND portions IS NULL)",
+            name="tiffin_only",
+        ),
+        CheckConstraint("portions IS NULL OR portions BETWEEN 1 AND 12", name="portions"),
         # One live order per weekly cycle: a skip cancels it, and an un-skipped week approved
         # again gets a new one (M4 §4, M3 §3.3).
         Index(
@@ -147,6 +161,11 @@ class Order(Base):
     total_paise: Mapped[int] = mapped_column(BigInteger)
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Tiffins (§3.5): the booked menu (M2), its kitchen as the preferred cook (M8 §3.4) and
+    # the portions; null for boxes and add-ons.
+    tiffin_menu_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    preferred_partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    portions: Mapped[int | None] = mapped_column(SmallInteger)
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

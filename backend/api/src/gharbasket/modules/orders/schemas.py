@@ -47,6 +47,7 @@ class SlotOut(BaseModel):
     kind: SlotKind
     start: time = Field(description="IST clock time", examples=["07:00"])
     end: time
+    meal: Literal["lunch", "dinner"] | None = Field(description="Tiffin slots only (§3.5)")
     capacity: int
     booked: int = Field(description="For the requested date")
     available: int
@@ -66,6 +67,9 @@ class SlotIn(BaseModel):
     start: time = Field(examples=["07:00"])
     end: time = Field(examples=["09:00"])
     capacity: int = Field(ge=1, le=2000, examples=[120])
+    meal: Literal["lunch", "dinner"] | None = Field(
+        default=None, description="Required for a tiffin slot, absent for a box slot (§3.5)"
+    )
 
 
 class SlotPatch(BaseModel):
@@ -146,9 +150,18 @@ class OrderSummaryOut(BaseModel):
     locked_at: datetime | None
 
 
+class TiffinOut(BaseModel):
+    menu_id: uuid.UUID
+    meal: Literal["lunch", "dinner"]
+    dishes: list["DishOut"]
+
+
 class OrderOut(OrderSummaryOut):
     lines: list[OrderLineOut]
     timeline: list[TimelineEntry]
+    tiffin: TiffinOut | None = Field(
+        default=None, description="Tiffin orders (§3.5): the booked menu; null otherwise"
+    )
 
 
 class AddonItem(BaseModel):
@@ -325,3 +338,19 @@ class TiffinMenuOut(BaseModel):
 
 class TiffinMenusOut(BaseModel):
     items: list[TiffinMenuOut]
+
+
+class TiffinOrderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(
+        max_length=16, description="tiffin (else 422 orders.kind_unavailable)", examples=["tiffin"]
+    )
+    menu_id: uuid.UUID | None = Field(default=None, description="From GET /v1/tiffin-menus")
+    portions: int | None = Field(
+        default=None,
+        description="1 to 12 (else 422 orders.qty_invalid); default the household size",
+    )
+
+
+TiffinOut.model_rebuild()

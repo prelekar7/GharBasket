@@ -362,6 +362,12 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 - `catalog.tiffin_menus` is M2's table (M2 §4); M2 reads it through `catalog.api.tiffin_menus(hub_id, first, last, meal)` (approved only) and `catalog.api.tiffin_menu(id)` (any status). M2 has no endpoints to write or approve menus yet (M2 lists only the `tiffin_menus:write` permission), so menus are written by seed or tests until that flow is specified.
 - `GET /v1/tiffin-menus`: `date` is optional (default: every date from tomorrow to tomorrow + 6) and must lie in that window (else 422 `orders.date_out_of_range`); `meal` filters. Menus past their `order_by` are left out. A caller without a household gets 422 `orders.hub_required`. The kitchen's `display_name` comes from `partners.api.profile_card` (empty when the partner record is missing).
 
+**As built (direct tiffin orders).**
+- `POST /v1/orders` answers 422 `orders.kind_unavailable` for any kind but `tiffin`; a missing, unknown, unapproved, other hub's or closed menu is 422 `orders.menu_unknown`; a caller without a household is 422 `orders.hub_required`; a hub without an active tiffin slot for the meal is 422 `orders.slot_invalid`. One tiffin per household, date and meal is checked under an advisory lock on the household.
+- The tiffin's line has `kind: "box"` (the order's main line; `OrderLine.kind` stays `box | addon`). Default portions are the household size, capped at 12.
+- Slots: `POST /v1/admin/slots` and `Slot` gain `meal` (required for `kind: tiffin`, absent for `box`, else 422 `orders.slot_invalid`). The migration sets the meal of existing tiffin slots from their start time (before 16:00: lunch).
+- `orders.tiffin_booked` is published; M3's consumer that sets the meal to `tiffin` (and back on `orders.cancelled` with `kind: tiffin`) is an M3 follow-up, not in this PR.
+
 ### 3.6 Issue triage contract (drafted 2026-10-09, frozen on approval)
 This is the console's queue for issues that stay `open` (§3.2), resolved through the existing `orders.api.resolve_issue`. M4 serves the endpoints because it owns the issues; the page sits in the console's Hub section. No console page or mock exists yet. Permission `order_issues:resolve` (§7).
 
