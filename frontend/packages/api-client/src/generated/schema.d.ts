@@ -2170,7 +2170,7 @@ export interface components {
         BudgetLockIn: {
             /**
              * Budget Paise
-             * @description At least ₹500; null switches the lock off
+             * @description At least ₹500 (else 422 subscriptions.budget_invalid); null switches it off
              */
             budget_paise?: number | null;
             /**
@@ -5015,7 +5015,7 @@ export interface components {
             content_type: string;
             /**
              * Purpose
-             * @description order_issue_photo, donation_photo or kyc_document
+             * @description order_issue_photo, donation_photo, kyc_document, delivery_photo or handoff_photo
              */
             purpose: string;
             /**
