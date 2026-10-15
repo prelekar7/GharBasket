@@ -678,38 +678,39 @@ sequenceDiagram
 
 ## W12 — Assistant (text MVP) with confirmation
 
-The assistant ("Ghar Saathi" chat) uses Claude with tools that call **our own API as the user**. Every write returns a **proposed change** that the user must confirm in the UI. The LLM never calculates prices or quantities.
+The assistant ("Ghar Saathi" chat) uses Claude in the ML service, which never calls our API: the API sends it the scrubbed conversation and a trimmed week, the model reads that week and names the changes it wants, and the API turns them into **proposed changes** that the user must confirm in the UI (M13 §3). The LLM never calculates prices or quantities.
 
-*Figure 7.18 — Sequence: assistant tool call with user confirmation*
+*Figure 7.18 — Sequence: assistant turn with user confirmation*
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor C as Customer
     participant APP as Mobile app - chat
+    participant API as api - assistant
     participant AS as ml service - assistant
     participant LLM as Claude API
-    participant API as api (as the user)
     C->>APP: Kal aloo 2 kilo extra bhejna aur paneer hata do
-    APP->>AS: POST /assistant/messages (SSE)
-    AS->>LLM: System prompt and tools (cached), user message
+    APP->>API: POST /v1/assistant/messages (JSON in v0; SSE later)
+    API->>API: Reserve the turn under the daily cap, scrub the text, store it, commit
+    API->>AS: POST /assistant/turn (scrubbed history, trimmed week with line handles)
+    AS->>LLM: System prompt and tools (cached), messages
     LLM-->>AS: Tool call get_my_week
-    AS->>API: GET /v1/cycles/current (user token)
-    API-->>AS: Current box
-    AS->>LLM: Tool result
-    LLM-->>AS: Tool call edit_box_line - aloo plus 2 kg, remove paneer
-    AS->>API: POST /v1/cycles/42/proposals (dry run)
-    API-->>AS: Proposal p7 with new total from server prices
-    AS->>LLM: Tool result (proposal p7)
-    LLM-->>AS: Reply summarising the change
-    AS-->>APP: Message and confirm card for p7
+    AS->>LLM: Tool result from the trimmed week
+    LLM-->>AS: Tool calls edit_box_line - qty L4 (aloo), remove L7 (paneer)
+    AS->>LLM: Tool results - noted, the app shows cards
+    LLM-->>AS: Reply summarising the request
+    AS-->>API: Reply and intents (no ids, no prices from the model)
+    API->>API: Resolve intents - line, catalog product, steps, week - into proposals p7, p8
+    API-->>APP: Message and confirm cards with prices from the API
     alt Customer confirms
         C->>APP: Confirm
-        APP->>API: POST /v1/assistant/confirm/p7 (If-Match version)
+        APP->>API: POST /v1/assistant/confirm/p7 (Idempotency-Key)
+        API->>API: M3 facade at the card's version (412 if the week changed)
         API-->>APP: Box updated, version 5
     else Customer cancels
         C->>APP: Cancel
-        APP->>API: Discard proposal p7
+        APP->>API: POST /v1/assistant/proposals/p7/reject
     end
 ```
 

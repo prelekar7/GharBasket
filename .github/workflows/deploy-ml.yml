@@ -5,8 +5,8 @@
 # rebuilds only when backend/ml or the locked versions did.
 #
 # Needs the repository secrets HF_TOKEN (a write token) and HF_SPACE (e.g. "gharbasket/ml"), and the
-# Space's own settings APP_ENV=prod and ML_SERVICE_TOKEN (the same value the API sends). Until the
-# secrets exist the workflow skips with a notice.
+# Space's own settings APP_ENV=prod, ML_SERVICE_TOKEN (the same value the API sends) and
+# ANTHROPIC_API_KEY (Ghar Saathi, M13). Until the secrets exist the workflow skips with a notice.
 name: Deploy ML
 
 on:
