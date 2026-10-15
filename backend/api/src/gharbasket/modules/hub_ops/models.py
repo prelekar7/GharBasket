@@ -12,6 +12,7 @@ from typing import Any
 
 from geoalchemy2 import Geography, WKBElement, WKTElement
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -56,6 +57,9 @@ class Hub(Base):
         CheckConstraint(_one_of("status", HUB_STATUSES), name="status"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         CheckConstraint("procurement_buffer_pct BETWEEN 0 AND 50", name="procurement_buffer_pct"),
+        CheckConstraint(
+            "pre_live_box_fee_paise BETWEEN 0 AND 10000", name="pre_live_box_fee_paise"
+        ),
         CheckConstraint("jsonb_typeof(timings) = 'object'", name="timings"),
         CheckConstraint("version >= 1", name="version"),
         Index("ix_hubs_service_area", "service_area", postgresql_using="gist"),
@@ -78,6 +82,8 @@ class Hub(Base):
     # {"receiving": "04:00", "packing": "05:00", "dispatch": "06:30", "surplus": "12:30"}
     timings: Mapped[dict[str, Any]] = mapped_column(JSONB)
     procurement_buffer_pct: Mapped[int] = mapped_column(SmallInteger, server_default=text("10"))
+    # The delivery fee on each box for a society that is not live yet (M9 §3.6), set by an admin.
+    pre_live_box_fee_paise: Mapped[int] = mapped_column(BigInteger, server_default=text("3000"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

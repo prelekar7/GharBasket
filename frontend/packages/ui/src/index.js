@@ -1,4 +1,22 @@
 // Public entry of @gharbasket/ui. Styles: import "@gharbasket/ui/styles.css" once in the app root.
+export {
+  BhindiIcon,
+  CaptainBadgeIcon,
+  CrateIcon,
+  GullakIcon,
+  KadaiIcon,
+  LaukiIcon,
+  LeafyGreensIcon,
+  MirchiIcon,
+  OnionIcon,
+  ParchiIcon,
+  SocietyTowerIcon,
+  TarazuIcon,
+  ThaliIcon,
+  TiffinDabbaIcon,
+  TomatoIcon,
+} from "./art/Icons.jsx";
+export { EmptyBasket, GullakCoin, TiffinSteam } from "./art/Illustrations.jsx";
 export { Button, buttonStyles } from "./components/Button.jsx";
 export { Checkbox, Switch } from "./components/Checkbox.jsx";
 export {
@@ -19,6 +37,13 @@ export {
   WalletCard,
 } from "./components/Community.jsx";
 export { Description, FieldError, Label } from "./components/Field.jsx";
+export {
+  BagLabel,
+  CrateCounter,
+  FlatChecklist,
+  RouteStopCard,
+  ShortageReporter,
+} from "./components/FieldRoles.jsx";
 export {
   KnowYourCookCard,
   MealCard,
