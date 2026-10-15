@@ -88,7 +88,7 @@ def _no_pickup_day() -> ProblemError:
     )
 
 
-async def _event(
+async def record_event(
     session: AsyncSession, donation: Donation, status: str, by: uuid.UUID | None
 ) -> None:
     donation.status = status
@@ -233,7 +233,7 @@ async def schedule(
     session.add(donation)
     await session.flush()
     await session.refresh(donation)
-    await _event(session, donation, "scheduled", user_id)
+    await record_event(session, donation, "scheduled", user_id)
     await publish_scheduled(session, donation)
     return donation
 
@@ -254,7 +254,7 @@ async def cancel(
     donation.version += 1
     for key in donation.photo_keys:
         await files.set_delete_after(session, key, now() + PHOTO_RETENTION)
-    await _event(session, donation, "cancelled", by)
+    await record_event(session, donation, "cancelled", by)
     await publish(
         session,
         events.DONATION_CANCELLED,
@@ -266,6 +266,79 @@ async def cancel(
             "reason": reason,
         },
     )
+
+
+# --- pickup outcomes (M7 §3.6 reports them; the sweep catches the rest) -------------------------
+
+
+async def record_pickup(
+    session: AsyncSession,
+    donation_id: uuid.UUID,
+    outcome: str,
+    *,
+    by_user_id: uuid.UUID | None,
+    on: date,
+) -> Donation | None:
+    """`collected` makes a scheduled donation `picked_up`; `not_ready` rolls it once to the
+    society's next delivery date, then cancels it. None (nothing done) when it is not scheduled
+    any more, so a redelivered report changes nothing."""
+    donation = await session.get(Donation, donation_id, with_for_update=True)
+    if donation is None or donation.status != "scheduled":
+        return None
+    if outcome != "collected":
+        await not_ready(session, donation, by_user_id, today=on)
+        return donation
+    donation.picked_up_on, donation.picked_up_by_user_id = on, by_user_id
+    donation.version += 1
+    kept_until = datetime.combine(on, time(0), drives.IST) + PHOTO_RETENTION
+    for key in donation.photo_keys:
+        await files.set_delete_after(session, key, kept_until)
+    await record_event(session, donation, "picked_up", by_user_id)
+    return donation
+
+
+async def not_ready(
+    session: AsyncSession, donation: Donation, by: uuid.UUID | None, *, today: date
+) -> str:
+    """The first miss moves the pickup to the next delivery date and tells M7 again; the second
+    (or a society without another date) cancels it. Returns "rolled" or "cancelled"."""
+    after = max(donation.pickup_on, today)
+    following = await delivery_dates(session, donation.society_id, after, 1)
+    if donation.pickup_misses == 0 and following:
+        donation.pickup_misses, donation.pickup_on = 1, following[0]
+        donation.version += 1
+        await record_event(session, donation, "scheduled", by)
+        await publish_scheduled(session, donation)
+        return "rolled"
+    await cancel(session, donation, "not_ready", by)
+    return "cancelled"
+
+
+async def sweep_missed(session: AsyncSession, today: date) -> dict[str, int]:
+    """Scheduled donations due today (or before) that no stop reported count as not ready."""
+    rows = await session.execute(
+        select(Donation)
+        .where(Donation.status == "scheduled", Donation.pickup_on <= today)
+        .order_by(Donation.id)
+        .with_for_update(skip_locked=True)
+    )
+    counts = {"rolled": 0, "cancelled": 0}
+    for donation in rows.scalars().all():
+        counts[await not_ready(session, donation, None, today=today)] += 1
+    return counts
+
+
+async def pickups_for(session: AsyncSession, society_id: uuid.UUID, on: date) -> list[Donation]:
+    rows = await session.execute(
+        select(Donation)
+        .where(
+            Donation.society_id == society_id,
+            Donation.pickup_on == on,
+            Donation.status == "scheduled",
+        )
+        .order_by(Donation.id)
+    )
+    return list(rows.scalars())
 
 
 async def own(session: AsyncSession, user_id: uuid.UUID, donation_id: uuid.UUID) -> Donation:

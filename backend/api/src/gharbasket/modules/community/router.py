@@ -1,6 +1,6 @@
 """HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1),
 and captain appointments (§3.2, captain_router.py); point rates and drives (§3.4, drive_router.py),
-and donations (donation_router.py).
+and donations with their verification (donation_router.py).
 """
 
 import uuid

@@ -17,12 +17,15 @@ from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import donations
 from gharbasket.modules.community.kindness_schemas import DonationIn
 from gharbasket.modules.community.models import Donation, DonationDrive
+from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.subscriptions.models import SocietyDeliveryDay
 from gharbasket.platform.files import create_store
-from gharbasket.platform.models import OutboxEvent, Upload
+from gharbasket.platform.jobs import run_job
+from gharbasket.platform.models import AuditEntry, OutboxEvent, Upload
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, SOCIETIES
 
+from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
 from ..identity.fake_firebase import FakeGoogle
 from ..test_files import SETTINGS as STORAGE_SETTINGS
@@ -328,3 +331,224 @@ async def test_drive_progress_needs_five_households_for_customers(
     assert await seen(priya) == {"pledged": 8, "verified": 0}  # 7.5 items, half up
     rows = (await db_session.execute(select(Donation))).scalars().all()
     assert {row.estimated_points for row in rows} == {120}  # 1.5 x 40 x 2.0
+
+
+# --- the hub: verification, rejection, pickups and the sweep ------------------------------------
+
+ARJUN = "+919800001006"  # rider of the seed hub
+OTHER_HUB = uuid.UUID("0199a000-0000-7000-8000-00000000a0ff")
+
+
+async def _scheduled(
+    db: AsyncSession, phone: str, items: list[dict[str, Any]], drive: DonationDrive | None = None
+) -> Donation:
+    body = {"items": items, "pickup_on": TUE, "drive_id": drive.id if drive else None}
+    return await donations.schedule(
+        db, await _user(db, phone), DonationIn.model_validate(body), None
+    )
+
+
+async def _picked_up(db: AsyncSession, donation: Donation) -> None:
+    rider = await _user(db, ARJUN)
+    assert await community_api.record_pickup(db, donation.id, "collected", by_user_id=rider, on=TUE)
+
+
+async def _manager_of_other_hub(api: Any, google: FakeGoogle, db: AsyncSession) -> dict[str, str]:
+    signed = await sign_in(api, google, phone_number="+919800000901", sub="other-manager")
+    user = await db.get(User, uuid.UUID(signed["user"]["id"]))
+    assert user is not None
+    db.add(UserRole(user_id=user.id, role="hub_manager", scope_type="hub", scope_id=OTHER_HUB))
+    await db.commit()
+    refreshed = await api.post("/v1/auth/refresh", json={"refresh_token": signed["refresh_token"]})
+    return {**bearer(refreshed.json()["access_token"]), "X-Active-Role": f"hub_manager:{OTHER_HUB}"}
+
+
+async def test_verifying_counts_points_per_line_half_up_and_publishes_once(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    diwali = _drive("diwali")  # clothes and utensils x 2.0
+    half = _drive("half", codes=["utensils"], multiplier=Decimal("1.5"))
+    db_session.add_all([diwali, half])
+    await db_session.flush()
+    big = await _scheduled(db_session, PRIYA, [{"code": "clothes", "qty": 3}], diwali)
+    small = await _scheduled(db_session, SUNITA, [{"code": "utensils", "qty": 1}], half)
+    waiting = await _scheduled(db_session, MEENA, [{"code": "toys", "qty": 1}])
+    for donation in (big, small):
+        await _picked_up(db_session, donation)
+    await db_session.commit()
+    ids = {name: str(d.id) for name, d in (("big", big), ("small", small), ("waiting", waiting))}
+    ids |= {"household": str(big.household_id), "diwali": str(diwali.id)}
+    api = clients()
+    vikram, priya = await _as(api, google, VIKRAM), await _as(api, google, PRIYA)
+
+    def verify(name: str, counted: dict[str, Any], key: str) -> Any:
+        return api.post(
+            f"/v1/donations/{ids[name]}/verify",
+            json={"counted": counted, "has_unsuitable": True, "note": "two torn shirts"},
+            headers={**vikram, "Idempotency-Key": key},
+        )
+
+    refusals = [
+        ("big", {"clothes": 0}, "community.nothing_counted"),
+        ("big", {"clothes": 30.5}, "community.donation_qty_invalid"),  # over twice max_qty
+        ("big", {"clothes": 1.25}, "community.donation_qty_invalid"),
+        ("big", {"sofas": 1}, "community.item_code_unknown"),
+        ("waiting", {"toys": 1}, "community.donation_not_picked_up"),
+    ]
+    for n, (name, counted, code) in enumerate(refusals):
+        refused = await verify(name, counted, f"r{n}")
+        assert refused.json()["code"] == code, refused.text
+
+    # clothes 2.5 x 40 x 2.0 = 200; toys 0; books 3 x 10 = 30 (added by the hub, no multiplier)
+    verified = await verify("big", {"clothes": 2.5, "toys": 0, "books": 3}, "v1")
+    assert verified.status_code == 200, verified.text
+    out = verified.json()
+    assert (out["status"], out["points_awarded"], out["estimated_points"]) == ("verified", 230, 240)
+    assert [(i["code"], i["qty"], i["counted"], i["points"]) for i in out["items"]] == [
+        ("clothes", 3, 2.5, 200),
+        ("toys", 0, 0, 0),
+        ("books", 0, 3, 30),
+    ]
+    assert "note" not in out and "household_id" not in out
+    replay = await verify("big", {"clothes": 2.5, "toys": 0, "books": 3}, "v1")
+    assert replay.json() == out  # replayed
+    again = await verify("big", {"clothes": 2.5}, "v2")
+    assert (again.status_code, again.json()["code"], again.json()["donation_status"]) == (
+        409,
+        "community.donation_already_verified",
+        "verified",
+    )
+    # utensils 0.5 kg x 30 x 1.5 = 22.5 → 23 (half up), toys 1 x 15
+    halves = await verify("small", {"utensils": 0.5, "toys": 1}, "v3")
+    assert halves.json()["points_awarded"] == 38
+    assert [i["points"] for i in halves.json()["items"]] == [23, 15]
+
+    published = await _payloads(db_session, "community.donation_verified")
+    assert [p["points"] for p in published] == [230, 38]
+    assert published[0] == {
+        "donation_id": ids["big"],
+        "user_id": str(await _user(db_session, PRIYA)),
+        "household_id": ids["household"],
+        "hub_id": str(SEED_HUB_ID),
+        "society_id": str(SEED_SOCIETY_ID),
+        "drive_id": ids["diwali"],
+        "points": 230,
+    }
+    mine = (await api.get("/v1/donations", headers=priya)).json()["items"][0]
+    assert (mine["points_awarded"], [t["status"] for t in mine["timeline"]]) == (
+        230,
+        ["scheduled", "picked_up", "verified"],
+    )
+    progress = (await api.get("/v1/drives", headers=vikram)).json()["items"]
+    assert next(d for d in progress if d["code"] == "diwali")["progress"] == {
+        "pledged": 0,
+        "verified": 6,  # 2.5 kg + 3 books, half up
+    }
+
+
+async def test_rejected_items_earn_nothing_and_staff_see_only_their_hubs(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    s3 = FakeS3()
+    store = create_store(STORAGE_SETTINGS)
+    assert store is not None
+    store.client = s3
+    donation = await _scheduled(db_session, PRIYA, [{"code": "books", "qty": 4}])
+    donation.photo_keys = ["donation_photo/p/1.jpg"]
+    await _picked_up(db_session, donation)
+    await db_session.commit()
+    url = f"/v1/donations/{donation.id}"
+    api = clients(storage=store)
+    vikram, priya = await _as(api, google, VIKRAM), await _as(api, google, PRIYA)
+    stranger = await _manager_of_other_hub(api, google, db_session)
+
+    queue = await api.get("/v1/admin/donations?status=picked_up", headers=vikram)
+    assert queue.status_code == 200, queue.text
+    [row] = queue.json()["items"]
+    assert (row["tower"], row["flat"], row["society"]["name"]) == (
+        "A wing",
+        "A-1203",
+        "Sunrise Towers",
+    )
+    assert row["picked_up_by"] == {"name": "Arjun Pawar"} and row["picked_up_on"] == TUE.isoformat()
+    assert len(row["photo_urls"]) == 1 and queue.headers["Cache-Control"] == "no-store"
+    audits = await db_session.execute(
+        select(AuditEntry).where(AuditEntry.action == "community.donation_photo_links")
+    )
+    assert len(audits.scalars().all()) == 1
+    assert (await api.get("/v1/admin/donations", headers=stranger)).json()["items"] == []
+    elsewhere = await api.get(f"/v1/admin/donations?hub_id={SEED_HUB_ID}", headers=stranger)
+    assert (elsewhere.status_code, elsewhere.json()["code"]) == (403, "auth.forbidden")
+    customer = await api.get("/v1/admin/donations", headers=priya)
+    assert customer.status_code == 403
+    body = {"reason": "unusable", "note": "wet"}
+    outside = await api.post(
+        f"{url}/reject", json=body, headers={**stranger, "Idempotency-Key": "o"}
+    )
+    assert (outside.status_code, outside.json()["code"]) == (404, "community.donation_not_found")
+
+    rejected = await api.post(
+        f"{url}/reject", json=body, headers={**vikram, "Idempotency-Key": "j"}
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert (rejected.json()["reject_reason"], rejected.json()["points_awarded"]) == (
+        "unusable",
+        None,
+    )
+    assert await _payloads(db_session, "community.donation_rejected") == [
+        {
+            "donation_id": str(donation.id),
+            "user_id": str(donation.user_id),
+            "hub_id": str(SEED_HUB_ID),
+            "reason": "unusable",
+        }
+    ]
+    assert await _payloads(db_session, "community.donation_verified") == []
+    late = await api.post(
+        f"{url}/verify", json={"counted": {"books": 4}}, headers={**vikram, "Idempotency-Key": "v"}
+    )
+    assert late.json()["code"] == "community.donation_already_verified"
+
+
+async def test_not_ready_rolls_once_then_cancels_and_the_sweep_catches_silent_stops(
+    db_session: AsyncSession,
+) -> None:
+    rolled = await _scheduled(db_session, PRIYA, [{"code": "toys", "qty": 2}])
+    silent = await _scheduled(db_session, MEENA, [{"code": "clothes", "qty": 1}])
+    assert [
+        p.items_summary for p in await community_api.pickups_for(db_session, SEED_SOCIETY_ID, TUE)
+    ] == [
+        "toys 2",
+        "clothes 1 kg",
+    ]
+    assert await community_api.record_pickup(
+        db_session, rolled.id, "not_ready", by_user_id=None, on=TUE
+    )
+    assert (rolled.status, rolled.pickup_on, rolled.pickup_misses) == ("scheduled", NEXT_TUE, 1)
+    await db_session.commit()
+
+    settings = make_settings()
+    tuesday_night = datetime(2026, 10, 13, 17, 0, tzinfo=UTC)  # 22:30 IST
+    run = await run_job(
+        db_session, "sweep_missed_pickups", settings=settings, scheduled_for=tuesday_night
+    )
+    assert run.summary == {"rolled": 1, "cancelled": 0, "date": TUE.isoformat()}
+    await db_session.refresh(silent)
+    assert (silent.pickup_on, silent.pickup_misses) == (NEXT_TUE, 1)
+
+    next_night = datetime(2026, 10, 20, 17, 0, tzinfo=UTC)
+    run = await run_job(
+        db_session, "sweep_missed_pickups", settings=settings, scheduled_for=next_night
+    )
+    assert run.summary == {"rolled": 0, "cancelled": 2, "date": NEXT_TUE.isoformat()}
+    for donation in (rolled, silent):
+        await db_session.refresh(donation)
+        assert (donation.status, donation.cancel_reason) == ("cancelled", "not_ready")
+    scheduled = await _payloads(db_session, "community.donation_scheduled")
+    assert [p["pickup_on"] for p in scheduled] == [TUE.isoformat()] * 2 + [NEXT_TUE.isoformat()] * 2
+    cancelled = await _payloads(db_session, "community.donation_cancelled")
+    assert [p["reason"] for p in cancelled] == ["not_ready", "not_ready"]
+    # A late or redelivered report changes nothing.
+    assert not await community_api.record_pickup(
+        db_session, rolled.id, "collected", by_user_id=None, on=NEXT_TUE
+    )

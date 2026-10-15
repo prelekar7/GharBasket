@@ -404,6 +404,8 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 
 **As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
 
+**As built (verification and pickups).** The donation's status on a 409 is `donation_status` (`status` is the problem's HTTP status). `community.api.record_pickup(session, donation_id, "collected" | "not_ready", by_user_id, on)` is what M7's `pickup_completed` consumer calls for each donation; it returns false for a donation no longer scheduled, so a redelivered report changes nothing. A rolled pickup goes to the first delivery date after the later of the missed date and today, and the timeline shows `scheduled` again. `pickups_for` gives `items_summary` as text ("clothes 2.5 kg, toys 3"). M1 gains `identity.api.delivery_labels` (ADR-0026) for the queue's tower and flat; `tower` is the tower's label. Only `picked_up` donations are verified: a bag brought to the hub directly is first recorded as collected.
+
 | Mock today | Contract |
 |---|---|
 | Mobile `GET /v1/drives` → `{ id, code, starts_on, ends_on, multiplier }`, title from i18n `kindness.drives.<code>` | `Drive` adds `name`, `description`, `scope`, `codes`, `state`, `ngo`, `progress`; the app may keep its i18n key by `code` but should show `name` |

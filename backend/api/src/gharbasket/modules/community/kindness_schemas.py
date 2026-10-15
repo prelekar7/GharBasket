@@ -234,3 +234,48 @@ class DonationsOut(BaseModel):
     items: list[DonationOut]
     next_cursor: str | None
     pickup_dates: list[date] = Field(description="The next two dates this household can choose")
+
+
+class VerifyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    counted: dict[str, Decimal] = Field(
+        max_length=10,
+        examples=[{"clothes": 2.5, "toys": 0}],
+        description="What the hub found, in each rate's unit; codes not declared may be added",
+    )
+    has_unsuitable: bool = Field(default=False, description="Some items were set aside")
+    note: str | None = Field(default=None, max_length=300)
+
+
+class RejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Literal["unusable", "not_accepted", "unsafe", "other"]
+    note: str | None = Field(default=None, max_length=300)
+
+
+class StaffSociety(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class PickedUpBy(BaseModel):
+    name: str | None
+
+
+class PhotoUrl(BaseModel):
+    url: str
+    expires_at: datetime
+
+
+class StaffDonationOut(DonationOut):
+    """The verification queue's row: tower and flat match the bag's label at the hub."""
+
+    household_id: uuid.UUID
+    society: StaffSociety
+    tower: str | None = Field(examples=["A wing"])
+    flat: str | None = Field(examples=["A-1203"])
+    picked_up_by: PickedUpBy | None
+    picked_up_on: date | None
+    photo_urls: list[PhotoUrl] = Field(description="5-minute links; minting them is audit-logged")

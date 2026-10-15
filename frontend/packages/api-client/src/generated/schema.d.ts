@@ -38,6 +38,23 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's donations, oldest first: the verification queue (5-minute photo links) */
+        get: operations["hub_donations_v1_admin_donations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/drives": {
         parameters: {
             query?: never;
@@ -685,6 +702,40 @@ export interface paths {
         put?: never;
         /** Cancel a donation still waiting for pickup (Idempotency-Key) */
         post: operations["cancel_donation_v1_donations__donation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a picked-up donation; its items go to a recycler (Idempotency-Key) */
+        post: operations["reject_donation_v1_donations__donation_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record what the hub counted; points are computed and sent to M5 (Idempotency-Key) */
+        post: operations["verify_donation_v1_donations__donation_id__verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5140,6 +5191,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[StaffDonationOut] */
+        Page_StaffDonationOut_: {
+            /** Items */
+            items: components["schemas"]["StaffDonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** PantryPriorIn */
         PantryPriorIn: {
             /**
@@ -5324,6 +5382,16 @@ export interface components {
              */
             wallet_paise: number;
         };
+        /** PhotoUrl */
+        PhotoUrl: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Url */
+            url: string;
+        };
         /** PickIn */
         PickIn: {
             /**
@@ -5341,6 +5409,11 @@ export interface components {
              * Format: uuid
              */
             product_id: string;
+        };
+        /** PickedUpBy */
+        PickedUpBy: {
+            /** Name */
+            name: string | null;
         };
         /** PlanOut */
         PlanOut: {
@@ -6010,6 +6083,16 @@ export interface components {
              * @description Staff-only
              */
             note?: string | null;
+        };
+        /** RejectIn */
+        RejectIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "unusable" | "not_accepted" | "unsafe" | "other";
         };
         /** ReplacedOut */
         ReplacedOut: {
@@ -6706,6 +6789,89 @@ export interface components {
              * @constant
              */
             kind: "box";
+        };
+        /**
+         * StaffDonationOut
+         * @description The verification queue's row: tower and flat match the bag's label at the hub.
+         */
+        StaffDonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Flat
+             * @example A-1203
+             */
+            flat: string | null;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photo Urls
+             * @description 5-minute links; minting them is audit-logged
+             */
+            photo_urls: components["schemas"]["PhotoUrl"][];
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            picked_up_by: components["schemas"]["PickedUpBy"] | null;
+            /** Picked Up On */
+            picked_up_on: string | null;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            society: components["schemas"]["StaffSociety"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+            /**
+             * Tower
+             * @example A wing
+             */
+            tower: string | null;
+        };
+        /** StaffSociety */
+        StaffSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** StartIn */
         StartIn: {
@@ -7548,6 +7714,28 @@ export interface components {
             /** Items */
             items: components["schemas"]["VendorOut"][];
         };
+        /** VerifyIn */
+        VerifyIn: {
+            /**
+             * Counted
+             * @description What the hub found, in each rate's unit; codes not declared may be added
+             * @example {
+             *       "clothes": 2.5,
+             *       "toys": 0
+             *     }
+             */
+            counted: {
+                [key: string]: number | string;
+            };
+            /**
+             * Has Unsuitable
+             * @description Some items were set aside
+             * @default false
+             */
+            has_unsuitable: boolean;
+            /** Note */
+            note?: string | null;
+        };
         /** WalletOut */
         WalletOut: {
             /**
@@ -7831,6 +8019,64 @@ export interface operations {
                 };
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_donations_v1_admin_donations_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+                /** @description e.g. picked_up */
+                status?: ("scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StaffDonationOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10784,6 +11030,174 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_donation_v1_donations__donation_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    verify_donation_v1_donations__donation_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.donation_qty_invalid, community.nothing_counted, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
