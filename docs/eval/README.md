@@ -30,6 +30,11 @@ What a report holds (v0, October 2026):
   0.25 at ≤ +5 % cost) holds at a λ > 0 when both 95 % CI upper bounds are within it; no verdict
   below 5 paired seeds.
 
+`just eval-assistant` (M13) is separate: it scores Ghar Saathi on `data/eval/assistant_utterances.jsonl` per
+candidate model (intent accuracy, slot F1, no write on injection fixtures, cost a turn with cache reads
+and writes priced apart) and writes
+`assistant-<date>.json` here; it needs `ANTHROPIC_API_KEY` and costs real tokens.
+
 Synthetic data only (ADR-0008). Numbers are mean ± 95 % CI across seeds. `just eval --smoke` is the CI
 check (one seed, one week, no CP-SAT planner arm, the λ sweep on that seed's small week, under a
 minute); the committed reports come from full runs.

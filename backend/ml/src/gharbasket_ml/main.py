@@ -4,6 +4,7 @@
 Only the API calls it (through `intel_gateway.api`), with the shared service token.
 """
 
+import asyncio
 import hmac
 from typing import Annotated
 
@@ -12,11 +13,13 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, assignment, pantry, ranker, registry, routing
+from gharbasket_ml import __version__, assignment, assistant, pantry, ranker, registry, routing
 from gharbasket_ml.planner import plan_week
 from gharbasket_ml.schemas import (
     AssignRequest,
     AssignResponse,
+    AssistantTurnRequest,
+    AssistantTurnResponse,
     PantryRequest,
     PantryResponse,
     PlanRequest,
@@ -32,6 +35,14 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 class Unauthorized(Exception):
+    pass
+
+
+class AssistantUnavailable(Exception):
+    pass
+
+
+class AssistantTimeout(Exception):
     pass
 
 
@@ -70,6 +81,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             media_type="application/problem+json",
         )
 
+    @app.exception_handler(AssistantUnavailable)
+    async def assistant_unavailable(request: Request, _exc: AssistantUnavailable) -> JSONResponse:
+        return JSONResponse(
+            {
+                "type": "about:blank",
+                "title": "Assistant unavailable",
+                "status": 503,
+                "detail": "ANTHROPIC_API_KEY is not set on this service.",
+                "code": "ml.assistant_unavailable",
+                "instance": request.url.path,
+            },
+            status_code=503,
+            media_type="application/problem+json",
+        )
+
+    @app.exception_handler(AssistantTimeout)
+    async def assistant_timeout(request: Request, _exc: AssistantTimeout) -> JSONResponse:
+        return JSONResponse(
+            {
+                "type": "about:blank",
+                "title": "Assistant timed out",
+                "status": 504,
+                "detail": "The turn took longer than ASSISTANT_TURN_TIMEOUT_S.",
+                "code": "ml.assistant_timeout",
+                "instance": request.url.path,
+            },
+            status_code=504,
+            media_type="application/problem+json",
+        )
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "gharbasket-ml", "version": __version__}
@@ -102,6 +143,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def pantry_quantities(body: PantryRequest) -> PantryResponse:
         return pantry.quantities(body)
+
+    @app.post(
+        "/assistant/turn",
+        dependencies=[Depends(require_service_token)],
+        summary="One turn of Ghar Saathi with the four tools (M13 §3); intents, never changes",
+    )
+    async def assistant_turn(
+        body: AssistantTurnRequest,
+        request: Request,
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> AssistantTurnResponse:
+        if settings.anthropic_api_key is None:
+            raise AssistantUnavailable()
+        factory = getattr(request.app.state, "assistant_client", None)
+        key = settings.anthropic_api_key.get_secret_value()
+        client = (
+            factory(key)
+            if factory is not None
+            else assistant.anthropic_client(key, settings.assistant_request_timeout_s)
+        )
+        try:
+            async with asyncio.timeout(settings.assistant_turn_timeout_s):
+                return await assistant.turn(body, client, settings.assistant_model)
+        except TimeoutError as exc:
+            raise AssistantTimeout() from exc
 
     @app.post(
         "/basket/rank",

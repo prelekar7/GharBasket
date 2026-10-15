@@ -85,6 +85,11 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
+    # solver call (the service gives up after its own ASSISTANT_TURN_TIMEOUT_S, 25 s, first).
+    # Tokens (uncached in + out) a user may spend a day.
+    assistant_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    assistant_daily_tokens: int = Field(default=60_000, gt=0)
     # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
     # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
     ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)

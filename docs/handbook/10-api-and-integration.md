@@ -139,6 +139,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
+| Every 10 min | `expire_proposals` (cron-job.org) | assistant |
 
 ## 10.5 Key endpoints per module (v1)
 
@@ -157,7 +158,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M10 intel (ml, internal) | `/plan/week`, `/basket/rank`, `/substitutes`, `/forecast/run`, `/route/solve`, `/assign/kitchens`, `/slots/price`; admin `/models`, `/health/ai` |
 | M11 notify | `/notifications` (inbox, `read`, `read-all`), `/notifications/preferences`; push token via M1 `PUT /me/push-token` |
 | M12 analytics | `/analytics/*` (KPIs, unit economics, impact) |
-| M13 assistant | `/assistant/messages` (SSE stream), `/assistant/confirm/{proposal}` |
+| M13 assistant | `/assistant/messages` (JSON in v0; SSE later), `/assistant/sessions/{id}`, `/assistant/confirm/{proposal}`, `/assistant/proposals/{id}/reject` |
 
 ## 10.6 External integrations
 
