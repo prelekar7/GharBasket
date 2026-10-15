@@ -7,10 +7,12 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import packing, service
-from gharbasket.modules.hub_ops.models import Hub
+from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
+from gharbasket.modules.orders import api as orders_api
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,7 @@ class HubRef:
     lat: float
     lng: float
     timings: dict[str, str]  # receiving, packing, dispatch, surplus as IST "HH:MM"
+    pre_live_box_fee_paise: int  # per box while the society is not live (M9 §3.6; M4 box_fee)
 
 
 async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
@@ -36,6 +39,7 @@ async def get_hub(session: AsyncSession, hub_id: uuid.UUID) -> HubRef | None:
         lat=hub.lat,
         lng=hub.lng,
         timings=dict(hub.timings),
+        pre_live_box_fee_paise=hub.pre_live_box_fee_paise,
     )
 
 
@@ -75,3 +79,30 @@ async def bag_for_order(session: AsyncSession, order_id: uuid.UUID) -> BagRef | 
     if task is None:
         return None
     return BagRef(packing.bag_qr(task.order_id), task.bags, task.crate_no, task.status)
+
+
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5): packing tasks keep the bag and lose the flat copied from the
+    address; tasks and events the user worked on as a packer lose the user id."""
+    orders = (
+        []
+        if household_id is None
+        else await orders_api.order_ids_of_household(session, household_id)
+    )
+    flats = await session.execute(
+        update(PackingTask)
+        .where(PackingTask.order_id.in_(orders), PackingTask.flat.is_not(None))
+        .values(tower_id=None, flat=None)
+    )
+    packed = await session.execute(
+        update(PackingTask).where(PackingTask.packer_user_id == user_id).values(packer_user_id=None)
+    )
+    acted = await session.execute(
+        update(PackingEvent).where(PackingEvent.user_id == user_id).values(user_id=None)
+    )
+    return {
+        "packing_tasks": flats.rowcount + packed.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+        "packing_events": acted.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+    }

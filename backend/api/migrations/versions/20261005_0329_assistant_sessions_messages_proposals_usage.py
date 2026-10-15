@@ -1,7 +1,7 @@
 """assistant sessions messages proposals usage
 
 Revision ID: c75d9df60d08
-Revises: c9ae5e2949ab
+Revises: 0874299d92b5
 Create Date: 2026-10-05 03:29:06.618034+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "c75d9df60d08"
-down_revision: str | Sequence[str] | None = "c9ae5e2949ab"
+down_revision: str | Sequence[str] | None = "0874299d92b5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -19,13 +19,22 @@ from gharbasket.platform.models import OutboxEvent
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..subscriptions.test_cycles import GENERATE_AT, NOW, PRIYA, VIKRAM, as_user, subscribe
+from ..subscriptions.test_cycles import (
+    GENERATE_AT,
+    NOTICE_AT,
+    NOW,
+    PRIYA,
+    VIKRAM,
+    as_user,
+    subscribe,
+)
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("delivery")]
 
 ML_URL = "http://ml.test"
 ML_TOKEN = "ml-token"
 WEEK_TWO_AT = "2026-10-17T12:30:00Z"  # Sat 18:00 IST → delivery Tue 20 Oct
+WEEK_TWO_NOTICE_AT = "2026-10-17T13:00:00Z"  # Sat 18:30 IST: that box goes out for approval
 
 
 def key() -> dict[str, str]:
@@ -64,9 +73,13 @@ class FakeML:
         }
 
 
-async def generate(api: httpx2.AsyncClient, at: str = GENERATE_AT) -> None:
-    answer = await api.post("/v1/internal/jobs/generate_weekly_plans", json={"scheduled_for": at})
-    assert answer.status_code == 200, answer.text
+async def generate(
+    api: httpx2.AsyncClient, at: str = GENERATE_AT, notice_at: str = NOTICE_AT
+) -> None:
+    """The week as the customer first sees it: drafted at 18:00, shown at 18:30 IST (M3)."""
+    for name, when in (("generate_weekly_plans", at), ("send_box_ready_notices", notice_at)):
+        answer = await api.post(f"/v1/internal/jobs/{name}", json={"scheduled_for": when})
+        assert answer.status_code == 200, answer.text
 
 
 async def ready_api(
@@ -267,7 +280,7 @@ async def test_agle_hafte_skip_skips_next_week_not_this_one(
     assert early["proposals"] == []
     assert "hasn't been planned yet" in early["reply"]["content"]
 
-    await generate(api, WEEK_TWO_AT)
+    await generate(api, WEEK_TWO_AT, WEEK_TWO_NOTICE_AT)
     turn = await say(api, priya, "agle hafte skip kar do, hum Pune ja rahe hain", lang="hi")
     card = turn["proposals"][0]
     assert card["payload"]["week"] == "next" and card["payload"]["delivery_date"] == "2026-10-20"

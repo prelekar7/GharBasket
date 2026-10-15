@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 import httpx2
 import structlog
-from sqlalchemy import ColumnElement, and_, func, not_, select
+from sqlalchemy import ColumnElement, and_, delete, func, not_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1595,3 +1595,45 @@ async def record_feedback(
             row.at = now()
     await session.flush()
     return len(items)
+
+
+async def end_for_deletion(session: AsyncSession, household_id: uuid.UUID) -> None:
+    """The owner asked to delete the account (M1 §3.5): the subscription ends, every week still
+    before its cut-off is skipped (its order cancelled), and so is a `payment_failed` week. Paid
+    weeks are delivered as normal. No `box_skipped` is published: nobody is told."""
+    subscription = await subscription_of(session, household_id)
+    if subscription is not None:
+        subscription.status = "ended"
+    cycles = await session.scalars(
+        select(WeeklyCycle)
+        .where(
+            WeeklyCycle.household_id == household_id,
+            WeeklyCycle.status.in_(("draft", *EDITABLE, "payment_failed")),
+        )
+        .with_for_update()
+    )
+    for cycle in cycles.all():
+        if cycle.status != "payment_failed" and now() >= cycle.cutoff_at:
+            continue  # the cut-off job takes it from here
+        await orders_api.cancel_from_cycle(session, cycle.id)
+        cycle.status = "skipped"
+        cycle.version += 1
+    await session.flush()
+
+
+async def delete_for_user(session: AsyncSession, household_id: uuid.UUID) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 7): the subscription, cycles with their lines and meal plans,
+    Budget Locks and both feedback tables. Forecasting learns from orders, which M4 keeps."""
+    cycles = select(WeeklyCycle.id).where(WeeklyCycle.household_id == household_id)
+    counts = {}
+    for model, which in (
+        (EditFeedback, EditFeedback.cycle_id.in_(cycles)),
+        (PantryFeedback, PantryFeedback.household_id == household_id),
+        (BoxLine, BoxLine.cycle_id.in_(cycles)),
+        (WeeklyCycle, WeeklyCycle.household_id == household_id),
+        (BudgetLock, BudgetLock.household_id == household_id),
+        (Subscription, Subscription.household_id == household_id),
+    ):
+        gone = await session.execute(delete(model).where(which))
+        counts[model.__tablename__] = gone.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+    return counts

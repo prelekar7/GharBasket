@@ -13,6 +13,7 @@ resolution-markers = [
 [manifest]
 members = [
     "gharbasket-api",
+    "gharbasket-e2e",
     "gharbasket-ml",
     "gharbasket-sim",
     "gharbasket-training",
@@ -682,6 +683,25 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.2" },
     { name = "structlog", specifier = ">=26.1.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+]
+
+[[package]]
+name = "gharbasket-e2e"
+version = "0.1.0"
+source = { virtual = "e2e/backend" }
+dependencies = [
+    { name = "gharbasket-api" },
+    { name = "gharbasket-ml" },
+    { name = "gharbasket-sim" },
+    { name = "time-machine" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gharbasket-api", editable = "backend/api" },
+    { name = "gharbasket-ml", editable = "backend/ml" },
+    { name = "gharbasket-sim", editable = "data/simulator" },
+    { name = "time-machine", specifier = ">=3.5.1" },
 ]
 
 [[package]]

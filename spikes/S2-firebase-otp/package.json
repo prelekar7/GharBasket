@@ -1,0 +1,22 @@
+{
+  "name": "spike-s2-firebase-otp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "env:pull": "infisical export --env=staging --path=/ --format=json --silent | node pull-env.js > .env.local",
+    "dev": "vite --host",
+    "build": "vite build",
+    "android": "vite build && cap sync android && cap run android"
+  },
+  "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
+    "@capacitor-firebase/authentication": "8.5.2",
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "firebase": "12.19.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "vite": "8.3.2"
+  }
+}
