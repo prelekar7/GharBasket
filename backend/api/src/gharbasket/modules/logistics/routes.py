@@ -18,7 +18,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import plans
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.schemas import RoutePatch
-from gharbasket.modules.logistics.service import CARRIES, check_version
+from gharbasket.modules.logistics.service import CARRIES, check_version, vehicle_not_found
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.permissions import Permit
@@ -122,12 +122,9 @@ async def edit(
 
 async def _check_vehicle(session: AsyncSession, route: Route, vehicle_id: uuid.UUID) -> None:
     vehicle = await session.get(Vehicle, vehicle_id)
-    if (
-        vehicle is None
-        or vehicle.hub_id != route.hub_id
-        or not vehicle.active
-        or vehicle.kind != VEHICLE_FOR[route.kind]
-    ):
+    if vehicle is None or vehicle.hub_id != route.hub_id:
+        raise vehicle_not_found()
+    if not vehicle.active or vehicle.kind != VEHICLE_FOR[route.kind]:
         raise ProblemError(
             422,
             "request.invalid",
