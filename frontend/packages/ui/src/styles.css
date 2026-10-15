@@ -20,3 +20,19 @@
   }
 }
 /* Reduced motion: components add `motion-reduce:` variants (see Button) instead of a global override. */
+
+/* Display type (FDD §3): Fraunces with its SOFT axis full on. Fraunces has no Devanagari, so
+   Hindi and Marathi screen titles switch to Mukta Bold with a taller line (design review, 2 Oct).
+   Unlayered on purpose, so these win over the h1's size utilities. */
+.font-display {
+  font-variation-settings: "SOFT" 100;
+}
+h1.font-display {
+  text-wrap: balance;
+}
+:lang(hi) h1.font-display,
+:lang(mr) h1.font-display {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  line-height: 38px;
+}

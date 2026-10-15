@@ -92,7 +92,8 @@ RoutePlan : {
   "id", "hub_id", "delivery_date", "kind": "box" | "tiffin",
   "status": "queued" | "solving" | "solved" | "published" | "failed" | "superseded",
   "trigger": "job" | "manual",
-  "source": "ml" | "fallback_previous" | "fallback_nearest" | null,   null until solved
+  "source": "ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest" | null,   null until
+                                   solved; ml_fallback: M10 answered with its own nearest neighbour
   "distance_source": "osrm" | "haversine" | null,  how the distances were priced
   "model": "cvrptw-waves-v0" | null,
   "summary": { "stops": 18, "orders": 212, "vehicles": 4, "routes": 6, "km": 61.2,
@@ -104,8 +105,10 @@ RoutePlan : {
 
 POST /v1/hubs/{id}/route-plans        hub_manager; Idempotency-Key
   request : { "date": "2026-12-29", "kind": "box" }    date: today or tomorrow
-  202 : RoutePlan (status queued)      the solve runs as an outbox consumer (ADR-0021), so the
-                                       request returns at once; poll GET /v1/route-plans/{id}
+  202 : RoutePlan (status queued)      the API solves it in a background task right after the
+                                       request (no worker, ADR-0021; an outbox consumer may not
+                                       call the ML service); poll GET /v1/route-plans/{id}. A
+                                       plan queued or solving for 10 min is failed (abandoned)
 GET  /v1/hubs/{id}/route-plans?date=&kind=   200 { "items": [ RoutePlan without routes ] } newest first
 GET  /v1/route-plans/{id}                    200 RoutePlan | 404 "logistics.plan_not_found"
 POST /v1/route-plans/{id}/publish     hub_manager; Idempotency-Key
@@ -115,7 +118,7 @@ POST /v1/route-plans/{id}/publish     hub_manager; Idempotency-Key
 ```
 
 **What a solve sends** (M7 builds `intel_gateway.api.solve_routes`' `RouteRequest`, M10 §3.4):
-- **Orders:** `orders.api.orders_for_delivery(hub, date, statuses=("locked", "packed"), kinds=("box", "addon"))`, plus the redeliveries M7 has scheduled for that date (§3.4). At 23:15 the set is fixed: the cut-off was at 21:00 and `payment_grace_expiry` at 23:00.
+- **Orders:** `orders.api.orders_for_delivery(hub, date, statuses=("locked", "picking", "packed"), kinds=("box", "addon"))`, plus the redeliveries M7 has scheduled for that date (§3.4). At 23:15 the set is fixed: the cut-off was at 21:00 and `payment_grace_expiry` at 23:00.
 - **Stops:** one per (society, slot) with orders, `id = "<society_id>/<slot_id>"`; location from `community.api.society_points` (the gate, else a point inside the boundary; a society without either is left out and named in `problems`, so the plan cannot auto-publish); window = the slot's start and end (M4 `slot_ref`); `orders` and bags = the number of orders (one bag per order, M6); `crates = ceil(bags / 3)` (M6's three bags to a crate; the actual counts come from `hub_ops.api.society_loads` at route start); `kg_tenths` from the order lines through `catalog.api.grams_of` (0.5 kg a step when a product has no weight); `empties` = crates handed over at that society on its last delivery and not yet collected (0 until §3.6); `donation_kg_tenths` = 0 until §3.6.
 - **Vans:** the fleet above; `depart_s` = the hub's `timings.dispatch` (06:30, M6 §3.1); `return_by_s` = the latest window end + 90 min; `time_limit_s` 20 (two waves of 10 s); service, cost and lateness at the M10 defaults.
 - **Mapping the answer:** each element of `routes[]` is a trip; van index *i* is the *i*-th vehicle by label; trips of one van are numbered by start time. ETAs are `eta_s` as IST clock times. The route's rider is the vehicle's `default_rider` (or null). The whole answer is kept in `intel.predictions` by the gateway and its summary on the plan.
@@ -124,12 +127,12 @@ POST /v1/route-plans/{id}/publish     hub_manager; Idempotency-Key
 1. **`fallback_previous`:** the stop order of the hub's last published plan of the same kind in the past 7 days; societies that were not in it are inserted at their nearest neighbour; trips are filled in that order up to the vehicle's kg and crate capacity, early-window stops first.
 2. **`fallback_nearest`:** with no previous plan, nearest neighbour from the hub by haversine distance × 1.3, early-window stops first, filling each vehicle to capacity.
 
-ETAs then come from haversine × 1.3 at 22 km/h × the traffic factor (1.5), with the same service times. M7 runs its own structural check on every plan, from the ML service or not: every stop on exactly one route, kg and crates within capacity leaving the hub, no more routes per vehicle than two, and every route back by `return_by_s`; its findings join `summary.problems`. A solve that fails before any plan exists (no active vehicle, no orders with a location) ends `failed` with `error`.
+ETAs then come from haversine × 1.3 at 22 km/h × the traffic factor (1.5), with the same service times. M7 runs its own structural check on every plan, from the ML service or not: every stop on exactly one route, kg and crates within capacity leaving the hub, no more routes per vehicle than two, no route leaving before `depart_s` or before its vehicle's previous trip is back and reloaded, and every route back by `return_by_s`; a stop id in the ML answer that is not one of the plan's is named too. Its findings join `summary.problems`. A request M10 would refuse (more than 400 stops or 60 vans) is not sent: M7 plans it alone. A solve that fails before any plan exists (no active vehicle, no orders with a location) ends `failed` with `error`.
 
 **Rules**
 - **One plan in flight.** A second solve for the same hub, date and kind while one is `queued` or `solving` → 409 `logistics.solve_running`. A plan with no orders is `solved` with no routes (and auto-publishes; nothing is sent to M10).
 - **Auto-publish.** A plan from the `solve_routes` job is published at once when `summary.problems` is empty; otherwise it stays `solved` and M7 publishes `logistics.plan_needs_review` (M11 tells the hub managers). A manual solve is never auto-published.
-- **Publish** needs `summary.problems` empty, or `accept_problems: true` (recorded in `platform.audit_log` with the problems), else 409 `logistics.plan_has_problems`. A plan that leaves an order's stop off every route can never be published: 409 `logistics.plan_incomplete` with `stop_ids`. Publishing a plan with a vehicle that has no rider is allowed; the hub manager sets riders with `PATCH /v1/routes/{id}`.
+- **Publish** needs `summary.problems` empty, or `accept_problems: true` (recorded in `platform.audit_log` with the problems), else 409 `logistics.plan_has_problems`. A plan that leaves an order's stop off every route, or puts one on two routes, can never be published: 409 `logistics.plan_incomplete` with `stop_ids`. Publishing supersedes the date's other `solved` plans too. Publishing a plan with a vehicle that has no rider is allowed; the hub manager sets riders with `PATCH /v1/routes/{id}`.
 - **Re-solve** (a new manual plan, then publish) replaces the published plan only while none of its routes has started; afterwards 409 `logistics.routes_started`. The old plan's routes become `cancelled` (`logistics.route_cancelled`), so riders and M6's packing sequence follow the new one (M6 re-sequences queued tasks on `logistics.route_published`).
 - Each published route publishes `logistics.route_published`; its stops tell M6 the loading order and M11 whom to tell (§5).
 
@@ -143,7 +146,8 @@ RouteSummary : { "id", "plan_id", "hub_id", "delivery_date", "kind": "box" | "ti
   "vehicle": { "id", "label", "kind" },
   "rider": { "user_id", "name" } | null,          null until a rider is set
   "depart": "06:30", "return_by": "11:30",        IST
-  "stops_total": 6, "stops_done": 2, "crates": 18, "bags": 52, "km": 14.8,
+  "stops_total": 6, "stops_done": 2, "crates": 18, "bags": 52, "km": 14.8,   km: an estimate
+                                                  (straight line x 1.3 along the stops)
   "started_at": "…" | null, "completed_at": "…" | null, "version": 3 }
 
 Stop : { "id", "seq": 1, "kind": "drop" | "bank" | "kitchen",
@@ -164,7 +168,7 @@ Stop : { "id", "seq": 1, "kind": "drop" | "bank" | "kitchen",
   "navigate_url": "https://www.google.com/maps/dir/?api=1&destination=19.03,73.03",
   "arrived_at": "…" | null, "handed_over_at": "…" | null }
 
-RouteDetail : RouteSummary & { "stops": [ Stop ], "source": "ml" | "fallback_previous" | "fallback_nearest",
+RouteDetail : RouteSummary & { "stops": [ Stop ], "source": "ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest",
                                "left_behind": [ "<order_id>" ] }   orders not packed at start
 
 GET   /v1/hubs/{id}/routes?date=&kind=&status=   200 { "items": [ RouteSummary ] }  by depart, label
@@ -417,14 +421,14 @@ Foreign keys stay inside `logistics`; hub, order, society, slot and user ids are
 - `logistics.pickup_completed` (§3.6) — M9, M6.
 - Order events (`orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed` with `reason`, `billing.refund_issued`) are published by M4 and M5 when M7 calls their facades.
 
-**Consumed:** `logistics.solve_requested` (its own: runs a solve outside the request), `community.donation_scheduled` (§3.6, P5).
+**Consumed:** `community.donation_scheduled` (§3.6, P5).
 
 **For M11's event map** (added when M7 lands; categories and push rules are M11's): `logistics.route_published` (rider, captain), `logistics.route_cancelled` (rider), `logistics.plan_needs_review` (hub managers), `logistics.stop_arrived` (captain), `logistics.delivery_held` (customer, category `delivery`, link `/orders`), `logistics.redelivery_scheduled` (customer, `delivery`, `/orders`). Not mapped: `handover_completed`, `route_completed`, `pickup_completed`.
 
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |
 |---|---|---|
-| `solve_routes` | T-1 23:15 (cron-job.org → `POST /v1/internal/jobs/solve_routes`) | Every active hub: queues a `box` plan for T (`logistics.solve_requested`); auto-publish rule in §3.2. Re-solves on demand through `POST /v1/hubs/{id}/route-plans` (the old T 07:00 solve) |
+| `solve_routes` | T-1 23:15 (cron-job.org → `POST /v1/internal/jobs/solve_routes`) | Every active hub: solves a `box` plan for T (each hub in its own savepoint), and any manual plan still queued; auto-publish rule in §3.2. Re-solves on demand through `POST /v1/hubs/{id}/route-plans` (the old T 07:00 solve) |
 | `persist_gps_pings` | Every minute (cron-job.org) | Valkey stream → `logistics.gps_pings`; idempotent on (rider, at) |
 | `hold_expiry` | T 20:30 (cron-job.org) | Still `at_society` → `undelivered` (actor `system`): `not_home` for held bags, `not_confirmed` for the rest (§3.4) |
 | `schedule_redeliveries` | T 20:45 (cron-job.org) | First miss → `redelivery` for T+1; second miss → perishables `refunded` minus the fee, non-perishables carried to the next delivery (§3.4) |
@@ -438,6 +442,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 |---|---|
 | `vehicles:read` · `vehicles:write` | hub_manager, franchise_owner (hub), admin · hub_manager (hub), admin |
 | `routes:read` | hub_manager, franchise_owner, packer (hub), admin; rider (own routes) |
+| `route_plans:read` | hub_manager, franchise_owner (hub), admin: route plans (packers see routes, not plans) |
 | `routes:write` | hub_manager (hub): solve, publish, edit routes and stops, start or complete for a rider |
 | `routes:execute` | rider (own route): start, arrive, skip, complete, location, pickups |
 | `routes:live` | rider (own), hub_manager (hub), captain (her society's stop), customer (own order, until handover) |

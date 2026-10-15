@@ -25,7 +25,7 @@ from typing import Annotated, Any, Literal
 import structlog
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.platform import rate_limit
@@ -62,6 +62,8 @@ PURPOSES = {
     "order_issue_photo": Purpose(_IMAGES, 5 * MB),
     "donation_photo": Purpose(_IMAGES, 5 * MB),
     "kyc_document": Purpose(("image/jpeg", "image/png", "application/pdf"), 10 * MB),
+    "delivery_photo": Purpose(("image/jpeg", "image/webp"), 5 * MB),  # M7 proof
+    "handoff_photo": Purpose(_IMAGES, 5 * MB),  # M9 NGO hand-off
 }  # data_export is written by the server (M1), never presigned
 
 
@@ -252,6 +254,21 @@ async def set_delete_after(session: AsyncSession, key: str, at: datetime | None)
     return True
 
 
+async def expire_for_user(session: AsyncSession, user_id: uuid.UUID, at: datetime) -> int:
+    """Make every upload of `user_id` (keys `*/<user_id>/…`) due at `at`, so the next
+    sweep_uploads deletes the objects and their rows: a purged account (M1 §3.5)."""
+    expired = await session.execute(
+        update(Upload)
+        .where(Upload.user_id == user_id)
+        .values(
+            claimed_by=func.coalesce(Upload.claimed_by, "platform"),
+            claimed_at=func.coalesce(Upload.claimed_at, at),
+            delete_after=at,
+        )
+    )
+    return expired.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+
+
 async def sweep(
     session: AsyncSession, store: ObjectStore, *, now: datetime, batch: int = 500
 ) -> dict[str, int]:
@@ -290,7 +307,10 @@ def _problem(description: str) -> dict[str, Any]:
 
 class PresignIn(BaseModel):
     purpose: str = Field(
-        max_length=40, description="order_issue_photo, donation_photo or kyc_document"
+        max_length=40,
+        description=(
+            "order_issue_photo, donation_photo, kyc_document, delivery_photo or handoff_photo"
+        ),
     )
     content_type: str = Field(max_length=100, examples=["image/jpeg"])
     size_bytes: int = Field(description="The exact size of the file to upload", examples=[834221])
