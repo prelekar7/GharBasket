@@ -20,7 +20,9 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 STATUSES = "scheduled on_route with_captain held delivered undelivered redelivery refunded triage"
-REASONS = "not_home refused wrong_address damaged missing other returned_to_hub not_confirmed"
+REASONS = (
+    "not_home refused wrong_address damaged missing other returned_to_hub not_confirmed left_behind"
+)
 
 
 def _in(column: str, values: str) -> str:

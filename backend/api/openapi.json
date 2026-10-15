@@ -6667,6 +6667,7 @@
             "type": "integer"
           },
           "at": {
+            "description": "With a time zone",
             "examples": [
               "2026-12-29T01:41:15Z"
             ],
@@ -12495,7 +12496,8 @@
                   "missing",
                   "other",
                   "returned_to_hub",
-                  "not_confirmed"
+                  "not_confirmed",
+                  "left_behind"
                 ],
                 "type": "string"
               },
@@ -25642,7 +25644,7 @@
                 }
               }
             },
-            "description": "logistics.route_not_found"
+            "description": "logistics.route_not_found, logistics.vehicle_not_found"
           },
           "409": {
             "content": {

@@ -21,7 +21,6 @@ from gharbasket.modules.logistics.handover import (
     Actor,
     CodeInvalid,
     ensure_captain,
-    photo_ok,
 )
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
@@ -47,10 +46,12 @@ async def door_actor(
 ) -> tuple[Delivery, orders_api.Order, Actor]:
     """The order's current attempt and who acts at its door: a hub manager of its hub, the rider
     of its rider-mode stop while the route runs, or its society's active captain."""
-    delivery = await latest(session, order_id, for_update=True)
-    if delivery is None:
+    if await latest(session, order_id) is None:
         raise delivery_not_found()
+    # One lock order everywhere: the order, then its attempt.
     order = await orders_api.get(session, order_id, for_update=True)
+    delivery = await latest(session, order_id, for_update=True)
+    assert delivery is not None
     who = caller(permit, order.hub_id)
     user_id = permit.principal.user_id
     if who.manager:
@@ -71,7 +72,9 @@ def _ensure_open(delivery: Delivery, order: orders_api.Order) -> None:
         raise conflict("logistics.delivery_closed", f"This delivery is {order.status}.")
 
 
-def check_proof(delivery: Delivery, order: orders_api.Order, actor: Actor, body: ProofIn) -> None:
+def check_proof(
+    delivery: Delivery, order: orders_api.Order, actor: Actor, body: ProofIn, photo_valid: bool
+) -> None:
     """The bag is this order's and the proof fits the deliverer; a wrong code is counted (the
     caller commits the count before answering)."""
     _ensure_open(delivery, order)
@@ -84,7 +87,7 @@ def check_proof(delivery: Delivery, order: orders_api.Order, actor: Actor, body:
             )
         return
     if body.proof == "photo":
-        if body.photo_key is None or not photo_ok(body.photo_key, actor.user_id):
+        if not photo_valid:
             raise ProblemError(
                 422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
             )
