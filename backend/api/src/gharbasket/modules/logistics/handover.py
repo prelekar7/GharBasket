@@ -292,8 +292,9 @@ async def flats(
     society_id: uuid.UUID,
     slot_id: uuid.UUID | None = None,
 ) -> list[CaptainFlat]:
-    """The society's box and add-on orders of the day (one stop's when `slot_id` is given), by
-    tower and flat, with tower and flat labels only."""
+    """The society's box and add-on orders of the day (one stop's when `slot_id` is given), and
+    the redeliveries booked on the day (`redelivery: true`), by tower and flat, with tower and
+    flat labels only."""
     found = await orders_api.orders_for_delivery(
         session, hub_id, day, tuple(FLAT_STATUS), kinds=KINDS
     )
@@ -302,6 +303,9 @@ async def flats(
         for s in found
         if s.order.society_id == society_id and (slot_id is None or s.order.slot_id == slot_id)
     ]
+    again = await attempts.redeliveries_on(session, society_id, day, slot_id)
+    orders += [await orders_api.get(session, a.order_id) for a in again]
+    redelivered = {a.order_id for a in again}
     labels = await identity_api.delivery_labels(session, [o.household_id for o in orders])
     tries = {o.id: await attempts.latest(session, o.id) for o in orders}
     society = (await community_api.society_labels(session, [society_id])).get(society_id)
@@ -318,8 +322,10 @@ async def flats(
                     flat_label=f"{tower}, {label.flat}" if label else None,
                     kind=order.kind,  # pyright: ignore[reportArgumentType]
                     bags=1,
-                    redelivery=False,
-                    status=_flat_status(order.status, tries[order.id]),
+                    redelivery=order.id in redelivered,
+                    status="on_the_way"
+                    if order.status == "redelivery"
+                    else _flat_status(order.status, tries[order.id]),
                     hold_until=_hold(tries[order.id]),
                 ),
             )

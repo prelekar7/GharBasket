@@ -109,3 +109,15 @@ async def riding(session: AsyncSession, stop_ids: list[uuid.UUID]) -> list[Deliv
         select(Delivery).where(Delivery.stop_id.in_(stop_ids), Delivery.attempt == 2)
     )
     return list(rows.scalars())
+
+
+async def redeliveries_on(
+    session: AsyncSession, society_id: uuid.UUID, day: date, slot_id: uuid.UUID | None = None
+) -> list[Delivery]:
+    """A society's redeliveries (attempt 2) booked on `day`, one slot's when given."""
+    stmt = select(Delivery).where(
+        Delivery.society_id == society_id, Delivery.delivery_date == day, Delivery.attempt == 2
+    )
+    if slot_id is not None:
+        stmt = stmt.where(Delivery.slot_id == slot_id)
+    return list((await session.execute(stmt.order_by(Delivery.id))).scalars())

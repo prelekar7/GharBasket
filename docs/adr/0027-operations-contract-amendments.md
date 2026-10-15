@@ -93,6 +93,7 @@ These rows extend ADR-0026 §2's table (box and add-on orders unless stated):
 
 ## As built (M7 PRs, October 2026)
 - **A hub manager tapping for a rider.** When a hub manager starts or completes a route for its rider, M7 moves the orders with actor `rider` and the route's rider's user id, so the rider's per-order pay (M8 §3.6) is unchanged; the manager is recorded on M7's field event. A route with no rider moves its orders as `hub`.
+- **A box missed twice, until `carry_over` exists.** M7 refunds the perishable lines minus the ₹20 fee (never below 0) and the non-perishable lines in full without the fee, and records the non-perishable lines on its field event, so no paid goods are left without an ending. When M4's `carry_over` lands, the non-perishables go back to being carried over as decided in §2.
 
 ## Related
 [ADR-0026](0026-operations-contract.md) · [ADR-0021](0021-jobs-without-a-broker.md) · [M2 spec](../modules/M2-catalog.md) · [M4 spec](../modules/M4-orders.md) · [M5 spec](../modules/M5-billing.md) · [M6 spec](../modules/M6-hub-ops.md) · [M7 spec](../modules/M7-logistics.md) · [M8 spec](../modules/M8-partners.md) · [M10 spec](../modules/M10-intelligence.md) · Handbook [Chapter 06](../handbook/06-domain-lifecycles.md), [Chapter 07](../handbook/07-workflows.md)
