@@ -129,6 +129,7 @@ class Order(Base):
             name="tiffin_only",
         ),
         CheckConstraint("portions IS NULL OR portions BETWEEN 1 AND 12", name="portions"),
+        CheckConstraint("kind = 'tiffin' OR kitchen_partner_id IS NULL", name="kitchen"),
         # One live order per weekly cycle: a skip cancels it, and an un-skipped week approved
         # again gets a new one (M4 §4, M3 §3.3).
         Index(
@@ -166,6 +167,9 @@ class Order(Base):
     tiffin_menu_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     preferred_partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     portions: Mapped[int | None] = mapped_column(SmallInteger)
+    # The kitchen that cooks it, set by M8 when she accepts and cleared on a cancellation
+    # (`set_kitchen`, ADR-0026 §3); null until then.
+    kitchen_partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
