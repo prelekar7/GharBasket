@@ -79,6 +79,9 @@ Hub : { "id": "<uuid>", "slug": "kharghar", "name": "Kharghar hub",
                      "dispatch": "06:30", "surplus": "12:30" },   the hub's day (IST); display and
                                                          job planning only; the cut-off is not here
         "procurement_buffer_pct": 10,                    0 to 50; the rule-based buffer (§3.3)
+        "pre_live_box_fee_paise": 3000,                  0 to 10,000; the delivery fee on each box
+                                                         while a society is not live (added
+                                                         2026-10-10, M9 §3.6 and §11)
         "version": 1, "created_at", "updated_at" }
 HubSummary : { "id", "slug", "name", "status" }
 
@@ -87,12 +90,12 @@ GET /v1/hubs                    200 { "items": [ HubSummary ] }   admin: every h
 GET /v1/hubs/{id}               200 Hub (ETag = version) | 404 "hub_ops.hub_not_found"
 POST /v1/admin/hubs             admin; Idempotency-Key
   request : { "slug", "name", "address", "location", "service_area"?, "timings"?,
-              "procurement_buffer_pct"? }       slug: lower-case letters, digits and "-", 3 to 40,
+              "procurement_buffer_pct"?, "pre_live_box_fee_paise"? }   slug: lower-case letters, digits and "-", 3 to 40,
                                                 unique, never changes; name 3 to 80; address up to 300
   201 : Hub (status active; timings default to the values above); publishes hub_ops.hub_created
 PATCH /v1/admin/hubs/{id}       admin; If-Match (the hub's version)
   request : any of { "name", "address", "location", "service_area" (null clears it), "status",
-                     "timings", "procurement_buffer_pct" }
+                     "timings", "procurement_buffer_pct", "pre_live_box_fee_paise" }
   200 : Hub (version + 1); publishes hub_ops.hub_updated { hub_id, changed: ["service_area", …] }
 
 Vendor : { "id", "hub_id", "name": "Shinde Traders",
@@ -570,7 +573,7 @@ GET /v1/hubs/{id}/waste-summary?from=&to=    at most 31 days; default the last 7
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, data_source, version, created_at, updated_at |
+| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, pre_live_box_fee_paise bigint (default 3000, 0 to 10,000), data_source, version, created_at, updated_at |
 | `hub_ops.vendors` | id, hub_id → hubs, name (unique per hub, case-insensitive), kind (apmc_trader, fpo, farmer, wholesaler), phone_e164 null, whatsapp, is_default (partial unique per hub), notes, active, version, created_at |
 | `hub_ops.packing_tasks` | id, hub_id → hubs, order_id (unique), order_kind, delivery_date, slot_id, society_id, tower_id, flat, seq, route_id null, stop_seq null, status (queued, picking, packed), packer_user_id null, bags, crate_no null, started_at, packed_at, drawn_at null (§3.4, added with the draw-down), version, created_at; index (hub_id, delivery_date, status, seq) |
 | `hub_ops.packing_lines` | task_id → packing_tasks, product_id (the ordered product), carried (bool, default false; §3.5, added with kept items), step_qty, step_unit, qty, picked_qty, short_qty, substitute_product_id null, updated_at; primary key (task_id, product_id), becoming (task_id, product_id, carried) with kept items |

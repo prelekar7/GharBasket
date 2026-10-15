@@ -1,6 +1,10 @@
 {
-  "include": ["backend", "data"],
+  "include": ["backend", "data", "e2e/backend"],
   "exclude": ["**/node_modules", "**/__pycache__", "**/.venv", "**/migrations/versions"],
+  "executionEnvironments": [
+    { "root": "e2e/backend", "extraPaths": ["e2e/backend"] },
+    { "root": "." }
+  ],
   "pythonVersion": "3.13",
   "typeCheckingMode": "standard",
   "reportMissingImports": "error",

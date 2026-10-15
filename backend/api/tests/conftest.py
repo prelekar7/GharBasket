@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
+from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import DbSession, create_engine, get_session, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
@@ -23,6 +24,8 @@ from gharbasket.platform.valkey import create_valkey
 from .commit_guard import CommitGuard
 
 API_DIR = Path(__file__).resolve().parents[1]
+# As the app and every tool do: tests relay the outbox without always building an app first.
+load_modules()
 # Local Docker defaults (`just up`); CI sets the same variables.
 LOCAL_TEST_DATABASE_URL = (
     "postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/gharbasket_test"

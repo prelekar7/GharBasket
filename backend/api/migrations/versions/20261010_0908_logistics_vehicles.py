@@ -4,7 +4,7 @@ The first table of M7: each hub's fleet, deactivated instead of deleted, with la
 hub ignoring case. Hub and rider ids are plain UUIDs without a foreign key (ADR-0026 §5).
 
 Revision ID: 46ba92e3b0c3
-Revises: 232e527f6a85
+Revises: c3d7e1a95b42
 Create Date: 2026-10-10 09:08:07.421019+00:00
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "46ba92e3b0c3"
-down_revision: str | Sequence[str] | None = "232e527f6a85"
+down_revision: str | Sequence[str] | None = "c3d7e1a95b42"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
