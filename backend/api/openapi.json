@@ -187,6 +187,42 @@
         "title": "AddressUpdate",
         "type": "object"
       },
+      "AiHealthOut": {
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelHealthOut"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "predictions": {
+            "description": "How often each kind of prediction came from the ML service or the fallback",
+            "items": {
+              "$ref": "#/components/schemas/PredictionCountOut"
+            },
+            "title": "Predictions",
+            "type": "array"
+          },
+          "window_days": {
+            "title": "Window Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "generated_at",
+          "window_days",
+          "models",
+          "predictions"
+        ],
+        "title": "AiHealthOut",
+        "type": "object"
+      },
       "BudgetLockIn": {
         "additionalProperties": false,
         "properties": {
@@ -432,6 +468,18 @@
           "name"
         ],
         "title": "CategoryRef",
+        "type": "object"
+      },
+      "ConfirmOut": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/ProposalOut"
+          }
+        },
+        "required": [
+          "proposal"
+        ],
+        "title": "ConfirmOut",
         "type": "object"
       },
       "ConsentIn": {
@@ -2292,6 +2340,85 @@
           }
         },
         "title": "HouseholdUpdate",
+        "type": "object"
+      },
+      "HubDriftOut": {
+        "properties": {
+          "backtest_wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The same hub and data source's backtest WAPE it was compared with",
+            "title": "Backtest Wape"
+          },
+          "data_source": {
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live",
+              "mixed"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "drift": {
+            "description": "A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest",
+            "title": "Drift",
+            "type": "boolean"
+          },
+          "drifted_days": {
+            "title": "Drifted Days",
+            "type": "integer"
+          },
+          "for_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest scored delivery day",
+            "title": "For Date"
+          },
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "scored_days": {
+            "title": "Scored Days",
+            "type": "integer"
+          },
+          "wape": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its realised WAPE",
+            "title": "Wape"
+          }
+        },
+        "required": [
+          "hub_id",
+          "data_source",
+          "drift",
+          "drifted_days",
+          "scored_days",
+          "for_date",
+          "wape",
+          "backtest_wape"
+        ],
+        "title": "HubDriftOut",
         "type": "object"
       },
       "HubIn": {
@@ -4371,6 +4498,176 @@
         "title": "MemberUpdate",
         "type": "object"
       },
+      "MessageIn": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Omit to start a session",
+            "title": "Session Id"
+          },
+          "text": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "MessageIn",
+        "type": "object"
+      },
+      "MessageOut": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "tool_calls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tool Calls",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "tool_calls",
+          "created_at"
+        ],
+        "title": "MessageOut",
+        "type": "object"
+      },
+      "MetricOut": {
+        "properties": {
+          "computed_at": {
+            "format": "date-time",
+            "title": "Computed At",
+            "type": "string"
+          },
+          "data_source": {
+            "enum": [
+              "synthetic",
+              "pilot",
+              "live",
+              "mixed"
+            ],
+            "title": "Data Source",
+            "type": "string"
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the row is about one hub",
+            "title": "Hub Id"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "split": {
+            "enum": [
+              "train",
+              "holdout",
+              "backtest",
+              "live"
+            ],
+            "title": "Split",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metric",
+          "value",
+          "split",
+          "data_source",
+          "version",
+          "computed_at"
+        ],
+        "title": "MetricOut",
+        "type": "object"
+      },
+      "ModelHealthOut": {
+        "properties": {
+          "drift": {
+            "description": "Any hub drifted in the window (see `hubs`)",
+            "title": "Drift",
+            "type": "boolean"
+          },
+          "hubs": {
+            "description": "monitor_drift per hub and data source over the window",
+            "items": {
+              "$ref": "#/components/schemas/HubDriftOut"
+            },
+            "title": "Hubs",
+            "type": "array"
+          },
+          "metrics": {
+            "description": "The newest value per (metric, split, data source, hub)",
+            "items": {
+              "$ref": "#/components/schemas/MetricOut"
+            },
+            "title": "Metrics",
+            "type": "array"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_name",
+          "metrics",
+          "drift"
+        ],
+        "title": "ModelHealthOut",
+        "type": "object"
+      },
       "ModelMetricIn": {
         "properties": {
           "data_source": {
@@ -6431,6 +6728,33 @@
         "title": "PlansOut",
         "type": "object"
       },
+      "PredictionCountOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "ml",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "source",
+          "count"
+        ],
+        "title": "PredictionCountOut",
+        "type": "object"
+      },
       "PreferencesIn": {
         "properties": {
           "categories": {
@@ -7131,6 +7455,69 @@
           "name"
         ],
         "title": "ProductRef",
+        "type": "object"
+      },
+      "ProposalOut": {
+        "properties": {
+          "action": {
+            "enum": [
+              "edit_box_line",
+              "skip_week"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "confirmed",
+              "rejected",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "payload",
+          "summary",
+          "status",
+          "expires_at"
+        ],
+        "title": "ProposalOut",
         "type": "object"
       },
       "PublishIn": {
@@ -8667,6 +9054,59 @@
           "items"
         ],
         "title": "SearchResults",
+        "type": "object"
+      },
+      "SessionOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locale": {
+            "title": "Locale",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOut"
+            },
+            "title": "Proposals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "locale",
+          "model",
+          "created_at",
+          "messages",
+          "proposals"
+        ],
+        "title": "SessionOut",
         "type": "object"
       },
       "ShortageIn": {
@@ -10701,6 +11141,52 @@
           "label"
         ],
         "title": "Tower",
+        "type": "object"
+      },
+      "TurnOut": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalOut"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "reply": {
+            "$ref": "#/components/schemas/MessageOut"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "source": {
+            "description": "fallback: the assistant was unreachable and a fixed reply was given",
+            "enum": [
+              "ml",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "tokens_cap": {
+            "title": "Tokens Cap",
+            "type": "integer"
+          },
+          "tokens_today": {
+            "title": "Tokens Today",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id",
+          "reply",
+          "proposals",
+          "source",
+          "tokens_today",
+          "tokens_cap"
+        ],
+        "title": "TurnOut",
         "type": "object"
       },
       "UnlockOut": {
@@ -13774,6 +14260,554 @@
         "summary": "Admin: give a user a staff role (Idempotency-Key required; audit-logged)",
         "tags": [
           "identity"
+        ]
+      }
+    },
+    "/v1/analytics/ai-health": {
+      "get": {
+        "operationId": "ai_health_v1_analytics_ai_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiHealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/v1/assistant/confirm/{proposal_id}": {
+      "post": {
+        "operationId": "confirm_proposal_v1_assistant_confirm__proposal_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.proposal_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.version_conflict (the week changed since the card)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.product_unknown, subscriptions.qty_invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Confirm a proposal: the change is made through the owning module (Idempotency-Key)",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/v1/assistant/messages": {
+      "post": {
+        "operationId": "post_message_v1_assistant_messages_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.daily_cap"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Say something to Ghar Saathi; the reply may carry proposal cards to confirm",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/v1/assistant/proposals/{proposal_id}/reject": {
+      "post": {
+        "operationId": "reject_proposal_v1_assistant_proposals__proposal_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.proposal_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.proposal_decided, assistant.proposal_expired"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Reject a proposal; nothing changes",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/v1/assistant/sessions/{session_id}": {
+      "get": {
+        "operationId": "get_session_v1_assistant_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "assistant.not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A conversation's history and its proposal cards",
+        "tags": [
+          "assistant"
         ]
       }
     },
