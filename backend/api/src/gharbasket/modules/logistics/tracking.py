@@ -31,6 +31,7 @@ from gharbasket.platform.geo import LAT_RANGE, LNG_RANGE, point
 log = structlog.get_logger("gharbasket.logistics")
 
 STREAM = "gb:pings"
+STREAM_MAXLEN = 200_000  # about two days of every rider; a stopped persist job cannot fill Valkey
 LOC_TTL_S = 15 * 60
 MAX_AGE = timedelta(minutes=10)
 MAX_AHEAD = timedelta(minutes=1)
@@ -109,7 +110,12 @@ async def _to_valkey(
     try:
         async with valkey.pipeline(transaction=True) as pipe:
             for ping in pings:
-                pipe.xadd(STREAM, _fields(rider_id, route_id, ping))  # pyright: ignore[reportArgumentType]
+                pipe.xadd(
+                    STREAM,
+                    _fields(rider_id, route_id, ping),  # pyright: ignore[reportArgumentType]
+                    maxlen=STREAM_MAXLEN,
+                    approximate=True,
+                )
             pipe.set(loc_key(route_id), json.dumps(position), ex=LOC_TTL_S)
             pipe.publish(channel(route_id), json.dumps(position))
             await pipe.execute()
@@ -232,7 +238,9 @@ def _from_stream(fields: Any) -> dict[str, Any]:
 
 
 async def persist(session: AsyncSession, valkey: Redis | None) -> tuple[int, int]:
-    """Move the Valkey stream into `gps_pings`: (pings read, rows inserted)."""
+    """Move the Valkey stream into `gps_pings`: (pings read, rows inserted). Each batch is
+    committed before it is deleted from the stream, so a failed commit loses nothing (the next
+    run inserts it again, idempotent on rider and time)."""
     if valkey is None:
         return 0, 0
     read = inserted = 0
@@ -241,6 +249,7 @@ async def persist(session: AsyncSession, valkey: Redis | None) -> tuple[int, int
         if not entries:
             return read, inserted
         inserted += await insert_pings(session, [_from_stream(fields) for _, fields in entries])
+        await session.commit()  # the rows are safe before the stream forgets them
         await valkey.xdel(STREAM, *[entry_id for entry_id, _ in entries if entry_id is not None])
         read += len(entries)
 

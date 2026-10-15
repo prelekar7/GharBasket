@@ -181,6 +181,10 @@ async def test_close_routes_sends_the_days_open_routes_bags_back_and_purge_drops
         db_session, "close_routes", settings=make_settings(), scheduled_for=evening, valkey=valkey
     )
     assert run.summary == {"date": "2026-10-13", "closed": 1, "returned_to_hub": 4}
+    rerun = await run_job(
+        db_session, "close_routes", settings=make_settings(), scheduled_for=evening, valkey=valkey
+    )
+    assert rerun.summary == {"date": "2026-10-13", "closed": 0, "returned_to_hub": 0}
     route = await db_session.get(Route, day.route_id, populate_existing=True)
     assert route is not None and route.status == "completed"
     assert await valkey.get(tracking.loc_key(day.route_id)) is None
@@ -207,8 +211,43 @@ async def test_close_routes_sends_the_days_open_routes_bags_back_and_purge_drops
         db_session, "purge_gps_pings", settings=make_settings(), scheduled_for=evening
     )
     assert purge.summary == {"deleted": 1, "partitions_dropped": 1}
+    again = await run_job(
+        db_session, "purge_gps_pings", settings=make_settings(), scheduled_for=evening
+    )
+    assert again.summary == {"deleted": 0, "partitions_dropped": 0}
     assert await pings_in_db(db_session) == 1
     tables = await db_session.execute(
         text("SELECT tablename FROM pg_tables WHERE tablename LIKE 'gps_pings_%' ORDER BY 1")
     )
     assert list(tables.scalars()) == ["gps_pings_202610"]
+
+
+@time_machine.travel(MORNING, tick=False)
+async def test_a_failed_commit_keeps_the_pings_in_the_stream_and_naive_times_are_refused(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    valkey: Redis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = clients(valkey=valkey)
+    day, rider = await started(api, google, db_session)
+    body = {"route_id": str(day.route_id), "pings": [ping(20), ping(10)]}
+    naive = {**body, "pings": [{**ping(10), "at": "2026-10-13T00:59:50"}]}
+    assert (await api.post("/v1/riders/me/location", json=naive, headers=rider)).status_code == 422
+    assert (await api.post("/v1/riders/me/location", json=body, headers=rider)).json() == {
+        "accepted": 2,
+        "dropped": 0,
+    }
+
+    async def broken() -> None:
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(db_session, "commit", broken)
+    with pytest.raises(RuntimeError):
+        await tracking.persist(db_session, valkey)
+    monkeypatch.undo()
+    await db_session.rollback()
+    assert await valkey.xlen(tracking.STREAM) == 2  # nothing deleted before the commit
+    assert await tracking.persist(db_session, valkey) == (2, 2)
+    assert await valkey.xlen(tracking.STREAM) == 0
