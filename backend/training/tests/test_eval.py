@@ -81,6 +81,63 @@ def test_arms_are_compared_with_each_baseline_as_paired_differences() -> None:
     assert not checks["verdict"]["holds"]
 
 
+def test_v2_is_paired_with_v1_from_week_2_with_a_ci_verdict_and_guards() -> None:
+    base = dict.fromkeys(planner_ab.METRICS, 0.0)
+
+    def run(planner: str, seed: int, acceptance: float, perishables: float = 6.0) -> PlannerRun:
+        # Weeks 0-1 are identical for v1 and v2; `later` holds the weeks from FROM_WEEK on.
+        metrics = {**base, "acceptance": 0.75, "distinct_perishables": 6.0}
+        later = {**base, "acceptance": acceptance, "distinct_perishables": perishables}
+        return PlannerRun(planner, seed, 10, 4, metrics, later)
+
+    lifts = {7: 0.02, 11: 0.01, 13: 0.03, 17: 0.02, 19: 0.015}
+    runs = [
+        r for s, d in lifts.items() for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d))
+    ]
+
+    diffs = planner_ab.paired(runs)
+    assert set(diffs) == {"cpsat_v2"} and set(diffs["cpsat_v2"]) == {"cpsat"}  # no greedy here
+    later = planner_ab.paired(runs, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(runs), diffs, later)
+
+    assert checks["v2_acceptance_over_v1_all_weeks"]["value"] == 0  # diluted to nothing
+    assert checks["v2_acceptance_over_v1_all_weeks"]["holds"] is None  # reference only
+    assert abs(checks["v2_acceptance_over_v1"]["value"] - 0.019) < 1e-9
+    assert checks["v2_acceptance_over_v1"]["holds"] and checks["v2_verdict"]["holds"]
+
+    # A lift whose interval reaches below 0 does not hold; nor do more perishables than v1 + 1.
+    mixed = {7: 0.02, 11: -0.03, 13: 0.03, 17: -0.02, 19: 0.01}
+    noisy = [
+        r for s, d in mixed.items() for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d))
+    ]
+    later = planner_ab.paired(noisy, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(noisy), planner_ab.paired(noisy), later)
+    assert checks["v2_acceptance_over_v1"]["holds"] is False and not checks["v2_verdict"]["holds"]
+    wasteful = [
+        r
+        for s, d in lifts.items()
+        for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d, 7.5))
+    ]
+    later = planner_ab.paired(wasteful, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(
+        planner_ab.summarise(wasteful), planner_ab.paired(wasteful), later
+    )
+    assert not checks["v2_perishables_within_1_of_v1"]["holds"]
+    assert checks["v2_verdict"]["holds"] is False
+
+    # Fewer than five paired seeds: no verdict; a run without week 2: no verdict either.
+    three = [r for r in runs if r.seed in (7, 11, 13)]
+    later = planner_ab.paired(three, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(three), planner_ab.paired(three), later)
+    assert (
+        checks["v2_acceptance_over_v1"]["holds"] is None and checks["v2_verdict"]["holds"] is None
+    )
+    short = [PlannerRun(r.planner, r.seed, 10, 2, r.metrics) for r in runs]
+    later = planner_ab.paired(short, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(short), planner_ab.paired(short), later)
+    assert later == {} and checks["v2_verdict"]["holds"] is None
+
+
 def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Path) -> None:
     catalog = from_seed_files()
     start = date(2026, 10, 5)
