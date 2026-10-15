@@ -93,6 +93,13 @@ PUT  /v1/me/push-token    (M1)   { "push_token": "<FCM registration token>" | nu
 
 Arrive with their modules, same rules: `billing.points_credited` (kindness), `billing.refund_issued` (money), `community.donation_verified` and `community.society_live` (kindness), `logistics.route_published`, `partners.assignment_created`, `partners.verified` (partner apps). `subscriptions.cycle_generated` sends nothing: the cycle is still a draft until `box_ready`.
 
+Partner messages (added 2026-10-10 with the first two) are category `account`: always in the inbox and pushed, not a preference. They go to the event's `user_id` and open that partner kind's home in the app.
+
+| Event | Category | Link | Push | Notes |
+|---|---|---|---|---|
+| `partners.verified` | account | `/kitchen`, `/captain`, `/rider` or `/packer` | yes | One text per `kind`. A captain hears again on `captain_assigned` |
+| `community.captain_assigned` (M8 §10, M9 §3.2) | account | `/captain` | yes | To the captain; names no society or flat |
+
 **Error codes**
 
 | Status | Code | When |

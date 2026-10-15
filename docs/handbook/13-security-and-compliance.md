@@ -90,6 +90,7 @@ Details are in D24 ([ADR-0024](../adr/0024-sign-in-firebase-otp-own-tokens.md)).
 - Roles: `customer`, `captain` (society), `kitchen_partner` (hub), `rider` (hub), `packer` (hub), `hub_manager` (hub), `franchise_owner` (hub), `ngo_coordinator` (ngo), `admin` (global).
 - A permission matrix in code maps `permission → roles`. Every endpoint declares its permission: `Depends(require("orders:read", scope=hub_id))`.
 - The mobile app's role switch sends `X-Active-Role`, which narrows a request to one of the caller's roles; it never adds a role. The server re-checks the role and scope on every request.
+- Each grant counts only within its own scope, with or without `X-Active-Role`: a hub or society role covers that one hub or society, `admin` covers every scope, and `customer` covers no scope at all, only the customer's own household, orders and wallet (checked by ownership). A person who is both a customer and staff of hub A therefore cannot read hub B's orders.
 - Partner roles stay inactive until status is `verified` (KYC gate, §13.7).
 - **Defence in depth — Postgres Row-Level Security** on hub-scoped tables (`orders`, `inventory_lots`, `partners`, `routes`). The API runs `SET LOCAL app.hub_ids = '…'` per transaction, so a missed check in application code still cannot leak another franchise's data.
 

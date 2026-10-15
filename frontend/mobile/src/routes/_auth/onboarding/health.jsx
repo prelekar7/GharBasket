@@ -1,16 +1,17 @@
 import { Button, Chip, ConsentCard } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { MEMBER_GROUPS, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const TAGS = ["diabetes", "high_bp", "high_protein", "weight_loss", "low_oil"];
-/** @type {("adults" | "seniors" | "children" | "little")[]} */
-const GROUPS = ["adults", "seniors", "children", "little"];
-
-/** People in the household as "adults-1", "seniors-1"… from the Family step's counts. */
+/** Tags shown before "More" (Hf09); a chosen tag always stays visible. */
+const FIRST = 3;
+/** People in the household, keyed as in memberKeys (draft.js), with their group for the label. */
 function people(/** @type {import("@/features/onboarding/draft.js").Members} */ members) {
-  return GROUPS.flatMap((g) =>
+  return MEMBER_GROUPS.flatMap((g) =>
     Array.from({ length: members[g] }, (_, i) => ({ key: `${g}-${i + 1}`, group: g, n: i + 1 })),
   );
 }
@@ -24,9 +25,11 @@ export const Route = createFileRoute("/_auth/onboarding/health")({ component: He
 
 function Health() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
-  const go = () => navigate({ to: nextStep("/onboarding/health") });
+  const step = useStepGo("/onboarding/health");
+  const go = step.go;
+  const [open, setOpen] = useState(/** @type {string[]} */ ([]));
 
   /** @param {string} person @param {string} tag @param {boolean} on */
   const setTag = (person, tag, on) => {
@@ -41,19 +44,21 @@ function Health() {
       step={3}
       footer={
         <>
-          <Button variant="primary" size="lg" block onPress={go}>
-            {t("onboarding.next")}
+          <Button variant="primary" size="lg" block isPending={step.busy} onPress={go}>
+            {step.label}
           </Button>
-          <Button
-            variant="quiet"
-            block
-            onPress={() => {
-              updateHousehold({ healthConsent: false, health: {} });
-              go();
-            }}
-          >
-            {t("onboarding.health.skip")}
-          </Button>
+          {!step.editing && (
+            <Button
+              variant="quiet"
+              block
+              onPress={() => {
+                updateHousehold({ healthConsent: false, health: {} });
+                go();
+              }}
+            >
+              {t("onboarding.health.skip")}
+            </Button>
+          )}
         </>
       }
     >
@@ -81,7 +86,10 @@ function Health() {
               {t(`onboarding.health.person.${p.group}`, { n: p.n })}
             </span>
             <div className="flex flex-wrap gap-2">
-              {TAGS.map((tag) => (
+              {TAGS.filter(
+                (tag, i) =>
+                  i < FIRST || open.includes(p.key) || (h.health[p.key] ?? []).includes(tag),
+              ).map((tag) => (
                 <Chip
                   key={tag}
                   isSelected={(h.health[p.key] ?? []).includes(tag)}
@@ -90,6 +98,12 @@ function Health() {
                   {t(`onboarding.health.tags.${tag}`)}
                 </Chip>
               ))}
+              {!open.includes(p.key) &&
+                TAGS.some((tag, i) => i >= FIRST && !(h.health[p.key] ?? []).includes(tag)) && (
+                  <Chip isSelected={false} onChange={() => setOpen((o) => [...o, p.key])}>
+                    {t("onboarding.health.tags.more")}
+                  </Chip>
+                )}
             </div>
           </div>
         ))}

@@ -5,19 +5,21 @@
 - The cut-off job and M6/M7/M8 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
+- M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
 """
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, time
+from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
 from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
+from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     STATUSES,
     Order,
@@ -35,6 +37,8 @@ from gharbasket.modules.orders.service import (
     grace_until_for,
     orders_for_delivery,
 )
+from gharbasket.modules.orders.state import FINAL
+from gharbasket.platform import files
 
 __all__ = [
     "CANCELLED",
@@ -51,13 +55,18 @@ __all__ = [
     "OrderSummary",
     "SlotRef",
     "SoldLine",
+    "anonymise_for_user",
+    "box_fee",
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
     "get",
     "grace_until_for",
+    "has_open_issues",
+    "has_open_orders",
     "mark_shortage",
+    "order_ids_of_household",
     "orders_for_delivery",
     "resolve_issue",
     "slot_ref",
@@ -182,7 +191,7 @@ async def resolve_issue(
     note: str | None = None,
 ) -> OrderIssue:
     """The M12 console's triage of an open issue (§3.2): refund `credit_paise` to the wallet
-    (at most the issue's amount, or the order total for late/other, and never more than is left
+    (at most the issue's amount, or the food total for late/other, and never more than is left
     of what was paid for the order: `orders.issue_credit_invalid` carries `max_paise`) or reject
     it. The caller has checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit`
     is raised as is."""
@@ -253,3 +262,57 @@ async def _issues_for_export(
         }
         for issue in found
     ]
+
+
+async def has_open_orders(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether an order of the household is not final yet: M1's purge waits (M1 §3.5)."""
+    open_order = exists().where(Order.household_id == household_id, Order.status.not_in(FINAL))
+    return bool(await session.scalar(select(open_order)))
+
+
+async def has_open_issues(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether an issue of the household is still `open`: M1's purge waits (M1 §3.5)."""
+    open_issue = exists().where(
+        OrderIssue.household_id == household_id, OrderIssue.status == "open"
+    )
+    return bool(await session.scalar(select(open_issue)))
+
+
+async def order_ids_of_household(session: AsyncSession, household_id: uuid.UUID) -> list[uuid.UUID]:
+    """Every order of the household, for M6's part of M1's purge (M1 §3.5)."""
+    return list(await session.scalars(select(Order.id).where(Order.household_id == household_id)))
+
+
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 8, and §3.7 here): issue photos, notes and the hub's
+    resolution notes (they may quote the customer) go; orders, lines,
+    events and issue amounts stay (they back ledger entries), and events the user made as a
+    partner lose the user id."""
+    now = datetime.now(UTC)
+    found: list[OrderIssue] = []
+    if household_id is not None:
+        found = list(
+            await session.scalars(
+                select(OrderIssue).where(
+                    OrderIssue.household_id == household_id,
+                    or_(
+                        OrderIssue.note.is_not(None),
+                        OrderIssue.resolution_note.is_not(None),
+                        func.cardinality(OrderIssue.photo_keys) > 0,
+                    ),
+                )
+            )
+        )
+    for issue in found:
+        for key in issue.photo_keys:
+            await files.set_delete_after(session, key, now)  # sweep_uploads deletes the file
+        issue.note, issue.resolution_note, issue.photo_keys = None, None, []
+    events = await session.execute(
+        update(OrderEvent).where(OrderEvent.actor_user_id == user_id).values(actor_user_id=None)
+    )
+    return {
+        "order_issues": len(found),
+        "order_events": events.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+    }

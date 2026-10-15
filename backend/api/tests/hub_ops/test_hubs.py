@@ -71,6 +71,7 @@ async def test_an_admin_creates_a_hub_once_per_key(
         "surplus": "12:30",
     }
     assert hub["procurement_buffer_pct"] == 10
+    assert hub["pre_live_box_fee_paise"] == 3_000  # ₹30 a box before a society is live
     assert await events(db_session, "hub_ops.hub_created", hub["id"]) == [
         {"hub_id": hub["id"], "slug": "vashi", "name": "Vashi hub"}
     ]
@@ -87,6 +88,8 @@ async def test_an_admin_creates_a_hub_once_per_key(
         ({"slug": "Vashi"}, 422, "request.invalid"),
         ({"name": "  x  "}, 422, "request.invalid"),
         ({"procurement_buffer_pct": 51}, 422, "request.invalid"),
+        ({"pre_live_box_fee_paise": -1}, 422, "request.invalid"),
+        ({"pre_live_box_fee_paise": 10_001}, 422, "request.invalid"),
         ({"service_area": area([*SQUARE[:-1], [73.0, 19.071]])}, 422, "hub_ops.area_invalid"),
         ({"service_area": area(SQUARE, SQUARE)}, 422, "hub_ops.area_invalid"),
         ({"service_area": area([*SQUARE[:2], SQUARE[-1]])}, 422, "hub_ops.area_invalid"),
@@ -165,6 +168,18 @@ async def test_patching_a_hub_needs_its_version_and_reports_what_changed(
     cleared = await api.patch(url, json={"service_area": None}, headers={**admin, "If-Match": "2"})
     assert (cleared.json()["service_area"], cleared.json()["version"]) == (None, 3)
     assert len(await events(db_session, "hub_ops.hub_updated", hub["id"])) == 2
+
+    fee = await api.patch(
+        url, json={"pre_live_box_fee_paise": 0}, headers={**admin, "If-Match": "3"}
+    )
+    assert (fee.json()["pre_live_box_fee_paise"], fee.json()["version"]) == (0, 4)
+    assert (await events(db_session, "hub_ops.hub_updated", hub["id"]))[-1]["changed"] == [
+        "pre_live_box_fee_paise"
+    ]
+    too_much = await api.patch(
+        url, json={"pre_live_box_fee_paise": 10_001}, headers={**admin, "If-Match": "4"}
+    )
+    assert too_much.status_code == 422
 
     unknown = await api.patch(
         f"/v1/admin/hubs/{uuid.uuid4()}",
