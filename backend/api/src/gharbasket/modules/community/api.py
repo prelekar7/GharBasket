@@ -6,14 +6,15 @@ it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains thr
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from geoalchemy2 import Geometry
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.events import CAPTAIN_ASSIGNED, CAPTAIN_ENDED
-from gharbasket.modules.community.models import Captain, Society
+from gharbasket.modules.community.models import Captain, Society, SocietyRequest
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.geo import geography
 
@@ -24,6 +25,7 @@ __all__ = [
     "CaptainRef",
     "SocietyLabels",
     "SocietyRef",
+    "anonymise_for_user",
     "captain_card",
     "captain_for_society",
     "contains",
@@ -42,6 +44,7 @@ class SocietyRef:
     hub_id: uuid.UUID | None
     status: str
     tower_ids: frozenset[str]
+    live_at: datetime | None  # set once, when it first went live (§3.6, §3.8)
 
 
 async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRef | None:
@@ -53,6 +56,7 @@ async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRe
         hub_id=society.hub_id,
         status=society.status,
         tower_ids=frozenset(str(tower["id"]) for tower in society.towers),
+        live_at=society.live_at,
     )
 
 
@@ -201,3 +205,15 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
             for captain, name in rows.all()
         ]
     }
+
+
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None = None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 4; §3.8 here): the user's society requests (name, area, pin,
+    note) are deleted. The fuller eraser of §3.8 (referral codes, referrals, donations) replaces
+    this when it ships."""
+    requests = await session.execute(
+        delete(SocietyRequest).where(SocietyRequest.user_id == user_id)
+    )
+    return {"society_requests": requests.rowcount}  # pyright: ignore[reportAttributeAccessIssue]

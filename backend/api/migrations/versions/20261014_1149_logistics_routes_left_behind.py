@@ -5,7 +5,7 @@ its rider started with leave_behind; `RouteDetail` lists them and the hub's exce
 them.
 
 Revision ID: c9d9505d91cd
-Revises: a44a8c013f2a
+Revises: 0874299d92b5
 Create Date: 2026-10-14 11:49:00+00:00
 """
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c9d9505d91cd"
-down_revision: str | Sequence[str] | None = "a44a8c013f2a"
+down_revision: str | Sequence[str] | None = "0874299d92b5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

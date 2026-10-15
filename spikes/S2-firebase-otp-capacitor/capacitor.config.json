@@ -1,0 +1,11 @@
+{
+  "appId": "in.gharbasket.spike.s2",
+  "appName": "Spike S2 OTP",
+  "webDir": "dist",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["phone"]
+    }
+  }
+}

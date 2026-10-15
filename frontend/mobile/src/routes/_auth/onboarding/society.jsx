@@ -1,18 +1,11 @@
-import {
-  Button,
-  Chip,
-  ErrorState,
-  IconButton,
-  RadioCards,
-  Skeleton,
-  TextField,
-} from "@gharbasket/ui";
+import { Button, Chip, IconButton, RadioCards, Skeleton, TextField } from "@gharbasket/ui";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { useSocieties } from "@/features/community/queries.js";
+import { ScreenError } from "@/components/ScreenError.jsx";
+import { useSocieties, useSocietyUnlocks } from "@/features/community/queries.js";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 
 /** Which society do you live in? (design Hf04) */
@@ -32,8 +25,13 @@ function SocietyPicker() {
   const { data, isPending, isError, refetch } = useSocieties({ q, near });
 
   const items = data?.items ?? [];
+  // The list has no unlock counts (and never a captain), so ask for each society's own.
+  const unlocks = useSocietyUnlocks(items.map((s) => s.id));
   const selected =
     societyId && items.some((s) => s.id === societyId) ? societyId : (items[0]?.id ?? "");
+  // Another society's towers and flats are different: a new choice clears the old tower and flat.
+  const choose = (/** @type {string} */ id) =>
+    update(id === societyId ? { societyId: id } : { societyId: id, towerId: null, flat: "" });
 
   const locate = () =>
     navigator.geolocation?.getCurrentPosition(
@@ -55,7 +53,7 @@ function SocietyPicker() {
             block
             isDisabled={!selected}
             onPress={() => {
-              update({ societyId: selected });
+              choose(selected);
               navigate({ to: nextStep("/onboarding/society") });
             }}
           >
@@ -94,40 +92,37 @@ function SocietyPicker() {
       {isPending ? (
         <Skeleton lines={3} />
       ) : isError ? (
-        <ErrorState
-          title={t("onboarding.error")}
-          retryLabel={t("onboarding.retry")}
-          onRetry={() => refetch()}
-        />
+        <ScreenError onRetry={() => refetch()} />
       ) : (
         <RadioCards
           label={t("onboarding.society.near")}
           value={selected}
-          onChange={(id) => update({ societyId: id })}
-          options={items.map((s) => ({
-            value: s.id,
-            title: s.name,
-            description: [
-              s.area,
-              t("onboarding.society.km", { km: km(s.distance_m) }),
-              s.captain
-                ? t("onboarding.society.captain", { name: s.captain.name })
-                : s.unlock.joined > 0
+          onChange={choose}
+          options={items.map((s) => {
+            const unlock = unlocks.get(s.id);
+            return {
+              value: s.id,
+              title: s.name,
+              description: [
+                s.area,
+                s.distance_m === null ? null : t("onboarding.society.km", { km: km(s.distance_m) }),
+                unlock && s.status !== "live" && unlock.joined > 0
                   ? t("onboarding.society.joined", {
-                      joined: s.unlock.joined,
-                      target: s.unlock.threshold,
+                      joined: unlock.joined,
+                      target: unlock.threshold,
                     })
                   : null,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-            badge:
-              s.status === "live"
-                ? t("onboarding.society.delivering")
-                : s.unlock.joined > 0
-                  ? t("onboarding.society.unlocking")
-                  : t("onboarding.society.soon"),
-          }))}
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              badge:
+                s.status === "live"
+                  ? t("onboarding.society.delivering")
+                  : s.status === "unlocking"
+                    ? t("onboarding.society.unlocking")
+                    : t("onboarding.society.soon"),
+            };
+          })}
         />
       )}
     </OnboardingFrame>

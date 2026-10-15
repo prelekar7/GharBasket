@@ -1,11 +1,21 @@
 import { Button, Switch } from "@gharbasket/ui";
 import { LockSimpleIcon } from "@phosphor-icons/react";
-import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
 import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
 import { submitOnboarding } from "@/features/onboarding/submit.js";
+import { ApiError } from "@/lib/api.js";
+
+/** Errors with their own words; any other failure is the "check your internet" line. */
+const KNOWN = [
+  "identity_tower_unknown",
+  "identity_address_outside_society",
+  "identity_society_unknown",
+  "identity_diet_conflict",
+  "identity_consent_version_stale",
+];
 
 /**
  * Your data, your choice (DPDP, design Hf12). Account and delivery is needed; every optional use
@@ -17,12 +27,24 @@ export const Route = createFileRoute("/_auth/onboarding/consent")({ component: C
 function Consent() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const client = useQueryClient();
   const draft = useOnboardingDraft();
   const { household: h, updateHousehold } = draft;
   const save = useMutation({
-    mutationFn: () => submitOnboarding(useOnboardingDraft.getState()),
-    onSuccess: () => navigate({ to: nextStep("/onboarding/consent") }),
+    mutationFn: async () => {
+      try {
+        await submitOnboarding(useOnboardingDraft.getState());
+      } catch (e) {
+        // This phone already has a household (a first try that went through): carry on with it.
+        if (!(e instanceof ApiError && e.code === "identity.household_exists")) throw e;
+      }
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["household", "me"] });
+      navigate({ to: nextStep("/onboarding/consent") });
+    },
   });
+  const code = save.error instanceof ApiError ? save.error.code.replaceAll(".", "_") : "";
 
   /** @type {{ key: "healthConsent" | "whatsappConsent" | "insightsConsent", label: string, desc: string }[]} */
   const optional = [
@@ -47,9 +69,20 @@ function Consent() {
     <OnboardingFrame
       footer={
         <>
+          <p className="mb-1 text-sm leading-5 text-fg-secondary">
+            {t("onboarding.consent.pre")}
+            <Link to="/legal/privacy" className="font-semibold text-link underline">
+              {t("onboarding.consent.notice")}
+            </Link>
+            {t("onboarding.consent.post")}
+          </p>
           {save.isError && (
             <p role="alert" className="text-sm font-semibold text-danger">
-              {t("onboarding.consent.failed")}
+              {t(
+                KNOWN.includes(code)
+                  ? `onboarding.consent.errors.${code}`
+                  : "onboarding.consent.failed",
+              )}
             </p>
           )}
           <Button
@@ -92,7 +125,7 @@ function Consent() {
           {t("onboarding.consent.optional")}
         </span>
         {optional.map((o) => (
-          <div key={o.key} className="border-b border-line py-1 last:border-b-0">
+          <div key={o.key} className="border-b border-line py-1 [&>label]:max-w-none">
             <Switch
               label={o.label}
               description={o.desc}
@@ -108,13 +141,6 @@ function Consent() {
           </div>
         ))}
       </section>
-      <p className="text-sm leading-[22px] text-fg-secondary">
-        {t("onboarding.consent.pre")}
-        <a href="/privacy" className="font-semibold text-link underline">
-          {t("onboarding.consent.notice")}
-        </a>
-        {t("onboarding.consent.post")}
-      </p>
     </OnboardingFrame>
   );
 }
