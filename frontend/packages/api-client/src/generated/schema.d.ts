@@ -888,6 +888,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store a hub's demand forecast and order quantities (the forecast job; operator token)
+         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`
+         *     the delivery day) with every product's lines in the payload, and `intel.forecast_ready`;
+         *     M6 reads it through `intel_gateway.api.hub_forecast`.
+         */
+        post: operations["put_forecasts_v1_internal_intel_forecasts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/model-metrics": {
         parameters: {
             query?: never;
@@ -967,7 +989,8 @@ export interface paths {
         get: operations["me_v1_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete my account after a 30-day grace (signs out every device; spec §3.5) */
+        delete: operations["delete_me_v1_me_delete"];
         options?: never;
         head?: never;
         /** Change name, language or senior mode (only the fields sent) */
@@ -1191,6 +1214,26 @@ export interface paths {
         put?: never;
         /** Cancel before the cut-off (Idempotency-Key); nothing was paid yet */
         post: operations["cancel_order_v1_orders__order_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's live timeline: JSON for polling clients, or a Server-Sent Events stream
+         * @description `Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.
+         */
+        get: operations["order_events_v1_orders__order_id__events_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2474,6 +2517,31 @@ export interface components {
             /** Meals */
             meals: components["schemas"]["MealOut"][];
         };
+        /**
+         * DeletionOut
+         * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+         *     in again before then.
+         */
+        DeletionOut: {
+            /**
+             * Purge On
+             * Format: date
+             * @description IST date, 30 days after the request
+             */
+            purge_on: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "scheduled";
+            /** @description The wallet balance on its way back to the original payment source */
+            wallet_refund: components["schemas"]["WalletRefundOut"] | null;
+        };
         /** DeliveryDayIn */
         DeliveryDayIn: {
             /**
@@ -2616,6 +2684,12 @@ export interface components {
             device: components["schemas"]["DeviceIn"];
             /** Firebase Id Token */
             firebase_id_token?: string | null;
+            /**
+             * Keep Account
+             * @description For an account whose deletion is scheduled: true (after the app asked "Keep my account?") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)
+             * @default false
+             */
+            keep_account: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -2626,6 +2700,12 @@ export interface components {
             access_expires_in: number;
             /** Access Token */
             access_token: string | null;
+            /**
+             * Deletion Cancelled
+             * @description True when this sign-in cancelled a scheduled deletion
+             * @default false
+             */
+            deletion_cancelled: boolean;
             /** Is New User */
             is_new_user: boolean;
             /** Refresh Token */
@@ -2747,6 +2827,54 @@ export interface components {
              * @description When the tap happened on the phone (stored for audit)
              */
             client_at?: string | null;
+        };
+        /** ForecastItemIn */
+        ForecastItemIn: {
+            /** Committed */
+            committed: number;
+            /**
+             * For Date
+             * Format: date
+             */
+            for_date: string;
+            /** Model */
+            model: string;
+            /** Order Qty */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Uncommitted Q50 */
+            uncommitted_q50: number;
+            /** Uncommitted Qtau */
+            uncommitted_qtau: number;
+        };
+        /** ForecastsIn */
+        ForecastsIn: {
+            /**
+             * Data Source
+             * @description Whose orders the forecast was trained on; sources are never pooled
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Items */
+            items: components["schemas"]["ForecastItemIn"][];
+            /** Model */
+            model: string;
+        };
+        /** ForecastsOut */
+        ForecastsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Delivery Dates */
+            delivery_dates: string[];
         };
         /**
          * GeoPolygon
@@ -2950,6 +3078,11 @@ export interface components {
              */
             name: string;
             /**
+             * Pre Live Box Fee Paise
+             * @default 3000
+             */
+            pre_live_box_fee_paise: number;
+            /**
              * Procurement Buffer Pct
              * @default 10
              */
@@ -2984,6 +3117,12 @@ export interface components {
              * @example Kharghar hub
              */
             name: string;
+            /**
+             * Pre Live Box Fee Paise
+             * @description Delivery fee per box while a society is not live (M9 §3.6)
+             * @example 3000
+             */
+            pre_live_box_fee_paise: number;
             /**
              * Procurement Buffer Pct
              * @example 10
@@ -3020,6 +3159,8 @@ export interface components {
             location?: components["schemas"]["LatLng"] | null;
             /** Name */
             name?: string | null;
+            /** Pre Live Box Fee Paise */
+            pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
             service_area?: components["schemas"]["GeoPolygon"] | null;
@@ -3916,6 +4057,29 @@ export interface components {
              * @example Your box has reached your society
              */
             title: string;
+        };
+        /**
+         * OrderEventsOut
+         * @description The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).
+         */
+        OrderEventsOut: {
+            /**
+             * Eta
+             * @description null until M7 publishes route progress
+             */
+            eta?: null;
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["TimelineEvent"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Version */
+            version: number;
         };
         /** OrderLineOut */
         OrderLineOut: {
@@ -6541,6 +6705,34 @@ export interface components {
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
+         * TimelineEvent
+         * @description A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.
+         */
+        TimelineEvent: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The order_events row; also the SSE event id
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /**
          * Timings
          * @description The hub's day as IST `HH:MM`, in this order; display and job planning only.
          */
@@ -7004,6 +7196,19 @@ export interface components {
              * @example 869000
              */
             topup_room_paise: number;
+        };
+        /** WalletRefundOut */
+        WalletRefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -8217,6 +8422,15 @@ export interface operations {
             };
             /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11133,6 +11347,57 @@ export interface operations {
             };
         };
     };
+    put_forecasts_v1_internal_intel_forecasts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     put_model_metrics_v1_internal_intel_model_metrics_post: {
         parameters: {
             query?: never;
@@ -11355,6 +11620,53 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_me_v1_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.staff_account (with roles): an admin removes staff roles first */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12163,6 +12475,77 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    order_events_v1_orders__order_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: string | null;
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderEventsOut"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: hub staff of another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.too_many_streams: more than 3 open streams for this user */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
