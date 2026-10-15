@@ -1,86 +1,86 @@
+import { flatLabel } from "@/features/identity/address.js";
 import { request } from "@/lib/api.js";
+import { toMembers } from "./members.js";
 
-const AGE_BAND = { adults: "18_59", seniors: "60_plus", children: "5_17", little: "under_5" };
+/** The current consent notice version, the same for every purpose (M1 §3.2). */
 const CONSENT_VERSION = "v1";
+const KEY = "gb-onboarding-key";
 
-/** One Idempotency-Key per onboarding, so retrying "Agree and continue" never makes two households. */
-function idempotencyKey() {
-  const k = "gb-onboarding-key";
-  let key = sessionStorage.getItem(k);
-  if (!key) {
-    key = crypto.randomUUID();
-    sessionStorage.setItem(k, key);
+/**
+ * The consents to record, as the API's purposes (M1 §3.2). The screen's "Account and delivery"
+ * card is `service_delivery` and `personalisation`, both required and always on. Its three
+ * optional switches are `health_personalisation` (health tags), `marketing` (WhatsApp updates:
+ * box ready, payment and delivery notices) and `research_anonymised` ("improve plans for my
+ * society": anonymised use of edits). Only the ones said yes to are sent: never given is the same
+ * as no record.
+ * @param {import("./draft.js").HouseholdDraft} h
+ */
+export function consentsOf(h) {
+  const granted = ["service_delivery", "personalisation"];
+  if (h.healthConsent) granted.push("health_personalisation");
+  if (h.whatsappConsent) granted.push("marketing");
+  if (h.insightsConsent) granted.push("research_anonymised");
+  return granted.map((purpose) => ({ purpose, version: CONSENT_VERSION, granted: true }));
+}
+
+/**
+ * The body of POST /v1/households (HouseholdIn): everything the steps collected, in one request.
+ * @param {import("./draft.js").OnboardingDraft} draft
+ */
+export function householdBody(draft) {
+  const h = draft.household;
+  return {
+    society_id: draft.societyId,
+    address: {
+      tower_id: draft.towerId,
+      flat: flatLabel(draft.towerId ?? "", draft.flat),
+      // No map pin in the app yet; the API accepts null.
+      location: null,
+    },
+    diet: h.diet,
+    cuisine_tags: h.cuisines,
+    weekday_cook_minutes: h.weekdayCookMinutes,
+    weekend_cook_minutes: h.weekendCookMinutes,
+    no_cook_days: h.noCookDays,
+    budget_paise: h.budgetLockPaise,
+    members: toMembers(h),
+    consents: consentsOf(h),
+  };
+}
+
+/**
+ * One Idempotency-Key per onboarding attempt, so retrying "Agree and continue" never makes two
+ * households. A key must not be reused with a different body (422 request.idempotency_mismatch),
+ * so editing the draft after a failed attempt gets a new one.
+ * @param {string} fingerprint the body, as text
+ */
+function idempotencyKey(fingerprint) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(KEY) ?? "null");
+    if (saved?.fingerprint === fingerprint) return saved.key;
+  } catch {
+    // an unreadable saved key is as good as none
   }
+  const key = crypto.randomUUID();
+  sessionStorage.setItem(KEY, JSON.stringify({ key, fingerprint }));
   return key;
 }
 
 /**
- * Creates the household from the onboarding draft (M1): household → address → consents →
- * members. Consents go before members because the API refuses health tags without consent.
- * Health tags are sent only when health personalisation is consented to.
+ * Creates the household from the onboarding draft: ONE call that writes the household, its
+ * members, the address and the consents together (M1 §3.2).
  * @param {import("./draft.js").OnboardingDraft} draft
- * @returns {Promise<{ id: string }>} the household
+ * @returns {Promise<import("@/mocks/householdStore.js").Household>} the household
  */
 export async function submitOnboarding(draft) {
-  const h = draft.household;
-  const members = /** @type {(keyof typeof AGE_BAND)[]} */ (Object.keys(AGE_BAND)).flatMap(
-    (group) =>
-      Array.from({ length: h.members[group] }, (_, i) => ({ key: `${group}-${i + 1}`, group })),
-  );
-
-  const household = /** @type {{ id: string }} */ (
+  const body = householdBody(draft);
+  const household = /** @type {import("@/mocks/householdStore.js").Household} */ (
     await request("/v1/households", {
       method: "POST",
-      headers: { "idempotency-key": idempotencyKey() },
-      body: {
-        society_id: draft.societyId,
-        size: members.length,
-        diet: h.diet,
-        cuisine_tags: h.cuisines,
-        rules: { jain: h.jain, no_onion_some_days: h.noOnionSomeDays },
-        weekday_cook_minutes: h.weekdayCookMinutes,
-        weekend_cook_minutes: h.weekendCookMinutes,
-        no_cook_days: h.noCookDays,
-        budget_paise: h.budgetLockPaise,
-      },
+      headers: { "idempotency-key": idempotencyKey(JSON.stringify(body)) },
+      body,
     })
   );
-
-  await request("/v1/addresses", {
-    method: "POST",
-    body: {
-      household_id: household.id,
-      society_id: draft.societyId,
-      tower: draft.towerId,
-      flat: draft.flat.trim(),
-    },
-  });
-
-  const consents = {
-    account: true,
-    health_personalisation: h.healthConsent,
-    whatsapp_updates: h.whatsappConsent,
-    society_insights: h.insightsConsent,
-  };
-  for (const [purpose, granted] of Object.entries(consents)) {
-    await request("/v1/consents", {
-      method: "POST",
-      body: { purpose, version: CONSENT_VERSION, granted },
-    });
-  }
-
-  for (const m of members) {
-    await request(`/v1/households/${household.id}/members`, {
-      method: "POST",
-      body: {
-        age_band: AGE_BAND[m.group],
-        health_tags: h.healthConsent ? (h.health[m.key] ?? []) : [],
-        fasting_rules:
-          m.group === "adults" || m.group === "seniors" ? { days: h.fasting } : { days: [] },
-      },
-    });
-  }
-
-  sessionStorage.removeItem("gb-onboarding-key");
+  sessionStorage.removeItem(KEY);
   return household;
 }

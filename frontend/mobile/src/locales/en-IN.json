@@ -6,14 +6,23 @@
     "invalid": "Enter the 10-digit mobile number",
     "failed": "We couldn’t sign you in. Check your internet and try again.",
     "cta": "Continue",
-    "mock": "Test mode: no SMS is sent. Use code 123456.",
-    "sendFailed": "We couldn’t send the code. Check your internet and try again."
+    "mock": "Test mode: no SMS is sent. Use code 123456. Any number starts as a new household and goes through setup; 98000 00001 is a household that’s already set up.",
+    "sendFailed": "We couldn’t send the code. Check your internet and try again.",
+    "sendCode": "Send code",
+    "foot": "Same number on a new phone? Your household comes back with it.",
+    "consent": {
+      "pre": "By continuing you agree to the ",
+      "terms": "Terms",
+      "mid": " and ",
+      "privacy": "Privacy notice",
+      "post": "."
+    }
   },
   "role": {
     "title": "Continue as",
     "customer": "Customer",
     "captain": "Society Captain",
-    "kitchen": "Kitchen partner",
+    "kitchen_partner": "Kitchen partner",
     "rider": "Rider",
     "packer": "Packer"
   },
@@ -27,14 +36,80 @@
   },
   "shell": {
     "comingTitle": "{screen} is on its way",
-    "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas.",
-    "fieldBody": "The {role} screens are designed at the start of Phase 3."
+    "comingBody": "This screen arrives with module {module}. The design is ready on the Customer screens canvas."
   },
   "profile": {
     "language": "Language",
     "switchRole": "Switch role",
     "signOut": "Sign out",
-    "signOutAll": "Sign out of all devices"
+    "signOutAll": "Sign out of all devices",
+    "seniorOn": "Senior mode on",
+    "senior": "Senior mode",
+    "seniorDesc": "Bigger text and buttons everywhere",
+    "family": "family of {n}",
+    "household": "Household and food",
+    "people": "{n, plural, one {# person} other {# people}}",
+    "devices": "Devices",
+    "privacy": "Privacy and data",
+    "privacyValue": "Export · Delete",
+    "partner": "Become a partner",
+    "saveFailed": "We couldn’t save that. Check your internet and try again.",
+    "thisPhone": "This phone",
+    "activeNow": "Active now",
+    "platform": {
+      "android": "Android phone",
+      "web": "Web browser"
+    },
+    "lastSeen": "Last used {date}",
+    "signOutDevice": "Sign out",
+    "revoked": "{device} is signed out.",
+    "privacyLead": "Take a copy of your data or delete your account at any time.",
+    "export": "Download my data",
+    "exportQueued": "We’re preparing your file. You’ll get a notification with the link within {hours} hours.",
+    "delete": "Delete my account",
+    "deleteTitle": "Delete your account?",
+    "deleteBody": "Your box stops and your wallet balance is refunded to your UPI. You have 30 days to change your mind by signing in again.",
+    "deleteConfirm": "Delete account",
+    "keep": "Keep my account",
+    "deleted": "Your account will be deleted on {date}.",
+    "edit": {
+      "lead": "Change anything; next week’s plan follows it.",
+      "family": "Who eats at home",
+      "food": "Food rules",
+      "health": "Health needs",
+      "cooking": "Cooking time",
+      "budget": "Budget Lock",
+      "on": "On",
+      "off": "Off",
+      "minutes": "{n} min on weekdays",
+      "save": "Save",
+      "saved": "Saved. Next week’s plan uses it.",
+      "conflict": "Your household changed on another phone. Open it again.",
+      "familyOf": "Family of {n}",
+      "noOnionFast": "no onion-garlic on fast days",
+      "noOnionSome": "no onion-garlic on some days"
+    },
+    "pause": {
+      "row": "Autopilot",
+      "on": "On",
+      "pausedValue": "Paused until {date}",
+      "title": "Pause Autopilot",
+      "lead": "No boxes and no charges while paused. Your plan, wallet and society stay as they are.",
+      "pausedLead": "Paused until {date}. Resume any time; the next open week gets a box.",
+      "weeks": "{n, plural, one {# week} other {# weeks}}",
+      "until": "Back on {date}",
+      "cta": "Pause for {n, plural, one {# week} other {# weeks}}",
+      "paused": "Autopilot paused until {date}",
+      "resume": "Resume Autopilot",
+      "resumed": "Autopilot is on again"
+    },
+    "address": {
+      "row": "Address",
+      "title": "Change your flat",
+      "lead": "Within {society}. Your captain sees the new flat from the next delivery.",
+      "saved": "Address saved",
+      "move": "Moving to another society? Its hub and captain are different, so ask Help and we’ll move you."
+    }
   },
   "assistant": "Ghar Saathi assistant",
   "pwa": {
@@ -46,7 +121,13 @@
     "sub": "Your family’s week of food, planned and delivered by your society.",
     "langLabel": "Choose your language",
     "cta": "Continue",
-    "later": "You can change this later in Profile."
+    "later": "You can change this later in Profile.",
+    "weekLabel": "A sample week",
+    "sample": [
+      ["Dal chawal", "Methi thepla"],
+      ["Rajma chawal", "Khichdi"],
+      ["Bhindi roti", "Paneer bhurji"]
+    ]
   },
   "otp": {
     "back": "Back",
@@ -67,7 +148,8 @@
   },
   "outbox": {
     "waiting": "{count, plural, one {# action waiting to sync} other {# actions waiting to sync}}",
-    "retry": "Try now"
+    "retry": "Try now",
+    "failed": "{count, plural, one {# action couldn’t be sent} other {# actions couldn’t be sent}}"
   },
   "install": {
     "title": "Install GharBasket",
@@ -101,7 +183,7 @@
       "towerPh": "Choose your tower",
       "flat": "Flat number",
       "capTitle": "{name} is your Society Captain",
-      "capBody": "She lives in {flat}. She receives your society’s delivery and brings your box to your door."
+      "capBody": "She receives your society’s delivery and brings your box to your door."
     },
     "unlock": {
       "count": "{joined} of {target} homes",
@@ -119,7 +201,8 @@
       "areaPh": "e.g. Sector 35, Kharghar",
       "note": "The more neighbours who join from one society, the sooner delivery starts there.",
       "cta": "Send request",
-      "sent": "Request sent. We’ll let you know."
+      "sent": "Request sent. We’ll let you know.",
+      "limited": "You’ve sent a few requests today. Try again tomorrow."
     },
     "household": "Household",
     "stepOf": "Step {step} of {total}",
@@ -191,7 +274,8 @@
         "high_bp": "High BP",
         "high_protein": "High protein",
         "weight_loss": "Weight loss",
-        "low_oil": "Low oil"
+        "low_oil": "Low oil",
+        "more": "More"
       }
     },
     "cooking": {
@@ -247,7 +331,14 @@
       "notice": "privacy notice",
       "post": ". You can download or delete your data any time.",
       "cta": "Agree and continue",
-      "failed": "We couldn’t save your household. Check your internet and try again."
+      "failed": "We couldn’t save your household. Check your internet and try again.",
+      "errors": {
+        "identity_tower_unknown": "We couldn’t find that wing in this society. Go back and choose it again.",
+        "identity_address_outside_society": "That address is outside this society. Go back and check it.",
+        "identity_society_unknown": "We couldn’t find that society. Go back and choose it again.",
+        "identity_diet_conflict": "Jain food is veg only. Go back to Food and change one of them.",
+        "identity_consent_version_stale": "This privacy notice has been updated. Update the app to see the new one, then continue."
+      }
     },
     "preview": {
       "eyebrow": "Autopilot · sample week",
@@ -258,7 +349,8 @@
       "when": "{day}, {range}",
       "within": "within your {budget} Budget Lock",
       "cta": "Looks good, continue",
-      "edit": "Change something first"
+      "edit": "Change something first",
+      "later": "Your society’s delivery day isn’t set yet, so there’s no sample week to show. Your first real week appears here once it’s planned."
     },
     "payment": {
       "title": "How do you want to pay?",
@@ -283,12 +375,24 @@
         "generic": "Payment didn’t go through. No money was taken. Try again.",
         "billing_topup_too_small": "Top up at least ₹100",
         "billing_wallet_limit": "Your wallet can hold up to ₹10,000",
-        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet."
-      }
+        "payment_checkout_unavailable": "Couldn’t open the payment page. Check your internet.",
+        "subscriptions_payment_mode_unavailable": "UPI Autopay isn’t open yet. Choose the wallet for now.",
+        "billing_wallet_limit_room": "You can add up to {room} more to your wallet.",
+        "billing_wallet_limit_full": "Your wallet is full for now.",
+        "billing_monthly_topup_limit_room": "This month’s top-up limit is ₹20,000. You can add {room} more.",
+        "billing_monthly_topup_limit_full": "You’ve reached this month’s top-up limit of ₹20,000.",
+        "billing_too_many_topups": "Too many top-ups started. Try again in an hour.",
+        "billing_payments_unavailable": "Payments aren’t available right now. Try again later.",
+        "payment_pending": "We haven’t had confirmation of your payment yet. If money was taken, it will show in your wallet shortly. Check Wallet in a minute.",
+        "payment_refunded": "Your wallet was full when the payment arrived, so it was sent back to your bank."
+      },
+      "confirming": "Confirming your payment…",
+      "stillConfirming": "Razorpay is still confirming your payment. Your wallet updates in a minute."
     },
     "done": {
       "title": "You’re all set. First box on {day}.",
       "titleSoon": "You’re all set.",
+      "deliverySoon": "We’ll confirm the day soon",
       "sub": "We’ll message you on Saturday evening when your box is ready to check.",
       "delivery": "Delivery",
       "address": "Address",
@@ -326,21 +430,27 @@
     "today": "Aaj",
     "skip": "Skip",
     "slot": {
+      "breakfast": "Breakfast",
       "lunch": "Lunch",
       "dinner": "Dinner"
     },
     "title": "Your week",
     "status": {
-      "ready": "Ready to check",
+      "awaiting_approval": "Ready to check",
       "approved": "Approved",
       "skipped": "Skipped",
-      "locked": "Being packed"
+      "locked": "Being packed",
+      "payment_failed": "Payment needed",
+      "draft": "Planning",
+      "cancelled": "Cancelled"
     },
     "lead": {
-      "ready": "Aapka hafte ka khana ready hai. Edits close {when}.",
+      "awaiting_approval": "Aapka hafte ka khana ready hai. Edits close {when}.",
       "approved": "Approved. Your box comes on {day}.",
       "skipped": "This week is skipped. No box and no charge.",
-      "locked": "Edits are closed. Your box is being packed."
+      "locked": "Edits are closed. Your box is being packed.",
+      "draft": "We’re still planning this week. You’ll be able to check it soon.",
+      "cancelled": "This week’s box was cancelled. Nothing was charged."
     },
     "brings": "{name} brings it to {flat}",
     "open": "Open box",
@@ -354,25 +464,76 @@
     "skipConfirm": "Skip this week",
     "skipCancel": "Keep my box",
     "skippedToast": "This week is skipped",
-    "changed": "Your box changed. Check it again."
+    "changed": "Your box changed. Check it again.",
+    "approvedTitle": "Week approved",
+    "approvedBody": "{amount} will be paid from your wallet at the {when} cut-off. You can still change or skip until then.",
+    "boxTimeline": "{day}’s box",
+    "editBox": "Edit box",
+    "failedTitle": "Payment didn’t go through",
+    "failedBody": "Your wallet has {wallet} and this box is {total}. Top up {short} by {time} tonight to keep {day}’s delivery. If there’s no payment by then, this week’s box is cancelled and nothing is charged.",
+    "topUpShort": "Top up {short}",
+    "skipInstead": "Skip this week instead",
+    "paidToast": "Paid. Your box is on its way to being packed.",
+    "skippedTitle": "No box this week",
+    "skippedBody": "You skipped {range}. Nothing will be charged. Your next box is planned for {next}.",
+    "undoSkip": "Undo skip",
+    "unskippedToast": "Your box is back for this week. Check and approve it.",
+    "day": {
+      "open": "Open {day} {date}",
+      "done": "Done",
+      "swap": "Swap meal",
+      "swapped": "Meal swapped",
+      "tiffin": "Tiffin from a home kitchen",
+      "noTime": {
+        "lunch": "No time to cook lunch?",
+        "dinner": "No time to cook dinner?"
+      },
+      "offer": "{cook}’s {dish} from your society · {price} · order by {when}",
+      "addTiffin": "Add tiffin",
+      "added": "{cook}’s {dish} added. It’s paid with your box at the cut-off.",
+      "tiffinSlot": "Tiffin",
+      "with": "With {sides}"
+    },
+    "pauseLead": "Away for longer?",
+    "pauseLink": "Pause Autopilot in Profile",
+    "thisBox": "This week’s box: ",
+    "paidFromWallet": "Paid from wallet",
+    "atCutoff": "At the cut-off",
+    "noCycleTitle": "Your first week is on its way",
+    "noCycleBody": "Autopilot plans each week three days before delivery. When it’s ready, it shows up here to check and approve.",
+    "atSociety": "At your society",
+    "failed": "That didn’t go through. Please try again.",
+    "payingStill": "The payment is still being processed. This week will update as soon as it clears."
   },
   "reasons": {
     "in_season": "{item} is in season",
     "tiffin_day": "{weekday}: tiffin by {cook}",
     "health_tag": "{tag} for {member}",
-    "price_spike": "{item} +{pct}% this week",
-    "high_protein": "High protein for {member}",
     "tags": {
       "low_sugar": "Low sugar",
       "low_salt": "Low salt",
       "low_oil": "Low oil",
       "high_protein": "High protein"
     },
-    "same_style": "Same sabzi style",
-    "seasonal": "In season",
-    "half_qty": "Half quantity",
-    "same_protein": "Same protein",
-    "swapped_by_you": "You swapped this"
+    "swapped_by_you": "You swapped this",
+    "added_by_you": "You added this",
+    "meal_plan": "For {recipes}",
+    "meal_plan_plain": "For this week’s meals",
+    "daily_use": "Daily use for your family",
+    "price_swap": "Cheaper this week: the usual pick is up {pct}%",
+    "price_swap_plain": "Cheaper this week",
+    "fallback_rules": "Based on your family size",
+    "pantry_low": "Running low at home",
+    "in_season_plain": "In season",
+    "health_tag_plain": "Good for your family’s health",
+    "festival": "Fasting on {days}",
+    "festival_plain": "A festival week",
+    "budget_near": "Close to your Budget Lock",
+    "tiffin_day_plain": "A tiffin day",
+    "similar_use": "Similar use in the kitchen",
+    "same_family": "From the same family",
+    "cheaper": "Cheaper, saves {saves}",
+    "cheaper_plain": "Cheaper"
   },
   "box": {
     "when": "{day} delivery",
@@ -388,9 +549,48 @@
     "over": "Over your {budget} Budget Lock. Swap something to stay within it.",
     "sheetTitle": "Swap {item}",
     "sheetNote": "{item} is {price} this week. Three good options, best first.",
-    "useThis": "Use this",
+    "useThis": "Use {name}",
     "swapped": "{from} swapped for {to}",
-    "closed": "Edits are closed for this week"
+    "closed": "Edits are closed for this week",
+    "undo": "Undo",
+    "qty": {
+      "change": "Change {name}",
+      "each": "{price} for {step}",
+      "for": "Planned for {meals}.",
+      "label": "How much {name}",
+      "less": "Less",
+      "more": "More",
+      "remove": "Remove from box · {price}",
+      "save": "Save",
+      "saved": "{name} updated",
+      "removed": "{name} removed from your box",
+      "thisLine": "This line"
+    },
+    "add": {
+      "cta": "Add item",
+      "title": "Add to this week’s box",
+      "lead": "Paid with the box at the cut-off. Search in English, Hindi or Hinglish.",
+      "search": "Search",
+      "placeholder": "Anda, doodh, atta…",
+      "results": "Results",
+      "inBox": "In your box",
+      "add": "Add",
+      "added": "{name} added to your box",
+      "none": "Nothing found for “{q}”. Try another name."
+    },
+    "undone": "{name} is back as planned",
+    "spike": {
+      "title": "Prices moved this week",
+      "body": "{lead}. To keep you within {budget}, Autopilot used {sub} instead.",
+      "bodyNoLock": "{lead}, so Autopilot used {sub} instead.",
+      "keep": "Keep {item} (+{delta})",
+      "ok": "OK",
+      "kept": "{item} kept in your box",
+      "up": "{item} is up {pct}%",
+      "pricier": "{item} got pricier"
+    },
+    "overBudget": "That would put your box {amount} over your Budget Lock.",
+    "cantEdit": "That change isn’t possible. Check your box and try again."
   },
   "wallet": {
     "title": "Wallet",
@@ -400,27 +600,1203 @@
     "covered": " · covered",
     "topUp": "Top up",
     "statement": "Statement",
-    "statementSoon": "Statements arrive with the billing module",
     "kindness": "Kindness points",
     "kindnessProgress": "Kindness points toward {goal}",
     "kindnessRemaining": "{n} more for {goal}",
     "goals": {
       "child_meal": "a meal for a child"
     },
-    "pointsNote": "Kindness points are not money. {points} expire on {date}. Use them as a discount on a box.",
+    "pointsNote": "Kindness points are not money. {points} expire on {date}. Use them to donate a meal for a child.",
     "recent": "Recent",
     "noEntries": "No payments yet.",
     "entry": {
       "topup": "Top-up with UPI · {date}",
       "box": "Box for {day}",
-      "refund": "Refund · {date}"
+      "refund": "Refund · {date}",
+      "refund_to_source": "Sent back to your bank · {date}",
+      "refund_to_source_failed": "Bank refund failed, back in your wallet · {date}",
+      "topup_bonus": "Bonus · {date}",
+      "adjustment": "Adjustment · {date}",
+      "generic": "Wallet entry · {date}",
+      "boxNoDate": "Box payment · {date}"
     },
     "addMoney": "Add money",
     "newBalance": "New balance",
     "payWith": "Pay with",
     "upi": "Any UPI app",
+    "room": "You can add up to {room} now. Your balance can be up to {cap}.",
+    "full": "Your wallet is full for now. You can top up again after your next box.",
     "cap": "Your balance can be up to ₹10,000.",
     "continue": "Continue",
-    "added": "{amount} added to your wallet"
+    "added": "{amount} added to your wallet",
+    "rules": "Only for GharBasket. Balance up to ₹10,000. Unused money goes back to your bank on request.",
+    "confirmTitle": "Top up {amount}?",
+    "confirmBody": "Paid from any UPI app. Your wallet goes from {from} to {to}.",
+    "confirmPay": "Pay {amount} with UPI",
+    "confirmCancel": "Not now",
+    "statementTitle": "Statement",
+    "month": "Month",
+    "opening": "Opening balance",
+    "credits": "Money in",
+    "debits": "Money out",
+    "closing": "Closing balance",
+    "statementNote": "Every rupee in and out of your wallet, from our double-entry ledger. Unused money goes back to your bank on request."
+  },
+  "society": {
+    "title": "Your society",
+    "live": "Delivering",
+    "unlocking": "Unlocking",
+    "remaining": "{n, plural, one {# more home} other {# more homes}} and deliveries start here, free for everyone.",
+    "unlocked": "Unlocked",
+    "started": "Deliveries are on. Your captain is {captain}.",
+    "captainIs": "{name} is your Society Captain",
+    "noCaptain": "Captain: not chosen yet",
+    "captainBody": "A captain receives the society’s delivery and earns for every box. Live in {society}?",
+    "becomeCaptain": "Become the captain",
+    "planTitle": "Your plan is ready",
+    "planBody": "Your Autopilot week starts as soon as the society unlocks.",
+    "progress": "Homes joined",
+    "free": "Free delivery",
+    "delivery": "{area} · Delivery on {days}",
+    "captainDoes": "Receives the drop and brings your box to your door.",
+    "whatsapp": "Message on WhatsApp",
+    "share": {
+      "title": "Invite to {society}",
+      "preview": "Message preview",
+      "message": "Hum GharBasket use karte hain. Hafte ka khana aur sabzi pehle se plan ho jaata hai, aur {captain} ghar tak laati hain. Join karo: {link}",
+      "messageUnlocking": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan, aur {society} mein {n} aur ghar jud gaye toh delivery free shuru. Join karo: {link}",
+      "reward": "You get a reward when their first box is delivered. One reward per neighbour.",
+      "whatsapp": "Share on WhatsApp",
+      "copy": "Copy link",
+      "copyShort": "Copy",
+      "copyFailed": "Couldn’t copy. Long-press the link to copy it.",
+      "messageGeneric": "Hum GharBasket join kar rahe hain. Hafte ka khana aur sabzi pehle se plan. {society} mein delivery shuru karwane ke liye join karo: {link}"
+    },
+    "impact": {
+      "title": "This month in {society}",
+      "body": "{kg} kg food not wasted · {n} items donated ·",
+      "cooks": "earned by partners in our hub"
+    },
+    "unlock": {
+      "title": "{society} is unlocked",
+      "body": "{n} homes joined. Deliveries start {start}, and delivery is free for everyone here.",
+      "days": "Delivery days",
+      "captain": "Your captain",
+      "cta": "See my first week"
+    }
+  },
+  "orders": {
+    "today": "Today, {day}",
+    "title": "Orders",
+    "box": "Sabzi box · {n, plural, one {# item} other {# items}}",
+    "tiffinTitle": "Tiffin · {dish}",
+    "status": {
+      "approved": "Approved",
+      "locked": "Locked",
+      "picking": "Being packed",
+      "packed": "Packed",
+      "dispatched": "On the way",
+      "at_society": "On the way",
+      "delivered": "Delivered",
+      "undelivered": "Not delivered",
+      "redelivery": "Coming again",
+      "payment_failed": "Payment pending",
+      "cancelled": "Cancelled",
+      "refunded": "Refunded"
+    },
+    "tiffinStatus": {
+      "locked": "Being cooked",
+      "picking": "Being cooked",
+      "packed": "Ready"
+    },
+    "paid": "{amount} paid from wallet",
+    "mapLabel": "Map: the van is at the {society} gate",
+    "stage": {
+      "APPROVED": "Approved",
+      "LOCKED": "Paid at cut-off",
+      "PACKED": "Packed at {hub} hub",
+      "AT_SOCIETY": "With {captain}, your captain",
+      "PREPARING": "Being cooked by {cook}",
+      "PICKED_UP": "Picked up, on the way",
+      "DELIVERED": "Delivered to your door"
+    },
+    "by": "by {time}",
+    "tl": {
+      "done": "Done",
+      "current": "Now",
+      "issue": "Problem",
+      "todo": "Not yet"
+    },
+    "problem": "Report a problem",
+    "problemLead": "Tell us what went wrong. The hub calls you back within 2 hours.",
+    "issues": {
+      "missing": "An item is missing",
+      "damaged": "Something is damaged or spoilt",
+      "late": "The box hasn’t come",
+      "other": "Something else"
+    },
+    "problemSend": "Send",
+    "problemSent": "Sent. The hub will call you within 2 hours.",
+    "problemFailed": "We couldn’t send it. Check your internet and try again.",
+    "next": "Coming up",
+    "tiffin": "Tiffin · {day} · {cook}’s {dish}",
+    "nextBox": "Sabzi box · {day} · plan ready {ready}",
+    "boxOn": "Sabzi box · {day}",
+    "toApprove": "to approve",
+    "boxPlain": "Sabzi box",
+    "tiffinOn": "Tiffin · {day}",
+    "yourSociety": "your society",
+    "withCaptain": "With your captain",
+    "nothingTitle": "Nothing on the way today",
+    "nothingBody": "Your next delivery shows here on the morning it comes.",
+    "emptyTitle": "No orders yet",
+    "emptyBody": "Your first box shows here once your society unlocks and you approve the week.",
+    "track": "Track live",
+    "rate": "How was today?",
+    "rated": "Thanks for rating today’s delivery."
+  },
+  "kindness": {
+    "title": "Your gullak",
+    "pointsNote": "Points, not money. {points} expire on {date}. Use them to donate a meal for a child.",
+    "pointsNoteNoExpiry": "Points, not money. Use them to donate a meal for a child.",
+    "donateMeal": "Donate a meal",
+    "mealGiven": "A meal for a child is on its way. Thank you.",
+    "mealFailed": "Could not donate the meal. Try again.",
+    "give": "Give something away",
+    "drive": "{name} · {x}× points",
+    "how": "The van collects it on the way back after your Tuesday delivery. The hub checks the items, then points are added.",
+    "what": "What are you giving?",
+    "items": {
+      "clothes": "Clothes",
+      "books": "Books",
+      "toys": "Toys",
+      "school_bag": "School bags",
+      "utensils": "Utensils"
+    },
+    "of": {
+      "clothes": "clothes",
+      "books": "books",
+      "toys": "toys",
+      "school_bag": "school bags",
+      "utensils": "utensils"
+    },
+    "count": {
+      "clothes": "clothes",
+      "books": "{count, plural, one {a book} other {books}}",
+      "toys": "{count, plural, one {a toy} other {toys}}",
+      "school_bag": "{count, plural, one {school bag} other {# school bags}}",
+      "utensils": "utensils"
+    },
+    "kg": "{kg} kg {item}",
+    "photos": "Add photos",
+    "photosAdded": "{count, plural, one {# photo added} other {# photos added}}",
+    "cta": "Schedule pickup · {day}",
+    "booked": "Pickup booked for {day}. Keep the bag by the door.",
+    "failed": "We couldn’t book the pickup. Check your internet and try again.",
+    "history": "What you gave",
+    "status": {
+      "scheduled": "pickup {day}",
+      "picked_up": "picked up",
+      "verified": "verified",
+      "rejected": "not accepted",
+      "handed_over": "given to the NGO",
+      "cancelled": "cancelled"
+    },
+    "emptyTitle": "Nothing given yet",
+    "emptyBody": "Your first pickup fills the gullak once the hub has checked the items.",
+    "unitKg": "kg",
+    "noPickupDay": "No pickup day in your society yet"
+  },
+  "partner": {
+    "title": "Become a partner",
+    "intro": "Earn from home or inside your society. Training is free.",
+    "roles": {
+      "captain": {
+        "title": "Society Captain",
+        "body": "Receive your society’s delivery and bring boxes to each flat. Earn for every box."
+      },
+      "kitchen": {
+        "title": "Kitchen partner",
+        "body": "Cook tiffins in your home kitchen. FSSAI registration needed."
+      },
+      "rider": {
+        "title": "Rider",
+        "body": "Deliver with the hub van. Android phone needed."
+      },
+      "packer": {
+        "title": "Packer",
+        "body": "Pack boxes at the Kharghar hub, early mornings."
+      }
+    },
+    "nextTitle": "What happens next",
+    "steps": {
+      "apply": "Apply",
+      "kyc": "KYC check by the hub",
+      "training": "Training",
+      "verified": "Verified, start earning"
+    },
+    "cta": "Apply as {role}",
+    "sent": "Application sent. The hub will call you about KYC.",
+    "failed": "We couldn’t send your application. Check your internet and try again.",
+    "applied": "You applied as {role} on {date}. The hub will call you about KYC.",
+    "rejected": "Your application as {role} needs another look. The hub will call you about what to send again.",
+    "docsCta": "Add your documents",
+    "trainingCta": "Start training",
+    "inReview": "You applied as {role} on {date}. The hub is checking your documents. You can start training now."
+  },
+  "ghar": {
+    "title": "Ghar Saathi",
+    "sub": "Ask in English, Hindi or Marathi",
+    "hello": "Namaste! I can change next week’s box, skip a week, book a tiffin or tell you where today’s box is.",
+    "suggest": {
+      "lighter": "Next Wednesday I want a light dinner. And take the paneer out.",
+      "track": "Where is today’s box?"
+    },
+    "confirmTitle": "Change next week’s box ({day})?",
+    "line": {
+      "remove": "Remove {item} · {qty}",
+      "add": "Add {item} · {qty}",
+      "qty": "{item} · {qty}"
+    },
+    "meal": "{day} {slot} → {dish}",
+    "slot": {
+      "lunch": "lunch",
+      "dinner": "dinner"
+    },
+    "noPrice": "no change",
+    "total": "New box total",
+    "yes": "Yes, change it",
+    "no": "No",
+    "status": {
+      "confirmed": "Done. Your {day} box is updated.",
+      "rejected": "Okay, nothing changed.",
+      "expired": "This suggestion expired. Ask again and I’ll check the box."
+    },
+    "safe": "Nothing changes until you say yes.",
+    "thinking": "Checking your box…",
+    "placeholder": "Type a message",
+    "retry": "Try again",
+    "askAgain": "Ask again",
+    "send": "Send",
+    "errors": {
+      "assistant_timeout": "That took too long. Check your internet and try again.",
+      "assistant_daily_limit": "That’s all I can do today. I’ll be back tomorrow morning.",
+      "assistant_proposal_expired": "This suggestion expired. Ask again and I’ll check the box.",
+      "subscriptions_version_conflict": "Your box changed meanwhile. Ask again and I’ll suggest it fresh.",
+      "orders_cutoff_passed": "That box is already locked. I can change the one after it.",
+      "other": "I couldn’t reach the kitchen just now. Check your internet and try again."
+    }
+  },
+  "help": {
+    "link": "Get help",
+    "title": "Help",
+    "lead": "Pick what you need. Each answer opens the right screen.",
+    "topics": {
+      "late": {
+        "q": "My box is late or something is missing",
+        "a": "Open Orders and tap Report a problem. The hub calls you back within 2 hours."
+      },
+      "change": {
+        "q": "Change, skip or pause a week",
+        "a": "Open Week. Edits stay open until Monday 9 PM; pause longer from Profile."
+      },
+      "money": {
+        "q": "Money, top-ups and refunds",
+        "a": "Your wallet statement shows every rupee. Unused money goes back to your bank on request."
+      },
+      "data": {
+        "q": "My data and privacy",
+        "a": "What we keep and why, and how to download or delete it."
+      },
+      "ask": {
+        "q": "Ask Ghar Saathi",
+        "a": "Type your question in English, Hindi or Marathi."
+      }
+    }
+  },
+  "legal": {
+    "draft": "Draft for review. The final wording comes from the GharBasket team before launch.",
+    "terms": {
+      "title": "Terms",
+      "sections": [
+        {
+          "h": "The wallet",
+          "p": "Your GharBasket wallet can be spent only on GharBasket orders. It holds up to ₹10,000. You can't withdraw cash or send money to someone else. Unused money goes back to the account you paid from, on request."
+        },
+        {
+          "h": "Your weekly box",
+          "p": "Autopilot plans each week. You can change, skip or pause until the cut-off at 9 PM the day before delivery. At the cut-off the box is paid from your wallet; if the wallet is short you have until 11 PM to top up, or the week is cancelled with no charge."
+        },
+        {
+          "h": "Kindness points",
+          "p": "Points are not money. They expire, and you can use them as a discount on a box."
+        },
+        {
+          "h": "Home cooks and captains",
+          "p": "Tiffins come from verified home kitchens and boxes come through your Society Captain. Report any problem from Orders."
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy notice",
+      "sections": [
+        {
+          "h": "What we keep",
+          "p": "Your phone number, address, who eats at home (age groups, not birth dates) and your food rules. Health needs only if you turn them on. We never ask for Aadhaar."
+        },
+        {
+          "h": "Why",
+          "p": "To plan, pack and deliver your box. Each optional use, like WhatsApp updates or health planning, has its own switch, recorded with the date you chose."
+        },
+        {
+          "h": "Who sees it",
+          "p": "Health tags are never shared with cooks, riders or captains. Your captain sees your flat and your box, not your health or payments."
+        },
+        {
+          "h": "Your rights",
+          "p": "From Profile › Privacy and data you can download your data or delete your account. Deleted accounts are removed within 30 days; money records stay without your name, as the law needs."
+        }
+      ]
+    }
+  },
+  "notif": {
+    "title": "Notifications",
+    "settings": "What you get",
+    "unread": "unread",
+    "unreadCount": "{n} new",
+    "emptyTitle": "Nothing yet",
+    "emptyBody": "Your box, deliveries and money updates show here.",
+    "quiet": "No pushes from {from} to {to}, except your box arriving.",
+    "push": "On this phone",
+    "whatsapp": "On WhatsApp",
+    "whatsappNote": "Needs your WhatsApp consent (Profile › Privacy)",
+    "saved": "Saved",
+    "cat": {
+      "weekly_box": "Your weekly box",
+      "delivery": "Deliveries",
+      "money": "Wallet and payments",
+      "kindness": "Kindness",
+      "offers": "Offers"
+    }
+  },
+  "packer": {
+    "tabs": {
+      "queue": "Queue",
+      "pick": "Pick/Pack",
+      "short": "Shortages"
+    },
+    "role": "Packer",
+    "account": "Your account",
+    "progressValue": "{done} of {total}",
+    "unit": {
+      "bunch": "bunch",
+      "g": "g",
+      "kg": "kg",
+      "ml": "ml",
+      "l": "L",
+      "piece": "pieces",
+      "pack": "packs"
+    },
+    "manual": {
+      "bagTitle": "Type the bag code",
+      "bagLabel": "Bag code",
+      "bagHint": "The last 6 characters printed under the QR",
+      "itemTitle": "Type the item code",
+      "itemLabel": "Item code",
+      "itemHint": "On the shelf tag or the pack, like methi",
+      "use": "Use this code",
+      "cancel": "Cancel"
+    },
+    "queue": {
+      "title": "Packing queue",
+      "progress": "Bags packed",
+      "scan": "Scan a bag to start",
+      "manual": "Type the bag code instead",
+      "order": "In route order: first stop first, so crates load in order.",
+      "lines": "{n, plural, one {# line} other {# lines}}",
+      "status": {
+        "packed": "Packed",
+        "picking": "Packing",
+        "queued": "To pack"
+      },
+      "unknownBag": "{code} isn’t one of today’s bags",
+      "alreadyPacked": "{code} is already packed",
+      "loading": "Loading today’s bags. Once loaded, the queue works without signal.",
+      "addon": "{n, plural, one {# line} other {# lines}} · add-on order",
+      "emptyTitle": "No bags yet",
+      "emptyBody": "Today’s bags are made at 5 am from the orders locked for delivery."
+    },
+    "done": {
+      "title": "All bags packed",
+      "body": "Load the crates in route order: {order}. The van leaves at {time}.",
+      "firstThen": "{first} first, then {rest}",
+      "crates": "{crates, plural, one {# crate} other {# crates}} · {bags, plural, one {# bag} other {# bags}}",
+      "shortages": "Shortages reported",
+      "shortItem": "{item} · {n, plural, one {# bag} other {# bags}}",
+      "none": "None",
+      "load": "Show the loading order",
+      "loadTitle": "Loading order",
+      "loadRow": "Crate {crate} · {society}",
+      "loadBags": "{n, plural, one {# bag} other {# bags}}: {first} to {last}"
+    },
+    "pick": {
+      "title": "Pick and pack",
+      "bag": "Bag {n} of {total} · {society}",
+      "where": "Bag {code} · {society}, {flat}",
+      "label": {
+        "bag": "Bag",
+        "flat": "Flat",
+        "stop": "Stop {n}",
+        "crate": "Crate {crate}",
+        "lines": "{n, plural, one {# item} other {# items}}"
+      },
+      "lines": "Lines picked",
+      "scan": "Scan the next item",
+      "manual": "Type the item code instead",
+      "added": "{item} · {qty} added",
+      "how": {
+        "picked": "{qty} · scanned",
+        "short": "{qty} · marked short"
+      },
+      "state": {
+        "picked": "Done",
+        "short": "Short",
+        "next": "Next"
+      },
+      "showAll": "Show all {n} lines",
+      "short": "Mark short",
+      "close": "Close bag",
+      "allDone": "Every line is done. Close the bag.",
+      "packed": "This bag is packed and in crate {crate}.",
+      "wrong": "Wrong item: this is {item}",
+      "already": "{item} is already in the bag",
+      "putBackTitle": "Put it back",
+      "putBack": "This bag doesn’t need {item}. Return it to its shelf; nothing was added to the bag.",
+      "needs": "This bag needs next",
+      "isShort": "{item} is short",
+      "markedShort": "{item} marked short. The money for it goes back to the family’s wallet.",
+      "closed": "Bag {code} closed.",
+      "noBag": "No bag open",
+      "noBagBody": "Scan a bag’s label to start picking it.",
+      "packedSent": "This bag is packed. Its crate number shows once it is sent."
+    },
+    "short": {
+      "title": "Report a shortage",
+      "reporter": {
+        "title": "{item} is short",
+        "gap": "Needed {needed} {unit} for today’s bags; {received} came in.",
+        "howShort": "How many {unit} short",
+        "who": "What each family gets",
+        "swap": "Swap",
+        "refund": "Money back",
+        "apply": "{n, plural, one {Apply to # bag} other {Apply to # bags}}",
+        "rule": "Each family’s own choice decides: a swap they allowed, or money back to the wallet. Nobody pays for what they don’t get."
+      },
+      "swapDetail": "{item}, allowed by the family",
+      "refundDetail": "{amount} to the wallet",
+      "applied": "{item} short in {n, plural, one {# bag} other {# bags}}. Families will be told.",
+      "reported": "Reported today",
+      "outcomes": "{swaps, plural, one {# swap} other {# swaps}} · {refunds} money back",
+      "noneTitle": "No shortages to report",
+      "noneBody": "When an item comes in short, it shows here with what each family gets."
+    }
+  },
+  "rider": {
+    "tabs": {
+      "route": "Route",
+      "stop": "Stop",
+      "pickups": "Pickups",
+      "earnings": "Earnings"
+    },
+    "title": "Your route",
+    "when": "{day} · {slot} slot · van {plate}",
+    "map": {
+      "label": "Route map: the van, {count, plural, one {# society} other {# societies}} and the way back to the hub",
+      "fallback": "The map can’t show on this phone right now. Your stops are below, in order."
+    },
+    "card": {
+      "stop": "Stop {n}",
+      "crates": "{n, plural, one {# crate} other {# crates}}",
+      "bags": "{n, plural, one {# bag} other {# bags}}",
+      "captain": "Captain: {name}",
+      "todo": "Not yet",
+      "current": "Now",
+      "done": "Done",
+      "issue": "Problem"
+    },
+    "back": "{time} · back to {hub}",
+    "backDetail": "{count, plural, =0 {empty crates} one {empty crates and # donation pickup} other {empty crates and # donation pickups}}",
+    "offline": "Works offline after you start: stops and crates are saved on the phone.",
+    "offlineNow": "You’re offline",
+    "start": "Start route",
+    "goTo": "Go to stop {n}",
+    "finish": "Finish route",
+    "finished": "Route finished. Thank you!",
+    "none": {
+      "title": "No route for you today",
+      "body": "Your next route is {day}, leaving at {time}. We’ll remind you the evening before.",
+      "bodyLater": "No route is planned for you yet. We’ll remind you the evening before.",
+      "earnings": "See this week’s earnings"
+    },
+    "error": {
+      "title": "Your route didn’t load",
+      "body": "There’s no signal right now. Move near the hub gate or switch on mobile data, then try again.",
+      "retry": "Try again",
+      "support": "Still stuck? Call your hub manager.",
+      "tip": "Load the route once at the hub. After that, stops, crates and handover codes work without signal."
+    },
+    "stop": {
+      "back": "Back to route",
+      "of": "Stop {n} of {total}",
+      "navigate": "Open in Maps",
+      "call": "Call {name}",
+      "crates": "Crates for this society",
+      "captainCounts": "{name} counts the crates and {bags, plural, one {# bag} other {# bags}}, then types the code below in her app.",
+      "code": "Handover code",
+      "codeHelp": "{name} types this 4-digit code in her app to take the crates. Don’t send it in a message.",
+      "codeWaiting": "The code shows once the route has started and the phone has signal.",
+      "count": "What you counted",
+      "cratesCounted": "Crates",
+      "bagsCounted": "Bags",
+      "arrived": "I’m at the gate",
+      "waiting": "Waiting for {name} to take the crates…",
+      "skip": "Skip this stop",
+      "skipTitle": "Why are you skipping?",
+      "skipped": "Skipped",
+      "skipReasons": {
+        "captain_absent": "Captain isn’t here",
+        "no_access": "Can’t get in",
+        "vehicle_issue": "Problem with the van",
+        "other": "Other reason"
+      },
+      "noCaptain": "No captain here yet: you hand over the crates yourself, then deliver to each door.",
+      "photo": "Take a photo of the bag at the door",
+      "photoAgain": "Take the photo again",
+      "photoAdded": "Photo added",
+      "photoFailed": "That photo didn’t work. Take it again.",
+      "doors": "Doors",
+      "deliver": "Delivered",
+      "cantDeliver": "Couldn’t deliver",
+      "delivered": "Delivered",
+      "notDelivered": "Not delivered",
+      "failTitle": "Why couldn’t you deliver?",
+      "failReasons": {
+        "not_home": "Nobody home",
+        "refused": "Refused",
+        "wrong_address": "Wrong address",
+        "damaged": "Bag damaged",
+        "missing": "Bag missing"
+      },
+      "proofTitle": "Delivered to {flat}",
+      "doorCode": "Family’s delivery code",
+      "doorCodeHelp": "It’s in the family’s app. No code? Take a photo of the bag at the door.",
+      "done": "Handover done",
+      "handed": "{society} handed over.",
+      "startFirst": "Start the route first, then hand over here.",
+      "allDone": "Every stop is handed over",
+      "allDoneBody": "Collect the empty crates and donations on the way back.",
+      "toPickups": "Go to pickups"
+    },
+    "pickups": {
+      "when": "Return leg · back by {time}",
+      "title": "Pickups",
+      "crates": "{n, plural, one {# empty crate} other {# empty crates}}",
+      "donation": "Donation · {ref}",
+      "scan": "Scan a donation bag",
+      "manual": "Type the code instead",
+      "scanned": "Picked up",
+      "unknown": "Not on today’s pickups. Check the code.",
+      "why": "Pickups ride on the way back, so there’s no extra trip. Donations go to the hub for checking; the family gets Kindness points after.",
+      "none": "No pickups on this route.",
+      "typeTitle": "Type the code",
+      "codeLabel": "Donation bag code",
+      "codeHelp": "It’s printed on the bag, like B-402.",
+      "collect": "Mark as picked up"
+    },
+    "earnings": {
+      "who": "{name} · Rider",
+      "title": "Earnings",
+      "recent": "{count, plural, =0 {No routes yet} one {Your last route} other {Last # routes}}",
+      "summary": "{routes, plural, one {# route} other {# routes}} · {runs, plural, =0 {no pickup runs} one {# pickup run} other {# pickup runs}}",
+      "line": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}}",
+      "lineWithPickups": "{routes, plural, one {# route} other {# routes}} · {societies, plural, one {# society} other {# societies}} · pickups",
+      "payout": "Paid every {day} to your bank account, from the same ledger as every rupee in GharBasket.",
+      "cert": "Download income certificate",
+      "certFailed": "The certificate didn’t download. Try again.",
+      "none": "Your earnings show here after your first route."
+    }
+  },
+  "captain": {
+    "tabs": {
+      "today": "Today",
+      "scan": "Scan",
+      "flats": "Flats",
+      "earnings": "Earnings"
+    },
+    "actingAs": "Acting as",
+    "role": "Role",
+    "hello": "Namaste, {name} · {society}",
+    "ofTotal": "{done} of {total}",
+    "today": {
+      "title": "Today, {day}",
+      "vanTitle": "The van comes at about {time}",
+      "van": "The van brings {count, plural, one {# crate} other {# crates}}. Count them when it arrives.",
+      "crates": "Crates",
+      "bags": "Bags for your society",
+      "delivered": "Delivered",
+      "noExceptions": "Nothing to sort out yet",
+      "held": "Held for pickup (families collect)",
+      "receive": "Receive the crates when the van comes"
+    },
+    "received": {
+      "title": "Crates received",
+      "body": "Take the bags to the flats and scan each one at the door. A bag nobody takes is held for the family until 8 PM.",
+      "toFlats": "Take bags to the flats"
+    },
+    "handover": {
+      "when": "{slot} · {time}",
+      "title": "Receive crates",
+      "scan": "Scan a bag you have",
+      "scanned": "{flat} scanned",
+      "notOurs": "{code} isn’t on this van. Check the flat.",
+      "crates": "Crates",
+      "bags": "Bags",
+      "codeTitle": "Type the rider’s code",
+      "codeHelp": "The 4 digits on the rider’s phone show you met. No signal on their phone? Take a photo of the crates instead.",
+      "done": "{count, plural, one {# crate received} other {All # crates received}}",
+      "sent": "Handover saved",
+      "typeTitle": "Type the flat",
+      "typeLabel": "Flat",
+      "typeConfirm": "Add",
+      "expected": "On the van: {n}",
+      "countHelp": "Count the crates and bags you receive. If a number is lower, change it and scan the bags you have.",
+      "scanHelp": "The counts differ from the van’s. Scan each bag you have, so only those are handed over to you.",
+      "scannedBags": "Bags scanned",
+      "manual": "Type the flat instead",
+      "codeLabel": "Handover code",
+      "codeWrong": "That code isn’t right. Check the rider’s phone.",
+      "codeLocked": "Too many wrong codes. Take a photo of the crates instead.",
+      "mismatch": "The counts differ from the van’s. Scan the bags you have.",
+      "notOnVan": "Some of those bags aren’t on this van.",
+      "failed": "Couldn’t save the handover. Try again.",
+      "noCode": "No code? Take a photo of the crates",
+      "photo": "Take a photo of the crates",
+      "photoAdded": "Photo added"
+    },
+    "flats": {
+      "title": "Flats",
+      "when": "{society} · {day}",
+      "wing": "Wing",
+      "progress": "{wing} wing delivered",
+      "scan": "Scan the bag at the door",
+      "manual": "Type the flat instead",
+      "contents": {
+        "box": "Box",
+        "tiffin": "Tiffin",
+        "addon": "Add-on"
+      },
+      "status": {
+        "delivered": "Delivered",
+        "next": "Next",
+        "toDeliver": "To deliver",
+        "notHome": "No one home",
+        "damaged": "Damaged",
+        "onTheWay": "On the van",
+        "held": "Held",
+        "undelivered": "Not delivered"
+      },
+      "delivered": "{flat} delivered",
+      "notToday": "That isn’t one of today’s bags. Check the label.",
+      "alreadyDone": "{flat} is already done",
+      "firstHandover": "Receive the crates first",
+      "redelivery": "Redelivery",
+      "holdUntil": "Held until {time}"
+    },
+    "manual": {
+      "back": "Back to flats",
+      "why": "The label didn’t scan",
+      "title": "Type the flat",
+      "field": "Flat",
+      "help": "The flat on the bag label, like B-402.",
+      "found": "Found",
+      "match": "Flat {flat}",
+      "matchDetail": "{contents} · {society}",
+      "check": "Check the flat on the label matches the door before you hand it over.",
+      "confirm": "Delivered to {flat}",
+      "confirmAny": "Delivered",
+      "notFound": "No bag for this flat today",
+      "done": "Delivered to {flat}"
+    },
+    "flat": {
+      "notHome": "No one home",
+      "damaged": "Something is damaged",
+      "what": "What is damaged?",
+      "whatPh": "eggs broken",
+      "report": "Report",
+      "added": "Added to exceptions",
+      "summary": "{kind}, {bags, plural, one {# bag} other {# bags}} · {society}"
+    },
+    "exceptions": {
+      "back": "Back to flats",
+      "count": "{count, plural, one {# to sort out} other {# to sort out}}",
+      "title": "Exceptions",
+      "notHome": "{flat} · no one home",
+      "notHomeBody": "You rang twice. Their bag is held for them until 8 PM and the family is told to collect it from you. If no one comes, it stays with you tonight and comes again tomorrow morning, free, once.",
+      "damaged": "{flat} · {note}",
+      "damagedBody": "The family gets their money for this order back in the wallet at once.",
+      "photo": "Take a photo of the damage",
+      "photoAdded": "Photo added",
+      "photoFailed": "The photo didn’t upload. Try again when you have signal.",
+      "save": "Save and tell the families",
+      "saved": "Saved. The families are told.",
+      "none": "Nothing to sort out",
+      "noneBody": "Problems you report at a door show up here."
+    },
+    "done": {
+      "when": "{society} · {day} · {time}",
+      "title": "Today",
+      "handled": "Bags handled",
+      "doneTitle": "Done for today, {name}",
+      "body": "Every bag is delivered, in the lobby, or reported. Families have been told.",
+      "door": "Handed over at the door",
+      "problem": "Reported ({list})",
+      "problemNone": "Reported",
+      "earnings": "See today’s earnings",
+      "held": "Held for the family to collect",
+      "heldNote": "Held bags not collected by 8:30 PM stay with you tonight and come again tomorrow morning, free."
+    },
+    "earnings": {
+      "who": "{name} · Society Captain, {society}",
+      "title": "Earnings",
+      "recent": "This week",
+      "rate": "Paid for each bag you deliver, at the rate in your partner agreement",
+      "payout": "Paid every Monday to your bank. Only verified partners are paid; you’re verified.",
+      "payoutPending": "Paid every Monday to your bank. Only verified partners are paid; we’ll pay you once you’re verified.",
+      "cert": "Download income certificate",
+      "certFailed": "We couldn’t get the certificate. Try again.",
+      "bags": "{count, plural, one {# bag} other {# bags}}"
+    }
+  },
+  "kitchen": {
+    "tabs": {
+      "today": "Today",
+      "menu": "Menu",
+      "prep": "Prep",
+      "earnings": "Earnings"
+    },
+    "meal": "{meal, select, dinner {Dinner} other {Lunch}}",
+    "hello": "Namaste, {name} · {hub}",
+    "whoHub": "{name} · {hub}",
+    "whoRole": "{name} · kitchen partner",
+    "whoRoleHub": "{name} · kitchen partner, {hub}",
+    "tiffins": "{n, plural, one {# tiffin} other {# tiffins}}",
+    "today": {
+      "title": "Tomorrow’s tiffins",
+      "forDay": "{meal, select, dinner {Dinner} other {Lunch}} · {day}",
+      "window": "Counts are in. Answer by {time} so you can buy and plan tonight.",
+      "accepted": "Accepted. Buy tonight; your prep list is ready for the morning.",
+      "declined": "You said you can’t cook on {day}. These tiffins go to other kitchens at the hub.",
+      "fair": "Shared fairly between the hub’s kitchens, within the capacity you set.",
+      "training": "Training: a {minutes}-minute refresher is due by {date}",
+      "accept": "{n, plural, one {Accept # tiffin} other {Accept # tiffins}}",
+      "decline": "I can’t cook tomorrow",
+      "toPrep": "Go to prep",
+      "declineTitle": "Can’t cook on {day}?",
+      "declineBody": "{n, plural, one {We’ll give this tiffin to another kitchen at the hub.} other {We’ll give these # tiffins to other kitchens at the hub.}}",
+      "declineConfirm": "Yes, I can’t cook",
+      "declineCancel": "Go back",
+      "emptyTitle": "No tiffins for {day}",
+      "emptyBody": "No families booked lunch from your kitchen for tomorrow. Nothing to buy tonight.",
+      "emptyAction": "Check my menu and capacity",
+      "emptyNote": "Counts come by 9:30 PM every night. A day with no orders doesn’t change your rating.",
+      "closed": "The offer for {day} has closed. These tiffins went to another kitchen at the hub.",
+      "declineWhy": "Why can’t you cook?",
+      "reason": {
+        "unwell": "I’m unwell",
+        "no_ingredients": "No ingredients",
+        "family": "Family reason",
+        "other": "Another reason"
+      }
+    },
+    "menu": {
+      "title": "Menu and capacity",
+      "meal": "Meal",
+      "capTitle": "Most tiffins I can cook",
+      "capHelp": "You never get more than this. 0 means a day off.",
+      "locked": "{n} assigned · locked",
+      "dayOff": "Day off",
+      "decrease": "Fewer",
+      "increase": "More",
+      "skillsTitle": "What I cook well",
+      "save": "Save for the coming days",
+      "saved": "Saved. New counts follow these numbers.",
+      "closed": "Closed for changes",
+      "skillsFailed": "Couldn’t save what you cook well. Check your internet and try again."
+    },
+    "skills": {
+      "jain": "Jain (no onion, garlic)",
+      "veg": "Vegetarian",
+      "no_onion_garlic": "No onion, garlic",
+      "diabetic": "Diabetic-friendly",
+      "egg": "Egg",
+      "nonveg": "Non-vegetarian"
+    },
+    "prep": {
+      "title": "Prep",
+      "when": "{meal, select, dinner {Dinner} other {Lunch}} · {day} · pack by {time}",
+      "packed": "Tiffins packed",
+      "packedValue": "{done} of {total}",
+      "batch": "{dish} × {n}",
+      "label": "Write each box’s code on it (like T-07). The rider and the family match it; you never see a flat or a name.",
+      "status": {
+        "planned": "Not started",
+        "preparing": "Cooking",
+        "packed": "Packed"
+      },
+      "action": {
+        "planned": "Start cooking",
+        "preparing": "Mark packed"
+      },
+      "emptyTitle": "Nothing to cook yet",
+      "emptyBody": "When you accept tomorrow’s tiffins, each dish shows here to mark as you cook and pack.",
+      "emptyAction": "See tomorrow’s tiffins",
+      "codes": "Label the boxes: {codes}",
+      "checklistTitle": "Before {dish} is packed",
+      "checklist": {
+        "handwash": "I washed my hands",
+        "hair_cover": "My hair is covered",
+        "clean_surface": "The surface is clean",
+        "sealed": "The tiffins are sealed",
+        "fresh_today": "Everything was cooked today"
+      }
+    },
+    "training": {
+      "back": "Back to today",
+      "title": "Training",
+      "done": "Required modules done",
+      "doneValue": "{done} of {total}",
+      "quiz": "Quiz {score} of {total}",
+      "todo": "{kind, select, refresher {Refresher} other {Required}} · about {minutes} minutes",
+      "todoDue": "{kind, select, refresher {Refresher} other {Required}} · due {date} · about {minutes} minutes",
+      "badge": {
+        "done": "Done",
+        "next": "Next",
+        "todo": "To do"
+      },
+      "why": "You’re verified. Short refreshers keep your hygiene rating current; your hub manager sees the scores.",
+      "whyPending": "Finish the required modules to get verified. Your hub manager sees the scores.",
+      "next": "Start: {name}"
+    },
+    "earnings": {
+      "title": "Earnings",
+      "week": "This week so far",
+      "count": "{n, plural, one {# tiffin} other {# tiffins}} over {days, plural, one {# day} other {# days}}",
+      "line": "{n, plural, one {# tiffin} other {# tiffins}}",
+      "rating": "Families’ rating",
+      "stars": "{rating} ★",
+      "payout": "Paid every Monday to your bank, from the same ledger as every rupee in GharBasket.",
+      "cert": "Download income certificate (PDF)",
+      "certFailed": "Couldn’t get the certificate. Check your internet and try again."
+    }
+  },
+  "product": {
+    "per": "{price} {unit, select, kg {a kg} l {a litre} bunch {a bunch} loaf {a loaf} other {each}}",
+    "season": "In season this week",
+    "swaps": "Good swaps, best first"
+  },
+  "track": {
+    "title": "{day}’s box",
+    "vanLabel": "Your society’s van",
+    "noMap": "The map can’t load on this phone. The van is on its way to {society}.",
+    "noMapThere": "The map can’t load on this phone. The van has reached {society}.",
+    "stopsBefore": "{count, plural, =0 {The van comes to your society next} one {# stop before your society} other {# stops before your society}}",
+    "lastSeen": "Last seen {count, plural, one {# minute} other {# minutes}} ago",
+    "eta": "At {society} by {time}",
+    "arrived": "At {society} since {time}",
+    "captain": "{captain} brings it to your door by {time}",
+    "captainNone": "Your captain brings it to your door by {time}",
+    "delivered": "Delivered at {time}",
+    "about": "About {time}",
+    "by": "By {time}",
+    "stage": {
+      "packed": "Packed at the hub",
+      "left": "Left the hub",
+      "society": "At {society}",
+      "captain": "With {captain}",
+      "captainNone": "With your captain",
+      "door": "At your door, {flat}",
+      "doorNone": "At your door"
+    }
+  },
+  "tiffin": {
+    "when": "{day} · {slot}",
+    "title": "Tiffin",
+    "knowCook": "Know your cook",
+    "fssai": "FSSAI registered",
+    "hygiene": "Hygiene trained",
+    "cookedBy": "Cooked by",
+    "how": "How many tiffins",
+    "unit": "{n, plural, one {tiffin} other {tiffins}}",
+    "note": "Order by {when}. Paid with your box at the cut-off. {cook} cooks it fresh; {captain} brings it to your door.",
+    "cta": "Book {n, plural, one {# tiffin} other {# tiffins}} · {total}",
+    "already": "A tiffin is already booked for that meal.",
+    "goneTitle": "This tiffin can’t be booked now",
+    "goneBody": "It may be booked already, or this week’s orders have closed.",
+    "backToWeek": "Back to the week",
+    "since": "cooking with us since {since}"
+  },
+  "rate": {
+    "when": "{day} · delivered",
+    "title": "How was today?",
+    "box": "Your box",
+    "tiffin": "{slot, select, dinner {Dinner tiffin} other {Lunch tiffin}}",
+    "tiffinBy": "{dish} · {cook}",
+    "tags": {
+      "box": {
+        "fresh": "Fresh",
+        "on_time": "On time",
+        "packed_well": "Packed well",
+        "missing": "Something was missing"
+      },
+      "tiffin": {
+        "tasty": "Tasty",
+        "hot": "Hot enough",
+        "portion": "Right portion",
+        "oily": "Too oily"
+      }
+    },
+    "more": "Anything else? (optional)",
+    "morePh": "Tell us in your own words",
+    "privacy": "{cook} and {captain} see the average rating, never your name or flat.",
+    "privacyNoCaptain": "{cook} and your captain see the average rating, never your name or flat.",
+    "privacyBox": "{captain} and the hub see the average rating, never your name or flat.",
+    "privacyBoxNoCaptain": "Your captain and the hub see the average rating, never your name or flat.",
+    "send": "Send rating",
+    "problem": "Report a problem with this order",
+    "thanks": "Thank you. Your rating is in.",
+    "failed": "We couldn’t send your rating. Check your internet and try again.",
+    "doneTitle": "Rated already",
+    "doneBody": "Thanks for rating this delivery. You can still report a problem from Orders.",
+    "notYetTitle": "Not delivered yet",
+    "notYetBody": "You can rate it once it reaches your door.",
+    "backToOrders": "Back to Orders"
+  },
+  "budget": {
+    "title": "Budget Lock",
+    "spent": "Spent so far",
+    "spentValue": "{spent} of {limit}",
+    "left": "{amount} left this month. Autopilot plans each week to fit.",
+    "over": "{amount} over this month’s limit. Autopilot keeps the rest of the month lean.",
+    "off": "Budget Lock is off. Set a monthly limit and Autopilot plans each week to fit.",
+    "limitLabel": "Monthly limit for sabzi and staples",
+    "limitHelp": "Tiffins and add-ons you pick yourself count too. A new limit applies from next week’s plan.",
+    "tightTitle": "When a week would go over",
+    "tight": {
+      "swap": {
+        "title": "Swap to cheaper items",
+        "body": "Same meals, seasonal sabzi; you see every swap"
+      },
+      "trim": {
+        "title": "Plan fewer extras",
+        "body": "Fruit and add-ons first; staples stay"
+      },
+      "ask": {
+        "title": "Ask me first",
+        "body": "We keep the plan and show you the gap"
+      }
+    },
+    "save": "Save Budget Lock",
+    "saved": "Budget Lock saved. It applies from next week’s plan.",
+    "turnOff": "Turn off Budget Lock",
+    "turnedOff": "Budget Lock is off from next week’s plan."
+  },
+  "autopay": {
+    "title": "UPI Autopay",
+    "pilot": "Pilot",
+    "lead": "Each box is charged to your UPI at the cut-off, instead of from the wallet.",
+    "leadOn": "UPI Autopay is on. Each box is charged to your UPI at the cut-off, instead of from the wallet.",
+    "upi": "Your UPI app asks you to approve the mandate once. Nothing is charged today.",
+    "cta": "Set up UPI Autopay",
+    "wallet": "Keep using the wallet",
+    "facts": {
+      "charged": {
+        "k": "Charged",
+        "v": "Per box, at the 9 PM cut-off"
+      },
+      "limit": {
+        "k": "Mandate limit",
+        "v": "Up to your {amount} monthly Budget Lock",
+        "vNoLock": "Up to {amount} a month"
+      },
+      "notice": {
+        "k": "Notice",
+        "v": "24 hours before every charge"
+      },
+      "cancel": {
+        "k": "Cancel",
+        "v": "Any time, in Profile"
+      }
+    },
+    "confirmTitle": "Set up UPI Autopay up to {amount} a month?",
+    "confirmBody": "Your UPI app asks you to approve the mandate. Nothing is charged today; each box is charged at the cut-off, with a notice 24 hours before.",
+    "confirmCta": "Set up, up to {amount}",
+    "confirmCancel": "Not now",
+    "done": "UPI Autopay is on. Your next box is charged to UPI at the cut-off.",
+    "failed": "Couldn’t set up UPI Autopay. Nothing was charged. Try again.",
+    "cancelCta": "Cancel UPI Autopay",
+    "cancelTitle": "Cancel UPI Autopay?",
+    "cancelBody": "From the next cut-off, boxes are paid from your wallet again. Keep enough money in it.",
+    "cancelConfirm": "Cancel Autopay",
+    "cancelKeep": "Keep Autopay",
+    "cancelled": "UPI Autopay is off. Boxes are paid from your wallet.",
+    "cancelFailed": "Couldn’t cancel UPI Autopay. Try again.",
+    "on": "On",
+    "walletLink": "Pay per box with UPI Autopay"
+  },
+  "partnerDocs": {
+    "step": "{kind, select, kitchen {Become a kitchen partner} captain {Become a Society Captain} rider {Become a rider} other {Become a packer}} · step 2 of 4",
+    "title": "Your documents",
+    "progress": "Application steps",
+    "steps": {
+      "application": "Application",
+      "documents": "Documents",
+      "training": "Training",
+      "hub": "Hub check"
+    },
+    "addedOf": "{added} of {total} added",
+    "safe": "Documents go to private storage that only the hub’s verifier can open. We show only the last digits, and we never ask for Aadhaar.",
+    "cta": "Upload the next document",
+    "done": "Next: training",
+    "docs": {
+      "id_proof": {
+        "name": "ID proof",
+        "note": "Voter ID, passport or driving licence",
+        "added": "{idKind} · {masked}"
+      },
+      "pan": {
+        "name": "PAN card",
+        "note": "Your 10-character PAN number",
+        "added": "PAN · {masked}"
+      },
+      "bank": {
+        "name": "Bank account",
+        "note": "We send ₹1 to check the name",
+        "added": "Account {masked} · ₹1 sent to check the name"
+      },
+      "fssai": {
+        "name": "FSSAI registration",
+        "note": "Basic registration for home kitchens"
+      },
+      "driving_licence": {
+        "name": "Driving licence",
+        "note": "Licence number, valid-until date and your vehicle number",
+        "added": "Licence · {masked}"
+      },
+      "kitchen_photos": {
+        "name": "Kitchen photos",
+        "note": "2 to 4 photos: stove, storage, sink",
+        "added": "{n} photos added"
+      }
+    },
+    "idKinds": {
+      "voter_id": "Voter ID",
+      "driving_licence": "Driving licence",
+      "passport": "Passport"
+    },
+    "sheet": {
+      "title": "Add: {doc}",
+      "lead": "A clear photo or PDF, with every corner showing. Never send Aadhaar.",
+      "idKind": "Type of ID",
+      "number": {
+        "fssai": "FSSAI registration number",
+        "bank": "Account number",
+        "id_proof": "ID number",
+        "pan": "PAN number",
+        "driving_licence": "Licence number"
+      },
+      "masked": "After this we show only the last 4 characters.",
+      "ifsc": "IFSC",
+      "invalid": {
+        "fssai": "Enter the 14-digit number",
+        "bank": "Enter 9 to 18 digits",
+        "ifsc": "An IFSC looks like SBIN0001234",
+        "id_proof": "Check the ID number (never Aadhaar)",
+        "pan": "A PAN looks like ABCDE1234F",
+        "driving_licence": "Use 15 or 16 letters and numbers",
+        "vehicle": "A vehicle number looks like MH46AB1234"
+      },
+      "file": "Choose a photo or PDF",
+      "photos": "Choose 2 to 4 photos",
+      "chosen": "{n, plural, one {# file chosen} other {# files chosen}}",
+      "add": "Add document",
+      "saved": "{doc} added.",
+      "failed": "Couldn’t add the document. Check your internet and try again.",
+      "leadBank": "We send ₹1 to this account to check the name. Nothing else is taken.",
+      "holder": "Name on the account",
+      "vehicle": "Vehicle number",
+      "validUntil": "Valid until",
+      "errors": {
+        "number_invalid": "Check the number and try again.",
+        "aadhaar_not_accepted": "We never accept Aadhaar. Use another ID.",
+        "document_expired": "This document has expired.",
+        "file_key_invalid": "Add the files again and try once more.",
+        "doc_type_invalid": "Check the type of document.",
+        "application_closed": "This application is closed."
+      }
+    },
+    "status": {
+      "missing": "To do",
+      "submitted": "Added",
+      "accepted": "Accepted",
+      "rejected": "Add again"
+    },
+    "checkFailed": "We couldn’t check this automatically. The hub will look at it."
+  },
+  "training": {
+    "close": "Close quiz",
+    "eyebrow": "Training · module {n} of {total}",
+    "q": "Question",
+    "qValue": "{n} of {total}",
+    "next": "Next question",
+    "finish": "Finish module",
+    "passed": "Module done: {score} of {total} right.",
+    "failed": "{score} of {total} right. You need {pass}% to pass. Go through the module again.",
+    "retry": "Try the module again",
+    "saveFailed": "Couldn’t save your answers. Check your internet and try again.",
+    "doneTitle": "Training done",
+    "doneBody": "The hub will check your documents and call you before your first day.",
+    "back": "Back to your application",
+    "tooMany": "You have tried this module 5 times today. Try again tomorrow.",
+    "updated": "This module was updated. Start it again."
+  },
+  "impact": {
+    "title": "Our impact",
+    "link": "Our impact this month",
+    "scope": "Whose impact",
+    "me": "My family",
+    "society": "Our society",
+    "kg": "{kg} kg",
+    "stats": {
+      "society": {
+        "food": "Food saved from waste by our hub",
+        "items": "Items donated",
+        "cooks": "Earned by partners at our hub this month",
+        "homes": "Homes on GharBasket"
+      },
+      "me": {
+        "meals": "Meals you donated with Kindness points",
+        "items": "Items you donated",
+        "kg": "Kilograms you gave away",
+        "homes": "Neighbours who joined from your invites"
+      }
+    },
+    "youTitle": "Your share",
+    "you": "You gave {items} and earned {points} Kindness points.",
+    "youNone": "Nothing given yet. Give clothes, books or toys from the Kindness tab.",
+    "how": "Counted from verified donations, surplus that was eaten instead of thrown away, and partner earnings in the ledger. Updated every hour.",
+    "share": "Share with neighbours",
+    "shareMessage": "This month {society} saved {kg} kg of food from waste and gave {n} things to people who need them, with GharBasket. Join us: {link}",
+    "allTime": "So far",
+    "underFive": "Numbers show once 5 homes in the society have joined in."
   }
 }
