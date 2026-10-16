@@ -1,15 +1,15 @@
 """HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), packing
-(§3.2), procurement plans and purchase orders (§3.3)."""
+(§3.2), procurement plans and purchase orders (§3.3), and goods receipts (§3.4)."""
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
-from gharbasket.modules.hub_ops import packing, procurement, purchasing, service
+from gharbasket.modules.hub_ops import packing, procurement, purchasing, receiving, service
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.hub_ops.models import (
     Hub,
@@ -25,6 +25,8 @@ from gharbasket.modules.hub_ops.schemas import (
     CompleteIn,
     GeneratedPurchaseOrders,
     GeoPolygon,
+    GoodsReceiptOut,
+    GoodsReceiptsOut,
     HubIn,
     HubOut,
     HubPatch,
@@ -39,6 +41,7 @@ from gharbasket.modules.hub_ops.schemas import (
     ProcurementPlanOut,
     PurchaseOrderOut,
     PurchaseOrdersOut,
+    ReceiptIn,
     ShortageIn,
     StartIn,
     TaskStatus,
@@ -69,6 +72,8 @@ CanWriteProcurement = Annotated[Permit, require("procurement:write")]
 PlanDay = Annotated[
     date | None, Query(alias="date", description="IST delivery date; default today")
 ]
+CanReadInventory = Annotated[Permit, require("inventory:read")]
+CanReceive = Annotated[Permit, require("receiving:write")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -573,6 +578,80 @@ async def cancel_purchase_order(
     await session.commit()
     set_etag(response, out.version)
     return out
+
+
+# --- goods receipts (§3.4) ----------------------------------------------------------------------
+
+
+@router.post(
+    "/hubs/{hub_id}/goods-receipts",
+    status_code=status.HTTP_201_CREATED,
+    summary="Record goods received at the dock, against a sent purchase order or ad hoc",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found, hub_ops.po_not_found, hub_ops.vendor_not_found"),
+        409: _problem("hub_ops.po_not_receivable"),
+        422: _problem(
+            "hub_ops.receipt_invalid (reason), hub_ops.product_not_stocked (product_ids), "
+            "hub_ops.qty_invalid, hub_ops.vendor_inactive, request.idempotency_mismatch, "
+            "request.invalid"
+        ),
+    },
+)
+async def create_goods_receipt(
+    hub_id: uuid.UUID,
+    body: ReceiptIn,
+    permit: CanReceive,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> GoodsReceiptOut:
+    permit.ensure(hub_id)
+    receipt = await receiving.receive(session, hub_id, body, permit.principal.user_id)
+    out = (await receiving.receipts_out(session, [receipt], lang))[0]
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/goods-receipts",
+    summary="The hub's goods receipts of an IST day, newest first",
+    responses=SIGNED_IN,
+)
+async def list_goods_receipts(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    day: PlanDay = None,
+) -> GoodsReceiptsOut:
+    permit.ensure(hub_id)
+    receipts = await receiving.hub_receipts(
+        session, hub_id, day or datetime.now(procurement.IST).date()
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return GoodsReceiptsOut(items=await receiving.receipts_out(session, receipts, lang))
+
+
+@router.get(
+    "/goods-receipts/{receipt_id}",
+    summary="A goods receipt with its lines and lots",
+    responses={**SIGNED_IN, 404: _problem("hub_ops.receipt_not_found")},
+)
+async def get_goods_receipt(
+    receipt_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+) -> GoodsReceiptOut:
+    receipt = await receiving.get_receipt(session, receipt_id)
+    if not permit.allows(receipt.hub_id):
+        raise receiving.receipt_not_found()
+    response.headers["Cache-Control"] = "no-store"
+    return (await receiving.receipts_out(session, [receipt], lang))[0]
 
 
 # --- packing (§3.2) -------------------------------------------------------------------------------

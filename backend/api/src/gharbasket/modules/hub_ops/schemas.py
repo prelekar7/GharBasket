@@ -10,7 +10,7 @@ from datetime import date, datetime
 from typing import ClassVar, Literal, Self
 
 import phonenumbers
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from gharbasket.platform.geo import LatLng
 
@@ -463,3 +463,91 @@ class CancelIn(BaseModel):
     reason: str = Field(min_length=3, max_length=200)
 
     _tidy_text = field_validator("reason", mode="before")(_tidy)
+
+
+# --- receiving and stock (§3.4) ------------------------------------------------------------------
+
+Grade = Literal["A", "B", "C"]
+RejectReason = Literal["rotten", "damaged", "undersized", "wrong_item", "other"]
+
+
+class ReceiptLineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: uuid.UUID
+    received_qty: float = Field(allow_inf_nan=False, examples=[52.0], description="> 0")
+    accepted_qty: float = Field(
+        allow_inf_nan=False, examples=[50.0], description="0 … received; the rest goes back"
+    )
+    grade: Grade = Field(description="A fresh, B cosmetic faults, C kitchens or donation only")
+    reject_reason: RejectReason | None = Field(
+        default=None, description="Required when accepted < received"
+    )
+    unit_cost_paise: int | None = Field(
+        default=None, ge=0, le=10_000_000, description="Per operations unit; default the PO line's"
+    )
+    best_before: AwareDatetime | None = Field(
+        default=None, description="Default received_at + the product's shelf life"
+    )
+    note: str | None = Field(default=None, max_length=200)
+
+    _tidy_text = field_validator("note", mode="before")(_tidy)
+
+
+class ReceiptIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    purchase_order_id: uuid.UUID | None = Field(description="null: an ad hoc purchase")
+    vendor_id: uuid.UUID | None = Field(
+        default=None, description="Required without a purchase order; with one, the PO's"
+    )
+    received_at: AwareDatetime | None = Field(
+        default=None, description="Default now; at most 24 h back"
+    )
+    lines: list[ReceiptLineIn] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def _vendor_or_po(self) -> Self:
+        if self.purchase_order_id is None and self.vendor_id is None:
+            raise ValueError("vendor_id is required without a purchase order")
+        return self
+
+
+class UserRef(BaseModel):
+    user_id: uuid.UUID
+    name: str | None
+
+
+class ReceiptLineOut(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    unit: OpsUnit
+    received_qty: float
+    accepted_qty: float
+    rejected_qty: float
+    grade: Grade
+    reject_reason: RejectReason | None
+    unit_cost_paise: int | None
+    amount_paise: int | None = Field(description="accepted_qty x unit_cost_paise, half up")
+    ordered: bool = Field(description="false: not on the purchase order (or no PO)")
+    lot_id: uuid.UUID | None = Field(description="null when nothing was accepted")
+    best_before: datetime
+    note: str | None
+
+
+class GoodsReceiptOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    vendor: Ref
+    purchase_order: LinePurchaseOrder | None = Field(description="Its status after this receipt")
+    received_at: datetime
+    received_by: UserRef
+    lines: list[ReceiptLineOut]
+    total_paise: int
+    unpriced_lines: int
+    created_at: datetime
+
+
+class GoodsReceiptsOut(BaseModel):
+    items: list[GoodsReceiptOut]
