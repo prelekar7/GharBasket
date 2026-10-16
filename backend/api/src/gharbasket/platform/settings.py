@@ -115,6 +115,8 @@ class Settings(DatabaseSettings):
     razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
+    # Refund to source (M5 §3.3): only top-ups captured this recently can take money back.
+    razorpay_refund_window_days: int = Field(default=180, ge=1, le=365)
     # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
     kindness_goal: int = Field(default=500, ge=1, le=100_000)
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.

@@ -1,5 +1,5 @@
-"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), and
-the customer statement (§3.2)."""
+"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), the
+customer statement (§3.2) and refunds to source (§3.3)."""
 
 import json
 import uuid
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
 from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers the job, consumer)
-from gharbasket.modules.billing import kindness, statements, topups, wallet
+from gharbasket.modules.billing import kindness, refunds, statements, topups, wallet
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.billing.models import Payment, PaymentWebhook
 from gharbasket.modules.billing.razorpay import (
@@ -30,6 +30,9 @@ from gharbasket.modules.billing.schemas import (
     PointsEntry,
     PointsExpiring,
     PointsRef,
+    RefundIn,
+    RefundOut,
+    RefundRef,
     StatementEntry,
     StatementOut,
     TopUpIn,
@@ -55,6 +58,7 @@ CanWrite = Annotated[Permit, require("wallet:write")]
 CanReadStatements = Annotated[Permit, require("statements:read")]
 CanReadKindness = Annotated[Permit, require("kindness:read")]
 CanDonate = Annotated[Permit, require("kindness:donate")]
+CanRefund = Annotated[Permit, require("refunds:write")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
@@ -72,9 +76,11 @@ def _problem(description: str) -> dict[str, Any]:
 
 def _entry(row: WalletEntry) -> Entry:
     e = row.entry
-    ref: TopUpRef | OrderRef | None = None
+    ref: TopUpRef | OrderRef | RefundRef | None = None
     if e.ref_type == "topup" and e.ref_id is not None:
         ref = TopUpRef(type="topup", id=e.ref_id)
+    elif e.ref_type == "refund" and e.ref_id is not None:
+        ref = RefundRef(type="refund", id=e.ref_id)
     elif e.ref_type == "order" and e.ref_id is not None:
         ref = OrderRef(
             type="order", id=e.ref_id, delivery_date=(e.details or {}).get("delivery_date")
@@ -87,13 +93,17 @@ def _entry(row: WalletEntry) -> Entry:
     summary="The caller's wallet: balance, room to top up, latest entries",
     responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
 )
-async def get_wallet(permit: CanRead, session: DbSession, response: Response) -> WalletOut:
-    found = await wallet.summary(session, permit.principal.user_id)
+async def get_wallet(
+    permit: CanRead, session: DbSession, response: Response, settings: AppSettings
+) -> WalletOut:
+    user_id = permit.principal.user_id
+    found = await wallet.summary(session, user_id)
     response.headers["Cache-Control"] = "no-store"
     return WalletOut(
         balance_paise=found.balance_paise,
         cap_paise=CAP_PAISE,
         topup_room_paise=found.topup_room_paise,
+        refundable_paise=await refunds.refundable(session, user_id, settings),
         entries=[_entry(row) for row in found.entries],
     )
 
@@ -272,6 +282,63 @@ async def razorpay_webhook(
         webhook.processed_at = datetime.now(UTC)
     await session.commit()
     return WebhookAck(outcome=outcome)
+
+
+@router.post(
+    "/wallet/refund-to-source",
+    status_code=202,
+    summary="Send unused wallet money back to the payments it came from (a job sends it)",
+    responses={
+        409: _problem("billing.refund_in_progress (with refund_id)"),
+        422: _problem(
+            "billing.refund_too_small, billing.refund_exceeds_refundable (with refundable_paise), "
+            "request.invalid"
+        ),
+        429: _problem("billing.too_many_refunds"),
+    },
+)
+async def refund_to_source(
+    body: RefundIn, permit: CanRefund, session: DbSession, idem: Idempotent, settings: AppSettings
+) -> RefundOut:
+    refund = await refunds.request_refund(
+        session,
+        permit.principal.user_id,
+        body.amount_paise,
+        settings=settings,
+        idempotency_key=idem.key,
+    )
+    out = await refunds.to_out(session, refund)
+    await idem.save(202, out)
+    await session.commit()
+    return out
+
+
+@router.get("/wallet/refunds", summary="The caller's refunds to source, newest first")
+async def list_refunds(
+    permit: CanRead,
+    session: DbSession,
+    response: Response,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[RefundOut]:
+    found, next_cursor = await refunds.list_refunds(
+        session, permit.principal.user_id, cursor, limit
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=[await refunds.to_out(session, r) for r in found], next_cursor=next_cursor)
+
+
+@router.get(
+    "/wallet/refunds/{refund_id}",
+    summary="A refund to source and its parts",
+    responses={404: _problem("billing.refund_not_found")},
+)
+async def get_refund(
+    refund_id: uuid.UUID, permit: CanRead, session: DbSession, response: Response
+) -> RefundOut:
+    refund = await refunds.get_refund(session, permit.principal.user_id, refund_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await refunds.to_out(session, refund)
 
 
 @router.post(

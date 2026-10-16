@@ -1,6 +1,7 @@
 """Request and response models of M5 Billing & Ledger.
 
-The wallet shapes are the S2 contract (docs/modules/M5-billing.md §3.1) and the statement is §3.2:
+The wallet shapes are the S2 contract (docs/modules/M5-billing.md §3.1), the statement is §3.2 and
+refunds to source are §3.3:
 changing them needs a PR reviewed by both app owners.
 """
 
@@ -10,7 +11,16 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-EntryKind = Literal["topup", "topup_bonus", "box_debit", "refund", "adjustment"]
+EntryKind = Literal[
+    "topup",
+    "topup_bonus",
+    "box_debit",
+    "refund",
+    "adjustment",
+    "refund_to_source",
+    "refund_to_source_failed",
+    "unclaimed",
+]
 
 
 class TopUpRef(BaseModel):
@@ -24,11 +34,16 @@ class OrderRef(BaseModel):
     delivery_date: date | None
 
 
+class RefundRef(BaseModel):
+    type: Literal["refund"]
+    id: uuid.UUID
+
+
 class Entry(BaseModel):
     id: uuid.UUID
     kind: EntryKind = Field(description="Show a generic label for a kind the app doesn't know")
     amount_paise: int = Field(description="Into the wallet +, out of it -", examples=[-69000])
-    ref: Annotated[TopUpRef | OrderRef, Field(discriminator="type")] | None
+    ref: Annotated[TopUpRef | OrderRef | RefundRef, Field(discriminator="type")] | None
     at: datetime
 
 
@@ -39,6 +54,9 @@ class WalletOut(BaseModel):
         description="What can still be added now: the cap minus the balance and unpaid top-ups, "
         "limited by this month's allowance",
         examples=[869000],
+    )
+    refundable_paise: int = Field(
+        description="What POST /v1/wallet/refund-to-source can send back now", examples=[41000]
     )
     entries: list[Entry] = Field(description="The latest 20, newest first")
 
@@ -143,3 +161,30 @@ class DonationOut(BaseModel):
     points: int = Field(examples=[500])
     code: Literal["child_meal"]
     at: datetime
+
+
+class RefundIn(BaseModel):
+    amount_paise: int | None = Field(
+        default=None,
+        le=10_000_000,
+        description="At least ₹1 (100); null sends back everything refundable",
+        examples=[41000],
+    )
+
+
+class RefundPartOut(BaseModel):
+    topup_id: uuid.UUID
+    razorpay_payment_id: str = Field(examples=["pay_EKwxwAgItmmXdp"])
+    amount_paise: int = Field(examples=[20000])
+    status: Literal["pending", "sent", "processed", "failed"]
+    razorpay_refund_id: str | None = Field(examples=["rfnd_FP8DDKxqJif6ca"])
+
+
+class RefundOut(BaseModel):
+    id: uuid.UUID
+    amount_paise: int = Field(examples=[41000])
+    reason: Literal["customer", "account_deleted"]
+    status: Literal["pending", "processing", "processed", "partly_failed", "failed"]
+    parts: list[RefundPartOut] = Field(description="One per top-up taking money back, newest first")
+    created_at: datetime
+    settled_at: datetime | None

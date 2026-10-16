@@ -2274,6 +2274,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/wallet/refund-to-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send unused wallet money back to the payments it came from (a job sends it) */
+        post: operations["refund_to_source_v1_wallet_refund_to_source_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's refunds to source, newest first */
+        get: operations["list_refunds_v1_wallet_refunds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/refunds/{refund_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A refund to source and its parts */
+        get: operations["get_refund_v1_wallet_refunds__refund_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet/topups": {
         parameters: {
             query?: never;
@@ -3139,9 +3190,9 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
             /** Ref */
-            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
         };
         /**
          * ExchangeIn
@@ -5240,6 +5291,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[RefundOut] */
+        Page_RefundOut_: {
+            /** Items */
+            items: components["schemas"]["RefundOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
@@ -6328,6 +6386,91 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** RefundIn */
+        RefundIn: {
+            /**
+             * Amount Paise
+             * @description At least ₹1 (100); null sends back everything refundable
+             * @example 41000
+             */
+            amount_paise?: number | null;
+        };
+        /** RefundOut */
+        RefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Parts
+             * @description One per top-up taking money back, newest first
+             */
+            parts: components["schemas"]["RefundPartOut"][];
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "customer" | "account_deleted";
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "processing" | "processed" | "partly_failed" | "failed";
+        };
+        /** RefundPartOut */
+        RefundPartOut: {
+            /**
+             * Amount Paise
+             * @example 20000
+             */
+            amount_paise: number;
+            /**
+             * Razorpay Payment Id
+             * @example pay_EKwxwAgItmmXdp
+             */
+            razorpay_payment_id: string;
+            /**
+             * Razorpay Refund Id
+             * @example rfnd_FP8DDKxqJif6ca
+             */
+            razorpay_refund_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "sent" | "processed" | "failed";
+            /**
+             * Topup Id
+             * Format: uuid
+             */
+            topup_id: string;
+        };
+        /** RefundRef */
+        RefundRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "refund";
+        };
         /** ReinstateIn */
         ReinstateIn: {
             /**
@@ -7229,9 +7372,9 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
             /** Ref */
-            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
         };
         /** StatementOut */
         StatementOut: {
@@ -8083,6 +8226,12 @@ export interface components {
              * @description The latest 20, newest first
              */
             entries: components["schemas"]["Entry"][];
+            /**
+             * Refundable Paise
+             * @description What POST /v1/wallet/refund-to-source can send back now
+             * @example 41000
+             */
+            refundable_paise: number;
             /**
              * Topup Room Paise
              * @description What can still be added now: the cap minus the balance and unpaid top-ups, limited by this month's allowance
@@ -17792,6 +17941,201 @@ export interface operations {
             };
             /** @description auth.forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    refund_to_source_v1_wallet_refund_to_source_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_in_progress (with refund_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_too_small, billing.refund_exceeds_refundable (with refundable_paise), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.too_many_refunds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_refunds_v1_wallet_refunds_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RefundOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_refund_v1_wallet_refunds__refund_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                refund_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

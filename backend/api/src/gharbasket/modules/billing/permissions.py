@@ -4,5 +4,11 @@ Kindness points."""
 from gharbasket.platform.permissions import PERMISSIONS
 
 PERMISSIONS.allow(
-    "customer", "wallet:read", "wallet:write", "statements:read", "kindness:read", "kindness:donate"
+    "customer",
+    "wallet:read",
+    "wallet:write",
+    "statements:read",
+    "refunds:write",
+    "kindness:read",
+    "kindness:donate",
 )
