@@ -6802,29 +6802,19 @@ export interface components {
          *     is required when `order_qty` changes.
          */
         ProcurementLinePatch: {
-            /** Active */
-            active?: boolean | null;
-            /** Is Default */
-            is_default?: boolean | null;
             /** Note */
             note?: string | null;
-            /** Notes */
-            notes?: string | null;
             /**
              * Order Qty
              * @example 50
              */
             order_qty?: number | null;
-            /** Phone */
-            phone?: string | null;
             /** Reason */
             reason?: string | null;
             /** Unit Cost Paise */
             unit_cost_paise?: number | null;
             /** Vendor Id */
             vendor_id?: string | null;
-            /** Whatsapp */
-            whatsapp?: boolean | null;
         };
         /** ProcurementPlanOut */
         ProcurementPlanOut: {
@@ -9400,10 +9390,20 @@ export interface components {
          *     `is_default`.
          */
         VendorPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Is Default */
+            is_default?: boolean | null;
             /** Kind */
             kind?: ("apmc_trader" | "fpo" | "farmer" | "wholesaler") | null;
             /** Name */
             name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Whatsapp */
+            whatsapp?: boolean | null;
         };
         /** VendorsOut */
         VendorsOut: {

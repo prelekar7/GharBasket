@@ -182,90 +182,6 @@ class VendorPatch(_VendorFields, _Patch):
 
     name: str | None = Field(default=None, min_length=2, max_length=80)
     kind: VendorKind | None = None
-
-
-# --- procurement (§3.3) --------------------------------------------------------------------------
-
-OpsUnit = Literal["kg", "l", "piece", "bunch", "pack"]
-
-
-class Ref(BaseModel):
-    id: uuid.UUID
-    name: str
-
-
-class LinePurchaseOrder(BaseModel):
-    id: uuid.UUID
-    number: str | None = Field(examples=["KHARGHAR-261215-02"])
-    status: str
-
-
-class ProcurementLineOut(BaseModel):
-    product_id: uuid.UUID
-    slug: str
-    name: str = Field(description="In Accept-Language")
-    unit: OpsUnit
-    shelf_life_h: int | None
-    committed_qty: float = Field(examples=[42.5], description="Paid demand for the date")
-    at_risk_qty: float = Field(description="payment_failed orders in the grace; shown, not bought")
-    forecast_q50: float | None
-    forecast_qtau: float | None
-    basis: Literal["forecast", "buffer"] = Field(description="Which rule made buffer_qty")
-    buffer_qty: float
-    on_hand_qty: float = Field(description="Usable stock for the date (§3.4)")
-    suggested_qty: float = Field(description="committed + buffer - on hand, rounded up")
-    order_qty: float = Field(description="Suggested, or the hub manager's edit")
-    edited: bool
-    edit_reason: str | None
-    vendor: Ref | None
-    unit_cost_paise: int | None = Field(description="Expected cost per operations unit")
-    amount_paise: int | None = Field(description="order_qty x unit_cost_paise, rounded half up")
-    purchase_order: LinePurchaseOrder | None = Field(description="The line's PO (not cancelled)")
-    note: str | None
-
-
-class PlanTotals(BaseModel):
-    lines: int
-    order_paise: int = Field(description="Priced lines only")
-    unpriced_lines: int
-
-
-class ProcurementPlanOut(BaseModel):
-    id: uuid.UUID
-    hub_id: uuid.UUID
-    delivery_date: date
-    status: Literal["draft", "ordered", "closed"]
-    source: Literal["ml", "fallback"] = Field(description="ml when M10 had a forecast")
-    model: str | None
-    buffer_pct: int
-    totals: PlanTotals
-    lines: list[ProcurementLineOut] = Field(description="By shelf, then name")
-    built_at: datetime
-    refreshed_at: datetime | None
-    version: int
-
-
-class PlanBuildIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    day: date = Field(alias="date", description="IST delivery date, today ... today + 2")
-
-
-class ProcurementLinePatch(_Patch):
-    """Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`
-    is required when `order_qty` changes."""
-
-    NULLABLE: ClassVar[frozenset[str]] = frozenset(
-        {"order_qty", "vendor_id", "unit_cost_paise", "note"}
-    )
-
-    order_qty: float | None = Field(default=None, allow_inf_nan=False, examples=[50.0])
-    vendor_id: uuid.UUID | None = None
-    unit_cost_paise: int | None = Field(default=None, ge=0, le=10_000_000)
-    note: str | None = Field(default=None, max_length=200)
-    reason: str | None = Field(default=None, min_length=3, max_length=200)
-
-    _tidy_text = field_validator("note", "reason", mode="before")(_tidy)
     phone: str | None = Field(default=None, max_length=20)
     whatsapp: bool | None = None
     is_default: bool | None = None
@@ -407,3 +323,87 @@ class ShortageIn(_PackingAction):
 class CompleteIn(_PackingAction):
     bags: int | None = Field(default=None, ge=1, le=5)
     crate_no: int | None = Field(default=None, ge=1, le=99)
+
+
+# --- procurement (§3.3) --------------------------------------------------------------------------
+
+OpsUnit = Literal["kg", "l", "piece", "bunch", "pack"]
+
+
+class Ref(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class LinePurchaseOrder(BaseModel):
+    id: uuid.UUID
+    number: str | None = Field(examples=["KHARGHAR-261215-02"])
+    status: str
+
+
+class ProcurementLineOut(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In Accept-Language")
+    unit: OpsUnit
+    shelf_life_h: int | None
+    committed_qty: float = Field(examples=[42.5], description="Paid demand for the date")
+    at_risk_qty: float = Field(description="payment_failed orders in the grace; shown, not bought")
+    forecast_q50: float | None
+    forecast_qtau: float | None
+    basis: Literal["forecast", "buffer"] = Field(description="Which rule made buffer_qty")
+    buffer_qty: float
+    on_hand_qty: float = Field(description="Usable stock for the date (§3.4)")
+    suggested_qty: float = Field(description="committed + buffer - on hand, rounded up")
+    order_qty: float = Field(description="Suggested, or the hub manager's edit")
+    edited: bool
+    edit_reason: str | None
+    vendor: Ref | None
+    unit_cost_paise: int | None = Field(description="Expected cost per operations unit")
+    amount_paise: int | None = Field(description="order_qty x unit_cost_paise, rounded half up")
+    purchase_order: LinePurchaseOrder | None = Field(description="The line's PO (not cancelled)")
+    note: str | None
+
+
+class PlanTotals(BaseModel):
+    lines: int
+    order_paise: int = Field(description="Priced lines only")
+    unpriced_lines: int
+
+
+class ProcurementPlanOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    delivery_date: date
+    status: Literal["draft", "ordered", "closed"]
+    source: Literal["ml", "fallback"] = Field(description="ml when M10 had a forecast")
+    model: str | None
+    buffer_pct: int
+    totals: PlanTotals
+    lines: list[ProcurementLineOut] = Field(description="By shelf, then name")
+    built_at: datetime
+    refreshed_at: datetime | None
+    version: int
+
+
+class PlanBuildIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    day: date = Field(alias="date", description="IST delivery date, today ... today + 2")
+
+
+class ProcurementLinePatch(_Patch):
+    """Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`
+    is required when `order_qty` changes."""
+
+    NULLABLE: ClassVar[frozenset[str]] = frozenset(
+        {"order_qty", "vendor_id", "unit_cost_paise", "note"}
+    )
+
+    order_qty: float | None = Field(default=None, allow_inf_nan=False, examples=[50.0])
+    vendor_id: uuid.UUID | None = None
+    unit_cost_paise: int | None = Field(default=None, ge=0, le=10_000_000)
+    note: str | None = Field(default=None, max_length=200)
+    reason: str | None = Field(default=None, min_length=3, max_length=200)
+
+    _tidy_text = field_validator("note", "reason", mode="before")(_tidy)

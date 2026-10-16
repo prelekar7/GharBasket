@@ -9796,28 +9796,6 @@
         "additionalProperties": false,
         "description": "Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`\nis required when `order_qty` changes.",
         "properties": {
-          "active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active"
-          },
-          "is_default": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Default"
-          },
           "note": {
             "anyOf": [
               {
@@ -9829,18 +9807,6 @@
               }
             ],
             "title": "Note"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
           },
           "order_qty": {
             "anyOf": [
@@ -9855,18 +9821,6 @@
               50.0
             ],
             "title": "Order Qty"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "maxLength": 20,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
           },
           "reason": {
             "anyOf": [
@@ -9905,17 +9859,6 @@
               }
             ],
             "title": "Vendor Id"
-          },
-          "whatsapp": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Whatsapp"
           }
         },
         "title": "ProcurementLinePatch",
@@ -15973,6 +15916,28 @@
         "additionalProperties": false,
         "description": "Only the fields sent change; `phone` and `notes` may be null. Deactivating clears\n`is_default`.",
         "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "is_default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default"
+          },
           "kind": {
             "anyOf": [
               {
@@ -16002,6 +15967,41 @@
               }
             ],
             "title": "Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "whatsapp": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whatsapp"
           }
         },
         "title": "VendorPatch",
