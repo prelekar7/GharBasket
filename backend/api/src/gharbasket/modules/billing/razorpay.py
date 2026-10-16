@@ -1,7 +1,7 @@
 """Our own thin async Razorpay client on httpx2 (handbook 10: not the official SDK).
 
-Only what M5 needs: create an order for a top-up, refund a payment, and check a webhook's
-signature. Card and UPI details never reach us; Razorpay Checkout runs in the app.
+Only what M5 needs: create an order for a top-up, refund a payment and list its refunds, and
+check a webhook's signature. Card and UPI details never reach us; Razorpay Checkout runs in the app.
 """
 
 import hashlib
@@ -38,8 +38,11 @@ class RazorpayClient:
         self._auth = (key_id, key_secret)
 
     async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        return await self._call("POST", path, json=body)
+
+    async def _call(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         try:
-            response = await self.http.post(f"{API}{path}", json=body, auth=self._auth)
+            response = await self.http.request(method, f"{API}{path}", auth=self._auth, **kwargs)
             response.raise_for_status()
             return response.json()
         except (httpx2.HTTPError, ValueError) as exc:
@@ -56,7 +59,16 @@ class RazorpayClient:
         )
         return str(order["id"])
 
-    async def refund(self, payment_id: str, amount_paise: int) -> str:
-        """Money back to where it came from; returns the refund id ("rfnd_…")."""
-        refund = await self._post(f"/payments/{payment_id}/refund", {"amount": amount_paise})
+    async def refund(self, payment_id: str, amount_paise: int, receipt: str | None = None) -> str:
+        """Money back to where it came from, at normal speed; returns the refund id ("rfnd_…").
+        `receipt` is ours (a refund part's id), so a refund can be found again (`refunds`)."""
+        body: dict[str, Any] = {"amount": amount_paise, "speed": "normal"}
+        if receipt is not None:
+            body["receipt"] = receipt
+        refund = await self._post(f"/payments/{payment_id}/refund", body)
         return str(refund["id"])
+
+    async def refunds(self, payment_id: str) -> list[dict[str, Any]]:
+        """The payment's refunds (at most 100: a top-up has a handful)."""
+        found = await self._call("GET", f"/payments/{payment_id}/refunds", params={"count": 100})
+        return list(found.get("items") or [])

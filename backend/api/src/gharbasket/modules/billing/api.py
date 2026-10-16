@@ -16,7 +16,11 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import refunds, service
-from gharbasket.modules.billing.events import POINTS_CREDITED, WALLET_TOPPED_UP
+from gharbasket.modules.billing.events import (
+    POINTS_CREDITED,
+    REFUND_TO_SOURCE_SETTLED,
+    WALLET_TOPPED_UP,
+)
 from gharbasket.modules.billing.kindness import credit_points
 from gharbasket.modules.billing.models import (
     JournalEntry,
@@ -37,6 +41,7 @@ from gharbasket.platform.settings import Settings, get_settings
 
 __all__ = [
     "POINTS_CREDITED",
+    "REFUND_TO_SOURCE_SETTLED",
     "WALLET_TOPPED_UP",
     "InsufficientBalance",
     "RefundOut",
