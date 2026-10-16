@@ -9063,6 +9063,246 @@
         "title": "RecipeSummary",
         "type": "object"
       },
+      "ReconItem": {
+        "properties": {
+          "actual_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What Razorpay says",
+            "title": "Actual Paise"
+          },
+          "expected_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What our records say",
+            "title": "Expected Paise"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "captured_not_credited",
+              "credited_not_captured",
+              "amount_mismatch",
+              "unknown_payment",
+              "refund_status_mismatch",
+              "refund_unknown",
+              "refund_stuck"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "razorpay_ref": {
+            "examples": [
+              "pay_EKwxwAgItmmXdp"
+            ],
+            "title": "Razorpay Ref",
+            "type": "string"
+          },
+          "refund_part_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Part Id"
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "healed: the job repaired a lost webhook itself",
+            "enum": [
+              "open",
+              "healed",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "topup_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topup Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "razorpay_ref",
+          "topup_id",
+          "refund_part_id",
+          "user_id",
+          "expected_paise",
+          "actual_paise",
+          "first_seen_at",
+          "last_seen_at",
+          "resolution"
+        ],
+        "title": "ReconItem",
+        "type": "object"
+      },
+      "ReconPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReconItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReconRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "last_run"
+        ],
+        "title": "ReconPage",
+        "type": "object"
+      },
+      "ReconResolution": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "description": "The admin who resolved it",
+            "format": "uuid",
+            "title": "By",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "by",
+          "note",
+          "at"
+        ],
+        "title": "ReconResolution",
+        "type": "object"
+      },
+      "ReconRun": {
+        "properties": {
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "healed": {
+            "title": "Healed",
+            "type": "integer"
+          },
+          "opened": {
+            "title": "Opened",
+            "type": "integer"
+          },
+          "scheduled_for": {
+            "format": "date-time",
+            "title": "Scheduled For",
+            "type": "string"
+          },
+          "status": {
+            "description": "skipped: no Razorpay keys; failed: Razorpay was unavailable, nothing changed",
+            "enum": [
+              "ok",
+              "skipped",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheduled_for",
+          "status",
+          "checked",
+          "healed",
+          "opened"
+        ],
+        "title": "ReconRun",
+        "type": "object"
+      },
       "ReferralClaimIn": {
         "additionalProperties": false,
         "properties": {
@@ -9606,53 +9846,6 @@
           "unit_price_paise"
         ],
         "title": "ReplacedOut",
-        "type": "object"
-      },
-      "ResolveIn": {
-        "additionalProperties": false,
-        "properties": {
-          "credit_paise": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Credit only; at most max_credit_paise",
-            "examples": [
-              4000
-            ],
-            "title": "Credit Paise"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Required to reject",
-            "title": "Note"
-          },
-          "outcome": {
-            "enum": [
-              "credit",
-              "reject"
-            ],
-            "title": "Outcome",
-            "type": "string"
-          }
-        },
-        "required": [
-          "outcome"
-        ],
-        "title": "ResolveIn",
         "type": "object"
       },
       "RiderRef": {
@@ -13675,6 +13868,22 @@
         "title": "DonationOut",
         "type": "object"
       },
+      "gharbasket__modules__billing__schemas__ResolveIn": {
+        "properties": {
+          "note": {
+            "description": "The decision; a money correction is a separate, manual adjustment entry",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "ResolveIn",
+        "type": "object"
+      },
       "gharbasket__modules__community__kindness_schemas__DonationIn": {
         "additionalProperties": false,
         "properties": {
@@ -14007,6 +14216,53 @@
           "end_reason"
         ],
         "title": "CaptainOut",
+        "type": "object"
+      },
+      "gharbasket__modules__orders__schemas__ResolveIn": {
+        "additionalProperties": false,
+        "properties": {
+          "credit_paise": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Credit only; at most max_credit_paise",
+            "examples": [
+              4000
+            ],
+            "title": "Credit Paise"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required to reject",
+            "title": "Note"
+          },
+          "outcome": {
+            "enum": [
+              "credit",
+              "reject"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "ResolveIn",
         "type": "object"
       },
       "gharbasket__modules__orders__schemas__TimelineEntry": {
@@ -15889,7 +16145,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResolveIn"
+                "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__ResolveIn"
               }
             }
           },
@@ -16107,6 +16363,285 @@
         "summary": "Change a point rate (admin; applies to donations verified from now on; audit-logged)",
         "tags": [
           "community"
+        ]
+      }
+    },
+    "/v1/admin/reconciliation": {
+      "get": {
+        "operationId": "list_reconciliation_v1_admin_reconciliation_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "healed",
+                    "resolved"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "captured_not_credited",
+                    "credited_not_captured",
+                    "amount_mismatch",
+                    "unknown_payment",
+                    "refund_status_mismatch",
+                    "refund_unknown",
+                    "refund_stuck"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: mismatches between Razorpay and our records, newest first, and the last run",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/admin/reconciliation/{item_id}/resolve": {
+      "post": {
+        "operationId": "resolve_reconciliation_v1_admin_reconciliation__item_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/gharbasket__modules__billing__schemas__ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.recon_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.recon_not_open (with status)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: close an open item with a note (audit-logged); it moves no money",
+        "tags": [
+          "billing"
         ]
       }
     },

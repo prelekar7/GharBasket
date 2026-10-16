@@ -251,12 +251,12 @@ US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The
 
 **`reconcile_payments`** runs hourly at :17 (GitHub Actions; the advisory lock and `scheduled_for` follow M0).
 - **Window.** It covers Razorpay payments and refunds created in the 72 hours before `scheduled_for`, plus every item still open. Razorpay's lists are paged: `GET /v1/payments?from&to&count=100&skip`, and refunds per payment.
-- **Read-only towards Razorpay.**
+- **Read-only towards Razorpay.** Everything is read (the two lists, then single payments for top-ups credited in the window or named by open items, and a payment's refunds for parts `sent` but not listed) before anything is written: when Razorpay is unavailable the run is `failed` and changes nothing.
 - **Dev top-ups are skipped.** Without Razorpay keys the run is `skipped`.
 
 | Check (`kind`) | What it compares | What the job does |
 |---|---|---|
-| `captured_not_credited` | A captured payment for one of our top-up orders, whose top-up is not `paid` (a lost webhook) | **Heals**: runs the same settle path as the webhook (idempotent by `topup:<payment id>`); item `healed` |
+| `captured_not_credited` | A captured payment for one of our top-up orders, whose top-up is not `paid` (a lost webhook) | **Heals**: runs the same settle path as the webhook (idempotent by `topup:<payment id>`); item `healed`. A payment that no longer fits under the cap would need a refund, which this job never sends: its item stays open for an admin. A second captured payment on an already paid order also opens this kind |
 | `credited_not_captured` | A `topup` entry whose payment is not captured at Razorpay | Opens an item (critical) |
 | `amount_mismatch` | Payment amount or currency ≠ the top-up's | Opens an item (the webhook already refused it) |
 | `unknown_payment` | A captured payment whose order is not ours | Opens an item |
@@ -273,7 +273,7 @@ ReconItem : { "id", "kind", "status": "open" | "healed" | "resolved",
 GET  /v1/admin/reconciliation?status=open&kind=&cursor=&limit=     admin (reconciliation:read)
   200 { "items": [ReconItem], "next_cursor", "last_run": { "scheduled_for", "status", "checked",
         "healed", "opened" } }
-POST /v1/admin/reconciliation/{id}/resolve     admin; { "note": "…" } (1 to 500) → 200 ReconItem
+POST /v1/admin/reconciliation/{id}/resolve     admin (reconciliation:resolve); { "note": "…" } (1 to 500) → 200 ReconItem
   409 "billing.recon_not_open" · 404 "billing.recon_not_found"
 ```
 
@@ -399,7 +399,7 @@ If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate 
 | `billing.points_lots` | id, user_id, points, remaining, earned_at, expires_at, source_type, source_id, entry_id; unique (source_type, source_id) |
 | `billing.refunds` | id, user_id, amount_paise, reason (customer, account_deleted), status, idempotency_key, created_at, settled_at (§3.3) |
 | `billing.refund_parts` | id, refund_id, payment_id → payments, replaces_part_id (a deleting account's failed part moved once), amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, next_attempt_at, last_error, entry_id, failed_entry_id, sent_at, settled_at |
-| `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, finished_at (§3.4) |
+| `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, error, finished_at (§3.4) |
 | `billing.reconciliation_items` | id, run_id, kind, status (open, healed, resolved), razorpay_ref, topup_id, refund_part_id, user_id, expected_paise, actual_paise, first_seen_at, last_seen_at, resolved_by, resolution_note, resolved_at; one open item per (kind, razorpay_ref) |
 
 ### 4.1 Ledger rules (handbook 05 §5.7)
@@ -431,7 +431,7 @@ Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) c
 |---|---|
 | `wallet:read/write` | customer (own) |
 | `statements:read` | customer (own wallet, §3.2); partner (own earnings, with M8); franchise_owner (hub aggregates, later) |
-| `reconciliation:read` | admin |
+| `reconciliation:read` · `reconciliation:resolve` | admin |
 | `refunds:write` | customer (own wallet, §3.3) |
 | `payouts:read` | partner (own), hub_manager (hub), admin |
 | `payouts:write` | admin (retry) |

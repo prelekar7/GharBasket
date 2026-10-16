@@ -8,6 +8,8 @@
   for reconciliation. It never marks a part failed: only Razorpay's webhook does;
 - dev top-ups' parts are settled at once (`rfnd_dev_…`).
 
+`reconcile_payments` (hourly at :17) compares Razorpay with our records (spec §3.4).
+
 Kindness points (§3.6):
 - `expire_kindness_points` (daily 00:30 IST) takes back what is left of each lot past its expiry.
 - The consumer of M9's `community.donation_verified` credits the donation's points, once per
@@ -23,7 +25,7 @@ import structlog
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import kindness, settlement
+from gharbasket.modules.billing import kindness, reconciliation, settlement
 from gharbasket.modules.billing.models import Payment, RefundPart
 from gharbasket.modules.billing.razorpay import RazorpayClient
 from gharbasket.platform.errors import ProblemError
@@ -112,6 +114,13 @@ async def send_refunds(ctx: JobContext) -> dict[str, Any]:
         select(func.count()).where(RefundPart.status == "pending", RefundPart.attempts >= MAX_TRIES)
     )
     return {**counts, "stuck": stuck.scalar_one()}
+
+
+@job("reconcile_payments", "Compare Razorpay's payments and refunds with ours; heal lost webhooks")
+async def reconcile_payments(ctx: JobContext) -> dict[str, Any]:
+    return await reconciliation.reconcile(
+        ctx.session, _razorpay(ctx), ctx.settings, ctx.scheduled_for
+    )
 
 
 # M9's event (M9 §3.4, §5): { donation_id, user_id, household_id, hub_id, society_id, drive_id,

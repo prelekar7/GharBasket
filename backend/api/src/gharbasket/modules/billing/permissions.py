@@ -12,3 +12,4 @@ PERMISSIONS.allow(
     "kindness:read",
     "kindness:donate",
 )
+PERMISSIONS.allow("admin", "reconciliation:read", "reconciliation:resolve")
