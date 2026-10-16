@@ -133,6 +133,7 @@ async def create_hub(
         service_area=None if body.service_area is None else await area(session, body.service_area),
         timings=timings(DEFAULT_TIMINGS, body.timings),
         procurement_buffer_pct=body.procurement_buffer_pct,
+        pre_live_box_fee_paise=body.pre_live_box_fee_paise,
         data_source=data_source,
     )
     if hub_id is not None:
@@ -154,7 +155,7 @@ async def update_hub(session: AsyncSession, hub: Hub, body: HubPatch) -> list[st
     """Apply the fields sent; returns the names of those that changed (version + 1 if any)."""
     sent = body.model_fields_set
     changed: list[str] = []
-    for name in ("name", "address", "status", "procurement_buffer_pct"):
+    for name in ("name", "address", "status", "procurement_buffer_pct", "pre_live_box_fee_paise"):
         if name in sent and getattr(body, name) != getattr(hub, name):
             setattr(hub, name, getattr(body, name))
             changed.append(name)

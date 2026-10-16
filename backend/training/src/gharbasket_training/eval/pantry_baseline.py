@@ -10,6 +10,9 @@ Two views, both from the simulator's ground truth:
    table, the running mean of the actual daily use, and the twin, which sees only what the app
    sees: each box's daily-use share (delivered minus the planned recipes' need, the way M3
    computes it) and the household's taps. Its 80 % interval's coverage is the calibration metric.
+   A reference arm (no target; eval protocol change log, 8 Oct 2026): the same twin started from
+   cohort priors learned (`pantry_priors.fit`, M-A v1) on another seed's households, so the
+   priors never saw the households they are scored on.
 
 The metric is the protocol's quantity MAE as a share of the weekly quantity, per item (a
 household's product): sum over its scored weeks of |prediction - actual| / sum of actual, zero
@@ -21,7 +24,7 @@ is left out. Coverage counts every week k + 1, zero weeks too.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from gharbasket_ml.pantry import quantities
@@ -32,6 +35,9 @@ from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.weeks import PLANNERS, Rows, cached, simulate
 
 from gharbasket.modules.subscriptions import rules
+from gharbasket_training import pantry_priors
+
+Priors = dict[tuple[str, str], pantry_priors.Prior]
 
 
 @dataclass(frozen=True)
@@ -45,11 +51,52 @@ class PantryRun:
     twin_running_mean: list[float]  # the running mean of k weeks' daily use predicting week k + 1
     twin: list[float]  # the pantry twin (M-A v0) after k weeks predicting week k + 1
     twin_coverage: list[float]  # share of week k + 1's daily use inside the twin's 80 % interval
+    # Reference only: the twin from cohort priors learned on another seed (`learned_from`).
+    twin_learned: list[float] = field(default_factory=list)
+    learned_from: int | None = None
+
+
+def learned_priors(
+    seed: int, catalog: Catalog, *, weeks: int, start: date, adoption: float | None
+) -> Priors:
+    """Cohort priors (per adult equivalent) fitted on seed `seed`'s households over the run's
+    weeks, from what the app would see (each box's daily-use share and tap)."""
+    households = sample(seed, config.load(), catalog, adoption)
+    plan = cached(PLANNERS["rules"])
+    observed: list[pantry_priors.Observation] = []
+    for h in households:
+        rule = rules.daily_use_plan(h.adult_equivalents)
+        scope = [s for s in rule if s in catalog.products and catalog.products[s].perishable]
+        rows = simulate(seed, h, catalog, start, weeks, plan, None)
+        for slug, boxes in _twin_observations(h, catalog, rows, scope).items():
+            observed.extend(
+                pantry_priors.Observation(
+                    h.key,
+                    h.adult_equivalents,
+                    slug,
+                    week,
+                    share,
+                    signal,
+                    catalog.products[slug].step,
+                )
+                for week, share, signal in boxes
+            )
+    return pantry_priors.fit(observed, f"seed-{seed}", seed=seed).by_key()
 
 
 def run_pantry(
-    seed: int, catalog: Catalog, *, weeks: int, start: date, adoption: float | None
+    seed: int,
+    catalog: Catalog,
+    *,
+    weeks: int,
+    start: date,
+    adoption: float | None,
+    priors: Priors | None = None,
+    learned_from: int | None = None,
 ) -> PantryRun:
+    """`priors` (learned on another seed, `learned_from`) adds the reference arm."""
+    if priors is not None and learned_from == seed:
+        raise ValueError("the learned priors must come from another seed's households")
     cohorts = config.load()
     households = sample(seed, cohorts, catalog, adoption)
     plan = cached(PLANNERS["rules"])  # the dishes matter only through what they use
@@ -60,6 +107,7 @@ def run_pantry(
     scope_mean: list[list[float]] = [[] for _ in range(curves)]
     twin_errors: list[list[float]] = [[] for _ in range(curves)]
     twin_hits: list[list[float]] = [[] for _ in range(curves)]
+    learned_errors: list[list[float]] = [[] for _ in range(curves)]
     for h in households:
         rule = rules.daily_use_plan(h.adult_equivalents)
         rows = simulate(seed, h, catalog, start, weeks, plan, None)
@@ -104,6 +152,17 @@ def run_pantry(
                 answer = quantities(PantryRequest(items=[item])).items[0]
                 twin_errors[w - 1].append(abs(answer.mean - actual) / scale)
                 twin_hits[w - 1].append(float(answer.p10 <= actual <= answer.p90))
+                if priors is not None:
+                    learned = priors.get((pantry_priors.cohort_of(h.adult_equivalents), slug))
+                    if learned is not None:  # else M3 keeps the rule table, as above
+                        item = item.model_copy(
+                            update={
+                                "prior_mean": learned.prior_mean_per_ae * h.adult_equivalents,
+                                "prior_weeks": learned.prior_weeks,
+                            }
+                        )
+                        answer = quantities(PantryRequest(items=[item])).items[0]
+                    learned_errors[w - 1].append(abs(answer.mean - actual) / scale)
     mean = lambda xs: sum(xs) / len(xs) if xs else 0.0  # noqa: E731
     return PantryRun(
         seed,
@@ -114,6 +173,8 @@ def run_pantry(
         [mean(e) for e in scope_mean],
         [mean(e) for e in twin_errors],
         [mean(e) for e in twin_hits],
+        [mean(e) for e in learned_errors] if priors is not None else [],
+        learned_from if priors is not None else None,
     )
 
 

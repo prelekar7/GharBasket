@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.models import Product
 from gharbasket.modules.catalog.pricing import save_price_list, today
 from gharbasket.modules.catalog.schemas import PriceItem
@@ -110,6 +111,29 @@ async def test_the_current_list_is_the_newest_on_or_before_the_date(
     assert now.headers["cache-control"] == "no-store"
 
 
+async def test_latest_prices_on_keeps_an_items_last_earlier_price(
+    db_session: AsyncSession,
+) -> None:
+    # The ranker's price feature (M10 §3.7): the newest list valid on the day that holds the item.
+    okra, ghee = await _ids(db_session, "bhindi", "ghee")
+    later = today() + timedelta(days=3)
+    await save_price_list(
+        db_session,
+        SEED_HUB_ID,
+        later,
+        [PriceItem(product_id=okra, price_paise=2400)],
+        published_by=None,
+    )
+
+    then = await catalog_api.latest_prices_on(db_session, SEED_HUB_ID, [okra, ghee], later)
+    now = await catalog_api.latest_prices_on(db_session, SEED_HUB_ID, [okra, ghee], today())
+    before = await catalog_api.latest_prices_on(db_session, SEED_HUB_ID, [okra], date(2026, 9, 30))
+
+    assert then == {okra: 2400, ghee: 35000}  # ghee is not on the new list: its last price
+    assert now == {okra: 2000, ghee: 35000}
+    assert before == {}
+
+
 async def test_an_unknown_hub_has_no_prices(clients: ClientFactory, google: FakeGoogle) -> None:
     api = clients()
 
@@ -168,6 +192,7 @@ async def test_a_hub_manager_publishes_once_and_a_retry_replays(
         "hub_id": str(SEED_HUB_ID),
         "valid_from": body["valid_from"],
         "items_count": 2,
+        "replaced": False,
     }
     audit = (
         await db_session.execute(select(AuditEntry).where(AuditEntry.entity_id == list_id))

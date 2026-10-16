@@ -140,7 +140,7 @@ flowchart TD
 | `jobs-staging.yml` | GitHub Actions schedule (daily and weekly) or "Run workflow" with a job name | Calls `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` and the scheduled time (D21). Minute-level jobs (the 21:00 cut-off, the outbox sweep every few minutes) are called the same way by cron-job.org, since a private repository has 2,000 free Actions minutes a month. Skips with a notice until the secrets exist |
 | `training-jobs.yml` | GitHub Actions schedule (daily, 18:33 IST) or "Run workflow" with a job module | Runs `python -m gharbasket_training.jobs.<name>` from `backend/training` on the runner (D25): reads and writes the lake on R2 and hands results to the API's internal endpoints with `JOBS_TOKEN`. Today it runs `collect_mandi`. Skips with a notice until its secrets exist |
 
-Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag), `deploy-ml.yml` for the ML service on its Hugging Face Space (being set up in PR #115) and, before P6, a pilot production deploy.
+Later, when their features arrive: a Playwright e2e workflow (label `e2e`, nightly), Android builds (debug APK; signed AAB on tag), `deploy-ml.yml` for the ML service on its Hugging Face Space and, before P6, a pilot production deploy.
 
 ## 11.5 Environments
 
@@ -187,6 +187,7 @@ flowchart LR
 | Solver golden tests (routing, CP-SAT, fixed seeds) | pytest | Prathamesh Relekar |
 | Model quality gates | Metric thresholds on fixture datasets | Prathamesh Relekar |
 | End-to-end | Playwright: onboarding, approve box, cut-off, pack, deliver, donate | **Rhythm Thakur, Manish Raje** |
+| End-to-end (backend) | `just e2e-day` (`e2e/backend`): a fresh database, the seed and two simulated weeks, then one delivery day through every job at its IST time over HTTP with real commits, the outbox relay and a fake FCM, ending with reusable invariants (ledger, wallets, order state machine, outbox, messages, stock); product bugs it finds stay `xfail(strict=True)` until fixed | Prathamesh Relekar; Rhythm Thakur, Manish Raje |
 | Load | k6: cut-off with 2,000 orders; 200 concurrent box edits | Rhythm Thakur, Manish Raje |
 | Device / manual | Low-end Android checklist, accessibility audit (axe, TalkBack) | Rhythm Thakur, Manish Raje |
 | Security | OWASP ASVS L1 checklist, gitleaks, pip-audit, pnpm audit, Trivy image scan | All |
