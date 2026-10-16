@@ -1,17 +1,19 @@
 """HTTP endpoints of M4 Orders & Checkout: slots, orders, add-ons and cancel (spec §3.1),
-problems reported on an order (§3.2) and the console's triage of them (§3.6)."""
+problems reported on an order (§3.2), the live timeline (§3.3), the console's triage of problems
+(§3.6), and paying a failed box (§3.4)."""
 
 import uuid
 from dataclasses import asdict
 from datetime import date, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, Header, Query, Request, Response, status
+from fastapi.sse import EventSourceResponse
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import issues, service, triage
+from gharbasket.modules.orders import issues, live, service, triage
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
@@ -27,6 +29,7 @@ from gharbasket.modules.orders.schemas import (
     IssueStatus,
     IssueTriage,
     IssueTriageDetail,
+    OrderEventsOut,
     OrderLineOut,
     OrderOut,
     OrderStep,
@@ -39,7 +42,6 @@ from gharbasket.modules.orders.schemas import (
     SlotRef,
     SlotsOut,
     Status,
-    TimelineEntry,
 )
 from gharbasket.modules.orders.service import IST, SlotLoad
 from gharbasket.platform import audit, files
@@ -49,7 +51,8 @@ from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
 from gharbasket.platform.pagination import Cursor, Limit, Page
-from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.permissions import Permit, forbidden, require
+from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["orders"])
 
@@ -98,12 +101,13 @@ async def _scope(
 async def _owned(
     session: DbSession, permit: Permit, order_id: uuid.UUID, *, for_update: bool = False
 ) -> Order:
+    """The order if an admin or staff of its hub asks, or its household's owner as a customer;
+    another customer's order is 404, another hub's 403 for staff without the customer role."""
     order = await service.get(session, order_id, for_update=for_update)
-    if any(g.role == "admin" for g in permit.grants):
+    if permit.allows(order.hub_id):
         return order
-    if any(g.scope_type == "hub" for g in permit.grants):
-        permit.ensure(order.hub_id)
-        return order
+    if not permit.has_role("customer"):
+        raise forbidden()
     household = await identity_api.household_for_user(session, permit.principal.user_id)
     if household is None or household.id != order.household_id:
         raise service.order_not_found()
@@ -169,10 +173,7 @@ async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
                 shortage_qty=line.shortage_qty,
             )
         )
-    timeline = [
-        TimelineEntry(status=e.to_status, at=e.at, actor=e.actor)  # pyright: ignore[reportArgumentType]
-        for e in await service.timeline_of(session, order.id)
-    ]
+    timeline = [live.entry(e) for e in await service.timeline_of(session, order.id)]
     summary = await _summary(session, order)
     return OrderOut(**summary.model_dump(), lines=out_lines, timeline=timeline)
 
@@ -327,6 +328,44 @@ async def get_order(
     return await _full(session, order, lang)
 
 
+@router.get(
+    "/orders/{order_id}/events",
+    summary="The order's live timeline: JSON for polling clients, or a Server-Sent Events stream",
+    description="`Accept: text/event-stream` streams `snapshot`, then `status` per new timeline "
+    "row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); "
+    "it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows "
+    "after it, without a new snapshot. Any other Accept answers JSON, oldest first.",
+    response_model=OrderEventsOut,
+    responses={
+        200: {"content": {"text/event-stream": {"schema": {"type": "string"}}}},
+        403: _problem("auth.forbidden: hub staff of another hub"),
+        404: _problem("orders.not_found"),
+        429: _problem("orders.too_many_streams: more than 3 open streams for this user"),
+    },
+)
+async def order_events(
+    order_id: uuid.UUID,
+    permit: CanRead,
+    session: DbSession,
+    valkey: Valkey,
+    request: Request,
+    response: Response,
+    last_event_id: Annotated[str | None, Header()] = None,
+) -> OrderEventsOut | Response:
+    order = await _owned(session, permit, order_id)
+    if "text/event-stream" not in request.headers.get("accept", ""):
+        response.headers["Cache-Control"] = "no-store"
+        return await live.history(session, order.id)
+    after = await live.resume_point(session, order.id, last_event_id)
+    user_id = permit.principal.user_id
+    body = live.stream(session, order.id, after)
+    if await live.claim(valkey, user_id):
+        body = live.counted(body, valkey, user_id)
+    return EventSourceResponse(
+        body, headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
+    )
+
+
 @router.post(
     "/orders/{order_id}/addons",
     summary="Add, change or remove add-on lines before the cut-off (Idempotency-Key, If-Match)",
@@ -372,10 +411,47 @@ async def cancel_order(
     order_id: uuid.UUID, permit: CanWrite, session: DbSession, idem: Idempotent, lang: Lang
 ) -> OrderOut:
     order = await _owned(session, permit, order_id, for_update=True)
-    await service.cancel(session, order, actor="customer", reason="customer")
+    await service.cancel(
+        session,
+        order,
+        actor="customer",
+        reason="customer",
+        actor_user_id=permit.principal.user_id,
+    )
     out = await _full(session, order, lang)
     await idem.save(200, out)
     await session.commit()
+    return out
+
+
+@router.post(
+    "/orders/{order_id}/pay",
+    summary="Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)",
+    description="The same debit as the cut-off (one per order, never twice), then `locked`. "
+    "An order that is already locked (a top-up paid it) answers as it is.",
+    responses={
+        404: _problem("orders.not_found"),
+        409: _problem(
+            "billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, "
+            "orders.payment_grace_over"
+        ),
+    },
+)
+async def pay_order(
+    order_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    response: Response,
+) -> OrderOut:
+    order = await _owned(session, permit, order_id, for_update=True)
+    await service.pay(session, order)
+    out = await _full(session, order, lang)
+    await idem.save(200, out)
+    await session.commit()
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, order.version)
     return out
 
 

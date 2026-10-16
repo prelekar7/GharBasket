@@ -8,7 +8,8 @@ for boxes nothing will approve otherwise. M11 turns both into messages. `apply_a
 at T-1 20:55 IST, five minutes before M4's cut-off, for the next day's deliveries.
 
 The cycle mirrors its order after the cut-off: `orders.locked` → `locked` (with `order_id`),
-`orders.cancelled` with reason `payment` → `cancelled`.
+`orders.payment_failed` → `payment_failed` (§3.3), `orders.cancelled` with reason `payment` →
+`cancelled`.
 """
 
 import uuid
@@ -19,6 +20,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.subscriptions import service
 from gharbasket.platform.jobs import JobContext, job
@@ -100,6 +102,18 @@ async def on_order_locked(session: AsyncSession, event: OutboxEvent) -> None:
         await service.mark_locked(session, cycle, uuid.UUID(event.payload["order_id"]))
 
 
+async def on_order_payment_failed(session: AsyncSession, event: OutboxEvent) -> None:
+    if not event.payload.keys() >= MIRRORED:
+        return
+    cycle = await service.cycle_for(
+        session,
+        uuid.UUID(event.payload["household_id"]),
+        date.fromisoformat(event.payload["delivery_date"]),
+    )
+    if cycle is not None and cycle.order_id == uuid.UUID(event.payload["order_id"]):
+        await service.mark_payment_failed(session, cycle)
+
+
 async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
     if event.payload.get("reason") != "payment" or not event.payload.keys() >= MIRRORED:
         return  # a skip or a customer cancellation already changed the cycle
@@ -108,11 +122,22 @@ async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
         uuid.UUID(event.payload["household_id"]),
         date.fromisoformat(event.payload["delivery_date"]),
     )
-    if cycle is not None and cycle.status in service.EDITABLE:
+    if cycle is not None and cycle.status in (*service.EDITABLE, "payment_failed"):
         cycle.status = "cancelled"
         cycle.version += 1
         await session.flush()
 
 
+async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
+    """M1 §3.5: the subscription ends and the weeks not yet paid are skipped."""
+    try:
+        household_id = uuid.UUID(str(event.payload["household_id"]))
+    except (KeyError, ValueError):
+        return  # no household: nothing to end
+    await service.end_for_deletion(session, household_id)
+
+
 subscribe(orders_api.LOCKED, on_order_locked)
+subscribe(orders_api.PAYMENT_FAILED, on_order_payment_failed)
 subscribe(orders_api.CANCELLED, on_order_cancelled)
+subscribe(identity_api.DELETION_REQUESTED, on_deletion_requested)

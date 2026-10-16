@@ -33,7 +33,7 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import jobs as orders_jobs
 from gharbasket.modules.orders import service as orders_service
-from gharbasket.modules.subscriptions import jobs as _subs_jobs  # noqa: F401 (M3's consumers)
+from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subs_service
 from gharbasket.modules.subscriptions.models import BoxLine, WeeklyCycle
 from gharbasket.platform import outbox
@@ -201,7 +201,9 @@ async def generate_week(
 
 async def relay_events(session: AsyncSession) -> None:
     """Deliver the outbox as the relay does after each commit in production: M3's consumers
-    mirror `orders.locked` and `orders.cancelled` on the cycle (subscriptions/jobs.py)."""
+    mirror `orders.locked` and `orders.cancelled` on the cycle (subscriptions/jobs.py), M11's
+    turn the events into messages, and every other module's consumers run too."""
+    load_modules()
     while (await outbox.relay(session)).sent:
         pass
 

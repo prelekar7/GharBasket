@@ -6,7 +6,7 @@ ever carries a captain's flat number or phone.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -55,6 +55,30 @@ class UnlockOut(BaseModel):
     status: SocietyStatus
     joined: int = Field(examples=[14])
     threshold: int = Field(examples=[20])
+    live_at: datetime | None = Field(description="Set once, when it first went live")
+    threshold_source: Literal["model", "hub", "default"]
+    box_fee_paise: int = Field(
+        examples=[3000],
+        description="The delivery fee on each box until live; 0 once `live_at` is set",
+    )
+
+
+class SocietyUnlockIn(BaseModel):
+    """The hub's unlock settings (§3.6); every field optional."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    unlock_threshold: int | None = Field(default=None, ge=1, le=500, examples=[25])
+    unlock_threshold_pinned: bool | None = Field(
+        default=None, description="Pinned: the weekly recompute leaves the threshold alone"
+    )
+    status: Literal["unlocking", "paused", "live"] | None = Field(
+        default=None, description="A hub decision, audit-logged"
+    )
+
+
+class SocietyUnlockAdminOut(UnlockOut):
+    unlock_threshold_pinned: bool
 
 
 def _tidy(value: str | None) -> str | None:
@@ -96,3 +120,101 @@ class SocietyRequestOut(BaseModel):
     id: uuid.UUID
     status: Literal["received", "accepted", "rejected", "duplicate"]
     created_at: datetime
+
+
+class CaptainOut(BaseModel):
+    """An appointment as hub staff see it (§3.2): never the captain's flat or phone."""
+
+    id: uuid.UUID
+    society_id: uuid.UUID
+    hub_id: uuid.UUID
+    user_id: uuid.UUID
+    partner_id: uuid.UUID
+    display_name: str | None = Field(examples=["Meena tai"], description="From M8")
+    photo_url: str | None = Field(description="null for now (M8 §11)")
+    status: Literal["active", "ended"]
+    since: datetime
+    until: datetime | None
+    appointed_by: Literal["auto", "hub"] = Field(description="auto: on partners.verified")
+    end_reason: Literal["stepped_down", "replaced", "hub_decision", "suspended"] | None
+
+
+class CaptainsOut(BaseModel):
+    items: list[CaptainOut]
+
+
+class CaptainIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    partner_id: uuid.UUID
+    replace: bool = Field(
+        default=False, description="End the current captain (replaced) and appoint this one"
+    )
+
+
+class CaptainEndIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Literal["stepped_down", "hub_decision"]
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def _tidy_note(cls, value: str | None) -> str | None:
+        return _tidy(value)
+
+
+ReferralStatus = Literal["joined", "converted", "void"]
+
+
+class ReferralRewards(BaseModel):
+    referrer_points: int = Field(examples=[250])
+    referee_points: int = Field(examples=[250])
+    monthly_cap: int = Field(examples=[10], description="Rewarded conversions per IST month")
+
+
+class ReferralSummary(BaseModel):
+    joined: int = Field(examples=[3])
+    converted: int = Field(examples=[2])
+    points_earned: int = Field(examples=[500])
+
+
+class ReferredBy(BaseModel):
+    status: ReferralStatus
+    points: int | None = Field(examples=[250], description="Set once converted")
+
+
+class ReferralItem(BaseModel):
+    """A neighbour who joined with the caller's code: never a name, flat, tower or phone."""
+
+    id: uuid.UUID
+    status: ReferralStatus
+    joined_on: date
+    converted_on: date | None
+    points: int | None = Field(description="Set once converted; 0 over the monthly cap")
+
+
+class ReferralsOut(BaseModel):
+    code: str = Field(examples=["K7Q2XD"])
+    link: str | None = Field(
+        examples=["https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD"],
+        description="null while the caller has no household",
+    )
+    share_text: str = Field(description="In the request language; carries the link")
+    rewards: ReferralRewards
+    summary: ReferralSummary
+    referred_by: ReferredBy | None
+    items: list[ReferralItem] = Field(description="Newest first, at most 50")
+
+
+class ReferralClaimIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1, max_length=16, examples=["K7Q2XD"])
+
+
+class ReferralClaimOut(BaseModel):
+    id: uuid.UUID
+    status: Literal["joined"]
+    referee_points: int = Field(examples=[250])
+    converts_on: Literal["first_delivered_box"]

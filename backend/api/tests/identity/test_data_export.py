@@ -161,7 +161,9 @@ async def activity(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
                 source="rule",
             ),
             OrderLine(order_id=order.id, kind="box", unit_price_paise=6_000, **line),
-            OrderEvent(order_id=order.id, to_status="delivered", actor="hub"),
+            OrderEvent(
+                order_id=order.id, to_status="delivered", actor="rider", actor_user_id=uuid.uuid4()
+            ),
             Payment(
                 user_id=user_id,
                 provider="razorpay",
@@ -297,7 +299,23 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert document["format"] == "gharbasket-export/v1"
     assert document["user_id"] == str(user_id)
     sections = document["sections"]
-    assert set(sections) == {"identity", "subscriptions", "orders", "billing", "notifications"}
+    assert set(sections) == {
+        "identity",
+        "subscriptions",
+        "orders",
+        "billing",
+        "notifications",
+        "partners",
+        "community",
+    }
+    assert sections["partners"] == {"partners": []}
+    assert sections["community"] == {
+        "captain_appointments": [],
+        "donations": [],
+        "referral_code": None,
+        "referrals_made": [],
+        "referred": None,
+    }
     assert sections["notifications"] == {"messages": []}
     assert sections["identity"]["user"]["phone_e164"] == "+919800000001"
     assert sections["identity"]["household"]["address"]["flat"] == "A-1203"
@@ -316,7 +334,8 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
     assert sections["subscriptions"]["subscription"]["payment_mode"] == "wallet"
     (order,) = sections["orders"]["orders"]
     assert order["id"] == str(order_id) and len(order["lines"]) == 1
-    assert [event["to_status"] for event in order["timeline"]] == ["delivered"]
+    assert [(e["to_status"], e["actor"]) for e in order["timeline"]] == [("delivered", "rider")]
+    assert "actor_user_id" not in order["timeline"][0]  # the actor kind only, never who
     (issue,) = sections["orders"]["issues"]
     assert issue["order_id"] == str(order_id) and issue["kind"] == "missing"
     assert issue["photo_count"] == 1 and "photo_keys" not in issue  # counted, never included
@@ -491,5 +510,10 @@ async def test_a_user_without_a_household_gets_empty_sections(
     sections = s3.file(f"data_export/{user_id}/{export_id}.json")["sections"]
     assert sections["identity"]["household"] is None
     assert sections["subscriptions"]["cycles"] == [] and sections["orders"]["orders"] == []
-    assert sections["billing"] == {"wallet_balance_paise": 0, "wallet_entries": [], "topups": []}
+    assert sections["billing"] == {
+        "wallet_balance_paise": 0,
+        "wallet_entries": [],
+        "topups": [],
+        "kindness_points": [],
+    }
     assert (await db_session.get(User, user_id)) is not None
