@@ -28,6 +28,7 @@ async def test_first_exchange_signs_up_and_matches_the_frozen_contract(
         "refresh_token",
         "is_new_user",
         "user",
+        "deletion_cancelled",  # added by §3.5 (account deletion)
     }
     assert set(first["user"]) == {"id", "phone_e164", "name", "locale", "senior_mode"}
     assert first["access_expires_in"] == 900
@@ -192,6 +193,7 @@ def test_the_openapi_contract_documents_the_frozen_shapes() -> None:
         "dev_phone",
         "dev_name",
         "device",
+        "keep_account",  # added by §3.5
     }
     assert set(schemas["ExchangeOut"]["required"]) == {
         "access_token",

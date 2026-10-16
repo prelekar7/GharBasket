@@ -48,6 +48,7 @@ async def clients(commit_guard: CommitGuard, google: FakeGoogle) -> AsyncIterato
         valkey: Redis | None = None,
         headers: dict[str, str] | None = None,
         razorpay: Any = None,
+        http: httpx2.AsyncClient | None = None,
         storage: Any = None,
         **settings: Any,
     ) -> httpx2.AsyncClient:
@@ -56,6 +57,8 @@ async def clients(commit_guard: CommitGuard, google: FakeGoogle) -> AsyncIterato
         app.state.firebase_verifier = google.verifier() if firebase else None
         app.state.valkey = valkey
         app.state.razorpay = razorpay  # a RazorpayClient on a fake transport (billing tests)
+        if http is not None:
+            app.state.http = http  # outbound calls on a fake transport (the ML service)
         app.state.storage = storage  # an ObjectStore on a fake S3 client (data export tests)
         client = httpx2.AsyncClient(
             transport=httpx2.ASGITransport(app=app), base_url="https://t", headers=headers

@@ -4,11 +4,12 @@
   not consumed: the hub manager decides whether a reinstated captain serves again.
 - A new household, or one that moved society, may unlock its society (§3.6).
 - A delivered box converts its household's referral (§3.3).
+- `sweep_missed_pickups` closes each delivery day's donation pickups (§3.4).
 """
 
 from typing import Any
 
-from gharbasket.modules.community import referrals, unlock
+from gharbasket.modules.community import donations, drives, referrals, unlock
 from gharbasket.modules.community.captains import on_partner_suspended, on_partner_verified
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
@@ -29,3 +30,14 @@ subscribe(orders_api.DELIVERED, referrals.on_order_delivered)
 )
 async def recompute_unlock_thresholds(ctx: JobContext) -> dict[str, Any]:
     return await unlock.recompute_thresholds(ctx.session)
+
+
+@job(
+    "sweep_missed_pickups",
+    "Daily 22:30 IST: today's donation pickups that no stop reported count as not ready",
+)
+async def sweep_missed_pickups(ctx: JobContext) -> dict[str, Any]:
+    today = ctx.scheduled_for.astimezone(drives.IST).date()
+    counts: dict[str, Any] = await donations.sweep_missed(ctx.session, today)
+    counts["date"] = today.isoformat()
+    return counts

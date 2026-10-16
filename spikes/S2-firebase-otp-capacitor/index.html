@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Spike S-2 · Firebase OTP in Capacitor</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px 16px; background: #fbf7f0; color: #231f1a; }
+      label, button { display: block; width: 100%; margin: 8px 0; }
+      input { width: 100%; box-sizing: border-box; font: inherit; padding: 10px; }
+      button { font: inherit; font-weight: 600; padding: 14px; border: 0; border-radius: 12px; background: #2f5d3a; color: #fff; }
+      button.alt { background: #e8e0d2; color: #231f1a; }
+      pre { white-space: pre-wrap; word-break: break-all; font-size: 12px; background: #fff; padding: 8px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>S-2 Firebase phone OTP</h1>
+    <label>Phone (E.164) <input id="phone" type="tel" value="+919800000002" /></label>
+    <button id="send">Send code</button>
+    <button id="resend" class="alt">Resend code (Android)</button>
+    <label>Code <input id="code" inputmode="numeric" autocomplete="one-time-code" /></label>
+    <button id="confirm">Confirm code</button>
+    <button id="token" class="alt">Get ID token</button>
+    <button id="signout" class="alt">Sign out</button>
+    <div id="recaptcha"></div>
+    <pre id="log"></pre>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

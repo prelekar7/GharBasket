@@ -5,3 +5,6 @@ WALLET_TOPPED_UP = "billing.wallet_topped_up"
 # { user_id, points, source_type, source_id, expires_on }: Kindness points were credited (§3.6);
 # M11 tells the user (category kindness).
 POINTS_CREDITED = "billing.points_credited"
+# { entry_id, user_id, meals, points, code }: points were given as donated meals (§3.6); M9 counts
+# the meals towards its NGO hand-offs and the impact counters.
+POINTS_DONATED = "billing.points_donated"

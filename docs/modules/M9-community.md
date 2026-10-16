@@ -402,8 +402,16 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 | 422 | `community.nothing_counted` | Verification with every count 0 |
 | 422 | `community.photo_key_invalid` | Not the caller's `donation_photo` upload |
 | 422 | `community.drive_dates_invalid` | `ends_on` before `starts_on`, a past start, or shortening a running drive |
+| 409 | `community.drive_code_taken` | Another drive already has this `code` (added when built) |
+| 404 | `community.item_code_unknown` | `PUT /v1/admin/point-rates/{code}` for a code that has no rate (added when built) |
 | 403 | `auth.forbidden` | A hub manager writing a drive or verifying outside their hub |
 | 400 / 422 / 412 / 428 | `request.*` | As in M0 (idempotency, If-Match) |
+
+**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
+
+**As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
+
+**As built (verification and pickups).** The donation's status on a 409 is `donation_status` (`status` is the problem's HTTP status). `community.api.record_pickup(session, donation_id, "collected" | "not_ready", by_user_id, on)` is what M7's `pickup_completed` consumer calls for each donation; it returns false for a donation no longer scheduled, so a redelivered report changes nothing. A rolled pickup goes to the first delivery date after the later of the missed date and today, and the timeline shows `scheduled` again. `pickups_for` gives `items_summary` as text ("clothes 2.5 kg, toys 3"). M1 gains `identity.api.delivery_labels` (ADR-0026) for the queue's tower and flat; `tower` is the tower's label. Only `picked_up` donations are verified: a bag brought to the hub directly is first recorded as collected.
 
 | Mock today | Contract |
 |---|---|
