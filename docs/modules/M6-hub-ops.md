@@ -361,7 +361,7 @@ Total ₹1,600.00 + 1 item at market price
 ```
 
 **As built (PR c1, plans and lines).** Details the rules above leave open, settled in the code:
-- One migration creates all four §3.3 tables; the purchase order endpoints follow in the next PR.
+- One migration creates all four §3.3 tables.
 - A plan's `version` counts changes to its lines (a rebuild that changes something, a line edit). Status moves made by purchase orders do not bump it, so sending one PO never makes the plan's other drafts stale.
 - A number sent as `order_qty` pins the line (`edited: true`) and needs a `reason`, unless the line is already edited at that quantity; `order_qty: null` needs none. A `PATCH` that changes nothing keeps the version and writes no audit row; otherwise `platform.audit_log` gets `procurement.line_updated` (entity `<plan id>:<product id>`) with the changed fields before and after, and the reason.
 - A rebuild uses the hub's current `procurement_buffer_pct`. `buffer_qty` is rounded half up to 0.001 before `suggested_qty` is rounded up. Lines are listed by the catalog category's sort order, then by name in Accept-Language.
@@ -369,6 +369,12 @@ Total ₹1,600.00 + 1 item at market price
 - Until the sections they read exist, three hooks stand in: the forecast (`_forecast_for`, wired to `intel_gateway.api.hub_forecast` when M10's forecast PRs land; none today, so `source` is `fallback` and every line uses the buffer), usable stock (`_on_hand_for`, §3.4 lots; 0 today) and the last receipt cost (`_last_costs`, §3.4; null today). Carried-over lines are left out once M4's order lines carry `carried_from_order_id`.
 - Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/…` paths and 404 `hub_ops.plan_not_found` for its plan ids.
 - `just seed` adds "Kharghar Kisan FPO" (`fpo`, leafy greens) and "Patil Wholesale" (`wholesaler`, staples) beside the default "Shinde Traders".
+
+**As built (PR c2, purchase orders).**
+- `share_text` reads "PO draft" until the PO is sent, then carries its number; it uses the hub's full address and `timings.receiving`, and lists the lines by English name. `whatsapp_url` is made on each read from the vendor's current phone and WhatsApp flag.
+- A number counts every numbered PO of the hub and delivery date (a cancelled one keeps its number), so numbers are never reused; sending locks the hub, then the plan, then the PO.
+- A cancelled draft stays, `cancelled` with its reason; regenerating deletes the plan's drafts instead.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/purchase-orders` and 404 `hub_ops.po_not_found` for its PO ids.
 
 **Error codes** (in addition to §3.1 and §3.2)
 
