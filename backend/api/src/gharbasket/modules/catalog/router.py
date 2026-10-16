@@ -14,6 +14,7 @@ from gharbasket.modules.catalog import permissions as _permissions  # noqa: F401
 from gharbasket.modules.catalog import pricing, recipes, service
 from gharbasket.modules.catalog.admin_router import router as admin_router
 from gharbasket.modules.catalog.pricing import HubPrice
+from gharbasket.modules.catalog.recipe_admin_router import router as recipe_admin_router
 from gharbasket.modules.catalog.schemas import (
     CategoryRef,
     Cuisine,
@@ -53,6 +54,7 @@ from gharbasket.platform.tokens import AccessClaims
 
 router = APIRouter(tags=["catalog"])
 router.include_router(admin_router)  # the console's editor (§3.3)
+router.include_router(recipe_admin_router)
 
 # Products change rarely; the PWA's service worker caches them per language (spec §3.1).
 CATALOG_CACHE = "private, max-age=300"

@@ -123,13 +123,13 @@ async def used_by_recipes(
     return {product_id: count for product_id, count in rows.all()}
 
 
-def _names(names: NamesIn) -> dict[str, str]:
+def checked_names(names: NamesIn) -> dict[str, str]:
     given = {lang: " ".join((getattr(names, lang) or "").split()) for lang in ("en", "hi", "mr")}
     if missing := [lang for lang, name in given.items() if not name]:
         raise ProblemError(
             422,
             "catalog.names_incomplete",
-            "A product needs its name in English, Hindi and Marathi.",
+            "A name is needed in English, Hindi and Marathi.",
             extra={"missing": missing},
         )
     return given
@@ -174,7 +174,7 @@ async def create(session: AsyncSession, body: ProductIn, actor: uuid.UUID) -> Pr
             "catalog.kind_not_editable",
             "The console creates vegetables, fruits, staples and salads.",
         )
-    names, tags = _names(body.names), _tags(body.tags)
+    names, tags = checked_names(body.names), _tags(body.tags)
     category_id = await _category(session, body.category_id)
     if await session.scalar(select(Product.id).where(Product.slug == body.slug)):
         raise _slug_taken()
@@ -232,7 +232,7 @@ async def update(
     before = _snapshot(product, terms)
 
     if body.names is not None:
-        product.names = _names(body.names)
+        product.names = checked_names(body.names)
     if body.tags is not None:
         product.tags = _tags(body.tags)
     if body.category_id is not None:

@@ -330,6 +330,165 @@
         "title": "AdminProduct",
         "type": "object"
       },
+      "AdminRecipe": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "cook_minutes": {
+            "title": "Cook Minutes",
+            "type": "integer"
+          },
+          "cuisine": {
+            "enum": [
+              "maharashtrian",
+              "gujarati",
+              "north_indian",
+              "south_indian",
+              "bengali",
+              "common"
+            ],
+            "title": "Cuisine",
+            "type": "string"
+          },
+          "diet": {
+            "enum": [
+              "veg",
+              "egg"
+            ],
+            "title": "Diet",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ingredients": {
+            "items": {
+              "$ref": "#/components/schemas/IngredientOut"
+            },
+            "title": "Ingredients",
+            "type": "array"
+          },
+          "is_side": {
+            "description": "Eaten with a main (chapati, rice); never planned alone",
+            "title": "Is Side",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/Names"
+          },
+          "reviews": {
+            "$ref": "#/components/schemas/Reviews"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RecipeRules"
+          },
+          "servings": {
+            "title": "Servings",
+            "type": "integer"
+          },
+          "sides": {
+            "description": "Slugs of side recipes this one is eaten with",
+            "items": {
+              "type": "string"
+            },
+            "title": "Sides",
+            "type": "array"
+          },
+          "slots": {
+            "items": {
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ],
+              "type": "string"
+            },
+            "title": "Slots",
+            "type": "array"
+          },
+          "slug": {
+            "examples": [
+              "sabudana-khichdi"
+            ],
+            "title": "Slug",
+            "type": "string"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecipeStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left out (null) in the list",
+            "title": "Steps"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who last edited it in the console"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "names",
+          "cuisine",
+          "slots",
+          "cook_minutes",
+          "servings",
+          "diet",
+          "rules",
+          "tags",
+          "is_side",
+          "sides",
+          "ingredients",
+          "active",
+          "version",
+          "steps",
+          "reviews",
+          "updated_at",
+          "updated_by"
+        ],
+        "title": "AdminRecipe",
+        "type": "object"
+      },
       "AiHealthOut": {
         "properties": {
           "generated_at": {
@@ -3754,6 +3913,55 @@
           "next_cursor"
         ],
         "title": "InboxOut",
+        "type": "object"
+      },
+      "IngredientIn": {
+        "additionalProperties": false,
+        "properties": {
+          "optional": {
+            "default": false,
+            "title": "Optional",
+            "type": "boolean"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,6}|(?=[\\d.]{1,9}0*$)\\d{0,6}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "examples": [
+              50
+            ],
+            "title": "Qty"
+          },
+          "unit": {
+            "description": "Fits the product's step (catalog.unit_mismatch)",
+            "enum": [
+              "g",
+              "ml",
+              "piece",
+              "bunch"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "qty",
+          "unit"
+        ],
+        "title": "IngredientIn",
         "type": "object"
       },
       "IngredientOut": {
@@ -7193,6 +7401,34 @@
         "title": "Page[AdminProduct]",
         "type": "object"
       },
+      "Page_AdminRecipe_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminRecipe"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminRecipe]",
+        "type": "object"
+      },
       "Page_Entry_": {
         "properties": {
           "items": {
@@ -9582,6 +9818,135 @@
         "title": "Ready",
         "type": "object"
       },
+      "RecipeIn": {
+        "additionalProperties": false,
+        "description": "The derived rules (diet, jain_ok, no_onion_garlic) are calculated, never sent.",
+        "properties": {
+          "cook_minutes": {
+            "maximum": 240.0,
+            "minimum": 5.0,
+            "title": "Cook Minutes",
+            "type": "integer"
+          },
+          "cuisine": {
+            "enum": [
+              "maharashtrian",
+              "gujarati",
+              "north_indian",
+              "south_indian",
+              "bengali",
+              "common"
+            ],
+            "title": "Cuisine",
+            "type": "string"
+          },
+          "diabetic_ok": {
+            "title": "Diabetic Ok",
+            "type": "boolean"
+          },
+          "fasting_ok": {
+            "title": "Fasting Ok",
+            "type": "boolean"
+          },
+          "ingredients": {
+            "items": {
+              "$ref": "#/components/schemas/IngredientIn"
+            },
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Ingredients",
+            "type": "array"
+          },
+          "is_side": {
+            "default": false,
+            "title": "Is Side",
+            "type": "boolean"
+          },
+          "names": {
+            "$ref": "#/components/schemas/NamesIn"
+          },
+          "servings": {
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Servings",
+            "type": "integer"
+          },
+          "sides": {
+            "default": [],
+            "items": {
+              "maxLength": 60,
+              "minLength": 2,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Sides",
+            "type": "array"
+          },
+          "slots": {
+            "items": {
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Slots",
+            "type": "array"
+          },
+          "slug": {
+            "maxLength": 60,
+            "minLength": 2,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecipeStep"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "tags": {
+            "default": [],
+            "items": {
+              "examples": [
+                "one_pot"
+              ],
+              "pattern": "^[a-z0-9_]{1,40}$",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slug",
+          "names",
+          "cuisine",
+          "slots",
+          "cook_minutes",
+          "servings",
+          "fasting_ok",
+          "diabetic_ok",
+          "ingredients"
+        ],
+        "title": "RecipeIn",
+        "type": "object"
+      },
       "RecipeOut": {
         "properties": {
           "cook_minutes": {
@@ -9706,6 +10071,214 @@
         "title": "RecipeOut",
         "type": "object"
       },
+      "RecipePatch": {
+        "additionalProperties": false,
+        "description": "Only the fields sent change; ingredients and steps are replaced whole. A catalog editor\nmay send only names, fasting_ok and diabetic_ok.",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "cook_minutes": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cook Minutes"
+          },
+          "cuisine": {
+            "anyOf": [
+              {
+                "enum": [
+                  "maharashtrian",
+                  "gujarati",
+                  "north_indian",
+                  "south_indian",
+                  "bengali",
+                  "common"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cuisine"
+          },
+          "diabetic_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diabetic Ok"
+          },
+          "fasting_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fasting Ok"
+          },
+          "ingredients": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/IngredientIn"
+                },
+                "maxItems": 30,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingredients"
+          },
+          "is_side": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Side"
+          },
+          "names": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NamesIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "servings": {
+            "anyOf": [
+              {
+                "maximum": 12.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Servings"
+          },
+          "sides": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 60,
+                  "minLength": 2,
+                  "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sides"
+          },
+          "slots": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "breakfast",
+                    "lunch",
+                    "dinner"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slots"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Refused: catalog.field_immutable",
+            "title": "Slug"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecipeStep"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "examples": [
+                    "one_pot"
+                  ],
+                  "pattern": "^[a-z0-9_]{1,40}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "title": "RecipePatch",
+        "type": "object"
+      },
       "RecipeRules": {
         "properties": {
           "diabetic_ok": {
@@ -9736,6 +10309,27 @@
           "diabetic_ok"
         ],
         "title": "RecipeRules",
+        "type": "object"
+      },
+      "RecipeStep": {
+        "additionalProperties": false,
+        "properties": {
+          "n": {
+            "description": "1, 2, 3 … in order",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "N",
+            "type": "integer"
+          },
+          "text": {
+            "$ref": "#/components/schemas/StepTextIn"
+          }
+        },
+        "required": [
+          "n",
+          "text"
+        ],
+        "title": "RecipeStep",
         "type": "object"
       },
       "RecipeSummary": {
@@ -10624,6 +11218,62 @@
           "unit_price_paise"
         ],
         "title": "ReplacedOut",
+        "type": "object"
+      },
+      "Review": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__catalog__schemas__UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "by",
+          "at"
+        ],
+        "title": "Review",
+        "type": "object"
+      },
+      "Reviews": {
+        "properties": {
+          "diabetic_ok": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fasting_ok": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who last set the flag, and when"
+          }
+        },
+        "required": [
+          "fasting_ok",
+          "diabetic_ok"
+        ],
+        "title": "Reviews",
         "type": "object"
       },
       "RiderRef": {
@@ -12759,6 +13409,46 @@
           "unit"
         ],
         "title": "StepIn",
+        "type": "object"
+      },
+      "StepTextIn": {
+        "additionalProperties": false,
+        "properties": {
+          "en": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "En",
+            "type": "string"
+          },
+          "hi": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hi"
+          },
+          "mr": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mr"
+          }
+        },
+        "required": [
+          "en"
+        ],
+        "title": "StepTextIn",
         "type": "object"
       },
       "SubscriptionIn": {
@@ -17956,6 +18646,752 @@
           }
         ],
         "summary": "Who changed a product and what, newest first (from the audit log)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/admin/recipes": {
+      "get": {
+        "operationId": "list_admin_recipes_v1_admin_recipes_get",
+        "parameters": [
+          {
+            "description": "In the slug or a name",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 80,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "In the slug or a name",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cuisine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "maharashtrian",
+                    "gujarati",
+                    "north_indian",
+                    "south_indian",
+                    "bengali",
+                    "common"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cuisine"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slot",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "breakfast",
+                    "lunch",
+                    "dinner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Slot"
+            }
+          },
+          {
+            "description": "Leave out for both",
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Leave out for both",
+              "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_side",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Side"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminRecipe_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Every recipe for the console, active or not, alphabetical (without steps)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      },
+      "post": {
+        "operationId": "create_recipe_v1_admin_recipes_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRecipe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.slug_taken"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Add a recipe (admin; Idempotency-Key; audit-logged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/admin/recipes/{recipe_id}": {
+      "get": {
+        "operationId": "get_admin_recipe_v1_admin_recipes__recipe_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRecipe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.recipe_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "One recipe for the console (ETag: its version)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      },
+      "patch": {
+        "operationId": "edit_recipe_v1_admin_recipes__recipe_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRecipe"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden (fields: what a catalog editor may not change)"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.recipe_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.recipe_in_use (recipes)"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.version_conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Edit a recipe, or deactivate or reactivate it (admin; a catalog editor changes only the names and the fasting and diabetic flags; If-Match; audit-logged)",
+        "tags": [
+          "catalog",
+          "catalog"
+        ]
+      }
+    },
+    "/v1/admin/recipes/{recipe_id}/history": {
+      "get": {
+        "operationId": "recipe_history_v1_admin_recipes__recipe_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recipe_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recipe Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/History"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "catalog.recipe_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Who changed a recipe and what, newest first (from the audit log)",
         "tags": [
           "catalog",
           "catalog"

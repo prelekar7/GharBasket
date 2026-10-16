@@ -6,6 +6,7 @@ The product, search, price and substitute shapes are the frozen S1 contract
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -338,3 +339,113 @@ class HistoryEntry(BaseModel):
 
 class History(BaseModel):
     items: list[HistoryEntry] = Field(description="Newest first, at most 100")
+
+
+# --- the console's recipe editor (spec §3.3) -----------------------------------------------------
+
+RecipeTag = Annotated[str, Field(pattern=r"^[a-z0-9_]{1,40}$", examples=["one_pot"])]
+RecipeSlug = Annotated[str, Field(min_length=2, max_length=60, pattern=SLUG)]
+
+
+class StepTextIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    en: str = Field(min_length=1, max_length=500)
+    hi: str | None = Field(default=None, max_length=500)
+    mr: str | None = Field(default=None, max_length=500)
+
+
+class RecipeStep(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    n: int = Field(ge=1, le=30, description="1, 2, 3 … in order")
+    text: StepTextIn
+
+
+class IngredientIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    product_id: uuid.UUID
+    qty: Decimal = Field(gt=0, max_digits=8, decimal_places=2, examples=[50])
+    unit: IngredientUnit = Field(description="Fits the product's step (catalog.unit_mismatch)")
+    optional: bool = False
+
+
+def _distinct_products(items: list[IngredientIn] | None) -> list[IngredientIn] | None:
+    if items is not None and len({i.product_id for i in items}) != len(items):
+        raise ValueError("each product once")
+    return items
+
+
+def _numbered(steps: list[RecipeStep] | None) -> list[RecipeStep] | None:
+    if steps is not None and [s.n for s in steps] != list(range(1, len(steps) + 1)):
+        raise ValueError("steps are numbered 1, 2, 3 … in order")
+    return steps
+
+
+class RecipeIn(BaseModel):
+    """The derived rules (diet, jain_ok, no_onion_garlic) are calculated, never sent."""
+
+    model_config = {"extra": "forbid"}
+
+    slug: RecipeSlug
+    names: NamesIn
+    cuisine: Cuisine
+    slots: list[Slot] = Field(min_length=1, max_length=3)
+    cook_minutes: int = Field(ge=5, le=240)
+    servings: int = Field(ge=1, le=12)
+    tags: list[RecipeTag] = Field(default=[], max_length=20)
+    is_side: bool = False
+    sides: list[RecipeSlug] = Field(default=[], max_length=10)
+    fasting_ok: bool
+    diabetic_ok: bool
+    ingredients: list[IngredientIn] = Field(min_length=1, max_length=30)
+    steps: list[RecipeStep] | None = Field(default=None, max_length=30)
+
+    _ingredients = field_validator("ingredients")(_distinct_products)
+    _steps = field_validator("steps")(_numbered)
+
+
+class RecipePatch(BaseModel):
+    """Only the fields sent change; ingredients and steps are replaced whole. A catalog editor
+    may send only names, fasting_ok and diabetic_ok."""
+
+    model_config = {"extra": "forbid"}
+
+    slug: str | None = Field(default=None, description="Refused: catalog.field_immutable")
+    names: NamesIn | None = None
+    cuisine: Cuisine | None = None
+    slots: list[Slot] | None = Field(default=None, min_length=1, max_length=3)
+    cook_minutes: int | None = Field(default=None, ge=5, le=240)
+    servings: int | None = Field(default=None, ge=1, le=12)
+    tags: list[RecipeTag] | None = Field(default=None, max_length=20)
+    is_side: bool | None = None
+    sides: list[RecipeSlug] | None = Field(default=None, max_length=10)
+    fasting_ok: bool | None = None
+    diabetic_ok: bool | None = None
+    ingredients: list[IngredientIn] | None = Field(default=None, min_length=1, max_length=30)
+    steps: list[RecipeStep] | None = Field(default=None, max_length=30)
+    active: bool | None = None
+
+    _ingredients = field_validator("ingredients")(_distinct_products)
+    _steps = field_validator("steps")(_numbered)
+
+
+class Review(BaseModel):
+    by: UserRef | None
+    at: datetime
+
+
+class Reviews(BaseModel):
+    fasting_ok: Review | None = Field(description="Who last set the flag, and when")
+    diabetic_ok: Review | None
+
+
+class AdminRecipe(RecipeSummary):
+    ingredients: list[IngredientOut]
+    active: bool
+    version: int
+    steps: list[RecipeStep] | None = Field(description="Left out (null) in the list")
+    reviews: Reviews
+    updated_at: datetime
+    updated_by: UserRef | None = Field(description="Who last edited it in the console")

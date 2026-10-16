@@ -38,7 +38,7 @@ CanRead = Annotated[Permit, require("catalog:admin_read")]
 CanWrite = Annotated[Permit, require("catalog:write")]
 
 
-def _problem(description: str) -> dict[str, Any]:
+def problem(description: str) -> dict[str, Any]:
     return {"description": description, "content": {"application/problem+json": {}}}
 
 
@@ -90,7 +90,7 @@ async def _admin_out(
 @router.get(
     PRODUCTS,
     summary="Every product for the console, active or not, alphabetical",
-    responses={403: _problem("auth.forbidden")},
+    responses={403: problem("auth.forbidden")},
 )
 async def list_admin_products(
     _permit: CanRead,
@@ -114,7 +114,7 @@ async def list_admin_products(
 @router.get(
     PRODUCTS + "/{product_id}",
     summary="One product for the console (ETag: its version)",
-    responses={403: _problem("auth.forbidden"), 404: _problem("catalog.product_not_found")},
+    responses={403: problem("auth.forbidden"), 404: problem("catalog.product_not_found")},
 )
 async def get_admin_product(
     product_id: uuid.UUID, _permit: CanRead, session: DbSession, lang: Lang, response: Response
@@ -130,9 +130,9 @@ async def get_admin_product(
     status_code=status.HTTP_201_CREATED,
     summary="Add a product (admin; Idempotency-Key; audit-logged)",
     responses={
-        403: _problem("auth.forbidden"),
-        409: _problem("catalog.slug_taken"),
-        422: _problem(
+        403: problem("auth.forbidden"),
+        409: problem("catalog.slug_taken"),
+        422: problem(
             "catalog.names_incomplete (missing), catalog.kind_not_editable, catalog.tag_unknown "
             "(tags), catalog.category_unknown, request.invalid"
         ),
@@ -158,15 +158,15 @@ async def create_product(
     PRODUCTS + "/{product_id}",
     summary="Edit a product, or deactivate or reactivate it (admin; If-Match; audit-logged)",
     responses={
-        403: _problem("auth.forbidden"),
-        404: _problem("catalog.product_not_found"),
-        409: _problem("catalog.product_in_use (recipes)"),
-        412: _problem("catalog.version_conflict"),
-        422: _problem(
+        403: problem("auth.forbidden"),
+        404: problem("catalog.product_not_found"),
+        409: problem("catalog.product_in_use (recipes)"),
+        412: problem("catalog.version_conflict"),
+        422: problem(
             "catalog.field_immutable (fields), catalog.names_incomplete (missing), "
             "catalog.tag_unknown (tags), catalog.category_unknown, request.invalid"
         ),
-        428: _problem("request.precondition_required"),
+        428: problem("request.precondition_required"),
     },
 )
 async def edit_product(
@@ -190,11 +190,15 @@ async def edit_product(
 @router.get(
     PRODUCTS + "/{product_id}/history",
     summary="Who changed a product and what, newest first (from the audit log)",
-    responses={403: _problem("auth.forbidden"), 404: _problem("catalog.product_not_found")},
+    responses={403: problem("auth.forbidden"), 404: problem("catalog.product_not_found")},
 )
 async def product_history(product_id: uuid.UUID, _permit: CanRead, session: DbSession) -> History:
     await admin.get(session, product_id)
-    entries = await admin.history(session, "product", product_id)
+    return await history_out(session, "product", product_id)
+
+
+async def history_out(session: DbSession, entity_type: str, entity_id: uuid.UUID) -> History:
+    entries = await admin.history(session, entity_type, entity_id)
     who = await identity_api.user_names(
         session, {e.actor_user_id for e in entries if e.actor_user_id}
     )
