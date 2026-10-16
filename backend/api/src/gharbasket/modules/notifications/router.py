@@ -1,12 +1,16 @@
 """HTTP endpoints of M11 Notifications: the inbox and preferences (spec §3.1), which any signed-in
-person has whatever their role, and the console's templates and delivery log (§3.2)."""
+person has whatever their role; the console's templates and delivery log, and WhatsApp's webhook
+(§3.2)."""
 
+import hmac
+import json
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from fastapi.responses import PlainTextResponse
 
-from gharbasket.modules.notifications import admin, service
+from gharbasket.modules.notifications import admin, receipts, service
 from gharbasket.modules.notifications import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.notifications import permissions as _permissions  # noqa: F401 (rules)
 from gharbasket.modules.notifications.schemas import (
@@ -18,17 +22,22 @@ from gharbasket.modules.notifications.schemas import (
     SavedTemplatesOut,
     TemplateIn,
     TemplatesOut,
+    WhatsAppAck,
 )
+from gharbasket.modules.notifications.whatsapp import valid_signature
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.locale import Lang
 from gharbasket.platform.pagination import Cursor, Limit
 from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.settings import Settings, get_settings
 
 router = APIRouter(tags=["notifications"])
 
 CanWriteTemplates = Annotated[Permit, require("templates:write")]
 CanSupport = Annotated[Permit, require("notifications:support")]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -159,3 +168,68 @@ async def delivery_log(
     items, next_cursor = await admin.delivery_log(session, permit, user_id, lang, cursor, limit)
     response.headers["Cache-Control"] = "no-store"
     return DeliveryLogOut(items=items, next_cursor=next_cursor)
+
+
+# --- WhatsApp's webhook (§3.2) -----------------------------------------------------------------
+
+
+def _whatsapp_unavailable() -> ProblemError:
+    return ProblemError(
+        503, "notifications.whatsapp_unavailable", "WhatsApp is not set up on this server."
+    )
+
+
+@router.get(
+    "/webhooks/whatsapp",
+    response_class=PlainTextResponse,
+    summary="Meta's webhook handshake (verify token); not for the apps",
+    responses={
+        403: _problem("notifications.bad_verify_token"),
+        503: _problem("notifications.whatsapp_unavailable: no verify token configured"),
+    },
+)
+async def whatsapp_handshake(
+    settings: AppSettings,
+    mode: Annotated[str, Query(alias="hub.mode", max_length=20)],
+    verify_token: Annotated[str, Query(alias="hub.verify_token", max_length=200)],
+    challenge: Annotated[str, Query(alias="hub.challenge", max_length=200)],
+) -> PlainTextResponse:
+    expected = settings.whatsapp_verify_token
+    if expected is None:
+        raise _whatsapp_unavailable()
+    same = hmac.compare_digest(verify_token.encode(), expected.get_secret_value().encode())
+    if mode != "subscribe" or not same:
+        raise ProblemError(403, "notifications.bad_verify_token", "The verify token is wrong.")
+    return PlainTextResponse(challenge)
+
+
+@router.post(
+    "/webhooks/whatsapp",
+    summary="WhatsApp's webhook (signed by Meta): delivery receipts; not for the apps",
+    responses={
+        400: _problem("request.invalid: not a JSON object"),
+        401: _problem("notifications.bad_signature"),
+        503: _problem("notifications.whatsapp_unavailable: no app secret configured"),
+    },
+)
+async def whatsapp_webhook(
+    request: Request,
+    session: DbSession,
+    settings: AppSettings,
+    x_hub_signature_256: Annotated[str, Header(max_length=100)],
+) -> WhatsAppAck:
+    secret = settings.whatsapp_app_secret
+    if secret is None:
+        raise _whatsapp_unavailable()
+    body = await request.body()
+    if not valid_signature(body, x_hub_signature_256, secret.get_secret_value()):
+        raise ProblemError(
+            401, "notifications.bad_signature", "The webhook signature is not valid."
+        )
+    try:
+        event = json.loads(body)
+    except ValueError as exc:
+        raise ProblemError(400, "request.invalid", "The webhook body is not JSON.") from exc
+    if not isinstance(event, dict):
+        raise ProblemError(400, "request.invalid", "The webhook body is not a JSON object.")
+    return WhatsAppAck(outcomes=await receipts.receive(session, event))

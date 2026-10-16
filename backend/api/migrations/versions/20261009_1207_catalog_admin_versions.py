@@ -6,7 +6,7 @@ lists (plus `updated_at` on price lists), who last reviewed a recipe's curated f
 `updated_by` and `updated_at` on festival days.
 
 Revision ID: 73514b30c629
-Revises: a424ab7287c6
+Revises: 739b28f4879f
 Create Date: 2026-10-09 12:07:48.348455+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "73514b30c629"
-down_revision: str | Sequence[str] | None = "a424ab7287c6"
+down_revision: str | Sequence[str] | None = "739b28f4879f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -81,7 +81,9 @@ CycleOut : {
   "lines": [ CycleLine ], "total_paise",
   "highlights": [ { "code": "in_season" | "tiffin_day" | "health_tag" | "festival" | "budget_near", "params": { } } ],
   "budget_lock": { "month": "2026-10", "budget_paise", "spent_paise", "remaining_paise" } | null,
-  "captain": { "name", "flat" } | null,                         null until M9 captains (S4)
+  "captain": { "display_name", "photo_url" } | null,            the society captain's card (M9 §3.2,
+                                                                 ADR-0026 §4); null without an
+                                                                 active captain; never a flat
   "order_id": "<uuid>" | null,                                   after approval
   "generated_at", "approved_at" | null }
 
@@ -123,7 +125,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 ```
 
 **How a cycle is generated** (`generate_weekly_plans`, T-3 18:00 IST, per hub, under the job's advisory lock; `scheduled_for` decides the week):
-1. For every active subscription not paused for that delivery date: the household's rules (M1) and the hub's active recipes with today's prices (M2) go to `intel_gateway.api.plan_week` (recorded in `intel.predictions`, `source` ml or fallback).
+1. For every active subscription not paused for that delivery date: the household's rules (M1) and the hub's active recipes with today's prices (M2) go to `intel_gateway.api.plan_week` (recorded in `intel.predictions`, `source` ml or fallback). **Planner v2 (M10 §3.2):** once the household has two past approved or locked boxes, each main also carries its learned liking. `ranker_candidates` lists every product the household kept in such a box, with the ranker's features as the training job defines them (M10 §3.7): weeks since last kept (capped at 52) and the share of its final boxes that held it, over its full history; removed last time (removed or swapped out of the previous final box, `edit_feedback.action` `removed` or `swapped`, and not in it); popularity, the share of the hub's households with a final box in the hub's latest earlier week that had it; and the hub's price in the newest list valid at this cycle's cut-off that holds it (`catalog.api.latest_prices_on`). `intel_gateway.api.rank_basket` scores them (top 100, frequency fallback, recorded as `basket_rank`) and `planning.recipe_preferences` turns the scores into a 0..1 liking per dish. The first-week preview skips the ranker.
 2. The plan becomes lines: each recipe's ingredients × household size ÷ servings, summed over the week, rounded up to steps (`source: ai`, `reason_code: meal_plan`, `reason_params.recipes`); plus the **family-size rule table** for daily-use items (milk, atta, oil, salt, curd, fruit per adult equivalent per week; `source: rule`, `reason_code: daily_use`). With `PANTRY_TWIN_ENABLED` on (off by default, until the eval target holds) and once a household has a locked box, the pantry twin (M10 §3.3) replaces the rule table's quantity for the perishable daily-use items (milk, curd) with its estimate of their daily use, learnt from each box's delivered quantity minus that week's recipe need and the taps; the recipe need still comes on top (`reason_code: pantry_low`, `source: ai`, params `mean, p10, p90, weeks, source`). The preview always uses the rule table. **Carry-over:** for a dry staple (shelf life over 720 h: atta, dals, rice, oil, spices, salt; never produce, milk, curd or eggs), each approved or locked box of the last 3 weeks adds its quantity to the cupboard and every week since uses the week's need (rule table plus this week's recipes), never below zero; the line asks for the need minus what is left, and none when enough is left. Everything else is bought fresh every week. v0 approximation: this week's need stands for past weeks' (exact for the rule table), and purchases older than 3 weeks count as used up.
 3. With the Budget Lock on, the cheapest substitutes bring the box under the month's remaining budget (`price_swap`), never below the hard rules; if it still does not fit, the box is generated anyway and `highlights` carries `budget_near`.
 4. Status `draft` → `awaiting_approval` once `send_box_ready_notices` (T-3 18:30) marks `notice_sent_at` and publishes `subscriptions.box_ready`, which M11 turns into the box-ready message (M11 §3.1). A draft can be read but not edited, approved or skipped (`subscriptions.not_editable`); the move keeps `version`, since the box is the one generated. The job also takes an earlier delivery day's draft still before its cut-off, so a generation run that came after its notice run is told the next evening (and, under 24 h before the cut-off, is not auto-approved).
@@ -168,7 +170,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | PATCH body `{ op, product_id, substitute_id }` | `{ "ops": [ … ] }`; same op names, plus `remove`, `add`, `qty` |
 | 409 `orders.cutoff_passed` on the cycle | `subscriptions.cutoff_passed` |
 | `meal_plan.days[].meals[]` with `name` only | plus `recipe_id`, `sides`, and `meal_plan.source` |
-| `captain` always set | `null` until M9 captains |
+| `captain` always set, as `{ name, flat }` | `{ display_name, photo_url }` from M9, or `null` without an active captain; no flat |
 | no preview endpoint | `GET /v1/cycles/preview` for onboarding's first-week screen |
 
 ### 3.2 Meal swap contract (frozen on 2026-10-08)

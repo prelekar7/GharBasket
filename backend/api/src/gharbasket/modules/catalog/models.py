@@ -172,7 +172,7 @@ class PriceList(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
-    # No foreign key until M6 owns hubs (the same pattern as societies and role scopes).
+    # No foreign key: hub ids are checked through hub_ops.api (ADR-0026).
     hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
     valid_from: Mapped[date] = mapped_column(Date)
     published_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)

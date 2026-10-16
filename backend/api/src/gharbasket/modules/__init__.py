@@ -9,6 +9,8 @@ Each folder has the same files:
 - `schemas.py`  Pydantic request/response models
 - `models.py`   SQLAlchemy tables, all in the module's own schema
 - `events.py`   outbox events the module publishes
+- `jobs.py`     its scheduled jobs and outbox consumers, the only place they register
+                (`registry.load_modules()` imports every one)
 """
 
 # Order follows the M-numbers in docs/modules/.
