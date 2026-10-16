@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pytest
-from gharbasket_training.lake import LocalLake, S3Lake, open_lake
+from gharbasket_training.lake import LocalLake, S3Lake, open_lake, open_registry
 from gharbasket_training.settings import Settings
 from pydantic import SecretStr
 
@@ -79,3 +79,27 @@ def test_open_lake_prefers_a_local_folder_and_needs_s3_settings_otherwise(tmp_pa
         None,
     )
     assert isinstance(lake, S3Lake) and lake.bucket == "gb-lake"
+
+
+def test_the_s3_lake_reads_and_writes_bytes() -> None:
+    client = FakeS3()
+    lake = S3Lake(client, "gb-mlflow")
+
+    lake.write_bytes("models/basket_ranker/v1/model.txt", b"tree")
+
+    assert client.objects["models/basket_ranker/v1/model.txt"] == b"tree"
+    assert lake.read_bytes("models/basket_ranker/v1/model.txt") == b"tree"
+    assert lake.read_bytes("models/basket_ranker/latest.json") is None  # NoSuchKey
+
+
+def test_the_registry_is_the_mlflow_bucket_or_a_local_models_dir(tmp_path: Path) -> None:
+    local = open_registry(Settings(), tmp_path)
+    assert local.key("basket_ranker", "v1", "model.txt") == "basket_ranker/v1/model.txt"
+    remote = open_registry(
+        Settings(
+            s3_endpoint_url="http://localhost:8333", s3_access_key="a", s3_secret_key=SecretStr("b")
+        ),
+        None,
+    )
+    assert isinstance(remote.lake, S3Lake) and remote.lake.bucket == "gb-mlflow"
+    assert remote.key("basket_ranker", "latest.json") == "models/basket_ranker/latest.json"

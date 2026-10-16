@@ -29,7 +29,7 @@
 - **Load model:** the van leaves with all its drops. Empties and donations take room as drops free it, and the food bank stop unloads the donations. The start load is tied to the route's total drops, so the capacity check is exact at every stop.
 - **Baselines** (handbook 08 M-F):
   - **One trip per order:** a bike rider per order, hub → society → hub, 4 min at the door, ₹2.50 a km. The fleet is the smallest that is 95 % on time when dispatched earliest-deadline first. Riders are paid only while busy, which flatters this baseline.
-  - **Nearest neighbour:** the same vans, each going to the nearest stop that still fits, leaving just in time for its first window. It ignores the windows.
+  - **Nearest neighbour:** the same vans, each going to the nearest stop that still fits, leaving just in time for its first window. It ignores the windows. (This is the spike's baseline, which opened a new van for every trip. The service's fallback in `/route/solve` keeps to the fleet instead: a van goes out again once back and reloaded if it can return by the slot's end, the load on board is tracked after every stop, and the societies left over are reported as problems; M10 §3.4.)
 - **Checks:** every method is scored by one independent `evaluate()`. It replays the routes on the OSRM matrix and checks:
   - time windows, with waiting when early;
   - kg and crate load at every stop;
@@ -74,7 +74,7 @@ All plans are for one morning slot, whose windows (07–09, 08–10) overlap. A 
 - **Short trips (≤ 90 min), then packing** is worse: 11 / 22 / 43 vans. The solver has no reason to spread trips over the morning.
 - **Two waves** works at every size:
   - first route the 07–09 societies;
-  - then route the 08–10 societies with the same vans, each free from its return plus 20 min, and new vans only where needed.
+  - then route the 08–10 societies with the same vans, each free from its return plus 20 min, and new vans only where needed (in the service, only up to the fleet's `vans.count`).
   - Each wave is a plain CVRPTW, so it keeps the solver's speed, and the fleet falls by 40–45 %.
   - It is the pattern for M10 `/route/solve`.
 

@@ -4,6 +4,7 @@
 Only the API calls it (through `intel_gateway.api`), with the shared service token.
 """
 
+import asyncio
 import hmac
 from typing import Annotated
 
@@ -12,15 +13,36 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.concurrency import run_in_threadpool
 
-from gharbasket_ml import __version__, pantry, registry
+from gharbasket_ml import __version__, assignment, assistant, pantry, ranker, registry, routing
 from gharbasket_ml.planner import plan_week
-from gharbasket_ml.schemas import PantryRequest, PantryResponse, PlanRequest, PlanResponse
+from gharbasket_ml.schemas import (
+    AssignRequest,
+    AssignResponse,
+    AssistantTurnRequest,
+    AssistantTurnResponse,
+    PantryRequest,
+    PantryResponse,
+    PlanRequest,
+    PlanResponse,
+    RankRequest,
+    RankResponse,
+    RouteRequest,
+    RouteResponse,
+)
 from gharbasket_ml.settings import Settings, get_settings
 
 _bearer = HTTPBearer(auto_error=False)
 
 
 class Unauthorized(Exception):
+    pass
+
+
+class AssistantUnavailable(Exception):
+    pass
+
+
+class AssistantTimeout(Exception):
     pass
 
 
@@ -59,6 +81,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             media_type="application/problem+json",
         )
 
+    @app.exception_handler(AssistantUnavailable)
+    async def assistant_unavailable(request: Request, _exc: AssistantUnavailable) -> JSONResponse:
+        return JSONResponse(
+            {
+                "type": "about:blank",
+                "title": "Assistant unavailable",
+                "status": 503,
+                "detail": "ANTHROPIC_API_KEY is not set on this service.",
+                "code": "ml.assistant_unavailable",
+                "instance": request.url.path,
+            },
+            status_code=503,
+            media_type="application/problem+json",
+        )
+
+    @app.exception_handler(AssistantTimeout)
+    async def assistant_timeout(request: Request, _exc: AssistantTimeout) -> JSONResponse:
+        return JSONResponse(
+            {
+                "type": "about:blank",
+                "title": "Assistant timed out",
+                "status": 504,
+                "detail": "The turn took longer than ASSISTANT_TURN_TIMEOUT_S.",
+                "code": "ml.assistant_timeout",
+                "instance": request.url.path,
+            },
+            status_code=504,
+            media_type="application/problem+json",
+        )
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "service": "gharbasket-ml", "version": __version__}
@@ -69,7 +121,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="The models this service is serving, with versions (M10 §3)",
     )
     async def models(settings: Annotated[Settings, Depends(get_settings)]) -> list[dict[str, str]]:
-        return [m.__dict__ for m in registry.served_models(settings.models_manifest)]
+        return [
+            m.__dict__
+            for m in registry.served_models(settings.models_manifest, settings.models_dir)
+        ]
 
     @app.get(
         "/health/ai",
@@ -77,7 +132,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         summary="Health with the served models and the road network",
     )
     async def health_ai(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, object]:
-        return registry.health(settings.models_manifest)
+        return await registry.health(
+            settings.models_manifest, settings.osrm_url, settings.models_dir
+        )
 
     @app.post(
         "/pantry/quantities",
@@ -86,6 +143,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def pantry_quantities(body: PantryRequest) -> PantryResponse:
         return pantry.quantities(body)
+
+    @app.post(
+        "/assistant/turn",
+        dependencies=[Depends(require_service_token)],
+        summary="One turn of Ghar Saathi with the four tools (M13 §3); intents, never changes",
+    )
+    async def assistant_turn(
+        body: AssistantTurnRequest,
+        request: Request,
+        settings: Annotated[Settings, Depends(get_settings)],
+    ) -> AssistantTurnResponse:
+        if settings.anthropic_api_key is None:
+            raise AssistantUnavailable()
+        factory = getattr(request.app.state, "assistant_client", None)
+        key = settings.anthropic_api_key.get_secret_value()
+        client = (
+            factory(key)
+            if factory is not None
+            else assistant.anthropic_client(key, settings.assistant_request_timeout_s)
+        )
+        try:
+            async with asyncio.timeout(settings.assistant_turn_timeout_s):
+                return await assistant.turn(body, client, settings.assistant_model)
+        except TimeoutError as exc:
+            raise AssistantTimeout() from exc
+
+    @app.post(
+        "/basket/rank",
+        dependencies=[Depends(require_service_token)],
+        summary="Rank next-basket candidates (LightGBM LambdaRank from the registry, M10 §3.7)",
+    )
+    async def basket_rank(
+        body: RankRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> RankResponse:
+        return ranker.rank(body, settings.models_dir, settings.models_reload_s)
+
+    @app.post(
+        "/assign/kitchens",
+        dependencies=[Depends(require_service_token)],
+        summary="Tomorrow's tiffin portions to home kitchens, fairly (CP-SAT, M10 §3.5)",
+    )
+    async def assign_kitchens(body: AssignRequest) -> AssignResponse:
+        return await run_in_threadpool(assignment.assign, body, deterministic=False)
+
+    @app.post(
+        "/route/solve",
+        dependencies=[Depends(require_service_token)],
+        summary="One delivery slot's van routes in two waves (CVRPTW with pickups, M10 §3.4)",
+    )
+    async def route_solve(
+        body: RouteRequest, settings: Annotated[Settings, Depends(get_settings)]
+    ) -> RouteResponse:
+        return await routing.solve(body, settings.osrm_url, settings.osrm_timeout_s)
 
     @app.post(
         "/plan/week",

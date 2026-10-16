@@ -36,6 +36,7 @@ async def test_a_new_customer_has_an_empty_wallet_with_full_room(
         "balance_paise": 0,
         "cap_paise": 1_000_000,
         "topup_room_paise": 1_000_000,
+        "refundable_paise": 0,
         "entries": [],
     }
     assert (await api.get("/v1/wallet")).status_code == 401

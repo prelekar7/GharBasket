@@ -37,7 +37,7 @@ Status = Literal[
     "redelivery",
     "refunded",
 ]
-Actor = Literal["customer", "system", "hub"]
+Actor = Literal["customer", "system", "hub", "packer", "rider", "captain", "kitchen"]
 
 
 class SlotOut(BaseModel):
@@ -108,7 +108,22 @@ class OrderLineOut(BaseModel):
 class TimelineEntry(BaseModel):
     status: Status
     at: datetime
-    actor: Actor
+    actor: Actor = Field(description="Who moved it, as a kind of actor only: never a name or id")
+
+
+class TimelineEvent(TimelineEntry):
+    """A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id."""
+
+    id: uuid.UUID = Field(description="The order_events row; also the SSE event id")
+
+
+class OrderEventsOut(BaseModel):
+    """The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3)."""
+
+    items: list[TimelineEvent] = Field(description="Oldest first")
+    status: Status
+    version: int
+    eta: None = Field(None, description="null until M7 publishes route progress")
 
 
 class OrderSummaryOut(BaseModel):

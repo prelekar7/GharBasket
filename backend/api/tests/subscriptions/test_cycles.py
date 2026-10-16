@@ -16,7 +16,8 @@ from gharbasket.modules.subscriptions import api as subscriptions_api
 from gharbasket.modules.subscriptions import planning, service
 from gharbasket.modules.subscriptions.models import BoxLine, WeeklyCycle
 from gharbasket.platform.models import OutboxEvent
-from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
+from gharbasket.platform.outbox import relay
+from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID, seed_partners
 
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
@@ -161,9 +162,9 @@ async def test_the_job_drafts_a_cycle_per_subscribed_household_once(
     assert none_yet.json()["code"] == "subscriptions.no_cycle"
     assert first.json()["summary"] == {
         "hubs": 1,
-        "created": 1,  # Priya; Meena is paused; the two unsubscribed households are skipped
+        "created": 1,  # Priya; Meena is paused; the three unsubscribed households are skipped
         "existing": 0,
-        "skipped": 3,
+        "skipped": 4,
         "delivery_date": "2026-10-13",
     }
     assert second.json()["summary"]["created"] == 0 and second.json()["summary"]["existing"] == 1
@@ -370,3 +371,19 @@ async def test_a_synthetic_household_gets_synthetic_cycles(
 
     cycle = await subscriptions_api.cycle_for(db_session, household.id, date(2026, 10, 13))
     assert cycle is not None and cycle.data_source == "synthetic"  # ADR-0008
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_the_cycle_shows_the_society_captains_card(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    await seed_partners(db_session)
+    while (await relay(db_session)).sent:  # M9 appoints Meena for Sunrise Towers
+        pass
+    api = clients()
+    priya, _ = await as_user(api, google, PRIYA)
+
+    preview = await api.get("/v1/cycles/preview", headers=priya)
+
+    # The card only: never her flat or phone (M9 §3.2).
+    assert preview.json()["captain"] == {"display_name": "Meena tai", "photo_url": None}

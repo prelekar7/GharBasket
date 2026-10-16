@@ -1,23 +1,27 @@
 """Facade of M4 Orders & Checkout: the only module other modules may import (spec §3.1, §3.2).
 
-- M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip.
-- The cut-off job and M6/M7 call `transition`; M6 packing calls `mark_shortage`;
+- M3 calls `create_from_cycle` on `subscriptions.box_approved` and `cancel_from_cycle` on a skip,
+  and shows a `payment_failed` week's amount due until `grace_until_for` its delivery date.
+- The cut-off job and M6/M7/M8 call `transition`; M6 packing calls `mark_shortage`;
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
+- M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
 """
 
 import uuid
 from dataclasses import dataclass
-from datetime import time
+from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
-from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED
+from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
+from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
+    STATUSES,
     Order,
     OrderEvent,
     OrderIssue,
@@ -30,13 +34,19 @@ from gharbasket.modules.orders.service import (
     OrderSummary,
     create_from_cycle,
     cutoff_for,
+    grace_until_for,
     orders_for_delivery,
 )
+from gharbasket.modules.orders.state import FINAL
+from gharbasket.platform import files
 
 __all__ = [
     "CANCELLED",
     "DELIVERED",
     "LOCKED",
+    "NOT_SOLD",
+    "PAYMENT_FAILED",
+    "SOLD",
     "ApprovedCycle",
     "CycleLine",
     "Order",
@@ -44,15 +54,24 @@ __all__ = [
     "OrderLine",
     "OrderSummary",
     "SlotRef",
+    "SoldLine",
+    "anonymise_for_user",
+    "box_fee",
     "cancel_from_cycle",
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
     "get",
+    "grace_until_for",
+    "has_delivered_box",
+    "has_open_issues",
+    "has_open_orders",
     "mark_shortage",
+    "order_ids_of_household",
     "orders_for_delivery",
     "resolve_issue",
     "slot_ref",
+    "sold_lines",
     "transition",
 ]
 
@@ -61,9 +80,20 @@ async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = 
     return await service.get(session, order_id, for_update=for_update)
 
 
+async def has_delivered_box(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether the household has had a box delivered (M9: the referral claim window closes)."""
+    found = await session.execute(
+        select(Order.id)
+        .where(Order.household_id == household_id, Order.kind == "box", Order.status == "delivered")
+        .limit(1)
+    )
+    return found.first() is not None
+
+
 async def cancel_from_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
-    """A skipped cycle cancels its order if one exists and is not paid yet."""
-    order = await service.by_cycle(session, cycle_id)
+    """A skipped cycle cancels its order if one exists and is not paid yet (a `payment_failed`
+    one too: M3 allows that skip until the grace ends)."""
+    order = await service.by_cycle(session, cycle_id, for_update=True)
     if order is None:
         return None
     return await service.cancel(session, order, actor="system", reason="skipped")
@@ -75,10 +105,19 @@ async def transition(
     to_status: str,
     *,
     actor: str,
+    actor_user_id: uuid.UUID | None = None,
     payload: dict[str, object] | None = None,
 ) -> Order:
+    """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
+    actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
+    `actor_user_id` the person, recorded on the timeline row but never shown to customers.
+    M4 checks only the state machine (409 `orders.illegal_transition`); the caller has already
+    checked that this person may act on this order (packer of its hub, rider of its route,
+    active captain of its society, kitchen of its assignment)."""
     order = await service.get(session, order_id, for_update=True)
-    return await service.transition(session, order, to_status, actor=actor, payload=payload)
+    return await service.transition(
+        session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
+    )
 
 
 async def mark_shortage(
@@ -110,6 +149,39 @@ class SlotRef:
     active: bool
 
 
+# Demand that happened (M10 §3.6): every status that has passed `locked`, whether or not the
+# delivery went well (undelivered, redelivery and refunded orders were still bought for). A new
+# status in orders.models must be placed in one of the two (a test checks they cover STATUSES).
+NOT_SOLD = ("approved", "payment_failed", "cancelled")
+SOLD = tuple(s for s in STATUSES if s not in NOT_SOLD)
+
+
+@dataclass(frozen=True)
+class SoldLine:
+    product_id: uuid.UUID
+    order_kind: str  # the order's kind (box | addon | tiffin): an add-on inside a box is committed
+    qty: int  # steps
+    data_source: str  # real | synthetic
+
+
+async def sold_lines(
+    session: AsyncSession,
+    hub_id: uuid.UUID,
+    delivery_date: date,
+    data_source: str | None = None,
+) -> list[SoldLine]:
+    """Every line of the hub's orders past `locked` on a delivery day (`SOLD`), with the order's
+    kind, optionally of one data source (`real` | `synthetic`): what was really sold, for scoring
+    forecasts (M10 `monitor_drift`), counted as the forecast job counts it."""
+    summaries = await service.orders_for_delivery(session, hub_id, delivery_date, statuses=SOLD)
+    return [
+        SoldLine(line.product_id, summary.order.kind, line.qty, summary.order.data_source)
+        for summary in summaries
+        if data_source is None or summary.order.data_source == data_source
+        for line in summary.lines
+    ]
+
+
 async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
     """A slot by id (M3's delivery days point at M4's slots); None if unknown."""
     try:
@@ -130,7 +202,7 @@ async def resolve_issue(
     note: str | None = None,
 ) -> OrderIssue:
     """The M12 console's triage of an open issue (§3.2): refund `credit_paise` to the wallet
-    (at most the issue's amount, or the order total for late/other, and never more than is left
+    (at most the issue's amount, or the food total for late/other, and never more than is left
     of what was paid for the order: `orders.issue_credit_invalid` carries `max_paise`) or reject
     it. The caller has checked `order_issues:resolve` for the issue's hub; `billing.wallet_limit`
     is raised as is."""
@@ -163,7 +235,10 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         select(OrderEvent).where(OrderEvent.order_id.in_(ids)).order_by(OrderEvent.id)
     )
     for event in events.scalars():
-        found[event.order_id]["timeline"].append(event.as_dict(exclude={"order_id"}))
+        # Who made each move is the actor kind only: other people's user ids are not exported.
+        found[event.order_id]["timeline"].append(
+            event.as_dict(exclude={"order_id", "actor_user_id"})
+        )
     return {
         "orders": [{**o.as_dict(exclude={"data_source"}), **found[o.id]} for o in orders],
         "issues": await _issues_for_export(session, ids),
@@ -198,3 +273,57 @@ async def _issues_for_export(
         }
         for issue in found
     ]
+
+
+async def has_open_orders(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether an order of the household is not final yet: M1's purge waits (M1 §3.5)."""
+    open_order = exists().where(Order.household_id == household_id, Order.status.not_in(FINAL))
+    return bool(await session.scalar(select(open_order)))
+
+
+async def has_open_issues(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether an issue of the household is still `open`: M1's purge waits (M1 §3.5)."""
+    open_issue = exists().where(
+        OrderIssue.household_id == household_id, OrderIssue.status == "open"
+    )
+    return bool(await session.scalar(select(open_issue)))
+
+
+async def order_ids_of_household(session: AsyncSession, household_id: uuid.UUID) -> list[uuid.UUID]:
+    """Every order of the household, for M6's part of M1's purge (M1 §3.5)."""
+    return list(await session.scalars(select(Order.id).where(Order.household_id == household_id)))
+
+
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 8, and §3.7 here): issue photos, notes and the hub's
+    resolution notes (they may quote the customer) go; orders, lines,
+    events and issue amounts stay (they back ledger entries), and events the user made as a
+    partner lose the user id."""
+    now = datetime.now(UTC)
+    found: list[OrderIssue] = []
+    if household_id is not None:
+        found = list(
+            await session.scalars(
+                select(OrderIssue).where(
+                    OrderIssue.household_id == household_id,
+                    or_(
+                        OrderIssue.note.is_not(None),
+                        OrderIssue.resolution_note.is_not(None),
+                        func.cardinality(OrderIssue.photo_keys) > 0,
+                    ),
+                )
+            )
+        )
+    for issue in found:
+        for key in issue.photo_keys:
+            await files.set_delete_after(session, key, now)  # sweep_uploads deletes the file
+        issue.note, issue.resolution_note, issue.photo_keys = None, None, []
+    events = await session.execute(
+        update(OrderEvent).where(OrderEvent.actor_user_id == user_id).values(actor_user_id=None)
+    )
+    return {
+        "order_issues": len(found),
+        "order_events": events.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+    }
