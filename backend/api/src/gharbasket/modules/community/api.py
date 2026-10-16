@@ -9,14 +9,20 @@ society page (§3.8); M1 exports and erases through it.
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
-from sqlalchemy import delete, func, or_, select, update
+from geoalchemy2 import Geometry
+from sqlalchemy import cast, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.community import donations
 from gharbasket.modules.community.events import (
     CAPTAIN_ASSIGNED,
     CAPTAIN_ENDED,
+    DONATION_CANCELLED,
+    DONATION_REJECTED,
+    DONATION_SCHEDULED,
+    DONATION_VERIFIED,
     REFERRAL_CONVERTED,
     SOCIETY_LIVE,
 )
@@ -34,12 +40,18 @@ from gharbasket.platform.geo import geography
 __all__ = [
     "CAPTAIN_ASSIGNED",
     "CAPTAIN_ENDED",
+    "DONATION_CANCELLED",
+    "DONATION_REJECTED",
+    "DONATION_SCHEDULED",
+    "DONATION_VERIFIED",
     "REFERRAL_CONVERTED",
     "SOCIETY_LIVE",
     "CaptainCard",
     "CaptainRef",
+    "DonationPickup",
     "PublicSociety",
     "ReferralFact",
+    "SocietyLabels",
     "SocietyRef",
     "anonymise_for_user",
     "captain_card",
@@ -49,8 +61,12 @@ __all__ = [
     "get_society",
     "hubs_with_societies",
     "is_active_captain",
+    "pickups_for",
     "public_society",
+    "record_pickup",
     "referral_facts",
+    "society_labels",
+    "society_points",
 ]
 
 
@@ -60,8 +76,7 @@ class SocietyRef:
     hub_id: uuid.UUID | None
     status: str
     tower_ids: frozenset[str]
-    # Set once the society first went live: its boxes pay no delivery fee from then on (§3.6).
-    live_at: datetime | None = None
+    live_at: datetime | None  # set once, when it first went live (§3.6, §3.8)
 
 
 async def get_society(session: AsyncSession, society_id: uuid.UUID) -> SocietyRef | None:
@@ -99,6 +114,43 @@ async def hubs_with_societies(session: AsyncSession) -> list[uuid.UUID]:
         .order_by(Society.hub_id)
     )
     return [hub_id for hub_id in rows.scalars() if hub_id is not None]
+
+
+@dataclass(frozen=True)
+class SocietyLabels:
+    name: str
+    towers: dict[str, str]  # tower id -> label ("a" -> "A wing")
+
+
+async def society_labels(
+    session: AsyncSession, society_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, SocietyLabels]:
+    """Names and tower labels for packing queues and bag labels; unknown ids are left out."""
+    if not society_ids:
+        return {}
+    rows = await session.execute(
+        select(Society.id, Society.name, Society.towers).where(Society.id.in_(society_ids))
+    )
+    return {
+        society_id: SocietyLabels(name, {str(t["id"]): str(t["label"]) for t in towers})
+        for society_id, name, towers in rows.all()
+    }
+
+
+async def society_points(
+    session: AsyncSession, society_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[float, float]]:
+    """Where a van stops for each society, as (lat, lng) (M7's route stops): a point inside its
+    boundary until M9 records a gate. Societies without a boundary are left out."""
+    if not society_ids:
+        return {}
+    inside = func.ST_PointOnSurface(cast(Society.boundary, Geometry))
+    rows = await session.execute(
+        select(Society.id, func.ST_Y(inside), func.ST_X(inside)).where(
+            Society.id.in_(society_ids), Society.boundary.is_not(None)
+        )
+    )
+    return {society_id: (float(lat), float(lng)) for society_id, lat, lng in rows.all()}
 
 
 # --- captains (§3.2, ADR-0026 §4) ---------------------------------------------------------------
@@ -165,9 +217,55 @@ async def is_active_captain(
     return found.first() is not None
 
 
+# --- donation pickups (§3.4, §3.8): M7's return leg and the captain's flat checklist -----------
+
+
+@dataclass(frozen=True)
+class DonationPickup:
+    donation_id: uuid.UUID
+    household_id: uuid.UUID
+    items_summary: str  # "clothes 2.5 kg, toys 3": no names, flats or photos
+
+
+async def pickups_for(
+    session: AsyncSession, society_id: uuid.UUID, on: date
+) -> list[DonationPickup]:
+    """The society's donations to collect on `on`; M7 adds the flat (identity.api)."""
+    return [
+        DonationPickup(
+            donation_id=d.id,
+            household_id=d.household_id,
+            items_summary=", ".join(
+                f"{line['code']} {line['qty']:g}{' kg' if line['unit'] == 'kg' else ''}"
+                for line in d.items
+            ),
+        )
+        for d in await donations.pickups_for(session, society_id, on)
+    ]
+
+
+async def record_pickup(
+    session: AsyncSession,
+    donation_id: uuid.UUID,
+    outcome: Literal["collected", "not_ready"],
+    *,
+    by_user_id: uuid.UUID | None,
+    on: date,
+) -> bool:
+    """One donation's outcome from a stop (M7's `logistics.pickup_completed`, §3.4), in the
+    caller's transaction: `collected` makes it `picked_up` (by the rider or captain, on `on`);
+    `not_ready` rolls it once to the next delivery date, then cancels it. False when it was no
+    longer scheduled (a redelivered report), so calling twice is harmless."""
+    done = await donations.record_pickup(
+        session, donation_id, outcome, by_user_id=by_user_id, on=on
+    )
+    return done is not None
+
+
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
     """M9's section of the user's data export (M1 §3.3, §3.8): her captain appointments, her
-    referral code, the referrals she made (never the neighbour) and whether she was referred."""
+    donations (photos counted, not included), her referral code, the referrals she made (never the
+    neighbour) and whether she was referred."""
     rows = await session.execute(
         select(Captain, Society.name)
         .join(Society, Society.id == Captain.society_id)
@@ -185,6 +283,7 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
             }
             for captain, name in rows.all()
         ],
+        "donations": await donations.export(session, user_id),
         **await _referrals_export(session, user_id),
     }
 

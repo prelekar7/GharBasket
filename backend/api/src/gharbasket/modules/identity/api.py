@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import events, households, service
 from gharbasket.modules.identity.models import (
+    Address,
     Consent,
     Household,
     HouseholdMember,
@@ -19,10 +20,13 @@ from gharbasket.modules.identity.models import (
     UserRole,
 )
 
-# Events other modules consume (M9: the unlock count, referrals).
+# Events other modules consume (M9: the unlock count).
 HOUSEHOLD_CREATED = events.HOUSEHOLD_CREATED
 HOUSEHOLD_UPDATED = events.HOUSEHOLD_UPDATED
+# Events other modules consume (spec §3.5): the deletion request, its cancelling, the purge.
 DELETION_REQUESTED = events.DELETION_REQUESTED
+DELETION_CANCELLED = events.DELETION_CANCELLED
+USER_DELETED = events.USER_DELETED
 
 
 async def households_in_society(session: AsyncSession, society_id: uuid.UUID) -> int:
@@ -69,6 +73,28 @@ async def signed_up_at(session: AsyncSession, user_id: uuid.UUID) -> datetime | 
     return (
         await session.execute(select(User.created_at).where(User.id == user_id))
     ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class DeliveryLabel:
+    tower_id: str
+    flat: str
+
+
+async def delivery_labels(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, DeliveryLabel]:
+    """Tower and flat per household, for bag labels and hub queues (ADR-0026): never a name
+    or a phone. Households without an address are left out."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Address.household_id, Address.tower_id, Address.flat).where(
+            Address.household_id.in_(ids)
+        )
+    )
+    return {household_id: DeliveryLabel(tower, flat) for household_id, tower, flat in rows.all()}
 
 
 @dataclass(frozen=True)
@@ -209,6 +235,32 @@ async def households_of_hub(session: AsyncSession, hub_id: uuid.UUID) -> list[uu
     return list(rows.scalars())
 
 
+@dataclass(frozen=True)
+class PrivateTerms:
+    """The household's own words that must not leave the API in free text (M13's scrub, DPDP):
+    the owner's name (whole and each part) and the flat and tower of the address."""
+
+    names: tuple[str, ...]
+    places: tuple[str, ...]
+
+
+async def private_terms(session: AsyncSession, household_id: uuid.UUID) -> PrivateTerms:
+    row = (
+        await session.execute(
+            select(User.name, Address.flat, Address.tower_id)
+            .select_from(Household)
+            .join(User, User.id == Household.owner_user_id)
+            .outerjoin(Address, Address.household_id == Household.id)
+            .where(Household.id == household_id)
+        )
+    ).first()
+    if row is None:
+        return PrivateTerms((), ())
+    name, flat, tower = row
+    names = (name, *name.split()) if name else ()
+    return PrivateTerms(names, tuple(p for p in (flat, tower) if p))
+
+
 async def user_locale(session: AsyncSession, user_id: uuid.UUID) -> str:
     """en-IN, hi-IN or mr-IN: the language of pushes and WhatsApp messages (M11)."""
     locale = await session.scalar(select(User.locale).where(User.id == user_id))
@@ -273,3 +325,37 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         else (await households.view(session, household)).model_dump(mode="json"),
         "consents": [c.as_dict() for c in await rows(Consent, Consent.user_id == user_id)],
     }
+
+
+async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """Display names of staff (who holds a packing task); users without a name are left out."""
+    if not user_ids:
+        return {}
+    rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
+    return {user_id: name for user_id, name in rows.all() if name is not None}
+
+
+async def holds_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID
+) -> bool:
+    """True if an active user holds a verified `role` scoped to exactly `scope_id` (a society,
+    hub or NGO): M7 checks that a vehicle's default rider rides for its hub. A blocked or deleted
+    user holds nothing."""
+    query = (
+        select(UserRole.id)
+        .join(User, User.id == UserRole.user_id)
+        .where(
+            UserRole.user_id == user_id,
+            UserRole.role == role,
+            UserRole.scope_id == scope_id,
+            UserRole.status == "verified",
+            User.status == "active",
+        )
+    )
+    return (await session.execute(query.limit(1))).first() is not None
+
+
+async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
+    """False while the account's deletion is scheduled, once it is purged, and for a blocked
+    account (spec §3.5): M11 checks it before sending anything."""
+    return await session.scalar(select(User.status).where(User.id == user_id)) == "active"

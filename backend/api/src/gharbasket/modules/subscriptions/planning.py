@@ -57,10 +57,12 @@ def plan_request(
     monday: date,
     festivals: list[tuple[date, str, dict[str, bool]]],
     price_index: dict[uuid.UUID, float] | None = None,
+    preferences: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    """The planner's request (M10 §3.1 + v1 §3.2): the household's rules and members, the
+    """The planner's request (M10 §3.1 + v1 §3.2 + v2): the household's rules and members, the
     week's fasting days, every active recipe (sides flagged, never planned alone) with its
-    nutrition and the price spike of its costliest ingredient from `intel.price_index`."""
+    nutrition, the price spike of its costliest ingredient from `intel.price_index` and, v2,
+    the household's learned liking of the dish (`preferences` by recipe slug, from the ranker)."""
     budget = profile.budget_paise
     return {
         "household": {
@@ -81,11 +83,30 @@ def plan_request(
             {
                 **r.as_plan_recipe(),
                 "price_spike": price_spike(r, catalog.products, price_index or {}),
+                "preference": (preferences or {}).get(r.slug),
             }
             for r in catalog.recipes
         ],
         "time_limit_s": 1.0,
     }
+
+
+def recipe_preferences(scores: dict[uuid.UUID, float], catalog: PlanCatalog) -> dict[str, float]:
+    """v2: a dish's preference is the mean ranker score of its scored ingredients, then put on
+    0..1 by rank across the mains (the planner's liking term wants a comparable scale). Dishes
+    with no scored ingredient are left out (unknown)."""
+    raw: dict[str, float] = {}
+    for recipe in catalog.recipes:
+        if recipe.is_side:
+            continue
+        found = [scores[i.product_id] for i in recipe.ingredients if i.product_id in scores]
+        if found:
+            raw[recipe.slug] = sum(found) / len(found)
+    distinct = sorted(set(raw.values()))
+    if len(distinct) < 2:
+        return dict.fromkeys(raw, 1.0)
+    scale = {value: round(i / (len(distinct) - 1), 3) for i, value in enumerate(distinct)}
+    return {slug: scale[value] for slug, value in raw.items()}  # ties share a value
 
 
 def price_spike(

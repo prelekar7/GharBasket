@@ -6,7 +6,7 @@
 > - **Deploys:** GitHub Actions on `main` after CI runs `alembic upgrade head` on Neon, then calls the Render deploy hook. Scheduled jobs are internal endpoints called by a GitHub Actions schedule for daily and weekly jobs (D21) and by **cron-job.org** for minute-level ones (D25). Training and data jobs run in GitHub Actions (`training-jobs.yml`, `backend/training`). Secrets live in **Infisical**.
 > - **Backups:** Neon's built-in point-in-time restore; a scheduled `pg_dump` to R2 can be added via the jobs workflow.
 > - **Observability:** structlog JSON logs, UptimeRobot (which also keeps the free API awake), PostHog. Explicit SLOs; runbooks are planned and written before the pilot (S10).
-> - **ML runtime (D25):** the ML service and OSRM run on one free **Hugging Face Space** (being set up in PR #115); models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local.
+> - **ML runtime (D25):** the ML service and OSRM run on one free **Hugging Face Space**; models and the data lake live on R2 with a `latest.json` pointer per model; MLflow stays local.
 > - **Still open:** paid plans plus the pilot database location (Neon Singapore or a paid Mumbai Postgres), decided before P6.
 
 ---
@@ -87,7 +87,7 @@ flowchart TB
 | postgres | Neon (Singapore) | All module schemas, the outbox (the job queue, D21) | One shared database for `dev` and `staging` |
 | files | Cloudflare R2 (S3 API, region `auto`) | Media, private KYC files and proofs | SeaweedFS locally; the code uses the S3 API only |
 | PWA and console | Vercel | Static PWA build and the Next.js console | `/v1/*` rewrites to the API, so browser cookies are same-origin; preview deployment per PR |
-| ml, OSRM | One Hugging Face Space, free CPU tier (D25; being set up in PR #115) | Planners, routing, inference; road matrix | `osrm-routed` runs as a second process with the road network baked into the image. Stateless: no personal data travels to it, the API writes `intel.*`. UptimeRobot pings `/health` so it does not sleep; the API's rule fallbacks answer while it is cold |
+| ml + OSRM | Hugging Face Space (free CPU, Docker; ADR-0025) | Planners, the pantry twin, routing, forecasts' serving | One container: uvicorn on 7860 and `osrm-routed` with the MMR network baked in; `deploy-ml.yml` mirrors `backend/ml` with dependencies exported from `uv.lock` after CI on `main` (no commit, so no rebuild, when nothing changed); `start.sh` exits when either process dies, so the Space restarts; UptimeRobot keeps it awake; the API's fallbacks cover cold starts |
 | training and data jobs | GitHub Actions (`training-jobs.yml`, `backend/training`) | Data collection, training, forecasts, snapshots | Reads Neon (read-only role) and R2; hands results to the API's internal endpoints with `JOBS_TOKEN` |
 | models and lake | Cloudflare R2 (`gb-lake`, `gb-mlflow`) | Snapshots, external data, model versions with a `latest.json` pointer per model | Promotion is manual (`just promote`, D25); the Space polls `latest.json` every 10 minutes |
 | MLflow | Local only (Docker Compose) | Experiment tracking | Never hosted (D25) |
@@ -107,7 +107,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 | Secrets | Infisical (`dev`, `staging`, `prod`) | `infisical run --env=…`; synced to GitHub Actions secrets; never in the repo |
 | Builds, migrations, schedules | GitHub Actions | CI, `alembic upgrade head` on Neon, Render deploy hook, daily and weekly job calls (`jobs-staging.yml`), training and data jobs (`training-jobs.yml`) |
 | Minute-level schedules | cron-job.org | The 21:00 cut-off, the outbox sweep every few minutes, proposal expiry: `POST /v1/internal/jobs/<name>` with `JOBS_TOKEN` (D25) |
-| ML serving | Hugging Face Space (free CPU) | The ML service and OSRM (D25); being set up in PR #115 |
+| ML serving | Hugging Face Space (free CPU) | The ML service and OSRM (D25) |
 | DNS and TLS | Render and Vercel default URLs | No custom domain yet; TLS by the platforms |
 | Cost | Free tiers only until the pilot | Nothing here can bill us during development |
 

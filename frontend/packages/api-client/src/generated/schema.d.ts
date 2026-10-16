@@ -38,6 +38,57 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's donations, oldest first: the verification queue (5-minute photo links) */
+        get: operations["hub_donations_v1_admin_donations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a drive (hub manager: their hub or a society in it; admin: any; Idempotency-Key required) */
+        post: operations["create_drive_v1_admin_drives_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/drives/{drive_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change or cancel a drive (If-Match: its version; a running drive only extends) */
+        patch: operations["patch_drive_v1_admin_drives__drive_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/hubs": {
         parameters: {
             query?: never;
@@ -175,6 +226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/point-rates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a point rate (admin; applies to donations verified from now on; audit-logged) */
+        put: operations["put_point_rate_v1_admin_point_rates__code__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -254,6 +322,91 @@ export interface paths {
         put?: never;
         /** Admin: give a user a staff role (Idempotency-Key required; audit-logged) */
         post: operations["grant_role_v1_admin_user_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/ai-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
+        get: operations["ai_health_v1_analytics_ai_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/confirm/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a proposal: the change is made through the owning module (Idempotency-Key) */
+        post: operations["confirm_proposal_v1_assistant_confirm__proposal_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say something to Ghar Saathi; the reply may carry proposal cards to confirm */
+        post: operations["post_message_v1_assistant_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a proposal; nothing changes */
+        post: operations["reject_proposal_v1_assistant_proposals__proposal_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A conversation's history and its proposal cards */
+        get: operations["get_session_v1_assistant_sessions__session_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -537,6 +690,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My household's donations, newest first, and the next two pickup dates */
+        get: operations["my_donations_v1_donations_get"];
+        put?: never;
+        /** Schedule a donation pickup on one of the next pickup dates (Idempotency-Key) */
+        post: operations["schedule_donation_v1_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a donation still waiting for pickup (Idempotency-Key) */
+        post: operations["cancel_donation_v1_donations__donation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a picked-up donation; its items go to a recycler (Idempotency-Key) */
+        post: operations["reject_donation_v1_donations__donation_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record what the hub counted; points are computed and sent to M5 (Idempotency-Key) */
+        post: operations["verify_donation_v1_donations__donation_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Donation drives: running and upcoming ones (customers), every state (hub staff) */
+        get: operations["list_drives_v1_drives_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/festivals": {
         parameters: {
             query?: never;
@@ -712,6 +951,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/packing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tasks by status and bags and crates per society for a date */
+        get: operations["packing_summary_v1_hubs__hub_id__packing_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's packing queue for a date, by seq */
+        get: operations["list_packing_tasks_v1_hubs__hub_id__packing_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key) */
+        post: operations["build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim the next task: the caller's own in picking, else the first queued one */
+        post: operations["next_packing_task_v1_hubs__hub_id__packing_tasks_next_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/partners": {
         parameters: {
             query?: never;
@@ -746,6 +1053,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/route-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's route plans for a date, newest first (without routes) */
+        get: operations["list_plans_v1_hubs__hub_id__route_plans_get"];
+        put?: never;
+        /**
+         * Solve (or re-solve) a hub's routes for today or tomorrow (Idempotency-Key required)
+         * @description Answers at once with the queued plan; the solve runs in the background (the ML solver, or M7's fallback when it is down). Poll GET /v1/route-plans/{id}. A manual plan is never published automatically.
+         */
+        post: operations["solve_plan_v1_hubs__hub_id__route_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vehicles, by label */
+        get: operations["list_vehicles_v1_hubs__hub_id__vehicles_get"];
+        put?: never;
+        /** Add a vehicle to a hub (Idempotency-Key required) */
+        post: operations["create_vehicle_v1_hubs__hub_id__vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vendors": {
         parameters: {
             query?: never;
@@ -764,6 +1110,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/internal/intel/feature-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store point-in-time features as of a cut-off (the snapshot job; operator token) */
+        post: operations["put_feature_snapshots_v1_internal_intel_feature_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store a hub's demand forecast and order quantities (the forecast job; operator token)
+         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`
+         *     the delivery day) with every product's lines in the payload, and `intel.forecast_ready`;
+         *     M6 reads it through `intel_gateway.api.hub_forecast`.
+         */
+        post: operations["put_forecasts_v1_internal_intel_forecasts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/model-metrics": {
         parameters: {
             query?: never;
@@ -775,6 +1160,23 @@ export interface paths {
         put?: never;
         /** Store an evaluation run's metrics (the eval harness, training jobs; operator token) */
         post: operations["put_model_metrics_v1_internal_intel_model_metrics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/pantry-priors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token) */
+        post: operations["put_pantry_priors_v1_internal_intel_pantry_priors_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -832,6 +1234,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/kindness/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points, the next expiry dates and the next meal's goal */
+        get: operations["get_kindness_balance_v1_kindness_balance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give Kindness points as donated meals (a meal for a child); the only way to use them */
+        post: operations["donate_meals_v1_kindness_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points history, newest first */
+        get: operations["list_kindness_entries_v1_kindness_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -843,7 +1296,8 @@ export interface paths {
         get: operations["me_v1_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete my account after a 30-day grace (signs out every device; spec §3.5) */
+        delete: operations["delete_me_v1_me_delete"];
         options?: never;
         head?: never;
         /** Change name, language or senior mode (only the fields sent) */
@@ -1073,6 +1527,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orders/{order_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's live timeline: JSON for polling clients, or a Server-Sent Events stream
+         * @description `Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.
+         */
+        get: operations["order_events_v1_orders__order_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orders/{order_id}/issues": {
         parameters: {
             query?: never;
@@ -1105,6 +1579,108 @@ export interface paths {
          * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
          */
         post: operations["pay_order_v1_orders__order_id__pay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A packing task with its lines */
+        get: operations["get_packing_task_v1_packing_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pack the bag (the order moves picking → packed; Idempotency-Key) */
+        post: operations["complete_packing_v1_packing_tasks__task_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the steps picked for a line (absolute; Idempotency-Key) */
+        post: operations["pick_line_v1_packing_tasks__task_id__pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Free a started task so another packer can take it (hub manager; Idempotency-Key) */
+        post: operations["release_packing_v1_packing_tasks__task_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/shortage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund short steps, or substitute the whole line (Idempotency-Key) */
+        post: operations["record_shortage_v1_packing_tasks__task_id__shortage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a task (the order moves locked → picking; Idempotency-Key) */
+        post: operations["start_packing_v1_packing_tasks__task_id__start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1247,6 +1823,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/point-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kindness points per kg or per piece, by item category */
+        get: operations["point_rates_v1_point_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/prices": {
         parameters: {
             query?: never;
@@ -1378,6 +1971,43 @@ export interface paths {
         put?: never;
         /** Use a neighbour's referral code (Idempotency-Key required) */
         post: operations["claim_referral_v1_referrals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/route-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A route plan with its routes (poll it after a solve) */
+        get: operations["get_plan_v1_route_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/route-plans/{plan_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a solved plan (Idempotency-Key required)
+         * @description The routes become published; the date's previously published plan is superseded and its routes cancelled, unless one of them has started. A plan with problems needs accept_problems (audited); one that leaves a stop off every route never publishes.
+         */
+        post: operations["publish_plan_v1_route_plans__plan_id__publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1573,6 +2203,26 @@ export interface paths {
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
         trace?: never;
     };
+    "/v1/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or deactivate a vehicle (If-Match: the vehicle's version)
+         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published. A vehicle of a hub outside the caller's roles answers 404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).
+         */
+        patch: operations["patch_vehicle_v1_vehicles__vehicle_id__patch"];
+        trace?: never;
+    };
     "/v1/vendors/{vendor_id}": {
         parameters: {
             query?: never;
@@ -1756,11 +2406,28 @@ export interface components {
             /** Tower Id */
             tower_id?: string | null;
         };
+        /** AiHealthOut */
+        AiHealthOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Models */
+            models: components["schemas"]["ModelHealthOut"][];
+            /**
+             * Predictions
+             * @description How often each kind of prediction came from the ML service or the fallback
+             */
+            predictions: components["schemas"]["PredictionCountOut"][];
+            /** Window Days */
+            window_days: number;
+        };
         /** BudgetLockIn */
         BudgetLockIn: {
             /**
              * Budget Paise
-             * @description At least ₹500; null switches the lock off
+             * @description At least ₹500 (else 422 subscriptions.budget_invalid); null switches it off
              */
             budget_paise?: number | null;
             /**
@@ -1782,6 +2449,21 @@ export interface components {
             remaining_paise: number;
             /** Spent Paise */
             spent_paise: number;
+        };
+        /** BuildIn */
+        BuildIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** BuildOut */
+        BuildOut: {
+            /** Created */
+            created: number;
+            /** Existing */
+            existing: number;
         };
         /** CaptainCard */
         CaptainCard: {
@@ -1851,6 +2533,22 @@ export interface components {
              * @example leafy-greens
              */
             slug: string;
+        };
+        /** CompleteIn */
+        CompleteIn: {
+            /** Bags */
+            bags?: number | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /** Crate No */
+            crate_no?: number | null;
+        };
+        /** ConfirmOut */
+        ConfirmOut: {
+            proposal: components["schemas"]["ProposalOut"];
         };
         /** ConsentIn */
         ConsentIn: {
@@ -2042,6 +2740,31 @@ export interface components {
             /** Meals */
             meals: components["schemas"]["MealOut"][];
         };
+        /**
+         * DeletionOut
+         * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+         *     in again before then.
+         */
+        DeletionOut: {
+            /**
+             * Purge On
+             * Format: date
+             * @description IST date, 30 days after the request
+             */
+            purge_on: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "scheduled";
+            /** @description The wallet balance on its way back to the original payment source */
+            wallet_refund: components["schemas"]["WalletRefundOut"] | null;
+        };
         /** DeliveryDayIn */
         DeliveryDayIn: {
             /**
@@ -2139,6 +2862,260 @@ export interface components {
              */
             signed_in_at: string;
         };
+        /** DonationLine */
+        DonationLine: {
+            /** Code */
+            code: string;
+            /**
+             * Counted
+             * @description Set by the hub at verification
+             */
+            counted: number | null;
+            /** Points */
+            points: number | null;
+            /**
+             * Qty
+             * @description As declared
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** DonationLineIn */
+        DonationLineIn: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description In the rate's unit: whole pieces, or kg in 0.5 steps
+             * @example 3
+             */
+            qty: number | string;
+        };
+        /** DonationNgo */
+        DonationNgo: {
+            /** Name */
+            name: string;
+        };
+        /** DonationsOut */
+        DonationsOut: {
+            /** Items */
+            items: components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Pickup Dates
+             * @description The next two dates this household can choose
+             */
+            pickup_dates: string[];
+        };
+        /** DriveIn */
+        DriveIn: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            description?: components["schemas"]["Texts"] | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items?: number | null;
+            /**
+             * Hub Id
+             * @description Only for a hub drive
+             */
+            hub_id?: string | null;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number | string;
+            name: components["schemas"]["Label"];
+            /**
+             * Ngo Id
+             * @description Accepted once NGOs exist (§3.5)
+             */
+            ngo_id?: null;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /**
+             * Society Id
+             * @description Only for a society drive
+             */
+            society_id?: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** DriveNgo */
+        DriveNgo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** DriveOut */
+        DriveOut: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @description What it multiplies
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            /** Description */
+            description: string | null;
+            /**
+             * Ends On
+             * Format: date
+             * @description IST, inclusive
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items: number | null;
+            /**
+             * Hub Id
+             * @description Also set for a society drive (its hub)
+             */
+            hub_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number;
+            /**
+             * Name
+             * @description In the request language
+             * @example Diwali drive
+             */
+            name: string;
+            /** @description Who receives the items; null until NGOs (§3.5) */
+            ngo: components["schemas"]["DriveNgo"] | null;
+            progress: components["schemas"]["DriveProgress"];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /** Society Id */
+            society_id: string | null;
+            /**
+             * Starts On
+             * Format: date
+             * @description IST, inclusive
+             */
+            starts_on: string;
+            /**
+             * State
+             * @description From the dates in IST, except cancelled
+             * @enum {string}
+             */
+            state: "upcoming" | "running" | "ended" | "cancelled";
+            /**
+             * Version
+             * @description Send it back in If-Match to change the drive
+             */
+            version: number;
+        };
+        /**
+         * DrivePatch
+         * @description Any field below, or `state: cancelled`. Scope, hub and society stay as created.
+         */
+        DrivePatch: {
+            /** Codes */
+            codes?: string[] | null;
+            description?: components["schemas"]["Texts"] | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Goal Items */
+            goal_items?: number | null;
+            /** Multiplier */
+            multiplier?: number | string | null;
+            name?: components["schemas"]["Label"] | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /**
+             * State
+             * @description Donations already scheduled keep the multiplier
+             */
+            state?: "cancelled" | null;
+        };
+        /**
+         * DriveProgress
+         * @description Items (pieces, and kilograms counted as one item per kg); no households, no names. Null
+         *     for customers while fewer than 5 households took part (k = 5, §3.7).
+         */
+        DriveProgress: {
+            /**
+             * Pledged
+             * @description In scheduled and picked-up donations
+             * @example 40
+             */
+            pledged: number | null;
+            /**
+             * Verified
+             * @description Counted by the hub
+             * @example 31
+             */
+            verified: number | null;
+        };
+        /** DriveRef */
+        DriveRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Multiplier */
+            multiplier: number;
+            /** Name */
+            name: string;
+        };
+        /** DrivesOut */
+        DrivesOut: {
+            /** Items */
+            items: components["schemas"]["DriveOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Entry */
         Entry: {
             /**
@@ -2184,6 +3161,12 @@ export interface components {
             device: components["schemas"]["DeviceIn"];
             /** Firebase Id Token */
             firebase_id_token?: string | null;
+            /**
+             * Keep Account
+             * @description For an account whose deletion is scheduled: true (after the app asked "Keep my account?") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)
+             * @default false
+             */
+            keep_account: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -2194,6 +3177,12 @@ export interface components {
             access_expires_in: number;
             /** Access Token */
             access_token: string | null;
+            /**
+             * Deletion Cancelled
+             * @description True when this sign-in cancelled a scheduled deletion
+             * @default false
+             */
+            deletion_cancelled: boolean;
             /** Is New User */
             is_new_user: boolean;
             /** Refresh Token */
@@ -2214,6 +3203,38 @@ export interface components {
              * @default false
              */
             no_onion_garlic_on_fast_days: boolean;
+        };
+        /** FeatureSnapshotIn */
+        FeatureSnapshotIn: {
+            /** Features */
+            features: {
+                [key: string]: unknown;
+            };
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "household" | "hub" | "society" | "order" | "partner" | "product";
+        };
+        /** FeatureSnapshotsIn */
+        FeatureSnapshotsIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items: components["schemas"]["FeatureSnapshotIn"][];
+        };
+        /** FeatureSnapshotsOut */
+        FeatureSnapshotsOut: {
+            /** Accepted */
+            accepted: number;
         };
         /** FeedbackIn */
         FeedbackIn: {
@@ -2275,6 +3296,54 @@ export interface components {
         Festivals: {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
+        };
+        /** ForecastItemIn */
+        ForecastItemIn: {
+            /** Committed */
+            committed: number;
+            /**
+             * For Date
+             * Format: date
+             */
+            for_date: string;
+            /** Model */
+            model: string;
+            /** Order Qty */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Uncommitted Q50 */
+            uncommitted_q50: number;
+            /** Uncommitted Qtau */
+            uncommitted_qtau: number;
+        };
+        /** ForecastsIn */
+        ForecastsIn: {
+            /**
+             * Data Source
+             * @description Whose orders the forecast was trained on; sources are never pooled
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Items */
+            items: components["schemas"]["ForecastItemIn"][];
+            /** Model */
+            model: string;
+        };
+        /** ForecastsOut */
+        ForecastsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Delivery Dates */
+            delivery_dates: string[];
         };
         /**
          * GeoPolygon
@@ -2467,6 +3536,40 @@ export interface components {
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
         };
+        /** HubDriftOut */
+        HubDriftOut: {
+            /**
+             * Backtest Wape
+             * @description The same hub and data source's backtest WAPE it was compared with
+             */
+            backtest_wape: number | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Drift
+             * @description A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest
+             */
+            drift: boolean;
+            /** Drifted Days */
+            drifted_days: number;
+            /**
+             * For Date
+             * @description The newest scored delivery day
+             */
+            for_date: string | null;
+            /** Hub Id */
+            hub_id: string;
+            /** Scored Days */
+            scored_days: number;
+            /**
+             * Wape
+             * @description Its realised WAPE
+             */
+            wape: number | null;
+        };
         /** HubIn */
         HubIn: {
             /** Address */
@@ -2477,6 +3580,11 @@ export interface components {
              * @example Kharghar hub
              */
             name: string;
+            /**
+             * Pre Live Box Fee Paise
+             * @default 3000
+             */
+            pre_live_box_fee_paise: number;
             /**
              * Procurement Buffer Pct
              * @default 10
@@ -2513,6 +3621,12 @@ export interface components {
              */
             name: string;
             /**
+             * Pre Live Box Fee Paise
+             * @description Delivery fee per box while a society is not live (M9 §3.6)
+             * @example 3000
+             */
+            pre_live_box_fee_paise: number;
+            /**
              * Procurement Buffer Pct
              * @example 10
              */
@@ -2548,6 +3662,8 @@ export interface components {
             location?: components["schemas"]["LatLng"] | null;
             /** Name */
             name?: string | null;
+            /** Pre Live Box Fee Paise */
+            pre_live_box_fee_paise?: number | null;
             /** Procurement Buffer Pct */
             procurement_buffer_pct?: number | null;
             service_area?: components["schemas"]["GeoPolygon"] | null;
@@ -3048,6 +4164,51 @@ export interface components {
              */
             placeholders: string[];
         };
+        /** KindnessBalanceOut */
+        KindnessBalanceOut: {
+            /**
+             * Expiring
+             * @description Soonest first, the next 3 dates within 90 days; [] if none
+             */
+            expiring: components["schemas"]["PointsExpiring"][];
+            /** @description What the next donated meal needs */
+            goal: components["schemas"]["KindnessGoal"] | null;
+            /**
+             * Points
+             * @description Points that can be donated now
+             * @example 340
+             */
+            points: number;
+        };
+        /** KindnessGoal */
+        KindnessGoal: {
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Points
+             * @description The points one donated meal takes
+             * @example 500
+             */
+            points: number;
+        };
+        /**
+         * Label
+         * @description A short name in each app language.
+         */
+        Label: {
+            /**
+             * En
+             * @example Diwali drive
+             */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
         /**
          * LatLng
          * @description A pin on the map, as every API shape carries it.
@@ -3329,6 +4490,87 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** MessageIn */
+        MessageIn: {
+            /**
+             * Session Id
+             * @description Omit to start a session
+             */
+            session_id?: string | null;
+            /** Text */
+            text: string;
+        };
+        /** MessageOut */
+        MessageOut: {
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Tool Calls */
+            tool_calls: string[];
+        };
+        /** MetricOut */
+        MetricOut: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Hub Id
+             * @description Set when the row is about one hub
+             */
+            hub_id?: string | null;
+            /** Metric */
+            metric: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "train" | "holdout" | "backtest" | "live";
+            /** Value */
+            value: number;
+            /** Version */
+            version: string;
+        };
+        /** ModelHealthOut */
+        ModelHealthOut: {
+            /**
+             * Drift
+             * @description Any hub drifted in the window (see `hubs`)
+             */
+            drift: boolean;
+            /**
+             * Hubs
+             * @description monitor_drift per hub and data source over the window
+             */
+            hubs?: components["schemas"]["HubDriftOut"][];
+            /**
+             * Metrics
+             * @description The newest value per (metric, split, data source, hub)
+             */
+            metrics: components["schemas"]["MetricOut"][];
+            /** Model Name */
+            model_name: string;
+        };
         /** ModelMetricIn */
         ModelMetricIn: {
             /**
@@ -3411,6 +4653,29 @@ export interface components {
              * @example Your box has reached your society
              */
             title: string;
+        };
+        /**
+         * OrderEventsOut
+         * @description The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).
+         */
+        OrderEventsOut: {
+            /**
+             * Eta
+             * @description null until M7 publishes route progress
+             */
+            eta?: null;
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["TimelineEvent"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Version */
+            version: number;
         };
         /** OrderLineOut */
         OrderLineOut: {
@@ -3520,7 +4785,7 @@ export interface components {
             /** Subtotal Paise */
             subtotal_paise: number;
             /** Timeline */
-            timeline: components["schemas"]["TimelineEntry"][];
+            timeline: components["schemas"]["gharbasket__modules__orders__schemas__TimelineEntry"][];
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -3627,6 +4892,298 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Packer */
+        Packer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** PackingLineOut */
+        PackingLineOut: {
+            /**
+             * Done
+             * @description picked_qty + short_qty = qty
+             */
+            done: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Picked Qty
+             * @description Steps in the bag (of the substitute, if any)
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description The ordered product
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps ordered
+             */
+            qty: number;
+            /**
+             * Short Qty
+             * @description Steps refunded
+             */
+            short_qty: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+        };
+        /** PackingRoute */
+        PackingRoute: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /**
+             * Stop Seq
+             * @example 3
+             */
+            stop_seq: number;
+        };
+        /** PackingSlot */
+        PackingSlot: {
+            /**
+             * End
+             * @example 09:00
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @example 7-9 am
+             */
+            label: string;
+            /**
+             * Start
+             * @description IST HH:MM
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** PackingSociety */
+        PackingSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
+        /** PackingStep */
+        PackingStep: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @example g
+             */
+            unit: string;
+        };
+        /** PackingSubstitute */
+        PackingSubstitute: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
+        /** PackingSummary */
+        PackingSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Packed */
+            packed: number;
+            /** Picking */
+            picking: number;
+            /** Queued */
+            queued: number;
+            /** Societies */
+            societies: components["schemas"]["SocietyLoad"][];
+        };
+        /** PackingTaskDetail */
+        PackingTaskDetail: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By catalog category, then name
+             */
+            lines: components["schemas"]["PackingLineOut"][];
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
+        /** PackingTaskOut */
+        PackingTaskOut: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
         /** Page[Entry] */
         Page_Entry_: {
             /** Items */
@@ -3648,10 +5205,24 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[PackingTaskOut] */
+        Page_PackingTaskOut_: {
+            /** Items */
+            items: components["schemas"]["PackingTaskOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[PartnerStaffOut] */
         Page_PartnerStaffOut_: {
             /** Items */
             items: components["schemas"]["PartnerStaffOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PointsEntry] */
+        Page_PointsEntry_: {
+            /** Items */
+            items: components["schemas"]["PointsEntry"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -3675,6 +5246,47 @@ export interface components {
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** Page[StaffDonationOut] */
+        Page_StaffDonationOut_: {
+            /** Items */
+            items: components["schemas"]["StaffDonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** PantryPriorIn */
+        PantryPriorIn: {
+            /**
+             * Cohort
+             * @enum {string}
+             */
+            cohort: "small" | "medium" | "large";
+            /**
+             * Prior Mean Per Ae
+             * @description Base units a week per adult equivalent (M3 scales by the household)
+             */
+            prior_mean_per_ae: number;
+            /** Prior Weeks */
+            prior_weeks: number;
+            /**
+             * Product
+             * @description The product's slug
+             */
+            product: string;
+        };
+        /** PantryPriorsIn */
+        PantryPriorsIn: {
+            /** Items */
+            items: components["schemas"]["PantryPriorIn"][];
+            /** Version */
+            version: string;
+        };
+        /** PantryPriorsOut */
+        PantryPriorsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Unknown Slugs */
+            unknown_slugs: string[];
         };
         /** PartnerOut */
         PartnerOut: {
@@ -3826,6 +5438,39 @@ export interface components {
              */
             wallet_paise: number;
         };
+        /** PhotoUrl */
+        PhotoUrl: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Url */
+            url: string;
+        };
+        /** PickIn */
+        PickIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Picked Qty
+             * @description Absolute, not a delta: 0 to qty - short_qty
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** PickedUpBy */
+        PickedUpBy: {
+            /** Name */
+            name: string | null;
+        };
         /** PlanOut */
         PlanOut: {
             /**
@@ -3840,10 +5485,188 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PlanSummary */
+        PlanSummary: {
+            /**
+             * Cost Paise
+             * @example 412000
+             */
+            cost_paise: number;
+            /**
+             * Km
+             * @example 61.2
+             */
+            km: number;
+            /**
+             * Late Min
+             * @example 0
+             */
+            late_min: number;
+            /**
+             * On Time
+             * @description Share of stops reached within the window
+             * @example 1
+             */
+            on_time: number;
+            /**
+             * Orders
+             * @example 212
+             */
+            orders: number;
+            /**
+             * Problems
+             * @description Empty, or the plan needs a hub manager's review before it is published
+             * @example [
+             *       "EV-2 trip 1: over capacity leaving the hub"
+             *     ]
+             */
+            problems: string[];
+            /**
+             * Routes
+             * @example 6
+             */
+            routes: number;
+            /**
+             * Stops
+             * @description Stops with orders, routed or not
+             * @example 18
+             */
+            stops: number;
+            /**
+             * Vehicles
+             * @description Vehicles used
+             * @example 4
+             */
+            vehicles: number;
+        };
         /** PlansOut */
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /**
+         * PointRateIn
+         * @description Applies to donations verified from now on.
+         */
+        PointRateIn: {
+            label: components["schemas"]["Label"];
+            /**
+             * Max Qty
+             * @description Whole pieces, or kg in 0.5 steps
+             */
+            max_qty: number | string;
+            /**
+             * Points
+             * @example 40
+             */
+            points: number;
+        };
+        /** PointRateOut */
+        PointRateOut: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Label
+             * @description In the request language
+             * @example Clothes
+             */
+            label: string;
+            /**
+             * Max Qty
+             * @description The most one donation may declare
+             * @example 15
+             */
+            max_qty: number;
+            /**
+             * Points
+             * @description Points per kg or per piece
+             * @example 40
+             */
+            points: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** PointRatesOut */
+        PointRatesOut: {
+            /** Items */
+            items: components["schemas"]["PointRateOut"][];
+        };
+        /** PointsEntry */
+        PointsEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Expires On
+             * @description IST, for points_earned
+             */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "points_earned" | "points_expired" | "points_donated";
+            /**
+             * Points
+             * @description Into the balance +, out of it -
+             * @example 120
+             */
+            points: number;
+            /** @description What earned the points (earned and expired) */
+            ref: components["schemas"]["PointsRef"] | null;
+        };
+        /** PointsExpiring */
+        PointsExpiring: {
+            /**
+             * On
+             * Format: date
+             * @description The IST date these points expire at the end of
+             */
+            on: string;
+            /**
+             * Points
+             * @example 120
+             */
+            points: number;
+        };
+        /** PointsRef */
+        PointsRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "donation" | "referral";
+        };
+        /** PredictionCountOut */
+        PredictionCountOut: {
+            /** Count */
+            count: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
         };
         /** PreferencesIn */
         PreferencesIn: {
@@ -3889,7 +5712,7 @@ export interface components {
             content_type: string;
             /**
              * Purpose
-             * @description order_issue_photo, donation_photo or kyc_document
+             * @description order_issue_photo, donation_photo, kyc_document, delivery_photo or handoff_photo
              */
             purpose: string;
             /**
@@ -4164,6 +5987,48 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
+        };
+        /** ProposalOut */
+        ProposalOut: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "edit_box_line" | "skip_week";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "confirmed" | "rejected" | "expired";
+            /** Summary */
+            summary: string;
+        };
+        /** PublishIn */
+        PublishIn: {
+            /**
+             * Accept Problems
+             * @description Publish although summary.problems is not empty (audited)
+             * @default false
+             */
+            accept_problems: boolean;
         };
         /** PushTokenIn */
         PushTokenIn: {
@@ -4471,6 +6336,16 @@ export interface components {
              */
             note?: string | null;
         };
+        /** RejectIn */
+        RejectIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "unusable" | "not_accepted" | "unsafe" | "other";
+        };
         /** ReplacedOut */
         ReplacedOut: {
             /** Name */
@@ -4503,6 +6378,20 @@ export interface components {
              * @enum {string}
              */
             outcome: "credit" | "reject";
+        };
+        /** RiderRef */
+        RiderRef: {
+            /**
+             * Name
+             * @description Shown to hub staff only
+             * @example Arjun Pawar
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /**
          * RoleGrantIn
@@ -4555,6 +6444,234 @@ export interface components {
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
         };
+        /** RoutePlanOut */
+        RoutePlanOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /** Routes */
+            routes: components["schemas"]["RouteSummary"][];
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlanSummary */
+        RoutePlanSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["UserRef"] | null;
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlansOut */
+        RoutePlansOut: {
+            /** Items */
+            items: components["schemas"]["RoutePlanSummary"][];
+        };
+        /** RouteSummary */
+        RouteSummary: {
+            /**
+             * Bags
+             * @example 52
+             */
+            bags: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Crates
+             * @example 18
+             */
+            crates: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Depart
+             * @description IST HH:MM
+             * @example 06:30
+             */
+            depart: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Km
+             * @description Estimate: the straight line x 1.3 along the stops
+             * @example 14.8
+             */
+            km: number;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /**
+             * Return By
+             * @description IST HH:MM
+             * @example 11:30
+             */
+            return_by: string;
+            /** @description Null until a rider is set */
+            rider: components["schemas"]["RiderRef"] | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @description draft while its plan is not published
+             * @enum {string}
+             */
+            status: "draft" | "published" | "in_progress" | "completed" | "cancelled";
+            /**
+             * Stops Done
+             * @example 0
+             */
+            stops_done: number;
+            /**
+             * Stops Total
+             * @example 6
+             */
+            stops_total: number;
+            /**
+             * Trip
+             * @description A vehicle's second trip of the day is 2
+             * @example 1
+             */
+            trip: number;
+            vehicle: components["schemas"]["VehicleRef"];
+            /** Version */
+            version: number;
+        };
         /** SavedTemplatesOut */
         SavedTemplatesOut: {
             /**
@@ -4588,6 +6705,47 @@ export interface components {
         SearchResults: {
             /** Items */
             items: components["schemas"]["SearchItem"][];
+        };
+        /** SessionOut */
+        SessionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Locale */
+            locale: string;
+            /** Messages */
+            messages: components["schemas"]["MessageOut"][];
+            /** Model */
+            model: string | null;
+            /** Proposals */
+            proposals: components["schemas"]["ProposalOut"][];
+        };
+        /** ShortageIn */
+        ShortageIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Short Qty
+             * @example 1
+             */
+            short_qty: number;
+            /** Substitute Product Id */
+            substitute_product_id?: string | null;
         };
         /** SlotIn */
         SlotIn: {
@@ -4722,6 +6880,22 @@ export interface components {
             date: string;
             /** Items */
             items: components["schemas"]["SlotOut"][];
+        };
+        /** SocietyLoad */
+        SocietyLoad: {
+            /** Bags */
+            bags: number;
+            /** Crates */
+            crates: number;
+            /** Name */
+            name: string;
+            /** Packed Bags */
+            packed_bags: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
         };
         /** SocietyOut */
         SocietyOut: {
@@ -4912,6 +7086,119 @@ export interface components {
              * @description Pinned: the weekly recompute leaves the threshold alone
              */
             unlock_threshold_pinned?: boolean | null;
+        };
+        /** SolveIn */
+        SolveIn: {
+            /**
+             * Date
+             * Format: date
+             * @description Today or tomorrow (IST)
+             * @example 2026-12-29
+             */
+            date: string;
+            /**
+             * Kind
+             * @description tiffin plans come with M8 (§3.7)
+             * @default box
+             * @constant
+             */
+            kind: "box";
+        };
+        /**
+         * StaffDonationOut
+         * @description The verification queue's row: tower and flat match the bag's label at the hub.
+         */
+        StaffDonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Flat
+             * @example A-1203
+             */
+            flat: string | null;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photo Urls
+             * @description 5-minute links; minting them is audit-logged
+             */
+            photo_urls: components["schemas"]["PhotoUrl"][];
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            picked_up_by: components["schemas"]["PickedUpBy"] | null;
+            /** Picked Up On */
+            picked_up_on: string | null;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            society: components["schemas"]["StaffSociety"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+            /**
+             * Tower
+             * @example A wing
+             */
+            tower: string | null;
+        };
+        /** StaffSociety */
+        StaffSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** StartIn */
+        StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
         };
         /** StatementEntry */
         StatementEntry: {
@@ -5242,8 +7529,20 @@ export interface components {
             /** Kinds */
             kinds: components["schemas"]["KindOut"][];
         };
-        /** TimelineEntry */
-        TimelineEntry: {
+        /** Texts */
+        Texts: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
+        /**
+         * TimelineEvent
+         * @description A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.
+         */
+        TimelineEvent: {
             /**
              * Actor
              * @description Who moved it, as a kind of actor only: never a name or id
@@ -5255,6 +7554,12 @@ export interface components {
              * Format: date-time
              */
             at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The order_events row; also the SSE event id
+             */
+            id: string;
             /**
              * Status
              * @enum {string}
@@ -5388,6 +7693,27 @@ export interface components {
              */
             label: string;
         };
+        /** TurnOut */
+        TurnOut: {
+            /** Proposals */
+            proposals: components["schemas"]["ProposalOut"][];
+            reply: components["schemas"]["MessageOut"];
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Source
+             * @description fallback: the assistant was unreachable and a fixed reply was given
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /** Tokens Cap */
+            tokens_cap: number;
+            /** Tokens Today */
+            tokens_today: number;
+        };
         /**
          * UnlockOut
          * @description How close a society is to free delivery (US-2).
@@ -5448,6 +7774,163 @@ export interface components {
             phone_e164: string;
             /** Senior Mode */
             senior_mode: boolean;
+        };
+        /** UserRef */
+        UserRef: {
+            /**
+             * Name
+             * @example Vikram Desai
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * VehicleIn
+         * @description Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;
+         *     two_wheeler 40 kg, 0 crates, 30 tiffins.
+         */
+        VehicleIn: {
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates?: number | null;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg?: number | null;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins?: number | null;
+            /**
+             * Default Rider User Id
+             * @description A rider of this hub (an active rider:<hub> role)
+             */
+            default_rider_user_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration?: string | null;
+        };
+        /** VehicleOut */
+        VehicleOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates: number;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg: number;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** @description Set as the rider of new routes */
+            default_rider: components["schemas"]["RiderRef"] | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description cargo_3w carries boxes and add-ons; two_wheeler tiffins
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @description Unique per hub, ignoring case
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * VehiclePatch
+         * @description Only the fields sent change; `registration` and `default_rider_user_id` may be null.
+         *     A change applies to the next solve, never to a route already published.
+         */
+        VehiclePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Capacity Crates */
+            capacity_crates?: number | null;
+            /** Capacity Kg */
+            capacity_kg?: number | null;
+            /** Capacity Tiffins */
+            capacity_tiffins?: number | null;
+            /** Default Rider User Id */
+            default_rider_user_id?: string | null;
+            /** Kind */
+            kind?: ("cargo_3w" | "two_wheeler") | null;
+            /** Label */
+            label?: string | null;
+            /** Registration */
+            registration?: string | null;
+        };
+        /** VehicleRef */
+        VehicleRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+        };
+        /** VehiclesOut */
+        VehiclesOut: {
+            /** Items */
+            items: components["schemas"]["VehicleOut"][];
         };
         /** VendorIn */
         VendorIn: {
@@ -5561,6 +8044,28 @@ export interface components {
             /** Items */
             items: components["schemas"]["VendorOut"][];
         };
+        /** VerifyIn */
+        VerifyIn: {
+            /**
+             * Counted
+             * @description What the hub found, in each rate's unit; codes not declared may be added
+             * @example {
+             *       "clothes": 2.5,
+             *       "toys": 0
+             *     }
+             */
+            counted: {
+                [key: string]: number | string;
+            };
+            /**
+             * Has Unsuitable
+             * @description Some items were set aside
+             * @default false
+             */
+            has_unsuitable: boolean;
+            /** Note */
+            note?: string | null;
+        };
         /** WalletOut */
         WalletOut: {
             /**
@@ -5585,6 +8090,19 @@ export interface components {
              */
             topup_room_paise: number;
         };
+        /** WalletRefundOut */
+        WalletRefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
+        };
         /** WebhookAck */
         WebhookAck: {
             /**
@@ -5600,6 +8118,123 @@ export interface components {
              * @description Per status update: applied, duplicate, unchanged or unknown_delivery
              */
             outcomes: string[];
+        };
+        /** DonationIn */
+        gharbasket__modules__billing__schemas__DonationIn: {
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+        };
+        /** DonationOut */
+        gharbasket__modules__billing__schemas__DonationOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Id
+             * Format: uuid
+             * @description The journal entry
+             */
+            id: string;
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+            /**
+             * Points
+             * @example 500
+             */
+            points: number;
+        };
+        /** DonationIn */
+        gharbasket__modules__community__kindness_schemas__DonationIn: {
+            /** Drive Id */
+            drive_id?: string | null;
+            /**
+             * Items
+             * @description 1 to 5 lines, distinct codes
+             */
+            items: components["schemas"]["DonationLineIn"][];
+            /**
+             * Photo Keys
+             * @description Your own `donation_photo` uploads (POST /v1/files/presign)
+             */
+            photo_keys?: string[];
+            /**
+             * Pickup On
+             * Format: date
+             * @description One of `pickup_dates`
+             */
+            pickup_on: string;
+        };
+        /** DonationOut */
+        gharbasket__modules__community__kindness_schemas__DonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+        };
+        /** TimelineEntry */
+        gharbasket__modules__community__kindness_schemas__TimelineEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
         };
         /**
          * CaptainOut
@@ -5662,6 +8297,25 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** TimelineEntry */
+        gharbasket__modules__orders__schemas__TimelineEntry: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
         };
         /**
          * CaptainOut
@@ -5800,6 +8454,239 @@ export interface operations {
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_donations_v1_admin_donations_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+                /** @description e.g. picked_up */
+                status?: ("scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StaffDonationOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_drive_v1_admin_drives_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_code_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_drive_v1_admin_drives__drive_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                drive_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrivePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6411,6 +9298,80 @@ export interface operations {
             };
         };
     };
+    put_point_rate_v1_admin_point_rates__code__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PointRateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRateOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     create_slot_v1_admin_slots_post: {
         parameters: {
             query?: never;
@@ -6766,6 +9727,353 @@ export interface operations {
             };
         };
     };
+    ai_health_v1_analytics_ai_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiHealthOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confirm_proposal_v1_assistant_confirm__proposal_id__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict (the week changed since the card) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.product_unknown, subscriptions.qty_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    post_message_v1_assistant_messages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.daily_cap */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_proposal_v1_assistant_proposals__proposal_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_decided, assistant.proposal_expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_session_v1_assistant_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     exchange_v1_auth_exchange_post: {
         parameters: {
             query?: never;
@@ -6808,6 +10116,15 @@ export interface operations {
             };
             /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8013,6 +11330,448 @@ export interface operations {
             };
         };
     };
+    my_donations_v1_donations_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    schedule_donation_v1_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.too_many_open_donations */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.no_items, community.item_code_unknown, community.donation_qty_invalid, community.pickup_date_invalid (dates), community.no_pickup_day, community.drive_not_open, community.photo_key_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable (photos sent while storage is down) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_donation_v1_donations__donation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_cancellable (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_donation_v1_donations__donation_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    verify_donation_v1_donations__donation_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.donation_qty_invalid, community.nothing_counted, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_drives_v1_drives_get: {
+        parameters: {
+            query?: {
+                /** @description Default: running and upcoming */
+                state?: ("upcoming" | "running" | "ended" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrivesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -8759,6 +12518,280 @@ export interface operations {
             };
         };
     };
+    packing_summary_v1_hubs__hub_id__packing_summary_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingSummary"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_packing_tasks_v1_hubs__hub_id__packing_tasks_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                status?: ("queued" | "picking" | "packed") | null;
+                society_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackingTaskOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    next_packing_task_v1_hubs__hub_id__packing_tasks_next_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description Nothing queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_partners_v1_hubs__hub_id__partners_get: {
         parameters: {
             query?: {
@@ -8881,6 +12914,302 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_plans_v1_hubs__hub_id__route_plans_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                /** @description Only this kind */
+                kind?: ("box" | "tiffin") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    solve_plan_v1_hubs__hub_id__route_plans_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.solve_running, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vehicles_v1_hubs__hub_id__vehicles_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vehicles */
+                active?: boolean | null;
+                /** @description Only this kind */
+                kind?: ("cargo_3w" | "two_wheeler") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehiclesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vehicle_v1_hubs__hub_id__vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid, request.idempotency_mismatch */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9037,6 +13366,108 @@ export interface operations {
             };
         };
     };
+    put_feature_snapshots_v1_internal_intel_feature_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureSnapshotsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureSnapshotsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_forecasts_v1_internal_intel_forecasts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     put_model_metrics_v1_internal_intel_model_metrics_post: {
         parameters: {
             query?: never;
@@ -9057,6 +13488,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModelMetricsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_pantry_priors_v1_internal_intel_pantry_priors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PantryPriorsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PantryPriorsOut"];
                 };
             };
             /** @description http.400: the body cannot be read */
@@ -9239,6 +13721,181 @@ export interface operations {
             };
         };
     };
+    get_kindness_balance_v1_kindness_balance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindnessBalanceOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    donate_meals_v1_kindness_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.not_enough_points (with points and needed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid: meals is 1 to 10 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_kindness_entries_v1_kindness_entries_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PointsEntry_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     me_v1_me_get: {
         parameters: {
             query?: never;
@@ -9259,6 +13916,53 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_me_v1_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.staff_account (with roles): an admin removes staff roles first */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10076,6 +14780,77 @@ export interface operations {
             };
         };
     };
+    order_events_v1_orders__order_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: string | null;
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderEventsOut"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: hub staff of another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.too_many_streams: more than 3 open streams for this user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_issues_v1_orders__order_id__issues_get: {
         parameters: {
             query?: never;
@@ -10300,6 +15075,483 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_packing_task_v1_packing_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    complete_packing_v1_packing_tasks__task_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CompleteIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pick_line_v1_packing_tasks__task_id__pick_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PickIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    release_packing_v1_packing_tasks__task_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_shortage_v1_packing_tasks__task_id__shortage_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShortageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_packing_v1_packing_tasks__task_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -10812,6 +16064,46 @@ export interface operations {
             };
         };
     };
+    point_rates_v1_point_rates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_prices_v1_prices_get: {
         parameters: {
             query: {
@@ -11286,6 +16578,149 @@ export interface operations {
                 };
             };
             /** @description community.household_required, community.referral_self, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_v1_route_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    publish_plan_v1_route_plans__plan_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_publishable, logistics.plan_incomplete, logistics.plan_has_problems, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12061,6 +17496,107 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vehicle_v1_vehicles__vehicle_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehiclePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };
