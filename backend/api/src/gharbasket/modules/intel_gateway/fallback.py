@@ -15,6 +15,9 @@ from gharbasket.modules.intel_gateway.schemas import (
     PlannedMeal,
     PlanRecipe,
     PlanRequest,
+    RankedOut,
+    RankRequest,
+    RankResponse,
     Reason,
     Rule,
     Slot,
@@ -70,9 +73,15 @@ def _allowed(req: PlanRequest, r: PlanRecipe, day: int, slot: Slot, relax: froze
     return True
 
 
-def _rank(r: PlanRecipe, cuisines: set[str], by_cost: bool) -> tuple[bool, int, str]:
-    """Household cuisine first (unless only cost counts), then cheapest, then by name."""
-    return (not by_cost and r.cuisine not in cuisines, r.cost_per_serving_paise, r.slug)
+def _rank(r: PlanRecipe, cuisines: set[str], by_cost: bool) -> tuple[bool, float, int, str]:
+    """Household cuisine first, then the dishes the household liked most (v2), then
+    cheapest, then by name; when only cost counts (a budget pass), cheapest first."""
+    return (
+        not by_cost and r.cuisine not in cuisines,
+        0.0 if by_cost else -(r.preference or 0.0),
+        r.cost_per_serving_paise,
+        r.slug,
+    )
 
 
 def next_recipe(req: PlanRequest, day: int, slot: str, exclude: set[str]) -> PlanRecipe | None:
@@ -165,6 +174,28 @@ def plan_week(req: PlanRequest) -> WeekPlan:
 
 TAP_FACTOR = {"ran_out": 1.3, "wasted": 0.7, "just_right": 1.0, None: 1.0}
 Z80 = 1.2816  # the 80 % interval of a normal approximation to the predictive
+
+
+RANKER_MODEL = "frequency-v0"
+
+
+def rank_basket(req: RankRequest) -> RankResponse:
+    """Without the learned ranker: what the household buys most often first, then what the hub's
+    households bought last week (the same rule the ML service uses without a model)."""
+    scored = sorted(
+        enumerate(req.candidates),
+        key=lambda ic: (-(ic[1].frequency + 0.001 * ic[1].popularity), ic[0]),
+    )
+    return RankResponse(
+        source="fallback",
+        model=RANKER_MODEL,
+        ranked=[
+            RankedOut(
+                product=c.product, score=round(c.frequency + 0.001 * c.popularity, 4), rank=r + 1
+            )
+            for r, (_, c) in enumerate(scored[: req.top_k])
+        ],
+    )
 
 
 def pantry_quantities(req: PantryRequest) -> PantryQuantities:

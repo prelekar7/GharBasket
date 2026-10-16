@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.community import events
+from gharbasket.modules.community import events, unlock
 from gharbasket.modules.community.models import Captain, Society
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import api as partners_api
@@ -157,6 +157,8 @@ async def appoint(
             "appointed_by": appointed_by,
         },
     )
+    # The first captain starts the unlock count (§3.6), in the same transaction.
+    await unlock.start_unlocking(session, society)
     await audit.record(
         session,
         actor_user_id=by_user_id,

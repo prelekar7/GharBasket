@@ -263,10 +263,15 @@ async def test_unlock_shows_the_threshold_and_who_has_joined(
 
     response = await api.get(f"/v1/societies/{SEED_SOCIETY_ID}/unlock", headers=headers)
 
-    # Households arrive in the next PR, so nobody has joined yet.
-    assert response.json() == {
+    # No household in this test, so nobody has joined; seeded live, so delivery is free (§3.6).
+    body = response.json()
+    assert body["live_at"] is not None
+    assert body == {
         "society_id": str(SEED_SOCIETY_ID),
         "status": "live",
         "joined": 0,
         "threshold": 20,
+        "live_at": body["live_at"],
+        "threshold_source": "default",
+        "box_fee_paise": 0,
     }

@@ -265,6 +265,14 @@ POST /v1/referrals              customer (the neighbour who was referred); Idemp
 | The link is built on the client: `${origin}/s/<slug>` with no code; `onboarding/done.jsx` passes the society id, not the slug | Use `Referrals.link` (it carries `?ref=`) and `share_text` from `GET /v1/referrals` |
 | Mock slug `sunrise-towers`; console and public mocks use `sunrise-towers-kharghar` | The slug is §3.1's `SocietySummary.slug` |
 
+**As built (S9).**
+- **Order of refusals** when claiming: 422 `community.household_required`, 404 `community.referral_code_unknown`, 422 `community.referral_self`, 409 `community.already_referred`, 409 `community.referral_window_closed`. Codes are matched in any case, spaces trimmed. The household rule compares the referrer's household with the caller's (only an owner has one today).
+- **Points are fixed at the claim**: the row keeps the `REFERRAL_POINTS_*` in force then, and the conversion pays them (the referrer's becomes 0 over the cap). `points` in `items` and `referred_by` is null until converted. `summary.joined` counts the referrals that are not void. `converted_on` is the IST date of the `orders.delivered` event.
+- **Kindness points** come from M5's `credit_points` (`referral_welcome` for the neighbour, `referral` for the referrer), built for this (M5 §3.6 as built). Concurrent conversions of one referrer are counted one at a time (an advisory lock), so the cap holds.
+- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.in`).
+- **Deletion.** M9 consumes `identity.deletion_requested`, which M1 publishes once M1 §3.5 is built. `community.api.anonymise_for_user(session, user_id, household_id)` deletes the code and the society requests and voids open referrals; it joins M1's erasers when M1 §3.5 ships.
+- **Facade.** `referral_facts(session, *, date_from, date_to, hub_ids=None)` returns `ReferralFact { referral_id, society_id, hub_id, status, joined_on, converted_on, referrer_points, referee_points, data_source }` (points null until converted), with no user id. The export section gains `referral_code`, `referrals_made` and `referred` (`{ status, joined_on, converted_on, points }`, never the neighbour).
+
 ### 3.4 Point rates, drives and donations contract (drafted 2026-10-09, frozen on approval)
 A customer gives clothes, books, toys, school bags or utensils. Whoever brings the household's box collects them at the door on a delivery day, the van brings them back (M7 §3.6), the hub counts them, and the customer earns Kindness points (M5 §3.6). The mobile Kindness screen and the console's Drives, Point rates and Donations pages build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 
@@ -395,8 +403,16 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
 | 422 | `community.nothing_counted` | Verification with every count 0 |
 | 422 | `community.photo_key_invalid` | Not the caller's `donation_photo` upload |
 | 422 | `community.drive_dates_invalid` | `ends_on` before `starts_on`, a past start, or shortening a running drive |
+| 409 | `community.drive_code_taken` | Another drive already has this `code` (added when built) |
+| 404 | `community.item_code_unknown` | `PUT /v1/admin/point-rates/{code}` for a code that has no rate (added when built) |
 | 403 | `auth.forbidden` | A hub manager writing a drive or verifying outside their hub |
 | 400 / 422 / 412 / 428 | `request.*` | As in M0 (idempotency, If-Match) |
+
+**As built (rates and drives).** `Drive` also carries `version`, its ETag for `PATCH`. A `PATCH` never changes `code`, `scope`, `hub_id` or `society_id`; an ended or cancelled drive keeps its dates, and cancelling an ended drive changes nothing. A hub manager changing a drive outside their hubs gets 404 `community.drive_not_found`, and a platform drive 403. `ngo_id` must be null until NGOs exist (§3.5), so `ngo` is null until then. An unknown hub on a hub drive is 422 `request.invalid`.
+
+**As built (scheduling).** `progress` numbers are null for customers while fewer than 5 households took part in the drive (k = 5, §3.7); hub staff see them exactly. `est_kg_tenths` adds up the kg lines only (pieces carry no weight). A customer without a household gets 422 `community.no_pickup_day`, and an unknown `drive_id` 422 `community.drive_not_open`. M3's `delivery_dates(society_id, after, n)` returns the dates strictly after `after`.
+
+**As built (verification and pickups).** The donation's status on a 409 is `donation_status` (`status` is the problem's HTTP status). `community.api.record_pickup(session, donation_id, "collected" | "not_ready", by_user_id, on)` is what M7's `pickup_completed` consumer calls for each donation; it returns false for a donation no longer scheduled, so a redelivered report changes nothing. A rolled pickup goes to the first delivery date after the later of the missed date and today, and the timeline shows `scheduled` again. `pickups_for` gives `items_summary` as text ("clothes 2.5 kg, toys 3"). M1 gains `identity.api.delivery_labels` (ADR-0026) for the queue's tower and flat; `tower` is the tower's label. Only `picked_up` donations are verified: a bag brought to the hub directly is first recorded as collected.
 
 | Mock today | Contract |
 |---|---|
@@ -561,6 +577,14 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 |---|---|
 | Newest mobile mock (`feat/mobile-sync-orders`): `{ society_id, status, joined, threshold }`; the app celebrates when `status` turns `live` | Adds `live_at`, `threshold_source` and `box_fee_paise`; celebrate once per society when `live_at` is newer than the last one the app saw |
 | Older mocks: `unlocked_at`, and the referral mock bumps `joined` and flips the society live | `live_at`; only a new household moves `joined` |
+
+**As built (S9).**
+- **The first captain.** `captains.appoint` moves a `prospect` society to `unlocking` in its own transaction (no consumer of `captain_assigned`), then checks the count, so a society that already has enough households goes live at once.
+- **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes only `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned` and `status` for now; the polygon and towers come with the console's map editor. Hub managers of the society's hub and admins (`societies:write`); another hub's society is 404. It answers the unlock view plus `unlock_threshold_pinned`, is audit-logged (`community.society_updated`), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
+- **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until `intel_gateway.api.society_stop_cost` exists, so the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
+- **The job** skips societies that are live or have a `live_at`, and pinned ones; it returns `{ priced, kept, skipped, went_live }`.
+- **Societies already live** got `live_at = updated_at` in the migration, and the seed sets `live_at` when it seeds a society live.
+- **Facade.** `get_society` gains `live_at`; `public_society(session, slug)` is in place for M12 §3.7.
 
 ### 3.7 Impact contract (drafted 2026-10-09, frozen on approval)
 Customers' impact numbers: their own, and their society's (US-7). The hub, NGO and platform views are M12's (`GET /v1/analytics/impact`, M12 §3.6), so the old `scope=hub` moves there. The mobile Impact screen and the Society screen's impact card build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
