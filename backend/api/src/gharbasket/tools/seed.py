@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.catalog.models import NUTRITION_SOURCES, Product, Recipe
+from gharbasket.modules.catalog.models import NUTRITION_SOURCES, PriceList, Product, Recipe
 from gharbasket.modules.catalog.pricing import save_price_list
 from gharbasket.modules.catalog.recipes import (
     IngredientData,
@@ -482,21 +482,30 @@ async def seed_catalog(session: AsyncSession, *, refresh: bool = False) -> list[
         ids[product.slug] = product.id
 
     prices = json.loads((CATALOG_SEED / "prices.json").read_text())
-    await save_price_list(
-        session,
-        SEED_HUB_ID,
-        date.fromisoformat(prices["valid_from"]),
-        [
-            PriceItem(
-                product_id=ids[item["slug"]],
-                price_paise=item["price_paise"],
-                mrp_paise=item["mrp_paise"],
-            )
-            for item in prices["items"]
-        ],
-        published_by=None,
-        data_source="synthetic",
+    valid_from = date.fromisoformat(prices["valid_from"])
+    replaced_in_console = await session.scalar(
+        select(PriceList.id).where(
+            PriceList.hub_id == SEED_HUB_ID,
+            PriceList.valid_from == valid_from,
+            PriceList.updated_by.is_not(None),
+        )
     )
+    if not replaced_in_console:
+        await save_price_list(
+            session,
+            SEED_HUB_ID,
+            valid_from,
+            [
+                PriceItem(
+                    product_id=ids[item["slug"]],
+                    price_paise=item["price_paise"],
+                    mrp_paise=item["mrp_paise"],
+                )
+                for item in prices["items"]
+            ],
+            published_by=None,
+            data_source="synthetic",
+        )
 
     recipes = json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]
     for recipe in sorted(recipes, key=lambda r: not r.get("is_side", False)):  # sides first

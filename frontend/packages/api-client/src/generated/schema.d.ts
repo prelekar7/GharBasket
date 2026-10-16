@@ -89,6 +89,42 @@ export interface paths {
         patch: operations["patch_drive_v1_admin_drives__drive_id__patch"];
         trace?: never;
     };
+    "/v1/admin/festivals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Festival days for the console's calendar, by date (at most 366 days) */
+        get: operations["list_admin_festivals_v1_admin_festivals_get"];
+        put?: never;
+        /** Add a festival day (admin; Idempotency-Key; source manual; audit-logged) */
+        post: operations["create_festival_v1_admin_festivals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/festivals/{day}/{code}/{region}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a festival day after today (admin; audit-logged) */
+        delete: operations["delete_festival_v1_admin_festivals__day___code___region__delete"];
+        options?: never;
+        head?: never;
+        /** Edit a festival day's names, rules or verified flag (admin; last write wins) */
+        patch: operations["edit_festival_v1_admin_festivals__day___code___region__patch"];
+        trace?: never;
+    };
     "/v1/admin/hubs": {
         parameters: {
             query?: never;
@@ -1200,11 +1236,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** A hub's price lists, newest first (default: the last 30 days and every future one) */
+        get: operations["list_price_lists_v1_hubs__hub_id__price_lists_get"];
         put?: never;
         /** Publish a hub's prices from a date (hub manager of that hub; audit-logged) */
         post: operations["publish_price_list_v1_hubs__hub_id__price_lists_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/price-lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One price list with its items (ETag: its version) */
+        get: operations["get_price_list_v1_hubs__hub_id__price_lists__list_id__get"];
+        /** Replace every item of today's or a future price list (If-Match; audit-logged) */
+        put: operations["replace_price_list_v1_hubs__hub_id__price_lists__list_id__put"];
+        post?: never;
+        /** Delete a price list that starts after today (audit-logged) */
+        delete: operations["delete_price_list_v1_hubs__hub_id__price_lists__list_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2614,6 +2670,39 @@ export interface components {
             /** Tower Id */
             tower_id?: string | null;
         };
+        /** AdminFestival */
+        AdminFestival: {
+            /** Code */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            names: components["schemas"]["Names"];
+            /** Region */
+            region: string;
+            rules: components["schemas"]["FestivalRules"];
+            /**
+             * Source
+             * @description manual: added in the console
+             * @enum {string}
+             */
+            source: "panchang" | "manual";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** Verified */
+            verified: boolean;
+        };
+        /** AdminFestivals */
+        AdminFestivals: {
+            /** Items */
+            items: components["schemas"]["AdminFestival"][];
+        };
         /** AdminProduct */
         AdminProduct: {
             /** Active */
@@ -3604,6 +3693,32 @@ export interface components {
             /** Recorded */
             recorded: number;
         };
+        /** FestivalIn */
+        FestivalIn: {
+            /**
+             * Code
+             * @example navratri
+             */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            names: components["schemas"]["NamesIn"];
+            /**
+             * Region
+             * @example all
+             * @example maharashtra
+             */
+            region: string;
+            rules: components["schemas"]["FestivalRulesIn"];
+            /**
+             * Verified
+             * @default false
+             */
+            verified: boolean;
+        };
         /** FestivalOut */
         FestivalOut: {
             /**
@@ -3630,8 +3745,25 @@ export interface components {
              */
             verified: boolean;
         };
+        /**
+         * FestivalPatch
+         * @description Only the fields sent change; last write wins (no If-Match).
+         */
+        FestivalPatch: {
+            names?: components["schemas"]["NamesIn"] | null;
+            rules?: components["schemas"]["FestivalRulesIn"] | null;
+            /** Verified */
+            verified?: boolean | null;
+        };
         /** FestivalRules */
         FestivalRules: {
+            /** Fasting */
+            fasting: boolean;
+            /** No Onion Garlic */
+            no_onion_garlic: boolean;
+        };
+        /** FestivalRulesIn */
+        FestivalRulesIn: {
             /** Fasting */
             fasting: boolean;
             /** No Onion Garlic */
@@ -6319,6 +6451,46 @@ export interface components {
              */
             valid_from: string;
         };
+        /** PriceListDetail */
+        PriceListDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Editable
+             * @description valid_from is today or later (India time)
+             */
+            editable: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PriceListLine"][];
+            /** Items Count */
+            items_count: number;
+            published_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Version */
+            version: number;
+        };
         /** PriceListIn */
         PriceListIn: {
             /** Items */
@@ -6329,6 +6501,28 @@ export interface components {
              * @description Today or later, in Asia/Kolkata
              */
             valid_from: string;
+        };
+        /** PriceListItemsIn */
+        PriceListItemsIn: {
+            /** Items */
+            items: components["schemas"]["PriceItem"][];
+        };
+        /** PriceListLine */
+        PriceListLine: {
+            /** Mrp Paise */
+            mrp_paise: number | null;
+            /** Name */
+            name: string;
+            /** Price Paise */
+            price_paise: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
         };
         /** PriceListOut */
         PriceListOut: {
@@ -6349,6 +6543,52 @@ export interface components {
              * Format: date
              */
             valid_from: string;
+        };
+        /** PriceListSummary */
+        PriceListSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Editable
+             * @description valid_from is today or later (India time)
+             */
+            editable: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items Count */
+            items_count: number;
+            published_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Version */
+            version: number;
+        };
+        /** PriceLists */
+        PriceLists: {
+            /**
+             * Items
+             * @description Newest first
+             */
+            items: components["schemas"]["PriceListSummary"][];
         };
         /**
          * Problem
@@ -9608,6 +9848,278 @@ export interface operations {
             };
             /** @description request.precondition_required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_admin_festivals_v1_admin_festivals_get: {
+        parameters: {
+            query?: {
+                /** @description Default: today (IST) */
+                from?: string | null;
+                /** @description Default: from + 30 days */
+                to?: string | null;
+                /** @description Only this region */
+                region?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestivals"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_festival_v1_admin_festivals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FestivalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestival"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_festival_v1_admin_festivals__day___code___region__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                day: string;
+                code: string;
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_past */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_festival_v1_admin_festivals__day___code___region__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                day: string;
+                code: string;
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FestivalPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestival"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14663,6 +15175,62 @@ export interface operations {
             };
         };
     };
+    list_price_lists_v1_hubs__hub_id__price_lists_get: {
+        parameters: {
+            query?: {
+                /** @description Default: 30 days ago */
+                from?: string | null;
+                /** @description Default: no limit */
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceLists"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     publish_price_list_v1_hubs__hub_id__price_lists_post: {
         parameters: {
             query?: never;
@@ -14727,6 +15295,239 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_price_list_v1_hubs__hub_id__price_lists__list_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    replace_price_list_v1_hubs__hub_id__price_lists__list_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceListItemsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListDetail"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_price_list_v1_hubs__hub_id__price_lists__list_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

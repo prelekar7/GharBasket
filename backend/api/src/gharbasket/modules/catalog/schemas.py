@@ -116,18 +116,19 @@ class PriceListOut(BaseModel):
     items: list[PriceItem]
 
 
+def _one_price_per_product(items: list[PriceItem]) -> list[PriceItem]:
+    if len({item.product_id for item in items}) != len(items):
+        raise ValueError("each product once")
+    return items
+
+
 class PriceListIn(BaseModel):
     model_config = {"extra": "forbid"}
 
     valid_from: date = Field(description="Today or later, in Asia/Kolkata")
     items: list[PriceItem] = Field(min_length=1, max_length=1000)
 
-    @field_validator("items")
-    @classmethod
-    def _one_price_per_product(cls, items: list[PriceItem]) -> list[PriceItem]:
-        if len({item.product_id for item in items}) != len(items):
-            raise ValueError("each product once")
-        return items
+    _unique = field_validator("items")(_one_price_per_product)
 
 
 class PriceListCreated(BaseModel):
@@ -449,3 +450,87 @@ class AdminRecipe(RecipeSummary):
     reviews: Reviews
     updated_at: datetime
     updated_by: UserRef | None = Field(description="Who last edited it in the console")
+
+
+# --- the console's festival calendar and price lists (spec §3.3) ---------------------------------
+
+
+class FestivalRulesIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    fasting: bool
+    no_onion_garlic: bool
+
+
+class FestivalIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    date: date  # within two years of today
+    code: str = Field(pattern=r"^[a-z0-9_]{2,40}$", examples=["navratri"])
+    region: str = Field(max_length=40, examples=["all", "maharashtra"])
+    names: NamesIn
+    rules: FestivalRulesIn
+    verified: bool = False
+
+
+class FestivalPatch(BaseModel):
+    """Only the fields sent change; last write wins (no If-Match)."""
+
+    model_config = {"extra": "forbid"}
+
+    names: NamesIn | None = None
+    rules: FestivalRulesIn | None = None
+    verified: bool | None = None
+
+
+class AdminFestival(BaseModel):
+    date: date
+    code: str
+    region: str
+    names: Names
+    rules: FestivalRules
+    verified: bool
+    source: Literal["panchang", "manual"] = Field(description="manual: added in the console")
+    updated_at: datetime
+    updated_by: UserRef | None
+
+
+class AdminFestivals(BaseModel):
+    items: list[AdminFestival]
+
+
+class PriceListItemsIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    items: list[PriceItem] = Field(min_length=1, max_length=1000)
+
+    _unique = field_validator("items")(_one_price_per_product)
+
+
+class PriceListSummary(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    valid_from: date
+    items_count: int
+    version: int
+    published_by: UserRef | None
+    created_at: datetime
+    updated_at: datetime
+    editable: bool = Field(description="valid_from is today or later (India time)")
+
+
+class PriceListLine(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    step: Step
+    price_paise: int
+    mrp_paise: int | None
+
+
+class PriceLists(BaseModel):
+    items: list[PriceListSummary] = Field(description="Newest first")
+
+
+class PriceListDetail(PriceListSummary):
+    items: list[PriceListLine]
