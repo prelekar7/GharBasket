@@ -1,7 +1,9 @@
 """Jobs of M6 Hub Operations (spec §6, ADR-0021): the procurement plan at T-1 21:10, its refresh
-at T-1 23:05 after the payment grace, and a rebuild when M10 stores a new forecast.
+at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, and
+`build_packing_tasks` at T 05:00 IST.
 
-`scheduled_for` decides the delivery date (the next IST day), never the clock.
+`scheduled_for` decides the delivery date (its IST calendar day for packing, the next IST day for
+procurement), never the clock.
 """
 
 import uuid
@@ -11,10 +13,26 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import procurement, service
+from gharbasket.modules.hub_ops import packing, procurement, service
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
+
+
+@job("build_packing_tasks", "Build the day's packing tasks at every active hub (T 05:00 IST)")
+async def build_packing_tasks(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(packing.IST).date()
+    hubs = await service.active_hub_ids(ctx.session)
+    created = existing = 0
+    for hub_id in hubs:
+        made, had = await packing.build(ctx.session, hub_id, day)
+        created, existing = created + made, existing + had
+    return {
+        "delivery_date": day.isoformat(),
+        "hubs": len(hubs),
+        "created": created,
+        "existing": existing,
+    }
 
 
 async def _plans(ctx: JobContext, *, existing_only: bool) -> dict[str, Any]:

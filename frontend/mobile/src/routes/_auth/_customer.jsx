@@ -1,9 +1,8 @@
-import { TabBar } from "@gharbasket/ui";
+import { GullakIcon, TabBar } from "@gharbasket/ui";
 import {
   BasketIcon,
   CalendarBlankIcon,
   ChatCircleTextIcon,
-  HeartIcon,
   ReceiptIcon,
   UserIcon,
 } from "@phosphor-icons/react";
@@ -17,14 +16,32 @@ import {
 import { useTranslation } from "react-i18next";
 import { InstallBanner } from "@/components/InstallBanner.jsx";
 import { RoleFrame } from "@/components/RoleFrame.jsx";
+import { householdQuery } from "@/features/identity/profile.js";
+import { resumeStep } from "@/features/onboarding/draft.js";
+import { queryClient } from "@/lib/queryClient.js";
 import { HOME_BY_ROLE, useSession } from "@/lib/session.js";
+import { useToastAboveTabs } from "@/lib/toastOffset.js";
+
+/** How long the customer shell waits for GET /v1/households/me before opening the app anyway. */
+const HOUSEHOLD_CHECK_MS = 4000;
 
 /** Customer shell: role bar, the five tabs and the floating Ghar Saathi button (FDD §8). */
 // @ts-expect-error route paths are untyped in JavaScript (router plugin disableTypes)
 export const Route = createFileRoute("/_auth/_customer")({
-  beforeLoad: () => {
+  beforeLoad: async () => {
     const role = useSession.getState().activeRole;
     if (role && role !== "customer") throw redirect({ to: HOME_BY_ROLE[role] });
+    // No household yet (onboarding left halfway): finish setting it up first, where they left
+    // off. Offline, an error or a slow network never blocks the app: after HOUSEHOLD_CHECK_MS we
+    // let them in.
+    const household = await Promise.race([
+      queryClient.ensureQueryData(householdQuery).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, HOUSEHOLD_CHECK_MS, undefined)),
+    ]);
+    if (household === null) {
+      queryClient.removeQueries({ queryKey: householdQuery.queryKey });
+      throw redirect({ to: resumeStep() });
+    }
   },
   component: CustomerShell,
 });
@@ -33,39 +50,65 @@ const TABS = [
   { value: "week", Icon: CalendarBlankIcon },
   { value: "box", Icon: BasketIcon },
   { value: "orders", Icon: ReceiptIcon },
-  { value: "kindness", Icon: HeartIcon },
+  // The design uses the custom gullak icon for Kindness (HcOrders tab bar).
+  { value: "kindness", Icon: GullakIcon },
   { value: "profile", Icon: UserIcon },
 ];
+
+const UNDER_PROFILE = [
+  "wallet",
+  "society",
+  "partner",
+  "notifications",
+  "budget",
+  "autopay",
+  "household",
+];
+
+const NO_ASSISTANT = ["profile", "partner", "budget", "autopay", "household"];
 
 function CustomerShell() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  // Wallet lives under Profile in the design (HcWallet).
+  const senior = useSession((s) => !!s.user?.senior_mode);
+  const tabBarRef = useToastAboveTabs();
   const segment = pathname.split("/")[1] || "week";
-  const current = segment === "wallet" ? "profile" : segment;
+  // Wallet, Society, Become a partner, Budget Lock, UPI Autopay and Household and food open from
+  // Profile (HcWallet, HcSociety, HcPartner, HcBudget, HcAutopay, HcHousehold).
+  const current = UNDER_PROFILE.includes(segment) ? "profile" : segment;
+  // The designs leave the assistant button off Profile, the settings screens opened from it, Our
+  // impact (HcImpact), and the screens that end in one big button (HcTiffin, HcRate).
+  const showAssistant =
+    !NO_ASSISTANT.includes(segment) &&
+    pathname !== "/kindness/impact" &&
+    !/\/(tiffin|rate)(\/|$)/.test(pathname);
   return (
     <RoleFrame userRole="customer">
       <main className="relative flex-1 px-5 pt-4 pb-24">
         <InstallBanner />
         <Outlet />
       </main>
-      <button
-        type="button"
-        aria-label={t("assistant")}
-        className="fixed right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] grid size-14 place-items-center rounded-full bg-primary text-on-primary shadow-sheet outline-none focus-visible:shadow-focus"
-      >
-        <ChatCircleTextIcon size={26} />
-      </button>
-      <div className="fixed inset-x-0 bottom-0">
+      {showAssistant && (
+        <button
+          type="button"
+          aria-label={t("assistant")}
+          onClick={() => navigate({ to: "/assistant" })}
+          className="fixed right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] grid size-14 place-items-center rounded-full bg-primary text-on-primary shadow-sheet outline-none focus-visible:shadow-focus"
+        >
+          <ChatCircleTextIcon size={26} />
+        </button>
+      )}
+      <div ref={tabBarRef} className="fixed inset-x-0 bottom-0">
         <TabBar
           label={t("tabs.main")}
+          senior={senior}
           value={current}
           onChange={(value) => navigate({ to: `/${value}` })}
           items={TABS.map(({ value, Icon }) => ({
             value,
             label: t(`tabs.${value}`),
-            icon: <Icon size={24} />,
+            icon: <Icon size={senior ? 28 : 24} />,
           }))}
         />
       </div>

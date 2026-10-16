@@ -9,11 +9,13 @@ Modules contribute their rules at import time, then endpoints ask for a permissi
         permit.ensure(hub_id)                                     # this hub, or a global role
 
 A grant is "role" (customer, admin) or "role:<scope id>" (captain of one society, packer at
-one hub); the scope type follows from the role.
+one hub); the scope type follows from the role. Only a global role (admin) covers every scope.
+The customer role is unscoped but covers no scope at all: a customer reaches only their own
+things, which the endpoint checks by ownership, never with `allows` or `ensure`.
 
 `X-Active-Role` (the app's role switcher) is optional: when sent it must be one of the caller's
 roles and only that role counts. Role switching is a UX choice, not a security boundary: without
-the header every role the caller holds counts.
+the header every role the caller holds counts, each only within its own scope.
 """
 
 import uuid
@@ -40,7 +42,12 @@ ROLE_SCOPE: dict[str, ScopeType | None] = {
     "franchise_owner": "hub",
     "ngo_coordinator": "ngo",
     "admin": None,
+    "catalog_editor": None,
 }
+
+# Unscoped roles that cover every society, hub and NGO. `customer` is unscoped too but is not
+# one: it covers only the customer's own household, orders and wallet.
+GLOBAL_ROLES = frozenset({"admin"})
 
 
 @dataclass(frozen=True)
@@ -51,6 +58,10 @@ class Grant:
     @property
     def scope_type(self) -> ScopeType | None:
         return ROLE_SCOPE.get(self.role)
+
+    @property
+    def is_global(self) -> bool:
+        return self.role in GLOBAL_ROLES
 
     @classmethod
     def parse(cls, value: str) -> "Grant | None":
@@ -99,9 +110,21 @@ class Permit:
     permission: str
     grants: tuple[Grant, ...]
 
+    @property
+    def is_global(self) -> bool:
+        """True if a global role (admin) carries the permission, so every scope is covered."""
+        return any(grant.is_global for grant in self.grants)
+
+    def has_role(self, role: str) -> bool:
+        return any(grant.role == role for grant in self.grants)
+
     def allows(self, scope_id: uuid.UUID) -> bool:
-        """True if a grant covers this society/hub/NGO: an unscoped role, or the same scope id."""
-        return any(grant.scope_id is None or grant.scope_id == scope_id for grant in self.grants)
+        """True if a grant covers this society/hub/NGO: a global role, or a grant for this very
+        scope id. A customer grant covers no scope; the endpoint checks ownership instead."""
+        return any(
+            grant.is_global or (grant.scope_id is not None and grant.scope_id == scope_id)
+            for grant in self.grants
+        )
 
     def ensure(self, scope_id: uuid.UUID) -> None:
         if not self.allows(scope_id):

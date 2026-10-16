@@ -21,11 +21,11 @@ Each society has fixed delivery days (for example, Sunrise Towers: Tuesday, Frid
 | T-1 20:55 | `apply_auto_approve` — approve for households that asked (notice ≥ 24 h before) | subscriptions | W2 |
 | **T-1 21:00** | **`cutoff_lock`** — lock orders, debit wallet / capture Autopay; unpaid → `payment_failed` with a 2 h grace | orders, billing | W2, W3 |
 | T-1 23:00 | `payment_grace_expiry` — still unpaid → cancelled (reason `payment`); the cycle mirrors it | orders → subscriptions | W3 |
+| T-1 23:15 | `solve_routes` per hub (M10 solver, or M7's fallback when ML is down) → plan published when its check is clean; vans leave at 06:30 | logistics ← intel | W5 |
 | T-1 21:10 | `forecast_uncommitted` → `build_procurement_plan` | intel → ops | W4 |
 | T-1 21:30 | `assign_kitchens` for tiffins on T | intel → partners | W6 |
 | T 04:00 | Buying at APMC Vashi / FPO, goods receipt, QC | ops | W4 |
 | T 05:00 | `build_packing_tasks` → packing | ops | W4 |
-| T 07:00 | `solve_routes` per slot → vans depart | intel → logistics | W5 |
 | T 08:00–10:00 | Society handover to captain → doorstep delivery | logistics | W5 |
 | T 10:00–12:00 | Return leg: crates + Kindness pickups | logistics, community | W5, W8 |
 | T 11:30–13:30 | Tiffin ready, picked up, delivered | partners, logistics | W6 |
@@ -607,6 +607,7 @@ flowchart TD
 3. The unlock threshold **N** is computed from the route-cost model: the number of households at which a stop becomes cheaper than the delivery fee.
 4. A referral campaign runs through the captain and WhatsApp groups.
 5. When N households have joined → status `live`, free-delivery badge, fixed delivery days assigned.
+6. Before that, once the hub assigns the society delivery days, households can already get boxes, paying the hub's pre-live delivery fee on each box (`pre_live_box_fee_paise`, default ₹30, set by an admin). The fee is debited with the box at cut-off and stops from the first cut-off after the society goes live (M9 §3.6, M4 §11).
 
 *Figure 7.16 — Activity: society unlock*
 
@@ -677,38 +678,39 @@ sequenceDiagram
 
 ## W12 — Assistant (text MVP) with confirmation
 
-The assistant ("Ghar Saathi" chat) uses Claude with tools that call **our own API as the user**. Every write returns a **proposed change** that the user must confirm in the UI. The LLM never calculates prices or quantities.
+The assistant ("Ghar Saathi" chat) uses Claude in the ML service, which never calls our API: the API sends it the scrubbed conversation and a trimmed week, the model reads that week and names the changes it wants, and the API turns them into **proposed changes** that the user must confirm in the UI (M13 §3). The LLM never calculates prices or quantities.
 
-*Figure 7.18 — Sequence: assistant tool call with user confirmation*
+*Figure 7.18 — Sequence: assistant turn with user confirmation*
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor C as Customer
     participant APP as Mobile app - chat
+    participant API as api - assistant
     participant AS as ml service - assistant
     participant LLM as Claude API
-    participant API as api (as the user)
     C->>APP: Kal aloo 2 kilo extra bhejna aur paneer hata do
-    APP->>AS: POST /assistant/messages (SSE)
-    AS->>LLM: System prompt and tools (cached), user message
+    APP->>API: POST /v1/assistant/messages (JSON in v0; SSE later)
+    API->>API: Reserve the turn under the daily cap, scrub the text, store it, commit
+    API->>AS: POST /assistant/turn (scrubbed history, trimmed week with line handles)
+    AS->>LLM: System prompt and tools (cached), messages
     LLM-->>AS: Tool call get_my_week
-    AS->>API: GET /v1/cycles/current (user token)
-    API-->>AS: Current box
-    AS->>LLM: Tool result
-    LLM-->>AS: Tool call edit_box_line - aloo plus 2 kg, remove paneer
-    AS->>API: POST /v1/cycles/42/proposals (dry run)
-    API-->>AS: Proposal p7 with new total from server prices
-    AS->>LLM: Tool result (proposal p7)
-    LLM-->>AS: Reply summarising the change
-    AS-->>APP: Message and confirm card for p7
+    AS->>LLM: Tool result from the trimmed week
+    LLM-->>AS: Tool calls edit_box_line - qty L4 (aloo), remove L7 (paneer)
+    AS->>LLM: Tool results - noted, the app shows cards
+    LLM-->>AS: Reply summarising the request
+    AS-->>API: Reply and intents (no ids, no prices from the model)
+    API->>API: Resolve intents - line, catalog product, steps, week - into proposals p7, p8
+    API-->>APP: Message and confirm cards with prices from the API
     alt Customer confirms
         C->>APP: Confirm
-        APP->>API: POST /v1/assistant/confirm/p7 (If-Match version)
+        APP->>API: POST /v1/assistant/confirm/p7 (Idempotency-Key)
+        API->>API: M3 facade at the card's version (412 if the week changed)
         API-->>APP: Box updated, version 5
     else Customer cancels
         C->>APP: Cancel
-        APP->>API: Discard proposal p7
+        APP->>API: POST /v1/assistant/proposals/p7/reject
     end
 ```
 

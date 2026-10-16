@@ -1,9 +1,8 @@
 """Request and response models of M6 Hub Operations.
 
-The hub and vendor shapes (§3.1) and the procurement shapes (§3.3) are frozen contracts
-(docs/modules/M6-hub-ops.md): changing them needs a PR reviewed by both app owners. Service
-areas and timings are checked by the service (`hub_ops.area_invalid`,
-`hub_ops.timings_invalid`), not here, so clients get those codes.
+The hub and vendor shapes are the frozen S4 contract (docs/modules/M6-hub-ops.md §3.1): changing
+them needs a PR reviewed by both app owners. Service areas and timings are checked by the service
+(`hub_ops.area_invalid`, `hub_ops.timings_invalid`), not here, so clients get those codes.
 """
 
 import uuid
@@ -84,6 +83,9 @@ class HubOut(HubSummary):
     service_area: GeoPolygon | None = Field(description="null until an admin draws it")
     timings: Timings
     procurement_buffer_pct: int = Field(examples=[10])
+    pre_live_box_fee_paise: int = Field(
+        examples=[3000], description="Delivery fee per box while a society is not live (M9 §3.6)"
+    )
     version: int
     created_at: datetime
     updated_at: datetime
@@ -107,6 +109,7 @@ class HubIn(_HubFields):
     service_area: GeoPolygon | None = None
     timings: TimingsPatch | None = Field(default=None, description="Missing times: the defaults")
     procurement_buffer_pct: int = Field(default=10, ge=0, le=50)
+    pre_live_box_fee_paise: int = Field(default=3000, ge=0, le=10_000)
 
 
 class HubPatch(_HubFields, _Patch):
@@ -121,6 +124,7 @@ class HubPatch(_HubFields, _Patch):
     status: HubStatus | None = None
     timings: TimingsPatch | None = None
     procurement_buffer_pct: int | None = Field(default=None, ge=0, le=50)
+    pre_live_box_fee_paise: int | None = Field(default=None, ge=0, le=10_000)
 
 
 class VendorOut(BaseModel):
@@ -183,6 +187,142 @@ class VendorPatch(_VendorFields, _Patch):
     is_default: bool | None = None
     notes: str | None = Field(default=None, max_length=500)
     active: bool | None = None
+
+
+# --- packing (§3.2) ---------------------------------------------------------------------------
+
+TaskStatus = Literal["queued", "picking", "packed"]
+
+
+class PackingSlot(BaseModel):
+    id: uuid.UUID
+    label: str = Field(examples=["7-9 am"])
+    start: str = Field(examples=["07:00"], description="IST HH:MM")
+    end: str = Field(examples=["09:00"])
+
+
+class PackingSociety(BaseModel):
+    id: uuid.UUID
+    name: str = Field(examples=["Sunrise Towers"])
+
+
+class PackingRoute(BaseModel):
+    route_id: uuid.UUID
+    stop_seq: int = Field(examples=[3])
+
+
+class Packer(BaseModel):
+    user_id: uuid.UUID
+    name: str | None
+
+
+class PackingStep(BaseModel):
+    qty: int = Field(examples=[250])
+    unit: str = Field(examples=["g"])
+    label: str = Field(examples=["250 g"], description="In the requested language")
+
+
+class PackingTaskOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    order_id: uuid.UUID
+    order_kind: Literal["box", "addon"]
+    delivery_date: date
+    slot: PackingSlot | None
+    society: PackingSociety
+    flat_label: str | None = Field(
+        examples=["B wing, B-402"], description="Tower label and flat; no name or phone"
+    )
+    seq: int = Field(description="Position in the hub's queue for the date")
+    route: PackingRoute | None = Field(description="Set when M7 publishes routes")
+    status: TaskStatus
+    packer: Packer | None = Field(description="Who holds the task")
+    bag_qr: str = Field(examples=["GB1:0199a0000000700080000000000000ab"])
+    bags: int
+    crate_no: int | None = Field(description="Crate within the society, set at complete")
+    lines_total: int
+    lines_done: int
+    started_at: datetime | None
+    packed_at: datetime | None
+    version: int
+
+
+class PackingSubstitute(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    step: PackingStep
+
+
+class PackingLineOut(BaseModel):
+    product_id: uuid.UUID = Field(description="The ordered product")
+    slug: str
+    name: str
+    step: PackingStep
+    qty: int = Field(description="Steps ordered")
+    picked_qty: int = Field(description="Steps in the bag (of the substitute, if any)")
+    short_qty: int = Field(description="Steps refunded")
+    substitute: PackingSubstitute | None
+    done: bool = Field(description="picked_qty + short_qty = qty")
+
+
+class PackingTaskDetail(PackingTaskOut):
+    lines: list[PackingLineOut] = Field(description="By catalog category, then name")
+
+
+class SocietyLoad(BaseModel):
+    society_id: uuid.UUID
+    name: str
+    bags: int
+    packed_bags: int
+    crates: int
+
+
+class PackingSummary(BaseModel):
+    date: date
+    queued: int
+    picking: int
+    packed: int
+    societies: list[SocietyLoad]
+
+
+class _PackingAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_at: datetime | None = Field(
+        default=None, description="When the packer tapped (audit only; the server's time decides)"
+    )
+
+
+class BuildIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+
+
+class BuildOut(BaseModel):
+    created: int
+    existing: int
+
+
+class StartIn(_PackingAction):
+    bag_qr: str | None = Field(default=None, max_length=60, description="When scanned")
+
+
+class PickIn(_PackingAction):
+    product_id: uuid.UUID
+    picked_qty: int = Field(description="Absolute, not a delta: 0 to qty - short_qty")
+
+
+class ShortageIn(_PackingAction):
+    product_id: uuid.UUID
+    short_qty: int = Field(examples=[1])
+    substitute_product_id: uuid.UUID | None = None
+
+
+class CompleteIn(_PackingAction):
+    bags: int | None = Field(default=None, ge=1, le=5)
+    crate_no: int | None = Field(default=None, ge=1, le=99)
 
 
 # --- procurement (§3.3) --------------------------------------------------------------------------
