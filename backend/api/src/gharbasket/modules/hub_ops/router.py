@@ -1,5 +1,5 @@
-"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1) and packing
-(§3.2)."""
+"""HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), packing
+(§3.2) and procurement plans (§3.3)."""
 
 import uuid
 from datetime import date
@@ -9,9 +9,9 @@ from fastapi import APIRouter, Body, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
-from gharbasket.modules.hub_ops import packing, service
+from gharbasket.modules.hub_ops import packing, procurement, service
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.hub_ops.models import Hub, PackingTask, Vendor
+from gharbasket.modules.hub_ops.models import Hub, PackingTask, ProcurementPlan, Vendor
 from gharbasket.modules.hub_ops.schemas import (
     BuildIn,
     BuildOut,
@@ -26,6 +26,9 @@ from gharbasket.modules.hub_ops.schemas import (
     PackingTaskDetail,
     PackingTaskOut,
     PickIn,
+    PlanBuildIn,
+    ProcurementLinePatch,
+    ProcurementPlanOut,
     ShortageIn,
     StartIn,
     TaskStatus,
@@ -51,6 +54,11 @@ CanReadHubs = Annotated[Permit, require("hubs:read")]
 CanWriteHubs = Annotated[Permit, require("hubs:write")]
 CanReadVendors = Annotated[Permit, require("vendors:read")]
 CanWriteVendors = Annotated[Permit, require("vendors:write")]
+CanReadProcurement = Annotated[Permit, require("procurement:read")]
+CanWriteProcurement = Annotated[Permit, require("procurement:write")]
+PlanDay = Annotated[
+    date | None, Query(alias="date", description="IST delivery date; default today")
+]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -288,6 +296,130 @@ async def patch_vendor(
     if not permit.allows(vendor.hub_id):
         raise service.vendor_not_found()
     out = _vendor_out(await service.update_vendor(session, vendor, body, expected))
+    await session.commit()
+    set_etag(response, out.version)
+    return out
+
+
+# --- procurement plans (§3.3) -------------------------------------------------------------------
+
+
+async def _plan(
+    session: DbSession, permit: Permit, plan_id: uuid.UUID, *, for_update: bool = False
+) -> ProcurementPlan:
+    """A plan of a hub the caller works in; any other does not exist for them."""
+    plan = await procurement.get_plan(session, plan_id=plan_id, for_update=for_update)
+    if not permit.allows(plan.hub_id):
+        raise procurement.plan_not_found()
+    return plan
+
+
+@router.get(
+    "/hubs/{hub_id}/procurement-plans",
+    summary="The hub's procurement plan for a delivery date (ETag = version)",
+    responses={
+        **SIGNED_IN,
+        404: _problem("hub_ops.plan_not_found (not built yet)"),
+        422: _problem("hub_ops.date_out_of_range"),
+    },
+)
+async def get_hub_plan(
+    hub_id: uuid.UUID,
+    permit: CanReadProcurement,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    day: PlanDay = None,
+) -> ProcurementPlanOut:
+    permit.ensure(hub_id)
+    plan = await procurement.get_plan(session, hub_id=hub_id, day=procurement.plan_day(day))
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, plan.version)
+    return await procurement.plan_out(session, plan, lang)
+
+
+@router.get(
+    "/procurement-plans/{plan_id}",
+    summary="A procurement plan with its lines (ETag = version)",
+    responses={**SIGNED_IN, 404: _problem("hub_ops.plan_not_found")},
+)
+async def get_plan(
+    plan_id: uuid.UUID,
+    permit: CanReadProcurement,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+) -> ProcurementPlanOut:
+    plan = await _plan(session, permit, plan_id)
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, plan.version)
+    return await procurement.plan_out(session, plan, lang)
+
+
+@router.post(
+    "/hubs/{hub_id}/procurement-plans/build",
+    summary="Build or rebuild the hub's plan for a date now (the 21:10 job's work)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found"),
+        409: _problem("hub_ops.plan_not_editable"),
+        422: _problem("hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def build_plan(
+    hub_id: uuid.UUID,
+    body: PlanBuildIn,
+    permit: CanWriteProcurement,
+    session: DbSession,
+    idem: Idempotent,
+    response: Response,
+    lang: Lang,
+) -> ProcurementPlanOut:
+    permit.ensure(hub_id)
+    plan, outcome = await procurement.build(
+        session, hub_id, procurement.plan_day(body.day, earliest=0)
+    )
+    if plan is None or outcome == "closed":
+        raise procurement.plan_not_editable()
+    out = await procurement.plan_out(session, plan, lang)
+    await idem.save(200, out)
+    await session.commit()
+    set_etag(response, out.version)
+    return out
+
+
+@router.patch(
+    "/procurement-plans/{plan_id}/lines/{product_id}",
+    summary="Change a plan line (If-Match: the plan's version; a reason for a quantity; audited)",
+    responses={
+        **EDITS,
+        404: _problem("hub_ops.plan_not_found, hub_ops.line_not_found, hub_ops.vendor_not_found"),
+        409: _problem("hub_ops.plan_not_editable, hub_ops.line_ordered"),
+        422: _problem(
+            "hub_ops.qty_invalid, hub_ops.reason_required, hub_ops.vendor_inactive, request.invalid"
+        ),
+    },
+)
+async def patch_plan_line(
+    plan_id: uuid.UUID,
+    product_id: uuid.UUID,
+    body: ProcurementLinePatch,
+    permit: CanWriteProcurement,
+    session: DbSession,
+    expected: IfMatch,
+    response: Response,
+    lang: Lang,
+) -> ProcurementPlanOut:
+    plan = await _plan(session, permit, plan_id, for_update=True)
+    await procurement.edit_line(
+        session,
+        plan,
+        product_id,
+        body,
+        expected_version=expected,
+        actor_user_id=permit.principal.user_id,
+    )
+    out = await procurement.plan_out(session, plan, lang)
     await session.commit()
     set_etag(response, out.version)
     return out

@@ -9,6 +9,10 @@ for role in ("hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "vendors:read")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "vendors:write")
+for role in ("hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "procurement:read")
+for role in ("hub_manager", "admin"):
+    PERMISSIONS.allow(role, "procurement:write")
 for role in ("packer", "hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "packing:read")
 for role in ("packer", "hub_manager"):

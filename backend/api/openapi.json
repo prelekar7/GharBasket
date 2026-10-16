@@ -5282,6 +5282,40 @@
         "title": "LineAddOp",
         "type": "object"
       },
+      "LinePurchaseOrder": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "KHARGHAR-261215-02"
+            ],
+            "title": "Number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status"
+        ],
+        "title": "LinePurchaseOrder",
+        "type": "object"
+      },
       "LineQtyOp": {
         "additionalProperties": false,
         "properties": {
@@ -8396,6 +8430,22 @@
         "title": "PickedUpBy",
         "type": "object"
       },
+      "PlanBuildIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "description": "IST delivery date, today ... today + 2",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "PlanBuildIn",
+        "type": "object"
+      },
       "PlanOut": {
         "properties": {
           "code": {
@@ -8519,6 +8569,30 @@
           "problems"
         ],
         "title": "PlanSummary",
+        "type": "object"
+      },
+      "PlanTotals": {
+        "properties": {
+          "lines": {
+            "title": "Lines",
+            "type": "integer"
+          },
+          "order_paise": {
+            "description": "Priced lines only",
+            "title": "Order Paise",
+            "type": "integer"
+          },
+          "unpriced_lines": {
+            "title": "Unpriced Lines",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lines",
+          "order_paise",
+          "unpriced_lines"
+        ],
+        "title": "PlanTotals",
         "type": "object"
       },
       "PlansOut": {
@@ -9517,6 +9591,377 @@
           "code"
         ],
         "title": "Problem",
+        "type": "object"
+      },
+      "ProcurementLineOut": {
+        "properties": {
+          "amount_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "order_qty x unit_cost_paise, rounded half up",
+            "title": "Amount Paise"
+          },
+          "at_risk_qty": {
+            "description": "payment_failed orders in the grace; shown, not bought",
+            "title": "At Risk Qty",
+            "type": "number"
+          },
+          "basis": {
+            "description": "Which rule made buffer_qty",
+            "enum": [
+              "forecast",
+              "buffer"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "buffer_qty": {
+            "title": "Buffer Qty",
+            "type": "number"
+          },
+          "committed_qty": {
+            "description": "Paid demand for the date",
+            "examples": [
+              42.5
+            ],
+            "title": "Committed Qty",
+            "type": "number"
+          },
+          "edit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit Reason"
+          },
+          "edited": {
+            "title": "Edited",
+            "type": "boolean"
+          },
+          "forecast_q50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Q50"
+          },
+          "forecast_qtau": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Qtau"
+          },
+          "name": {
+            "description": "In Accept-Language",
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "on_hand_qty": {
+            "description": "Usable stock for the date (§3.4)",
+            "title": "On Hand Qty",
+            "type": "number"
+          },
+          "order_qty": {
+            "description": "Suggested, or the hub manager's edit",
+            "title": "Order Qty",
+            "type": "number"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "purchase_order": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinePurchaseOrder"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The line's PO (not cancelled)"
+          },
+          "shelf_life_h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life H"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "suggested_qty": {
+            "description": "committed + buffer - on hand, rounded up",
+            "title": "Suggested Qty",
+            "type": "number"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Expected cost per operations unit",
+            "title": "Unit Cost Paise"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "shelf_life_h",
+          "committed_qty",
+          "at_risk_qty",
+          "forecast_q50",
+          "forecast_qtau",
+          "basis",
+          "buffer_qty",
+          "on_hand_qty",
+          "suggested_qty",
+          "order_qty",
+          "edited",
+          "edit_reason",
+          "vendor",
+          "unit_cost_paise",
+          "amount_paise",
+          "purchase_order",
+          "note"
+        ],
+        "title": "ProcurementLineOut",
+        "type": "object"
+      },
+      "ProcurementLinePatch": {
+        "additionalProperties": false,
+        "description": "Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`\nis required when `order_qty` changes.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "order_qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              50.0
+            ],
+            "title": "Order Qty"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Paise"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          }
+        },
+        "title": "ProcurementLinePatch",
+        "type": "object"
+      },
+      "ProcurementPlanOut": {
+        "properties": {
+          "buffer_pct": {
+            "title": "Buffer Pct",
+            "type": "integer"
+          },
+          "built_at": {
+            "format": "date-time",
+            "title": "Built At",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lines": {
+            "description": "By shelf, then name",
+            "items": {
+              "$ref": "#/components/schemas/ProcurementLineOut"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "refreshed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshed At"
+          },
+          "source": {
+            "description": "ml when M10 had a forecast",
+            "enum": [
+              "ml",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "ordered",
+              "closed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PlanTotals"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "delivery_date",
+          "status",
+          "source",
+          "model",
+          "buffer_pct",
+          "totals",
+          "lines",
+          "built_at",
+          "refreshed_at",
+          "version"
+        ],
+        "title": "ProcurementPlanOut",
         "type": "object"
       },
       "ProductIn": {
@@ -11077,6 +11522,25 @@
           "opened"
         ],
         "title": "ReconRun",
+        "type": "object"
+      },
+      "Ref": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Ref",
         "type": "object"
       },
       "ReferralClaimIn": {
@@ -27341,6 +27805,295 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/procurement-plans": {
+      "get": {
+        "operationId": "get_hub_plan_v1_hubs__hub_id__procurement_plans_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST delivery date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST delivery date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcurementPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.plan_not_found (not built yet)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's procurement plan for a delivery date (ETag = version)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/procurement-plans/build": {
+      "post": {
+        "operationId": "build_plan_v1_hubs__hub_id__procurement_plans_build_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanBuildIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcurementPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.plan_not_editable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Build or rebuild the hub's plan for a date now (the 21:10 job's work)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/route-plans": {
       "get": {
         "operationId": "list_plans_v1_hubs__hub_id__route_plans_get",
@@ -32727,6 +33480,307 @@
         "summary": "A hub's current price list (prices per step, in paise)",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/procurement-plans/{plan_id}": {
+      "get": {
+        "operationId": "get_plan_v1_procurement_plans__plan_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcurementPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.plan_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A procurement plan with its lines (ETag = version)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/procurement-plans/{plan_id}/lines/{product_id}": {
+      "patch": {
+        "operationId": "patch_plan_line_v1_procurement_plans__plan_id__lines__product_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Product Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcurementLinePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcurementPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.plan_not_found, hub_ops.line_not_found, hub_ops.vendor_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.plan_not_editable, hub_ops.line_ordered"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch: reload and try again"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.qty_invalid, hub_ops.reason_required, hub_ops.vendor_inactive, request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Change a plan line (If-Match: the plan's version; a reason for a quantity; audited)",
+        "tags": [
+          "hub_ops"
         ]
       }
     },
