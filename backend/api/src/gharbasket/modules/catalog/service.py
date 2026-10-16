@@ -7,10 +7,11 @@ so search works even where the database's trigram index cannot read Devanagari.
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import Float, func, or_, select, text, tuple_
+from sqlalchemy import Float, Select, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,7 +44,7 @@ def product_not_found() -> ProblemError:
     return ProblemError(404, "catalog.product_not_found", "No such product.")
 
 
-# --- writing (seed now; the console editor later) ---------------------------------------------
+# --- writing (the seed; the console editor is in admin.py) -----------------------------------
 
 
 @dataclass(frozen=True)
@@ -93,8 +94,10 @@ async def save_product(session: AsyncSession, data: ProductData) -> tuple[Produc
     ).scalar_one_or_none()
     created = product is None
     if product is None:
-        product = Product(slug=data.slug)
+        product = Product(slug=data.slug, version=1)
         session.add(product)
+    else:
+        product.version += 1  # a console editor's ETag from before the refresh is now stale
     product.kind = data.kind
     product.category_id = category.id
     product.names = data.names
@@ -106,11 +109,14 @@ async def save_product(session: AsyncSession, data: ProductData) -> tuple[Produc
     if data.nutrition is not None:
         product.nutrition = data.nutrition
     await session.flush()
-    await _rebuild_terms(session, product, data.synonyms)
+    await rebuild_terms(session, product, data.synonyms)
     return product, created
 
 
-def spellings(names: dict[str, str], synonyms: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+Synonym = str | tuple[str, str]  # a term (its language guessed), or (term, lang)
+
+
+def spellings(names: dict[str, str], synonyms: Iterable[Synonym]) -> dict[str, tuple[str, str]]:
     """Every spelling of a product → (lang, source), first one wins on duplicates."""
     found: dict[str, tuple[str, str]] = {}
 
@@ -122,14 +128,17 @@ def spellings(names: dict[str, str], synonyms: tuple[str, ...]) -> dict[str, tup
     for lang in ("en", "hi", "mr"):
         add(names[lang], lang, "name")
     for synonym in synonyms:
-        add(synonym, "hinglish" if not has_devanagari(synonym) else "hi", "synonym")
+        if isinstance(synonym, tuple):
+            add(synonym[0], synonym[1], "synonym")
+        else:
+            add(synonym, "hinglish" if not has_devanagari(synonym) else "hi", "synonym")
     for lang in ("hi", "mr"):
         add(hinglish(names[lang]), "hinglish", "transliteration")
     return found
 
 
-async def _rebuild_terms(
-    session: AsyncSession, product: Product, synonyms: tuple[str, ...]
+async def rebuild_terms(
+    session: AsyncSession, product: Product, synonyms: Iterable[Synonym]
 ) -> None:
     await session.execute(
         SearchTerm.__table__.delete().where(SearchTerm.product_id == product.id)  # pyright: ignore[reportAttributeAccessIssue]
@@ -173,7 +182,6 @@ async def list_products(
     limit: int,
 ) -> tuple[list[ProductRow], str | None]:
     """Active products, alphabetical by English name (keyset paginated)."""
-    english = Product.names["en"].astext
     stmt = (
         select(Product, Category)
         .join(Category, Category.id == Product.category_id)
@@ -185,6 +193,14 @@ async def list_products(
         stmt = stmt.where(Category.slug == category)
     if tag:
         stmt = stmt.where(Product.tags.contains([tag]))
+    return await page_by_name(session, stmt, cursor, limit)
+
+
+async def page_by_name(
+    session: AsyncSession, stmt: Select[Product, Category], cursor: str | None, limit: int
+) -> tuple[list[ProductRow], str | None]:
+    """One page of (Product, Category) rows, alphabetical by English name, then id."""
+    english = Product.names["en"].astext
     if cursor is not None:
         after = decode_cursor(cursor).get("after")
         if not (isinstance(after, list) and len(after) == 2 and isinstance(after[0], str)):  # pyright: ignore[reportUnknownArgumentType]

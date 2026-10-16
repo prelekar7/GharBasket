@@ -9,6 +9,7 @@ Search (spec §3.1) uses one keyset-paginated query with three orders:
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2 import WKTElement
@@ -178,6 +179,8 @@ async def save_society(session: AsyncSession, data: SocietyData) -> tuple[Societ
     society.flats = data.flats
     society.unlock_threshold = data.unlock_threshold
     society.status = data.status
+    if data.status == "live" and society.live_at is None:
+        society.live_at = datetime.now(UTC)  # a society seeded live has always been live
     society.hub_id = data.hub_id
     society.data_source = data.data_source
     await session.flush()

@@ -51,14 +51,32 @@ def _planned(answer: Any) -> Planned:
     return Planned(answer.status, tuple(answer.relaxed), meals, answer.model)
 
 
+def without_preference(request: dict[str, Any]) -> dict[str, Any]:
+    """The v1 request: the observed liking stripped, so the plan ignores it."""
+    return {
+        **request,
+        "recipes": [{k: v for k, v in r.items() if k != "preference"} for r in request["recipes"]],
+    }
+
+
 def cpsat_planner(request: dict[str, Any]) -> Planned:
-    """The M10 CP-SAT planner, in process and in its deterministic mode."""
+    """The M10 CP-SAT planner v1, in process and in its deterministic mode (no liking term)."""
+    answer = cpsat.plan_week(
+        PlanRequest.model_validate(without_preference(request)), deterministic=True
+    )
+    return _planned(answer)
+
+
+def cpsat_v2_planner(request: dict[str, Any]) -> Planned:
+    """Planner v2: the same model with the household's observed liking of each dish (the share
+    of past weeks it accepted the dish when planned) in the objective."""
     return _planned(cpsat.plan_week(PlanRequest.model_validate(request), deterministic=True))
 
 
 def rules_planner(request: dict[str, Any]) -> Planned:
-    """What customers get when the ML service is down (intel_gateway's fallback)."""
-    return _planned(fallback.plan_week(GatewayRequest.model_validate(request)))
+    """What customers get when the ML service is down (intel_gateway's fallback), as registered:
+    without the observed liking (the arm stays comparable across planner versions)."""
+    return _planned(fallback.plan_week(GatewayRequest.model_validate(without_preference(request))))
 
 
 def _slot_by_slot(request: dict[str, Any], choose: Callable[..., str | None], name: str) -> Planned:
@@ -153,8 +171,9 @@ def greedy_planner(request: dict[str, Any]) -> Planned:
 
 
 def random_planner(request: dict[str, Any]) -> Planned:
-    """Baseline: a random valid plan (seeded by the request, so it is reproducible)."""
-    rng = random.Random(json.dumps(request, sort_keys=True))
+    """Baseline: a random valid plan (seeded by the request without the liking it ignores, so
+    it is reproducible and the same as before the liking existed)."""
+    rng = random.Random(json.dumps(without_preference(request), sort_keys=True))
 
     def choose(week: Any, options: list[Any], day: int, slot: str) -> str | None:
         return None if not options else rng.choice(sorted(r.slug for r in options))
@@ -164,23 +183,47 @@ def random_planner(request: dict[str, Any]) -> Planned:
 
 PLANNERS: dict[str, Planner] = {
     "cpsat": cpsat_planner,
+    "cpsat_v2": cpsat_v2_planner,
     "rules": rules_planner,
     "greedy": greedy_planner,
     "random": random_planner,
 }
 
 
+# The planners that read recipes[].preference; every other one plans without it.
+LIKING: frozenset[Planner] = frozenset({cpsat_v2_planner})
+
+
 def cached(planner: Planner) -> Planner:
-    """Households with the same rules in the same week get the same plan: solve it once."""
+    """Households with the same rules in the same week get the same plan: solve it once. For a
+    planner that ignores the liking, the key (and the request) is the one without it, so
+    households that differ only in what they liked share a plan, as before v2."""
     seen: dict[str, Planned] = {}
 
     def plan(request: dict[str, Any]) -> Planned:
+        if planner not in LIKING:
+            request = without_preference(request)
         key = json.dumps(request, sort_keys=True)
         if key not in seen:
             seen[key] = planner(request)
         return seen[key]
 
     return plan
+
+
+MIN_OBSERVED = 2  # weeks of history before a dish's liking counts
+
+
+def observed_preference(meals: list[dict[str, Any]], household: str) -> dict[str, float]:
+    """What M3 learns from the ranker, here from behaviour: per planned dish, the share of
+    times the household accepted it (0..1), once it has at least two weeks of history."""
+    mine = [m for m in meals if m["household"] == household and m["planned"]]
+    if len({m["week"] for m in mine}) < MIN_OBSERVED:
+        return {}
+    seen: dict[str, list[int]] = {}
+    for m in mine:
+        seen.setdefault(m["planned"], []).append(int(m["action"] == "accept"))
+    return {slug: round(sum(hits) / len(hits), 3) for slug, hits in seen.items()}
 
 
 def fasting_days(h: SimHousehold, monday: date, festivals: list[Festival]) -> list[dict[str, Any]]:
@@ -243,10 +286,14 @@ class Simulation:
         rng = random.Random(f"gharbasket-sim:{seed}:{h.key}:{w}")
         monday = first_monday + timedelta(weeks=w)
         factor = pantry_sim.weekly_prices(catalog, shocks, w)
+        liked = observed_preference(rows.meals, h.key)
         request = {
             "household": h.rules,
             "fasting_days": fasting_days(h, monday, catalog.festivals),
-            "recipes": catalog.recipes,
+            "recipes": [
+                {**r, "preference": liked[r["slug"]]} if r["slug"] in liked else r
+                for r in catalog.recipes
+            ],
             "time_limit_s": TIME_LIMIT_S,
         }
         if planned is None:

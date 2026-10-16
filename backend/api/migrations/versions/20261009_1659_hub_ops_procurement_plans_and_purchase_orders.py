@@ -6,7 +6,7 @@ one draft per plan and vendor (partial unique index) and a number set when sent.
 paise; product, order and user ids are plain UUIDs (ADR-0026 §5).
 
 Revision ID: 101a670e6c80
-Revises: 058901d53044
+Revises: 73514b30c629
 Create Date: 2026-10-09 16:59:48.600243+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "101a670e6c80"
-down_revision: str | Sequence[str] | None = "058901d53044"
+down_revision: str | Sequence[str] | None = "73514b30c629"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

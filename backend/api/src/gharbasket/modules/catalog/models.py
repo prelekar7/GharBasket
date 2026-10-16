@@ -43,6 +43,30 @@ CUISINES = ("maharashtrian", "gujarati", "north_indian", "south_indian", "bengal
 SLOTS = ("breakfast", "lunch", "dinner")
 DIETS = ("veg", "egg")
 INGREDIENT_UNITS = ("g", "ml", "piece", "bunch")
+# Product tag codes (spec §3.3). Recipes' derived rules read `root`, `onion_garlic` and `egg`.
+TAGS = (
+    "dairy",
+    "egg",
+    "fasting_ok",
+    "gourd",
+    "high_fibre",
+    "high_protein",
+    "leafy",
+    "onion_garlic",
+    "root",
+)
+FESTIVAL_SOURCES = ("panchang", "manual")
+# State and union territory codes a festival day may be limited to (or "all"), spec §3.3.
+REGIONS = (
+    "andhra_pradesh", "arunachal_pradesh", "assam", "bihar", "chhattisgarh", "goa", "gujarat",
+    "haryana", "himachal_pradesh", "jharkhand", "karnataka", "kerala", "madhya_pradesh",
+    "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland", "odisha", "punjab",
+    "rajasthan", "sikkim", "tamil_nadu", "telangana", "tripura", "uttar_pradesh", "uttarakhand",
+    "west_bengal", "andaman_nicobar", "chandigarh", "dadra_nagar_haveli_daman_diu", "delhi",
+    "jammu_kashmir", "ladakh", "lakshadweep", "puducherry",
+)  # fmt: skip
+# Nutrition sources by the names the seed file uses; products store the codes (§3.3).
+NUTRITION_SOURCES = {"IFCT 2017": "ifct2017", "NIN Nutritive Value of Indian Foods": "nin_nvif"}
 
 # Search compares lower-cased, accent-free text. The migration creates `catalog.f_unaccent`, an
 # IMMUTABLE wrapper (unaccent() itself is only STABLE, so it cannot feed a generated column).
@@ -109,6 +133,10 @@ class Product(Base):
     image_key: Mapped[str | None] = mapped_column(String(200))
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    # Optimistic locking for the console (§3.3); `updated_by` set means a console edit, which
+    # `just seed` never overwrites.
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -158,7 +186,12 @@ class PriceList(Base):
     valid_from: Mapped[date] = mapped_column(Date)
     published_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Price(Base):
@@ -217,6 +250,13 @@ class Recipe(Base):
     steps: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # Who last changed each curated flag, and when (§3.3 `reviews`).
+    fasting_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    fasting_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    diabetic_reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    diabetic_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -249,6 +289,7 @@ class Festival(Base):
     __tablename__ = "festival_calendar"
     __table_args__ = (
         CheckConstraint(_has_all_languages("names"), name="names"),
+        CheckConstraint(_one_of("source", FESTIVAL_SOURCES), name="source"),
         {"schema": SCHEMA},
     )
 
@@ -261,3 +302,9 @@ class Festival(Base):
     # {"fasting": bool, "no_onion_garlic": bool}
     rules: Mapped[dict[str, bool]] = mapped_column(JSONB)
     verified: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # "manual" rows (added in the console) and verified ones are never overwritten by a seed.
+    source: Mapped[str] = mapped_column(String(16), server_default="panchang")
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
