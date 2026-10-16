@@ -1,11 +1,12 @@
-"""Permissions of M9 Community & Kindness (spec §7). Society editing arrives with the console."""
+"""Permissions of M9 Community & Kindness (spec §7)."""
 
 from gharbasket.platform.permissions import PERMISSIONS
 
 PERMISSIONS.allow("customer", "society_requests:create")
-# Captain appointments (§3.2): hub managers of the society's hub (checked per request), admins.
+# Captain appointments (§3.2) and the society's unlock settings (§3.6): hub managers of the
+# society's hub (checked per request), admins.
 for role in ("hub_manager", "admin"):
-    PERMISSIONS.allow(role, "captains:read", "captains:write")
+    PERMISSIONS.allow(role, "captains:read", "captains:write", "societies:write")
 # Kindness (§3.4): admins set the point rates; hub managers run their hub's drives (and society
 # drives in it), admins any drive.
 PERMISSIONS.allow("admin", "point_rates:write")

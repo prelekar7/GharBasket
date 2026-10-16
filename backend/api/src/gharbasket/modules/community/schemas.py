@@ -55,6 +55,30 @@ class UnlockOut(BaseModel):
     status: SocietyStatus
     joined: int = Field(examples=[14])
     threshold: int = Field(examples=[20])
+    live_at: datetime | None = Field(description="Set once, when it first went live")
+    threshold_source: Literal["model", "hub", "default"]
+    box_fee_paise: int = Field(
+        examples=[3000],
+        description="The delivery fee on each box until live; 0 once `live_at` is set",
+    )
+
+
+class SocietyUnlockIn(BaseModel):
+    """The hub's unlock settings (§3.6); every field optional."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    unlock_threshold: int | None = Field(default=None, ge=1, le=500, examples=[25])
+    unlock_threshold_pinned: bool | None = Field(
+        default=None, description="Pinned: the weekly recompute leaves the threshold alone"
+    )
+    status: Literal["unlocking", "paused", "live"] | None = Field(
+        default=None, description="A hub decision, audit-logged"
+    )
+
+
+class SocietyUnlockAdminOut(UnlockOut):
+    unlock_threshold_pinned: bool
 
 
 def _tidy(value: str | None) -> str | None:

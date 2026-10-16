@@ -570,6 +570,14 @@ PATCH /v1/admin/societies/{id}     (§3 table, hub_manager of the hub, admin) ga
 | Newest mobile mock (`feat/mobile-sync-orders`): `{ society_id, status, joined, threshold }`; the app celebrates when `status` turns `live` | Adds `live_at`, `threshold_source` and `box_fee_paise`; celebrate once per society when `live_at` is newer than the last one the app saw |
 | Older mocks: `unlocked_at`, and the referral mock bumps `joined` and flips the society live | `live_at`; only a new household moves `joined` |
 
+**As built (S9).**
+- **The first captain.** `captains.appoint` moves a `prospect` society to `unlocking` in its own transaction (no consumer of `captain_assigned`), then checks the count, so a society that already has enough households goes live at once.
+- **The hub's PATCH.** `PATCH /v1/admin/societies/{id}` takes only `unlock_threshold` (1 to 500; the source becomes `hub`), `unlock_threshold_pinned` and `status` for now; the polygon and towers come with the console's map editor. Hub managers of the society's hub and admins (`societies:write`); another hub's society is 404. It answers the unlock view plus `unlock_threshold_pinned`, is audit-logged (`community.society_updated`), and needs no Idempotency-Key or If-Match. `status: "live"` goes live like the automatic path (`live_at` and `society_live` the first time only).
+- **M10 and M6 follow-ups.** `unlock.stop_cost` answers None until `intel_gateway.api.society_stop_cost` exists, so the job keeps every threshold; `box_fee_paise` is `unlock.PRE_LIVE_BOX_FEE_PAISE` (3,000) until the hub's `pre_live_box_fee_paise` exists.
+- **The job** skips societies that are live or have a `live_at`, and pinned ones; it returns `{ priced, kept, skipped, went_live }`.
+- **Societies already live** got `live_at = updated_at` in the migration, and the seed sets `live_at` when it seeds a society live.
+- **Facade.** `get_society` gains `live_at`; `public_society(session, slug)` is in place for M12 §3.7.
+
 ### 3.7 Impact contract (drafted 2026-10-09, frozen on approval)
 Customers' impact numbers: their own, and their society's (US-7). The hub, NGO and platform views are M12's (`GET /v1/analytics/impact`, M12 §3.6), so the old `scope=hub` moves there. The mobile Impact screen and the Society screen's impact card build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 

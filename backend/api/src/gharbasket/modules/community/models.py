@@ -1,7 +1,8 @@
 """Tables of M9 Community & Kindness. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
-Societies and residents' requests for new ones (spec §3.1), captain appointments (§3.2), and the
-Kindness point rates and donation drives (§3.4). Referrals, donations and NGOs follow in P5.
+Societies and residents' requests for new ones (spec §3.1) with how they unlock (§3.6), captain
+appointments (§3.2), and the Kindness point rates and donation drives (§3.4). Referrals, donations
+and NGOs follow.
 """
 
 import uuid
@@ -34,6 +35,7 @@ from gharbasket.platform.db import Base
 SCHEMA = "community"
 
 SOCIETY_STATUSES = ("prospect", "unlocking", "live", "paused")
+THRESHOLD_SOURCES = ("default", "model", "hub")
 REQUEST_STATUSES = ("received", "accepted", "rejected", "duplicate")
 
 # What society search matches against: name and area, lower-cased and without accents. The
@@ -52,6 +54,7 @@ class Society(Base):
         CheckConstraint(_one_of("status", SOCIETY_STATUSES), name="status"),
         CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
         CheckConstraint("unlock_threshold > 0", name="unlock_threshold"),
+        CheckConstraint(_one_of("threshold_source", THRESHOLD_SOURCES), name="threshold_source"),
         CheckConstraint("jsonb_typeof(towers) = 'array'", name="towers"),
         Index("ix_societies_boundary", "boundary", postgresql_using="gist"),
         Index(
@@ -80,6 +83,10 @@ class Society(Base):
     # Households needed for free delivery (US-2).
     unlock_threshold: Mapped[int] = mapped_column(Integer, server_default=text("20"))
     status: Mapped[str] = mapped_column(String(16), server_default="prospect")
+    # Pinned by the hub: the weekly recompute leaves the threshold alone.
+    unlock_threshold_pinned: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    threshold_source: Mapped[str] = mapped_column(String(8), server_default="default")
+    threshold_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Set once, when the society first goes live; never cleared (M9 §3.6). A box pays the hub's
     # pre-live delivery fee while it is null (M4 `box_fee`).
     live_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

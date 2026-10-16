@@ -10660,6 +10660,138 @@
         "title": "SocietySummary",
         "type": "object"
       },
+      "SocietyUnlockAdminOut": {
+        "properties": {
+          "box_fee_paise": {
+            "description": "The delivery fee on each box until live; 0 once `live_at` is set",
+            "examples": [
+              3000
+            ],
+            "title": "Box Fee Paise",
+            "type": "integer"
+          },
+          "joined": {
+            "examples": [
+              14
+            ],
+            "title": "Joined",
+            "type": "integer"
+          },
+          "live_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once, when it first went live",
+            "title": "Live At"
+          },
+          "society_id": {
+            "format": "uuid",
+            "title": "Society Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "prospect",
+              "unlocking",
+              "live",
+              "paused"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "threshold": {
+            "examples": [
+              20
+            ],
+            "title": "Threshold",
+            "type": "integer"
+          },
+          "threshold_source": {
+            "enum": [
+              "model",
+              "hub",
+              "default"
+            ],
+            "title": "Threshold Source",
+            "type": "string"
+          },
+          "unlock_threshold_pinned": {
+            "title": "Unlock Threshold Pinned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "society_id",
+          "status",
+          "joined",
+          "threshold",
+          "live_at",
+          "threshold_source",
+          "box_fee_paise",
+          "unlock_threshold_pinned"
+        ],
+        "title": "SocietyUnlockAdminOut",
+        "type": "object"
+      },
+      "SocietyUnlockIn": {
+        "additionalProperties": false,
+        "description": "The hub's unlock settings (§3.6); every field optional.",
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unlocking",
+                  "paused",
+                  "live"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A hub decision, audit-logged",
+            "title": "Status"
+          },
+          "unlock_threshold": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              25
+            ],
+            "title": "Unlock Threshold"
+          },
+          "unlock_threshold_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pinned: the weekly recompute leaves the threshold alone",
+            "title": "Unlock Threshold Pinned"
+          }
+        },
+        "title": "SocietyUnlockIn",
+        "type": "object"
+      },
       "SolveIn": {
         "additionalProperties": false,
         "properties": {
@@ -12039,12 +12171,33 @@
       "UnlockOut": {
         "description": "How close a society is to free delivery (US-2).",
         "properties": {
+          "box_fee_paise": {
+            "description": "The delivery fee on each box until live; 0 once `live_at` is set",
+            "examples": [
+              3000
+            ],
+            "title": "Box Fee Paise",
+            "type": "integer"
+          },
           "joined": {
             "examples": [
               14
             ],
             "title": "Joined",
             "type": "integer"
+          },
+          "live_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once, when it first went live",
+            "title": "Live At"
           },
           "society_id": {
             "format": "uuid",
@@ -12067,13 +12220,25 @@
             ],
             "title": "Threshold",
             "type": "integer"
+          },
+          "threshold_source": {
+            "enum": [
+              "model",
+              "hub",
+              "default"
+            ],
+            "title": "Threshold Source",
+            "type": "string"
           }
         },
         "required": [
           "society_id",
           "status",
           "joined",
-          "threshold"
+          "threshold",
+          "live_at",
+          "threshold_source",
+          "box_fee_paise"
         ],
         "title": "UnlockOut",
         "type": "object"
@@ -15673,6 +15838,121 @@
         "summary": "Change a slot's capacity or close it",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/v1/admin/societies/{society_id}": {
+      "patch": {
+        "operationId": "update_society_unlock_v1_admin_societies__society_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "society_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Society Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocietyUnlockIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocietyUnlockAdminOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.society_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Pin or set a society's unlock threshold, or set its status (hub manager, admin)",
+        "tags": [
+          "community"
         ]
       }
     },

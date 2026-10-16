@@ -2,6 +2,7 @@
 
 M1 uses it to check a household's address (spec §3.1): the society exists, the tower belongs to
 it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains through it (§3.2).
+M4 reads `live_at` for the pre-live box fee (§3.6), and M12 the public society page (§3.8).
 """
 
 import uuid
@@ -21,8 +22,10 @@ from gharbasket.modules.community.events import (
     DONATION_REJECTED,
     DONATION_SCHEDULED,
     DONATION_VERIFIED,
+    SOCIETY_LIVE,
 )
 from gharbasket.modules.community.models import Captain, Society, SocietyRequest
+from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.geo import geography
 
@@ -33,9 +36,11 @@ __all__ = [
     "DONATION_REJECTED",
     "DONATION_SCHEDULED",
     "DONATION_VERIFIED",
+    "SOCIETY_LIVE",
     "CaptainCard",
     "CaptainRef",
     "DonationPickup",
+    "PublicSociety",
     "SocietyLabels",
     "SocietyRef",
     "anonymise_for_user",
@@ -47,6 +52,7 @@ __all__ = [
     "hubs_with_societies",
     "is_active_captain",
     "pickups_for",
+    "public_society",
     "record_pickup",
     "society_labels",
     "society_points",
@@ -267,6 +273,37 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         ],
         "donations": await donations.export(session, user_id),
     }
+
+
+@dataclass(frozen=True)
+class PublicSociety:
+    id: uuid.UUID
+    slug: str
+    name: str
+    area: str | None
+    status: str
+    joined: int
+    threshold: int
+    live_at: datetime | None
+
+
+async def public_society(session: AsyncSession, slug: str) -> PublicSociety | None:
+    """The referral landing page's society (M12 §3.7): `unlocking` and `live` ones only."""
+    society = (
+        await session.execute(select(Society).where(Society.slug == slug))
+    ).scalar_one_or_none()
+    if society is None or society.status not in ("unlocking", "live"):
+        return None
+    return PublicSociety(
+        id=society.id,
+        slug=society.slug,
+        name=society.name,
+        area=society.area,
+        status=society.status,
+        joined=await identity_api.households_in_society(session, society.id),
+        threshold=society.unlock_threshold,
+        live_at=society.live_at,
+    )
 
 
 async def anonymise_for_user(

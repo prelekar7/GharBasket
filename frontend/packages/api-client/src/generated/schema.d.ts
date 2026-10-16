@@ -277,6 +277,23 @@ export interface paths {
         patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/v1/admin/societies/{society_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Pin or set a society's unlock threshold, or set its status (hub manager, admin) */
+        patch: operations["update_society_unlock_v1_admin_societies__society_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/societies/{society_id}/delivery-days": {
         parameters: {
             query?: never;
@@ -6853,6 +6870,68 @@ export interface components {
              */
             status: "prospect" | "unlocking" | "live" | "paused";
         };
+        /** SocietyUnlockAdminOut */
+        SocietyUnlockAdminOut: {
+            /**
+             * Box Fee Paise
+             * @description The delivery fee on each box until live; 0 once `live_at` is set
+             * @example 3000
+             */
+            box_fee_paise: number;
+            /**
+             * Joined
+             * @example 14
+             */
+            joined: number;
+            /**
+             * Live At
+             * @description Set once, when it first went live
+             */
+            live_at: string | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold
+             * @example 20
+             */
+            threshold: number;
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
+            /** Unlock Threshold Pinned */
+            unlock_threshold_pinned: boolean;
+        };
+        /**
+         * SocietyUnlockIn
+         * @description The hub's unlock settings (§3.6); every field optional.
+         */
+        SocietyUnlockIn: {
+            /**
+             * Status
+             * @description A hub decision, audit-logged
+             */
+            status?: ("unlocking" | "paused" | "live") | null;
+            /**
+             * Unlock Threshold
+             * @example 25
+             */
+            unlock_threshold?: number | null;
+            /**
+             * Unlock Threshold Pinned
+             * @description Pinned: the weekly recompute leaves the threshold alone
+             */
+            unlock_threshold_pinned?: boolean | null;
+        };
         /** SolveIn */
         SolveIn: {
             /**
@@ -7486,10 +7565,21 @@ export interface components {
          */
         UnlockOut: {
             /**
+             * Box Fee Paise
+             * @description The delivery fee on each box until live; 0 once `live_at` is set
+             * @example 3000
+             */
+            box_fee_paise: number;
+            /**
              * Joined
              * @example 14
              */
             joined: number;
+            /**
+             * Live At
+             * @description Set once, when it first went live
+             */
+            live_at: string | null;
             /**
              * Society Id
              * Format: uuid
@@ -7505,6 +7595,11 @@ export interface components {
              * @example 20
              */
             threshold: number;
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
         };
         /** UserOut */
         UserOut: {
@@ -9248,6 +9343,79 @@ export interface operations {
                 };
             };
             /** @description orders.slot_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_society_unlock_v1_admin_societies__society_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyUnlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyUnlockAdminOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

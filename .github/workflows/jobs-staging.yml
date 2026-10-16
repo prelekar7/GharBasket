@@ -29,6 +29,7 @@ on:
     - cron: "3 22 * * *" # 03:33 IST daily: monitor_drift
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
+    - cron: "40 20 * * 0" # 02:10 IST Monday: recompute_unlock_thresholds
     - cron: "03 19 * * *" # 00:33 IST daily: expire_kindness_points
     - cron: "03 23 * * *" # 04:33 IST daily: purge_notifications
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
@@ -76,6 +77,7 @@ jobs:
             "3 22 * * *") job=monitor_drift ;;
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
+            "40 20 * * 0") job=recompute_unlock_thresholds ;;
             "03 19 * * *") job=expire_kindness_points ;;
             "03 23 * * *") job=purge_notifications ;;
             "17 * * * *") job=outbox_sweep ;;
