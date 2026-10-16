@@ -56,7 +56,9 @@ CanReadVendors = Annotated[Permit, require("vendors:read")]
 CanWriteVendors = Annotated[Permit, require("vendors:write")]
 CanReadProcurement = Annotated[Permit, require("procurement:read")]
 CanWriteProcurement = Annotated[Permit, require("procurement:write")]
-Day = Annotated[date | None, Query(alias="date", description="IST delivery date; default today")]
+PlanDay = Annotated[
+    date | None, Query(alias="date", description="IST delivery date; default today")
+]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -327,7 +329,7 @@ async def get_hub_plan(
     session: DbSession,
     response: Response,
     lang: Lang,
-    day: Day = None,
+    day: PlanDay = None,
 ) -> ProcurementPlanOut:
     permit.ensure(hub_id)
     plan = await procurement.get_plan(session, hub_id=hub_id, day=procurement.plan_day(day))
