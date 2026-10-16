@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import state
+from gharbasket.modules.orders import fees, state
 from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
 from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot, SlotBooking
 from gharbasket.platform.errors import ProblemError
@@ -35,6 +35,15 @@ MAX_ADDON_QTY = 20
 def cutoff_for(delivery_date: date) -> datetime:
     """21:00 IST on the day before delivery, as a UTC instant."""
     return datetime.combine(delivery_date - timedelta(days=1), CUTOFF_TIME, IST).astimezone(UTC)
+
+
+# A box the cut-off could not debit may still be paid for this long (T-1 23:00 IST).
+PAYMENT_GRACE = timedelta(hours=2)
+
+
+def grace_until_for(delivery_date: date) -> datetime:
+    """When a `payment_failed` box stops being payable: two hours after its cut-off."""
+    return cutoff_for(delivery_date) + PAYMENT_GRACE
 
 
 def now() -> datetime:
@@ -175,13 +184,27 @@ class ApprovedCycle:
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
     order.subtotal_paise = sum(line.total_paise for line in lines)
+    _total(order)
+
+
+def _total(order: Order) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
 
 
-async def by_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
-    return (
-        await session.execute(select(Order).where(Order.cycle_id == cycle_id))
-    ).scalar_one_or_none()
+def food_paid(order: Order) -> int:
+    """The paid total without the delivery fee: what shortage and issue refunds may return."""
+    return order.total_paise - order.fees_paise
+
+
+async def by_cycle(
+    session: AsyncSession, cycle_id: uuid.UUID, *, for_update: bool = False
+) -> Order | None:
+    """The cycle's order that is not cancelled (at most one: a partial unique index). A skip
+    cancels the order, so an un-skipped week approved again gets a new one (M3 §3.3)."""
+    stmt = select(Order).where(Order.cycle_id == cycle_id, Order.status != "cancelled")
+    if for_update:  # wait for a `pay` or a top-up in flight, then read what it left
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await session.execute(stmt)).scalar_one_or_none()
 
 
 async def _box_products(
@@ -269,6 +292,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             await _replace_box_lines(session, existing, cycle)
         return existing
     products = await _box_products(session, cycle)
+    fee = await fees.box_fee(session, cycle.hub_id, cycle.society_id)  # frozen, as line prices
     order = Order(
         household_id=cycle.household_id,
         hub_id=cycle.hub_id,
@@ -280,7 +304,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         cutoff_at=cutoff_for(cycle.delivery_date),
         status="approved",
         subtotal_paise=0,
-        fees_paise=0,
+        fees_paise=fee,
         discount_paise=0,
         total_paise=0,
         data_source=cycle.data_source,
@@ -327,11 +351,30 @@ async def lines_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderLine
     return list(rows.scalars())
 
 
-async def timeline_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderEvent]:
-    rows = await session.execute(
-        select(OrderEvent).where(OrderEvent.order_id == order_id).order_by(OrderEvent.id)
-    )
+async def timeline_of(
+    session: AsyncSession, order_id: uuid.UUID, *, after: uuid.UUID | None = None
+) -> list[OrderEvent]:
+    """The order's timeline rows, oldest first (ids are uuidv7); only those after `after`."""
+    query = select(OrderEvent).where(OrderEvent.order_id == order_id)
+    if after is not None:
+        query = query.where(OrderEvent.id > after)
+    rows = await session.execute(query.order_by(OrderEvent.id))
     return list(rows.scalars())
+
+
+async def has_event(session: AsyncSession, order_id: uuid.UUID, event_id: uuid.UUID) -> bool:
+    found = await session.scalar(
+        select(OrderEvent.id).where(OrderEvent.order_id == order_id, OrderEvent.id == event_id)
+    )
+    return found is not None
+
+
+async def status_of(session: AsyncSession, order_id: uuid.UUID) -> tuple[str, int]:
+    """The order's status and version, read fresh (the live timeline polls this)."""
+    row = (
+        await session.execute(select(Order.status, Order.version).where(Order.id == order_id))
+    ).one()
+    return row.status, row.version
 
 
 async def list_orders(
@@ -454,7 +497,14 @@ async def set_addons(
     return lines
 
 
-async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str) -> Order:
+async def cancel(
+    session: AsyncSession,
+    order: Order,
+    *,
+    actor: str,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
+) -> Order:
     """Before the cut-off, while approved: cancelled, booking freed, event published."""
     if order.status in ("cancelled",):
         return order
@@ -462,7 +512,14 @@ async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str
         raise ProblemError(409, "orders.already_locked", "This order is already locked.")
     if order.status == "approved" and actor == "customer" and now() >= order.cutoff_at:
         raise cutoff_passed()
-    await transition(session, order, "cancelled", actor=actor, payload={"reason": reason})
+    await transition(
+        session,
+        order,
+        "cancelled",
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload={"reason": reason},
+    )
     booking = (
         await session.execute(select(SlotBooking).where(SlotBooking.order_id == order.id))
     ).scalar_one_or_none()
@@ -472,16 +529,69 @@ async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str
     return order
 
 
+# --- paying: the cut-off, a top-up in the grace period, and `pay` (§3.1, §3.4) -------------------
+
+
+async def debit_and_lock(session: AsyncSession, order: Order, *, actor: str) -> Order:
+    """Debit the household owner's wallet for the order and lock it.
+
+    The debit is M5's `box:<order id>` entry, the same for the cut-off, a top-up's retry and
+    `pay`, so the order is never charged twice. `billing.insufficient_balance` is raised with
+    nothing debited (the debit runs in a savepoint). A box whose society went live since it was
+    approved drops its delivery fee first (M9 §3.6).
+    """
+    owner = await identity_api.owner_of_household(session, order.household_id)
+    if owner is None:
+        raise ValueError(f"order {order.id} has no household owner")
+    if order.fees_paise > 0 and await fees.society_live(session, order.society_id):
+        order.fees_paise = 0  # went live after approval: free from this lock; never raised here
+        _total(order)
+        order.version += 1
+    if order.total_paise > 0:
+        async with session.begin_nested():
+            await billing_api.debit_for_order(
+                session, owner, order.id, order.total_paise, order.delivery_date
+            )
+    return await transition(session, order, "locked", actor=actor)
+
+
+async def pay(session: AsyncSession, order: Order) -> Order:
+    """The customer pays a `payment_failed` box from the wallet before its grace ends (§3.4).
+
+    The caller holds the order's row lock, so `pay` and the top-up consumer run one after the
+    other; whichever comes second finds the order locked, and a locked order answers as is.
+    """
+    if order.status == "locked":
+        return order
+    if order.status != "payment_failed":
+        raise ProblemError(
+            409,
+            "orders.not_payable",
+            f"A {order.status.replace('_', ' ')} order has nothing to pay.",
+            extra={"status": order.status},
+        )
+    if now() >= order.cutoff_at + PAYMENT_GRACE:
+        raise ProblemError(
+            409,
+            "orders.payment_grace_over",
+            "The time to pay for this box has passed; it will be cancelled.",
+        )
+    return await debit_and_lock(session, order, actor="customer")
+
+
 async def transition(
     session: AsyncSession,
     order: Order,
     to_status: str,
     *,
     actor: str,
+    actor_user_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
 ) -> Order:
-    """Move an order along the state machine, write the timeline row and publish the event."""
-    state.check(order.status, to_status, actor)
+    """Move an order along its kind's state machine, write the timeline row (with the actor kind
+    and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
+    Only the state machine is checked: the caller has checked that this person may act."""
+    state.check(order.kind, order.status, to_status, actor)
     from_status = order.status
     order.status = to_status
     order.version += 1
@@ -493,6 +603,7 @@ async def transition(
             from_status=from_status,
             to_status=to_status,
             actor=actor,
+            actor_user_id=actor_user_id,
             payload=payload,
         )
     )
@@ -508,6 +619,8 @@ async def transition(
             "slot_id": str(order.slot_id),
             "total_paise": order.total_paise,
             **(payload or {}),
+            "kind": order.kind,  # box | addon | tiffin, for consumers that care (ADR-0026 §3)
+            "actor": actor,  # the kind only; never the person's id
         }
         if to_status == "locked":
             body["lines"] = [
@@ -534,21 +647,22 @@ async def orders_for_delivery(
     hub_id: uuid.UUID,
     delivery_date: date,
     statuses: tuple[str, ...] = ("locked",),
+    kinds: tuple[str, ...] | None = None,
 ) -> list[OrderSummary]:
-    """What M6 packs and M7 routes on a day, with lines."""
-    orders = list(
-        (
-            await session.execute(
-                select(Order)
-                .where(
-                    Order.hub_id == hub_id,
-                    Order.delivery_date == delivery_date,
-                    Order.status.in_(statuses),
-                )
-                .order_by(Order.society_id, Order.id)
-            )
-        ).scalars()
+    """What M6 packs and M7 routes on a day, with lines; `kinds` narrows it (say to tiffins),
+    all kinds by default."""
+    query = (
+        select(Order)
+        .where(
+            Order.hub_id == hub_id,
+            Order.delivery_date == delivery_date,
+            Order.status.in_(statuses),
+        )
+        .order_by(Order.society_id, Order.id)
     )
+    if kinds is not None:
+        query = query.where(Order.kind.in_(kinds))
+    orders = list((await session.execute(query)).scalars())
     if not orders:
         return []
     rows = await session.execute(

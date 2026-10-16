@@ -25,7 +25,7 @@ from gharbasket.platform.outbox import subscribe
 
 IST = ZoneInfo("Asia/Kolkata")
 BATCH = 200
-GRACE = timedelta(hours=2)
+GRACE = service.PAYMENT_GRACE
 log = structlog.get_logger("gharbasket.orders.cutoff")
 
 
@@ -52,15 +52,8 @@ async def _orders(
 async def lock_or_fail(session: AsyncSession, order: Order, *, grace_until: str) -> str:
     """Debit the household owner's wallet for one order (keyed by the order, so a retry never
     debits twice) and move it on. Returns the new status."""
-    owner = await identity_api.owner_of_household(session, order.household_id)
-    if owner is None:
-        raise ValueError(f"order {order.id} has no household owner")
     try:
-        async with session.begin_nested():
-            if order.total_paise > 0:
-                await billing_api.debit_for_order(
-                    session, owner, order.id, order.total_paise, order.delivery_date
-                )
+        await service.debit_and_lock(session, order, actor="system")
     except billing_api.InsufficientBalance as short:
         if order.status != "payment_failed":  # a top-up that still falls short changes nothing
             await service.transition(
@@ -75,7 +68,6 @@ async def lock_or_fail(session: AsyncSession, order: Order, *, grace_until: str)
                 },
             )
         return "payment_failed"
-    await service.transition(session, order, "locked", actor="system")
     return "locked"
 
 
@@ -112,7 +104,10 @@ async def payment_grace_expiry(ctx: JobContext) -> dict[str, Any]:
 
 
 async def on_wallet_topped_up(session: AsyncSession, event: OutboxEvent) -> None:
-    """A top-up during the grace period pays for the household's unpaid orders."""
+    """A top-up during the grace period pays for the household's unpaid orders, as `pay` does
+    (§3.4): same debit key, same row lock, so the two never charge twice. Handled after an
+    order's grace ended, it leaves the order to `payment_grace_expiry`, as `pay` refuses it."""
+    at = service.now()
     user_id = uuid.UUID(event.payload["user_id"])
     household = await identity_api.household_for_user(session, user_id)
     if household is None:
@@ -128,6 +123,8 @@ async def on_wallet_topped_up(session: AsyncSession, event: OutboxEvent) -> None
         ).scalars()
     )
     for order in unpaid:
+        if at >= order.cutoff_at + GRACE:
+            continue
         grace_until = (order.cutoff_at + GRACE).isoformat()
         outcome = await lock_or_fail(session, order, grace_until=grace_until)
         if outcome == "payment_failed":
