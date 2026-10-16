@@ -93,8 +93,10 @@ async def save_product(session: AsyncSession, data: ProductData) -> tuple[Produc
     ).scalar_one_or_none()
     created = product is None
     if product is None:
-        product = Product(slug=data.slug)
+        product = Product(slug=data.slug, version=1)
         session.add(product)
+    else:
+        product.version += 1  # a console editor's ETag from before the refresh is now stale
     product.kind = data.kind
     product.category_id = category.id
     product.names = data.names

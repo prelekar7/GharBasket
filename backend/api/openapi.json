@@ -9898,7 +9898,8 @@
               "hub_manager",
               "franchise_owner",
               "ngo_coordinator",
-              "admin"
+              "admin",
+              "catalog_editor"
             ],
             "title": "Role",
             "type": "string"
