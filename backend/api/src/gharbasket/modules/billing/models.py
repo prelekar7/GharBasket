@@ -5,8 +5,9 @@ postings. Amounts are signed minor units, debit positive and credit negative, so
 an entry sum to zero per currency; a deferred constraint trigger (see the migration) refuses any
 transaction where they don't, and entries and postings can never be updated or deleted.
 
-Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1), and refunds of
-wallet money to those payments (§3.3), and the hourly reconciliation with Razorpay (§3.4).
+Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1), the lots of
+Kindness points with their expiry (§3.6), refunds of wallet money to the payments it came from
+(§3.3), and the hourly reconciliation with Razorpay (§3.4).
 """
 
 import uuid
@@ -19,6 +20,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     SmallInteger,
     String,
     UniqueConstraint,
@@ -42,11 +44,16 @@ ENTRY_KINDS = (
     "box_debit",
     "refund",
     "adjustment",
+    # Kindness points (§3.6), a separate currency (KINDNESS_PTS), never money.
+    "points_earned",
+    "points_expired",
+    "points_donated",
+    # Refunds of wallet money to the payments it came from (§3.3).
     "refund_to_source",
     "refund_to_source_failed",
     "unclaimed",
 )
-REF_TYPES = ("topup", "order", "refund")
+REF_TYPES = ("topup", "order", "donation", "referral", "refund")
 PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
@@ -180,6 +187,33 @@ class PaymentWebhook(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PointsLot(Base):
+    """One credit of Kindness points and what is left of it: the expiry schedule (§3.6). The
+    balance is still the sum of postings to `kindness:<user>`, and Σ remaining equals it."""
+
+    __tablename__ = "points_lots"
+    __table_args__ = (
+        CheckConstraint("points > 0", name="points"),
+        CheckConstraint("remaining >= 0 AND remaining <= points", name="remaining"),
+        UniqueConstraint("source_type", "source_id"),
+        Index(None, "user_id", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M1's user; no foreign key across schemas
+    points: Mapped[int] = mapped_column(Integer)
+    remaining: Mapped[int] = mapped_column(Integer)
+    earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # What earned them (M9): "donation", "referral" or "referral_welcome", and that row's id.
+    source_type: Mapped[str] = mapped_column(String(40))
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    entry_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.journal_entries.id", ondelete="RESTRICT")
+    )
 
 
 class Refund(Base):

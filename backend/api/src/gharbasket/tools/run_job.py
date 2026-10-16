@@ -13,6 +13,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.files import create_store
 from gharbasket.platform.jobs import JOBS, run_job
@@ -22,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
 async def run(database_url: str, name: str, scheduled_for: datetime | None) -> int:
+    load_modules()
     settings = Settings(_env_file=REPO_ROOT / ".env", app_env="dev")  # pyright: ignore[reportCallIssue]
     engine = create_engine(database_url, pooled=False)
     try:
@@ -40,6 +42,7 @@ async def run(database_url: str, name: str, scheduled_for: datetime | None) -> i
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_modules()  # every module's jobs (and the consumers `outbox_sweep` hands events to)
     parser = argparse.ArgumentParser(description="Run a scheduled job on the local database.")
     parser.add_argument("name", help="one of: " + ", ".join(sorted(JOBS)))
     parser.add_argument("--scheduled-for", type=datetime.fromisoformat, default=None)

@@ -5,7 +5,7 @@ refund_to_source_failed, unclaimed) and ref type (refund) in the journal's check
 the platform account `unclaimed_balances` (liability) for wallet money no payment can take back.
 
 Revision ID: c4ced7dd777d
-Revises: a424ab7287c6
+Revises: de5f860e8882
 Create Date: 2026-10-09 12:07:07.588243+00:00
 """
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "c4ced7dd777d"
-down_revision: str | Sequence[str] | None = "a424ab7287c6"
+down_revision: str | Sequence[str] | None = "de5f860e8882"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -155,9 +155,19 @@ def upgrade() -> None:
     )
 
 
-KINDS = ("topup", "topup_bonus", "box_debit", "refund", "adjustment")
+# The kinds and reference types in force when this migration runs (M5 Kindness points came first).
+KINDS = (
+    "topup",
+    "topup_bonus",
+    "box_debit",
+    "refund",
+    "adjustment",
+    "points_earned",
+    "points_expired",
+    "points_donated",
+)
 NEW_KINDS = ("refund_to_source", "refund_to_source_failed", "unclaimed")
-REF_TYPES = ("topup", "order")
+REF_TYPES = ("topup", "order", "donation", "referral")
 
 
 def _in(values: tuple[str, ...]) -> str:

@@ -1,4 +1,9 @@
+import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "../src/styles.css";
+import { configureMaps } from "../src/console/index.js";
+
+// Console maps: tell MapLibre where its worker is (Vite builds it as its own chunk).
+configureMaps({ workerUrl });
 
 /** @type {import("@storybook/react-vite").Preview} */
 const preview = {

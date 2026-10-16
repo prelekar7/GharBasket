@@ -1,0 +1,4 @@
+# Own workspace root: this throwaway spike is not part of the main pnpm workspace.
+packages: []
+allowBuilds:
+  esbuild: false

@@ -14,5 +14,5 @@
     "types": ["node", "next"],
     "paths": { "@/*": ["./*"] }
   },
-  "include": ["app", "components", "lib", "proxy.js", "next.config.js"]
+  "include": ["app", "components", "lib", "mocks", "proxy.js", "next.config.js"]
 }

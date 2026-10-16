@@ -9,9 +9,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
-from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs)
-from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
+from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs, consumer)
 from gharbasket.modules.billing import (
+    kindness,
     reconciliation,
     refunds,
     settlement,
@@ -19,6 +19,7 @@ from gharbasket.modules.billing import (
     topups,
     wallet,
 )
+from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.billing.models import Payment, PaymentWebhook, ReconciliationItem
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
@@ -28,8 +29,15 @@ from gharbasket.modules.billing.razorpay import (
 from gharbasket.modules.billing.schemas import (
     DevPayIn,
     DevPayOut,
+    DonationIn,
+    DonationOut,
     Entry,
+    KindnessBalanceOut,
+    KindnessGoal,
     OrderRef,
+    PointsEntry,
+    PointsExpiring,
+    PointsRef,
     ReconItem,
     ReconKind,
     ReconPage,
@@ -63,6 +71,8 @@ router = APIRouter(tags=["billing"])
 CanRead = Annotated[Permit, require("wallet:read")]
 CanWrite = Annotated[Permit, require("wallet:write")]
 CanReadStatements = Annotated[Permit, require("statements:read")]
+CanReadKindness = Annotated[Permit, require("kindness:read")]
+CanDonate = Annotated[Permit, require("kindness:donate")]
 CanRefund = Annotated[Permit, require("refunds:write")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
@@ -372,6 +382,88 @@ async def dev_pay(
     return DevPayOut(
         razorpay_payment_id=event["payload"]["payment"]["entity"]["id"], status="captured"
     )
+
+
+# --- Kindness points (§3.6) ---------------------------------------------------------------------
+
+
+def _points_entry(row: kindness.PointsEntry) -> PointsEntry:
+    e = row.entry
+    ref = None
+    if e.ref_type in ("donation", "referral") and e.ref_id is not None:
+        ref = PointsRef(type=e.ref_type, id=e.ref_id)  # pyright: ignore[reportArgumentType]
+    return PointsEntry(
+        id=e.id,
+        kind=e.kind,  # pyright: ignore[reportArgumentType]
+        points=row.points,
+        ref=ref,
+        expires_on=row.expires_on,
+        at=e.created_at,
+    )
+
+
+@router.get(
+    "/kindness/balance",
+    summary="The caller's Kindness points, the next expiry dates and the next meal's goal",
+    responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
+)
+async def get_kindness_balance(
+    permit: CanReadKindness, session: DbSession, response: Response, settings: AppSettings
+) -> KindnessBalanceOut:
+    found = await kindness.balance(session, permit.principal.user_id)
+    response.headers["Cache-Control"] = "no-store"
+    return KindnessBalanceOut(
+        points=found.points,
+        expiring=[PointsExpiring(points=e.points, on=e.on) for e in found.expiring],
+        goal=KindnessGoal(points=settings.kindness_goal, code=kindness.GOAL_CODE),
+    )
+
+
+@router.get(
+    "/kindness/entries",
+    summary="The caller's Kindness points history, newest first",
+    responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
+)
+async def list_kindness_entries(
+    permit: CanReadKindness,
+    session: DbSession,
+    response: Response,
+    cursor: Cursor = None,
+    limit: Limit = 50,
+) -> Page[PointsEntry]:
+    rows, next_cursor = await kindness.entries(session, permit.principal.user_id, cursor, limit)
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=[_points_entry(row) for row in rows], next_cursor=next_cursor)
+
+
+@router.post(
+    "/kindness/donations",
+    status_code=201,
+    summary="Give Kindness points as donated meals (a meal for a child); the only way to use them",
+    responses={
+        409: _problem("billing.not_enough_points (with points and needed)"),
+        422: _problem("request.invalid: meals is 1 to 10"),
+    },
+)
+async def donate_meals(
+    body: DonationIn,
+    permit: CanDonate,
+    session: DbSession,
+    idem: Idempotent,
+    settings: AppSettings,
+) -> DonationOut:
+    goal = settings.kindness_goal
+    entry = await kindness.donate(session, permit.principal.user_id, body.meals, goal, idem.key)
+    out = DonationOut(
+        id=entry.id,
+        meals=body.meals,
+        points=body.meals * goal,
+        code=kindness.GOAL_CODE,
+        at=entry.created_at,
+    )
+    await idem.save(201, out)
+    await session.commit()
+    return out
 
 
 # --- reconciliation (spec §3.4), admin -------------------------------------------------------

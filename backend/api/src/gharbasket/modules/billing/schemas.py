@@ -114,6 +114,55 @@ class WebhookAck(BaseModel):
     outcome: str = Field(description="What the event did (for Razorpay's dashboard and logs)")
 
 
+# --- Kindness points (§3.6): a separate currency, never money -----------------------------------
+
+PointsKind = Literal["points_earned", "points_expired", "points_donated"]
+
+
+class PointsExpiring(BaseModel):
+    points: int = Field(examples=[120])
+    on: date = Field(description="The IST date these points expire at the end of")
+
+
+class KindnessGoal(BaseModel):
+    points: int = Field(description="The points one donated meal takes", examples=[500])
+    code: Literal["child_meal"]
+
+
+class KindnessBalanceOut(BaseModel):
+    points: int = Field(description="Points that can be donated now", examples=[340])
+    expiring: list[PointsExpiring] = Field(
+        description="Soonest first, the next 3 dates within 90 days; [] if none"
+    )
+    goal: KindnessGoal | None = Field(description="What the next donated meal needs")
+
+
+class PointsRef(BaseModel):
+    type: Literal["donation", "referral"]
+    id: uuid.UUID
+
+
+class PointsEntry(BaseModel):
+    id: uuid.UUID
+    kind: PointsKind = Field(description="Show a generic label for a kind the app doesn't know")
+    points: int = Field(description="Into the balance +, out of it -", examples=[120])
+    ref: PointsRef | None = Field(description="What earned the points (earned and expired)")
+    expires_on: date | None = Field(description="IST, for points_earned")
+    at: datetime
+
+
+class DonationIn(BaseModel):
+    meals: int = Field(ge=1, le=10, examples=[1])
+
+
+class DonationOut(BaseModel):
+    id: uuid.UUID = Field(description="The journal entry")
+    meals: int = Field(examples=[1])
+    points: int = Field(examples=[500])
+    code: Literal["child_meal"]
+    at: datetime
+
+
 class RefundIn(BaseModel):
     amount_paise: int | None = Field(
         default=None,

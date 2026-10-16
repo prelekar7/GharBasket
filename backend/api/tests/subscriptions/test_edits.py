@@ -129,6 +129,13 @@ async def test_edit_approve_hand_over_and_skip(
         headers={**priya, **key()},
     )
     assert bad_month.json()["code"] == "subscriptions.budget_invalid"
+    for too_small in (49_999, 0, -100):  # under ₹500 is the module's own 422, not request.invalid
+        small = await api.put(
+            "/v1/budget-lock",
+            json={"month": "2026-10", "budget_paise": too_small},
+            headers={**priya, **key()},
+        )
+        assert (small.status_code, small.json()["code"]) == (422, "subscriptions.budget_invalid")
 
     # Four ops in one go: add, more of one, drop one, swap one.
     line_c, substitute = swap
