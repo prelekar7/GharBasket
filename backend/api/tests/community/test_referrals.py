@@ -13,18 +13,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import service as billing_service
 from gharbasket.modules.billing.models import PointsLot
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.community import referrals
-from gharbasket.modules.community.models import Referral, ReferralCode
+from gharbasket.modules.community import jobs, referrals
+from gharbasket.modules.community.models import Referral, ReferralCode, SocietyRequest
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import User
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.orders.models import Order
+from gharbasket.platform.jobs import JobContext
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import publish
 from gharbasket.tools.seed import SEED_HUB_ID
 
+from ..conftest import make_settings
 from ..identity.conftest import ClientFactory, bearer, sign_in
 from ..identity.fake_firebase import FakeGoogle
 from .conftest import customer, deliver
@@ -333,3 +335,102 @@ async def test_the_eleventh_conversion_in_a_month_pays_only_the_neighbour(
     mine = (await api.get("/v1/referrals", headers=priya)).json()
     assert mine["summary"] == {"joined": 11, "converted": 11, "points_earned": 2500}
     assert mine["items"][0]["points"] == 0
+
+
+async def test_open_referrals_expire_after_90_days_and_void_on_deletion(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, sunita = await _as(api, google, PRIYA), await _as(api, google, SUNITA)
+    ramesh = await _as(api, google, RAMESH)
+    code = await _code(api, priya)
+    old = uuid.UUID((await _claim(api, sunita, code)).json()["id"])
+    recent = uuid.UUID((await _claim(api, ramesh, code)).json()["id"])
+    today = referrals.today()
+    await db_session.execute(
+        update(Referral)
+        .where(Referral.id == old)
+        .values(joined_on=today - timedelta(days=referrals.EXPIRY_DAYS))
+    )
+    await db_session.execute(
+        update(Referral).where(Referral.id == recent).values(joined_on=today - timedelta(days=89))
+    )
+    ctx = JobContext(
+        session=db_session,
+        scheduled_for=datetime.now(UTC),
+        settings=make_settings(),
+    )
+
+    expired = await jobs.expire_referrals(ctx)
+
+    assert expired["voided"] == 1
+    rows = {
+        row.id: (row.status, row.void_reason)
+        for row in (
+            await db_session.execute(select(Referral).execution_options(populate_existing=True))
+        ).scalars()
+    }
+    assert rows == {old: ("void", "expired"), recent: ("joined", None)}
+
+    await publish(
+        db_session,
+        identity_api.DELETION_REQUESTED,
+        {"user_id": str(await _user(db_session, PRIYA)), "household_id": None, "purge_on": None},
+    )
+    await deliver(db_session)
+    # Void referrals pay nothing, even when a box arrives.
+    await _delivered_box(db_session, RAMESH)
+    voided = await db_session.get(Referral, recent, populate_existing=True)
+    assert voided is not None and (voided.status, voided.void_reason) == ("void", "deletion")
+    assert await _points(db_session, RAMESH) == 0
+    for payload in ({}, {"user_id": "x"}):
+        await referrals.on_deletion_requested(
+            db_session, OutboxEvent(event_type=identity_api.DELETION_REQUESTED, payload=payload)
+        )
+    for payload in ({"kind": "box"}, {"kind": "box", "household_id": "x", "order_id": "y"}):
+        await referrals.on_order_delivered(
+            db_session, OutboxEvent(event_type=orders_api.DELIVERED, payload=payload)
+        )
+
+
+async def test_export_never_names_the_neighbour_and_erasure_keeps_the_numbers(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, sunita = await _as(api, google, PRIYA), await _as(api, google, SUNITA)
+    code = await _code(api, priya)
+    await _claim(api, sunita, code)
+    await _delivered_box(db_session, SUNITA)
+    referrer, neighbour = await _user(db_session, PRIYA), await _user(db_session, SUNITA)
+    db_session.add(SocietyRequest(user_id=referrer, name="Panvel Heights"))
+    await db_session.flush()
+
+    exported = await community_api.export_for_user(db_session, referrer)
+    neighbour_export = await community_api.export_for_user(db_session, neighbour)
+
+    made = {"status": "converted", "joined_on": referrals.today(), "points": 250}
+    assert exported["referral_code"] == code
+    assert exported["referrals_made"] == [{**made, "converted_on": referrals.today()}]
+    assert exported["referred"] is None
+    assert neighbour_export["referred"] == {**made, "converted_on": referrals.today()}
+    assert str(neighbour) not in str(exported)
+    facts = await community_api.referral_facts(
+        db_session, date_from=referrals.today(), date_to=referrals.today(), hub_ids=[SEED_HUB_ID]
+    )
+    assert [(f.status, f.referrer_points, f.data_source) for f in facts] == [
+        ("converted", 250, "synthetic")
+    ]
+    assert "referrer_user_id" not in str(facts)
+
+    erased = await community_api.anonymise_for_user(db_session, referrer)
+
+    assert erased == {"referral_codes": 1, "society_requests": 1, "referrals": 0}
+    assert await db_session.get(ReferralCode, referrer) is None
+    assert (
+        len(
+            await community_api.referral_facts(
+                db_session, date_from=referrals.today(), date_to=referrals.today()
+            )
+        )
+        == 1
+    )

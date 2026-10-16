@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +32,7 @@ IST = ZoneInfo("Asia/Kolkata")
 ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 CODE_LENGTH = 6
 CLAIM_WINDOW = timedelta(days=14)
+EXPIRY_DAYS = 90
 MONTHLY_CAP = 10
 LATEST = 50
 SHARE_TEXT: dict[Language, str] = {
@@ -173,7 +174,7 @@ async def referred(session: AsyncSession, user_id: uuid.UUID) -> Referral | None
     ).scalar_one_or_none()
 
 
-# --- conversion --------------------------------------------------------------------------------
+# --- conversion, void and expiry ---------------------------------------------------------------
 
 
 def _uuid(value: Any) -> uuid.UUID | None:
@@ -256,3 +257,32 @@ async def on_order_delivered(session: AsyncSession, event: OutboxEvent) -> None:
             "referee_points": referee_points,
         },
     )
+
+
+async def void_for_user(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """Open referrals of a user whose deletion was requested, on either side, pay nothing."""
+    voided = await session.execute(
+        update(Referral)
+        .where(
+            Referral.status == "joined",
+            or_(Referral.referrer_user_id == user_id, Referral.referee_user_id == user_id),
+        )
+        .values(status="void", void_reason="deletion")
+    )
+    return voided.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+
+
+async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
+    user_id = _uuid(event.payload.get("user_id"))
+    if user_id is not None:
+        await void_for_user(session, user_id)
+
+
+async def expire(session: AsyncSession, on: date) -> int:
+    """`joined` referrals still unconverted 90 days after `joined_on` become void."""
+    expired = await session.execute(
+        update(Referral)
+        .where(Referral.status == "joined", Referral.joined_on <= on - timedelta(days=EXPIRY_DAYS))
+        .values(status="void", void_reason="expired")
+    )
+    return expired.rowcount  # pyright: ignore[reportAttributeAccessIssue]

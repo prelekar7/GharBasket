@@ -427,4 +427,7 @@ async def test_the_facade_and_the_export(db_session: AsyncSession) -> None:
             }
         ],
         "donations": [],
+        "referral_code": None,
+        "referrals_made": [],
+        "referred": None,
     }
