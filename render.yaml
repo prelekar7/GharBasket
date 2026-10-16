@@ -45,6 +45,11 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
+      # The ML service on its Hugging Face Space (ADR-0025); unset: the rule fallbacks answer.
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_SERVICE_TOKEN
+        sync: false
       # Private uploads (M0 §3.1) on Cloudflare R2: from Infisical `staging`. Without them,
       # POST /v1/files/presign answers 503 and sweep_uploads fails.
       - key: S3_ENDPOINT_URL

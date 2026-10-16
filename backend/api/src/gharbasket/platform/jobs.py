@@ -11,8 +11,8 @@ Every run:
   trigger that fires a few minutes late changes nothing;
 - is recorded in `platform.job_runs` with its summary or error.
 
-Modules register their jobs in their own `jobs.py`, imported by their router so the registry is
-complete once the app is built.
+Modules register their jobs in their own `jobs.py`; `gharbasket.modules.registry.load_modules()`
+imports them all, in the app factory and in every tool (`just job`, `just seed`, `just sim`).
 """
 
 import hashlib

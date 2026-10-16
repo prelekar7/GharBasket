@@ -7,7 +7,15 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.models import User, UserRole
-from gharbasket.tools.seed import seed_societies
+from gharbasket.platform.outbox import relay
+from gharbasket.tools.seed import (
+    seed,
+    seed_delivery,
+    seed_households,
+    seed_hubs,
+    seed_partners,
+    seed_societies,
+)
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in, valkey  # noqa: F401
@@ -18,6 +26,23 @@ from ..identity.fake_firebase import FakeGoogle
 async def societies(db_session: AsyncSession) -> None:
     """The six seed societies, inside the test's rolled-back transaction."""
     await seed_societies(db_session)
+
+
+@pytest.fixture
+async def captain_world(db_session: AsyncSession) -> None:
+    """People, societies, households and the seed captains, appointed by M9 (the events
+    delivered), with M1's captain role."""
+    await seed(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+    await seed_partners(db_session)
+    await deliver(db_session)
+
+
+async def deliver(db: AsyncSession) -> None:
+    """Relay until nothing is left: M9's events are published while M8's are delivered."""
+    while (await relay(db)).sent:
+        pass
 
 
 async def customer(api: httpx2.AsyncClient, firebase: FakeGoogle, n: int = 1) -> dict[str, str]:
@@ -40,3 +65,18 @@ async def rider_only(
         "/v1/auth/refresh", json={"refresh_token": signed_in["refresh_token"]}
     )
     return {**bearer(refreshed.json()["access_token"]), "X-Active-Role": f"rider:{hub}"}
+
+
+@pytest.fixture
+async def kindness_world(db_session: AsyncSession) -> None:
+    """People, the seed hub, societies and households: the world of drives and donations."""
+    await seed(db_session)
+    await seed_hubs(db_session)
+    await seed_societies(db_session)
+    await seed_households(db_session)
+
+
+@pytest.fixture
+async def donation_world(db_session: AsyncSession, kindness_world: None) -> None:
+    """The kindness world with the seed hub's slot and Tuesday delivery for its societies."""
+    await seed_delivery(db_session)

@@ -2,7 +2,8 @@ import { Button, Chip, formatPaise, Switch, TextField } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const QUICK_RUPEES = [2500, 3000, 3500, 4000];
 const DEFAULT_PAISE = 300000;
@@ -14,30 +15,40 @@ export const Route = createFileRoute("/_auth/onboarding/budget")({ component: Bu
 
 function Budget() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
+  const step = useStepGo("/onboarding/budget");
   const on = h.budgetLockPaise != null;
   const paise = h.budgetLockPaise ?? DEFAULT_PAISE;
-  const go = () => navigate({ to: nextStep("/onboarding/budget") });
+  const go = step.go;
 
   return (
     <OnboardingFrame
       step={5}
       footer={
         <>
-          <Button variant="primary" size="lg" block isDisabled={on && paise < 50000} onPress={go}>
-            {t("onboarding.next")}
-          </Button>
           <Button
-            variant="quiet"
+            variant="primary"
+            size="lg"
             block
-            onPress={() => {
-              updateHousehold({ budgetLockPaise: null });
-              go();
-            }}
+            isPending={step.busy}
+            isDisabled={on && paise < 50000}
+            onPress={go}
           >
-            {t("onboarding.budget.later")}
+            {step.label}
           </Button>
+          {!step.editing && (
+            <Button
+              variant="quiet"
+              block
+              onPress={() => {
+                updateHousehold({ budgetLockPaise: null });
+                go();
+              }}
+            >
+              {t("onboarding.budget.later")}
+            </Button>
+          )}
         </>
       }
     >

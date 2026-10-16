@@ -204,7 +204,7 @@ async def delivery_log(
 ) -> tuple[list[LogEntry], str | None]:
     """A person's messages with their delivery attempts. A hub manager sees only the people
     whose household their hub serves."""
-    if not any(grant.scope_id is None for grant in permit.grants):
+    if not permit.is_global:
         hub = await identity_api.household_hub(session, user_id)
         if hub is None or not permit.allows(hub):
             raise forbidden()

@@ -133,3 +133,9 @@ class LogEntry(NotificationOut):
 class DeliveryLogOut(BaseModel):
     items: list[LogEntry]
     next_cursor: str | None
+
+
+class WhatsAppAck(BaseModel):
+    outcomes: list[str] = Field(
+        description="Per status update: applied, duplicate, unchanged or unknown_delivery"
+    )
