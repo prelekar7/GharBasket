@@ -10,7 +10,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from sqlalchemy import Float, func, or_, select, text, tuple_
+from sqlalchemy import Float, Select, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -175,7 +175,6 @@ async def list_products(
     limit: int,
 ) -> tuple[list[ProductRow], str | None]:
     """Active products, alphabetical by English name (keyset paginated)."""
-    english = Product.names["en"].astext
     stmt = (
         select(Product, Category)
         .join(Category, Category.id == Product.category_id)
@@ -187,6 +186,14 @@ async def list_products(
         stmt = stmt.where(Category.slug == category)
     if tag:
         stmt = stmt.where(Product.tags.contains([tag]))
+    return await page_by_name(session, stmt, cursor, limit)
+
+
+async def page_by_name(
+    session: AsyncSession, stmt: Select[Product, Category], cursor: str | None, limit: int
+) -> tuple[list[ProductRow], str | None]:
+    """One page of (Product, Category) rows, alphabetical by English name, then id."""
+    english = Product.names["en"].astext
     if cursor is not None:
         after = decode_cursor(cursor).get("after")
         if not (isinstance(after, list) and len(after) == 2 and isinstance(after[0], str)):  # pyright: ignore[reportUnknownArgumentType]

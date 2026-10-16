@@ -327,12 +327,14 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
     }
 
 
-async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
-    """Display names of staff (who holds a packing task); users without a name are left out."""
-    if not user_ids:
+async def user_names(session: AsyncSession, user_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """Names of staff for "edited by" and history in the console (M2 §3.3); unnamed users and
+    unknown ids are left out."""
+    wanted = set(user_ids)
+    if not wanted:
         return {}
-    rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
-    return {user_id: name for user_id, name in rows.all() if name is not None}
+    rows = await session.execute(select(User.id, User.name).where(User.id.in_(wanted)))
+    return {user_id: name for user_id, name in rows.all() if name}
 
 
 async def holds_role(
