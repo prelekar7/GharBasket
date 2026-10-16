@@ -22,3 +22,6 @@ DONATION_CANCELLED = "community.donation_cancelled"
 DONATION_VERIFIED = "community.donation_verified"
 # {donation_id, user_id, hub_id, reason}: M11 notifies.
 DONATION_REJECTED = "community.donation_rejected"
+# {referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points,
+# referee_points}: for M12 (§3.3). M11 maps nothing: billing.points_credited already notifies.
+REFERRAL_CONVERTED = "community.referral_converted"

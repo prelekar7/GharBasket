@@ -97,6 +97,12 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
+    public_web_url: str = "https://gharbasket.in"
+    # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
+    # §3.3, owner 2026-10-09): half a donated meal each.
+    referral_points_referrer: int = Field(default=250, ge=0, le=5000)
+    referral_points_referee: int = Field(default=250, ge=0, le=5000)
     # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
     # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
     real_data_source: Literal["pilot", "live"] = "pilot"

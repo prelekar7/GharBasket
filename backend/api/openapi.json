@@ -9028,6 +9028,281 @@
         "title": "RecipeSummary",
         "type": "object"
       },
+      "ReferralClaimIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "examples": [
+              "K7Q2XD"
+            ],
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "ReferralClaimIn",
+        "type": "object"
+      },
+      "ReferralClaimOut": {
+        "properties": {
+          "converts_on": {
+            "const": "first_delivered_box",
+            "title": "Converts On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "referee_points": {
+            "examples": [
+              250
+            ],
+            "title": "Referee Points",
+            "type": "integer"
+          },
+          "status": {
+            "const": "joined",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "referee_points",
+          "converts_on"
+        ],
+        "title": "ReferralClaimOut",
+        "type": "object"
+      },
+      "ReferralItem": {
+        "description": "A neighbour who joined with the caller's code: never a name, flat, tower or phone.",
+        "properties": {
+          "converted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "joined_on": {
+            "format": "date",
+            "title": "Joined On",
+            "type": "string"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once converted; 0 over the monthly cap",
+            "title": "Points"
+          },
+          "status": {
+            "enum": [
+              "joined",
+              "converted",
+              "void"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "joined_on",
+          "converted_on",
+          "points"
+        ],
+        "title": "ReferralItem",
+        "type": "object"
+      },
+      "ReferralRewards": {
+        "properties": {
+          "monthly_cap": {
+            "description": "Rewarded conversions per IST month",
+            "examples": [
+              10
+            ],
+            "title": "Monthly Cap",
+            "type": "integer"
+          },
+          "referee_points": {
+            "examples": [
+              250
+            ],
+            "title": "Referee Points",
+            "type": "integer"
+          },
+          "referrer_points": {
+            "examples": [
+              250
+            ],
+            "title": "Referrer Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "referrer_points",
+          "referee_points",
+          "monthly_cap"
+        ],
+        "title": "ReferralRewards",
+        "type": "object"
+      },
+      "ReferralSummary": {
+        "properties": {
+          "converted": {
+            "examples": [
+              2
+            ],
+            "title": "Converted",
+            "type": "integer"
+          },
+          "joined": {
+            "examples": [
+              3
+            ],
+            "title": "Joined",
+            "type": "integer"
+          },
+          "points_earned": {
+            "examples": [
+              500
+            ],
+            "title": "Points Earned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "joined",
+          "converted",
+          "points_earned"
+        ],
+        "title": "ReferralSummary",
+        "type": "object"
+      },
+      "ReferralsOut": {
+        "properties": {
+          "code": {
+            "examples": [
+              "K7Q2XD"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "items": {
+            "description": "Newest first, at most 50",
+            "items": {
+              "$ref": "#/components/schemas/ReferralItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null while the caller has no household",
+            "examples": [
+              "https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD"
+            ],
+            "title": "Link"
+          },
+          "referred_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReferredBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rewards": {
+            "$ref": "#/components/schemas/ReferralRewards"
+          },
+          "share_text": {
+            "description": "In the request language; carries the link",
+            "title": "Share Text",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ReferralSummary"
+          }
+        },
+        "required": [
+          "code",
+          "link",
+          "share_text",
+          "rewards",
+          "summary",
+          "referred_by",
+          "items"
+        ],
+        "title": "ReferralsOut",
+        "type": "object"
+      },
+      "ReferredBy": {
+        "properties": {
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set once converted",
+            "examples": [
+              250
+            ],
+            "title": "Points"
+          },
+          "status": {
+            "enum": [
+              "joined",
+              "converted",
+              "void"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "points"
+        ],
+        "title": "ReferredBy",
+        "type": "object"
+      },
       "RefreshIn": {
         "description": "Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.",
         "properties": {
@@ -27906,6 +28181,227 @@
         "summary": "One recipe with its ingredients and the cost of a serving at the caller's hub",
         "tags": [
           "catalog"
+        ]
+      }
+    },
+    "/v1/referrals": {
+      "get": {
+        "operationId": "my_referrals_v1_referrals_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferralsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "My referral code and link, what referrals earn, and the neighbours who joined",
+        "tags": [
+          "community"
+        ]
+      },
+      "post": {
+        "operationId": "claim_referral_v1_referrals_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferralClaimIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferralClaimOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.referral_code_unknown"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.already_referred, community.referral_window_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "community.household_required, community.referral_self, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Use a neighbour's referral code (Idempotency-Key required)",
+        "tags": [
+          "community"
         ]
       }
     },

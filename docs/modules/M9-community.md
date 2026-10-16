@@ -265,6 +265,13 @@ POST /v1/referrals              customer (the neighbour who was referred); Idemp
 | The link is built on the client: `${origin}/s/<slug>` with no code; `onboarding/done.jsx` passes the society id, not the slug | Use `Referrals.link` (it carries `?ref=`) and `share_text` from `GET /v1/referrals` |
 | Mock slug `sunrise-towers`; console and public mocks use `sunrise-towers-kharghar` | The slug is §3.1's `SocietySummary.slug` |
 
+**As built (S9).**
+- **Order of refusals** when claiming: 422 `community.household_required`, 404 `community.referral_code_unknown`, 422 `community.referral_self`, 409 `community.already_referred`, 409 `community.referral_window_closed`. Codes are matched in any case, spaces trimmed. The household rule compares the referrer's household with the caller's (only an owner has one today).
+- **Points are fixed at the claim**: the row keeps the `REFERRAL_POINTS_*` in force then, and the conversion pays them (the referrer's becomes 0 over the cap). `points` in `items` and `referred_by` is null until converted. `summary.joined` counts the referrals that are not void. `converted_on` is the IST date of the `orders.delivered` event.
+- **Kindness points** come from M5's `credit_points` (`referral_welcome` for the neighbour, `referral` for the referrer), built for this (M5 §3.6 as built). Concurrent conversions of one referrer are counted one at a time (an advisory lock), so the cap holds.
+- **`share_text`** is one sentence per language with the code, then the link (`PUBLIC_WEB_URL`, default `https://gharbasket.in`).
+- **Not yet:** void on deletion, the 90-day expiry, the export and erasure parts and `referral_facts` follow in the next PR.
+
 ### 3.4 Point rates, drives and donations contract (drafted 2026-10-09, frozen on approval)
 A customer gives clothes, books, toys, school bags or utensils. Whoever brings the household's box collects them at the door on a delivery day, the van brings them back (M7 §3.6), the hub counts them, and the customer earns Kindness points (M5 §3.6). The mobile Kindness screen and the console's Drives, Point rates and Donations pages build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 

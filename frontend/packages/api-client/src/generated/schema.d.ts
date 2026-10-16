@@ -1959,6 +1959,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My referral code and link, what referrals earn, and the neighbours who joined */
+        get: operations["my_referrals_v1_referrals_get"];
+        put?: never;
+        /** Use a neighbour's referral code (Idempotency-Key required) */
+        post: operations["claim_referral_v1_referrals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/route-plans/{plan_id}": {
         parameters: {
             query?: never;
@@ -6164,6 +6182,143 @@ export interface components {
             slug: string;
             /** Tags */
             tags: string[];
+        };
+        /** ReferralClaimIn */
+        ReferralClaimIn: {
+            /**
+             * Code
+             * @example K7Q2XD
+             */
+            code: string;
+        };
+        /** ReferralClaimOut */
+        ReferralClaimOut: {
+            /**
+             * Converts On
+             * @constant
+             */
+            converts_on: "first_delivered_box";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Referee Points
+             * @example 250
+             */
+            referee_points: number;
+            /**
+             * Status
+             * @constant
+             */
+            status: "joined";
+        };
+        /**
+         * ReferralItem
+         * @description A neighbour who joined with the caller's code: never a name, flat, tower or phone.
+         */
+        ReferralItem: {
+            /** Converted On */
+            converted_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Joined On
+             * Format: date
+             */
+            joined_on: string;
+            /**
+             * Points
+             * @description Set once converted; 0 over the monthly cap
+             */
+            points: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "joined" | "converted" | "void";
+        };
+        /** ReferralRewards */
+        ReferralRewards: {
+            /**
+             * Monthly Cap
+             * @description Rewarded conversions per IST month
+             * @example 10
+             */
+            monthly_cap: number;
+            /**
+             * Referee Points
+             * @example 250
+             */
+            referee_points: number;
+            /**
+             * Referrer Points
+             * @example 250
+             */
+            referrer_points: number;
+        };
+        /** ReferralSummary */
+        ReferralSummary: {
+            /**
+             * Converted
+             * @example 2
+             */
+            converted: number;
+            /**
+             * Joined
+             * @example 3
+             */
+            joined: number;
+            /**
+             * Points Earned
+             * @example 500
+             */
+            points_earned: number;
+        };
+        /** ReferralsOut */
+        ReferralsOut: {
+            /**
+             * Code
+             * @example K7Q2XD
+             */
+            code: string;
+            /**
+             * Items
+             * @description Newest first, at most 50
+             */
+            items: components["schemas"]["ReferralItem"][];
+            /**
+             * Link
+             * @description null while the caller has no household
+             * @example https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD
+             */
+            link: string | null;
+            referred_by: components["schemas"]["ReferredBy"] | null;
+            rewards: components["schemas"]["ReferralRewards"];
+            /**
+             * Share Text
+             * @description In the request language; carries the link
+             */
+            share_text: string;
+            summary: components["schemas"]["ReferralSummary"];
+        };
+        /** ReferredBy */
+        ReferredBy: {
+            /**
+             * Points
+             * @description Set once converted
+             * @example 250
+             */
+            points: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "joined" | "converted" | "void";
         };
         /**
          * RefreshIn
@@ -16292,6 +16447,137 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_referrals_v1_referrals_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    claim_referral_v1_referrals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralClaimOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.referral_code_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.already_referred, community.referral_window_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.household_required, community.referral_self, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

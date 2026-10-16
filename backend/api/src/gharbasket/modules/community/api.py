@@ -22,6 +22,7 @@ from gharbasket.modules.community.events import (
     DONATION_REJECTED,
     DONATION_SCHEDULED,
     DONATION_VERIFIED,
+    REFERRAL_CONVERTED,
     SOCIETY_LIVE,
 )
 from gharbasket.modules.community.models import Captain, Society, SocietyRequest
@@ -36,6 +37,7 @@ __all__ = [
     "DONATION_REJECTED",
     "DONATION_SCHEDULED",
     "DONATION_VERIFIED",
+    "REFERRAL_CONVERTED",
     "SOCIETY_LIVE",
     "CaptainCard",
     "CaptainRef",

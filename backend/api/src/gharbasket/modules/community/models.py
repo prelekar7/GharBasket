@@ -1,8 +1,8 @@
 """Tables of M9 Community & Kindness. Every table sets `__table_args__ = {"schema": SCHEMA}`.
 
 Societies and residents' requests for new ones (spec §3.1) with how they unlock (§3.6), captain
-appointments (§3.2), and the Kindness point rates and donation drives (§3.4). Referrals, donations
-and NGOs follow.
+appointments (§3.2), the Kindness point rates and donation drives (§3.4), and referral codes and
+referrals (§3.3). NGOs follow.
 """
 
 import uuid
@@ -333,3 +333,64 @@ class DonationEvent(Base):
     status: Mapped[str] = mapped_column(String(12))
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- Referrals (§3.3) ---------------------------------------------------------------------------
+
+REFERRAL_STATUSES = ("joined", "converted", "void")
+VOID_REASONS = ("expired", "deletion")
+
+
+class ReferralCode(Base):
+    """A customer's share code (§3.3): random, never derived from a name or phone."""
+
+    __tablename__ = "referral_codes"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    # identity.users.id; no foreign key across module schemas.
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    code: Mapped[str] = mapped_column(String(6), unique=True)  # upper case
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Referral(Base):
+    """A neighbour who claimed a code (§3.3). Rows are kept after erasure, so the impact numbers
+    stay true; the user ids then lead to no one."""
+
+    __tablename__ = "referrals"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", REFERRAL_STATUSES), name="status"),
+        CheckConstraint(
+            f"void_reason IS NULL OR {_one_of('void_reason', VOID_REASONS)}", name="void_reason"
+        ),
+        CheckConstraint("(status = 'converted') = (converted_on IS NOT NULL)", name="converted"),
+        CheckConstraint("referrer_points >= 0 AND referee_points >= 0", name="points"),
+        CheckConstraint(_one_of("data_source", ("real", "synthetic")), name="data_source"),
+        Index("ix_referrals_referrer_converted_on", "referrer_user_id", "converted_on"),
+        Index("ix_referrals_referee_household_id", "referee_household_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    code: Mapped[str] = mapped_column(String(6))
+    referrer_user_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    # A user is referred at most once.
+    referee_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True)
+    referee_household_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    # The referee's society and hub.
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    hub_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    status: Mapped[str] = mapped_column(String(10), server_default="joined")
+    joined_on: Mapped[date] = mapped_column(Date)  # IST
+    converted_on: Mapped[date | None] = mapped_column(Date)  # IST
+    order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # the converting box (M4)
+    # Promised at the claim (REFERRAL_POINTS_*), paid at conversion; the referrer's becomes 0
+    # over the monthly cap.
+    referrer_points: Mapped[int] = mapped_column(Integer)
+    referee_points: Mapped[int] = mapped_column(Integer)
+    # M5 journal entries of the two credits.
+    referrer_entry_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    referee_entry_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    void_reason: Mapped[str | None] = mapped_column(String(10))
+    data_source: Mapped[str] = mapped_column(String(16), server_default="real")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

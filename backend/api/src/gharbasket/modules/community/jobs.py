@@ -3,14 +3,16 @@
 - Captains follow M8's verification and suspension (§3.2). `partners.reinstated` is deliberately
   not consumed: the hub manager decides whether a reinstated captain serves again.
 - A new household, or one that moved society, may unlock its society (§3.6).
+- A delivered box converts its household's referral (§3.3).
 - `sweep_missed_pickups` closes each delivery day's donation pickups (§3.4).
 """
 
 from typing import Any
 
-from gharbasket.modules.community import donations, drives, unlock
+from gharbasket.modules.community import donations, drives, referrals, unlock
 from gharbasket.modules.community.captains import on_partner_suspended, on_partner_verified
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.outbox import subscribe
@@ -19,6 +21,7 @@ subscribe(partners_api.VERIFIED, on_partner_verified)
 subscribe(partners_api.SUSPENDED, on_partner_suspended)
 subscribe(identity_api.HOUSEHOLD_CREATED, unlock.on_household_created)
 subscribe(identity_api.HOUSEHOLD_UPDATED, unlock.on_household_updated)
+subscribe(orders_api.DELIVERED, referrals.on_order_delivered)
 
 
 @job(
