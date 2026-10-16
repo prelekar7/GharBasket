@@ -253,7 +253,8 @@ export interface paths {
         /** Every product for the console, active or not, alphabetical */
         get: operations["list_admin_products_v1_admin_products_get"];
         put?: never;
-        post?: never;
+        /** Add a product (admin; Idempotency-Key; audit-logged) */
+        post: operations["create_product_v1_admin_products_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -269,6 +270,24 @@ export interface paths {
         };
         /** One product for the console (ETag: its version) */
         get: operations["get_admin_product_v1_admin_products__product_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a product, or deactivate or reactivate it (admin; If-Match; audit-logged) */
+        patch: operations["edit_product_v1_admin_products__product_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/products/{product_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who changed a product and what, newest first (from the audit log) */
+        get: operations["product_history_v1_admin_products__product_id__history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3506,6 +3525,13 @@ export interface components {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
         };
+        /** FieldChange */
+        FieldChange: {
+            /** From */
+            from: unknown;
+            /** To */
+            to: unknown;
+        };
         /** ForecastItemIn */
         ForecastItemIn: {
             /** Committed */
@@ -3617,6 +3643,32 @@ export interface components {
             /** Params */
             params: {
                 [key: string]: unknown;
+            };
+        };
+        /** History */
+        History: {
+            /**
+             * Items
+             * @description Newest first, at most 100
+             */
+            items: components["schemas"]["HistoryEntry"][];
+        };
+        /** HistoryEntry */
+        HistoryEntry: {
+            /**
+             * Action
+             * @example catalog.product_updated
+             */
+            action: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** Changed */
+            changed: {
+                [key: string]: components["schemas"]["FieldChange"];
             };
         };
         /**
@@ -4823,6 +4875,18 @@ export interface components {
             hi: string;
             /** Mr */
             mr: string;
+        };
+        /**
+         * NamesIn
+         * @description All three are required; a missing or blank one is 422 `catalog.names_incomplete`.
+         */
+        NamesIn: {
+            /** En */
+            en?: string | null;
+            /** Hi */
+            hi?: string | null;
+            /** Mr */
+            mr?: string | null;
         };
         /** NotificationOut */
         NotificationOut: {
@@ -6161,6 +6225,40 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** ProductIn */
+        ProductIn: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /**
+             * Kind
+             * @description veg, fruit, staple or salad (else catalog.kind_not_editable)
+             */
+            kind: string;
+            names: components["schemas"]["NamesIn"];
+            nutrition?: components["schemas"]["Nutrition"] | null;
+            /** Shelf Life H */
+            shelf_life_h?: number | null;
+            /**
+             * Slug
+             * @example bhindi
+             */
+            slug: string;
+            step: components["schemas"]["StepIn"];
+            /**
+             * Synonyms
+             * @default []
+             */
+            synonyms: components["schemas"]["SynonymIn"][];
+            /**
+             * Tags
+             * @description Codes from catalog.TAGS
+             * @default []
+             */
+            tags: string[];
+        };
         /**
          * ProductNutrition
          * @description Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.
@@ -6222,6 +6320,36 @@ export interface components {
              */
             tags: string[];
         };
+        /**
+         * ProductPatch
+         * @description Only the fields sent change. slug, kind and step never change (catalog.field_immutable).
+         */
+        ProductPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * Kind
+             * @description Refused: catalog.field_immutable
+             */
+            kind?: string | null;
+            names?: components["schemas"]["NamesIn"] | null;
+            nutrition?: components["schemas"]["Nutrition"] | null;
+            /** Shelf Life H */
+            shelf_life_h?: number | null;
+            /**
+             * Slug
+             * @description Refused: catalog.field_immutable
+             */
+            slug?: string | null;
+            /** @description Refused: catalog.field_immutable */
+            step?: components["schemas"]["StepIn"] | null;
+            /** Synonyms */
+            synonyms?: components["schemas"]["SynonymIn"][] | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
         /** ProductRef */
         ProductRef: {
             /** Name */
@@ -6233,6 +6361,62 @@ export interface components {
             product_id: string;
             /** Slug */
             slug: string;
+        };
+        /** ProductSaved */
+        ProductSaved: {
+            /** Active */
+            active: boolean;
+            category: components["schemas"]["CategoryRef"];
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad";
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            nutrition: components["schemas"]["Nutrition"] | null;
+            /**
+             * Recipes Recomputed
+             * @description Slugs of recipes whose derived rules changed with the tags
+             * @default []
+             */
+            recipes_recomputed: string[];
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
+            /** Synonyms */
+            synonyms: components["schemas"]["SynonymIn"][];
+            /** Tags */
+            tags: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Who last edited it in the console */
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Used By Recipes
+             * @description Active recipes with this product as an ingredient
+             */
+            used_by_recipes: number;
+            /** Version */
+            version: number;
         };
         /** ProposalOut */
         ProposalOut: {
@@ -7698,6 +7882,19 @@ export interface components {
              * @example 250 g
              */
             label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** StepIn */
+        StepIn: {
             /**
              * Qty
              * @example 250
@@ -9896,6 +10093,79 @@ export interface operations {
             };
         };
     };
+    create_product_v1_admin_products_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProduct"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), catalog.kind_not_editable, catalog.tag_unknown (tags), catalog.category_unknown, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_admin_product_v1_admin_products__product_id__get: {
         parameters: {
             query?: never;
@@ -9917,6 +10187,168 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminProduct"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_product_v1_admin_products__product_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaved"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_in_use (recipes) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.tag_unknown (tags), catalog.category_unknown, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    product_history_v1_admin_products__product_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["History"];
                 };
             };
             /** @description auth.invalid_token */

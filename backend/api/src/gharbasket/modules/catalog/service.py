@@ -7,6 +7,7 @@ so search works even where the database's trigram index cannot read Devanagari.
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,7 +44,7 @@ def product_not_found() -> ProblemError:
     return ProblemError(404, "catalog.product_not_found", "No such product.")
 
 
-# --- writing (seed now; the console editor later) ---------------------------------------------
+# --- writing (the seed; the console editor is in admin.py) -----------------------------------
 
 
 @dataclass(frozen=True)
@@ -108,11 +109,14 @@ async def save_product(session: AsyncSession, data: ProductData) -> tuple[Produc
     if data.nutrition is not None:
         product.nutrition = data.nutrition
     await session.flush()
-    await _rebuild_terms(session, product, data.synonyms)
+    await rebuild_terms(session, product, data.synonyms)
     return product, created
 
 
-def spellings(names: dict[str, str], synonyms: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+Synonym = str | tuple[str, str]  # a term (its language guessed), or (term, lang)
+
+
+def spellings(names: dict[str, str], synonyms: Iterable[Synonym]) -> dict[str, tuple[str, str]]:
     """Every spelling of a product → (lang, source), first one wins on duplicates."""
     found: dict[str, tuple[str, str]] = {}
 
@@ -124,14 +128,17 @@ def spellings(names: dict[str, str], synonyms: tuple[str, ...]) -> dict[str, tup
     for lang in ("en", "hi", "mr"):
         add(names[lang], lang, "name")
     for synonym in synonyms:
-        add(synonym, "hinglish" if not has_devanagari(synonym) else "hi", "synonym")
+        if isinstance(synonym, tuple):
+            add(synonym[0], synonym[1], "synonym")
+        else:
+            add(synonym, "hinglish" if not has_devanagari(synonym) else "hi", "synonym")
     for lang in ("hi", "mr"):
         add(hinglish(names[lang]), "hinglish", "transliteration")
     return found
 
 
-async def _rebuild_terms(
-    session: AsyncSession, product: Product, synonyms: tuple[str, ...]
+async def rebuild_terms(
+    session: AsyncSession, product: Product, synonyms: Iterable[Synonym]
 ) -> None:
     await session.execute(
         SearchTerm.__table__.delete().where(SearchTerm.product_id == product.id)  # pyright: ignore[reportAttributeAccessIssue]
