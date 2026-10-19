@@ -2525,6 +2525,29 @@
         "title": "DeviceOut",
         "type": "object"
       },
+      "DishOut": {
+        "properties": {
+          "name": {
+            "description": "In Accept-Language",
+            "examples": [
+              "Varan bhaat"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_id": {
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "name"
+        ],
+        "title": "DishOut",
+        "type": "object"
+      },
       "DocumentRequirement": {
         "properties": {
           "doc_type": {
@@ -7607,6 +7630,41 @@
           }
         },
         "title": "MemberUpdate",
+        "type": "object"
+      },
+      "MenuKitchenOut": {
+        "properties": {
+          "display_name": {
+            "examples": [
+              "Lata tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for now (M8 §3.5)",
+            "title": "Photo Url"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "photo_url"
+        ],
+        "title": "MenuKitchenOut",
         "type": "object"
       },
       "MessageIn": {
@@ -17230,6 +17288,86 @@
           "mr"
         ],
         "title": "Texts",
+        "type": "object"
+      },
+      "TiffinMenuOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kitchen": {
+            "$ref": "#/components/schemas/MenuKitchenOut",
+            "description": "The menu's cook: a preference (M8 §3.4)"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "order_by": {
+            "description": "The cut-off of that date (T-1 21:00 IST)",
+            "format": "date-time",
+            "title": "Order By",
+            "type": "string"
+          },
+          "price_paise": {
+            "description": "Per portion",
+            "examples": [
+              11000
+            ],
+            "title": "Price Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "meal",
+          "hub_id",
+          "dishes",
+          "price_paise",
+          "kitchen",
+          "order_by"
+        ],
+        "title": "TiffinMenuOut",
+        "type": "object"
+      },
+      "TiffinMenusOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TiffinMenuOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TiffinMenusOut",
         "type": "object"
       },
       "TimelineEvent": {
@@ -41522,6 +41660,109 @@
         "summary": "Pause or resume, or set auto-approve",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/tiffin-menus": {
+      "get": {
+        "operationId": "tiffin_menus_v1_tiffin_menus_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "meal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "lunch",
+                    "dinner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meal"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required, orders.date_out_of_range, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Approved tiffin menus of your hub, tomorrow to a week ahead, still open to book",
+        "tags": [
+          "orders",
+          "orders"
         ]
       }
     },
