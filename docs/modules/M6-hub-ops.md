@@ -79,6 +79,9 @@ Hub : { "id": "<uuid>", "slug": "kharghar", "name": "Kharghar hub",
                      "dispatch": "06:30", "surplus": "12:30" },   the hub's day (IST); display and
                                                          job planning only; the cut-off is not here
         "procurement_buffer_pct": 10,                    0 to 50; the rule-based buffer (§3.3)
+        "pre_live_box_fee_paise": 3000,                  0 to 10,000; the delivery fee on each box
+                                                         while a society is not live (added
+                                                         2026-10-10, M9 §3.6 and §11)
         "version": 1, "created_at", "updated_at" }
 HubSummary : { "id", "slug", "name", "status" }
 
@@ -87,12 +90,12 @@ GET /v1/hubs                    200 { "items": [ HubSummary ] }   admin: every h
 GET /v1/hubs/{id}               200 Hub (ETag = version) | 404 "hub_ops.hub_not_found"
 POST /v1/admin/hubs             admin; Idempotency-Key
   request : { "slug", "name", "address", "location", "service_area"?, "timings"?,
-              "procurement_buffer_pct"? }       slug: lower-case letters, digits and "-", 3 to 40,
+              "procurement_buffer_pct"?, "pre_live_box_fee_paise"? }   slug: lower-case letters, digits and "-", 3 to 40,
                                                 unique, never changes; name 3 to 80; address up to 300
   201 : Hub (status active; timings default to the values above); publishes hub_ops.hub_created
 PATCH /v1/admin/hubs/{id}       admin; If-Match (the hub's version)
   request : any of { "name", "address", "location", "service_area" (null clears it), "status",
-                     "timings", "procurement_buffer_pct" }
+                     "timings", "procurement_buffer_pct", "pre_live_box_fee_paise" }
   200 : Hub (version + 1); publishes hub_ops.hub_updated { hub_id, changed: ["service_area", …] }
 
 Vendor : { "id", "hub_id", "name": "Shinde Traders",
@@ -219,6 +222,25 @@ POST /v1/packing-tasks/{id}/release        hub_manager; Idempotency-Key
 - **Offline outbox (packer app).** Each tap is stored on the phone with an `Idempotency-Key` made **when tapped**, and sent in order, one task's queue at a time. A replay with the same key answers what the first call answered (M0; keys live 24 h, longer than a packing morning). `pick` is absolute, so a repeated pick under a new key changes nothing. On a 409 or 422 the app stops that task's queue and shows the conflict; other tasks continue. `client_at` (when the packer tapped) is stored in the task's events for audit and productivity; the server's time decides everything else.
 - **Order status follows the task**: `queued` = order `locked`, `picking` = `picking`, `packed` = `packed`. M6 never writes `orders.*`; an illegal move (for example an order already `packed` by a hub manager in the console) comes back as 409 `orders.illegal_transition` and the task is not changed.
 
+**As built (PR b1, packing tasks and the floor's reads).** Details the contract leaves open, settled in the code:
+- **Queue order.** The first build numbers tasks by slot start, society name, tower label and flat (digit runs compare as numbers, so `A-101` comes before `A-1203`), then order id. A later build (or job run) appends the orders that have no task yet after the highest `seq`, sorted the same way; existing tasks keep their place. `existing` in the build answer counts the tasks the date already had. Builds of one hub run one after the other (the hub row is locked).
+- **Routes are not consumed yet.** M7 is not built, so `route` is always `null` and nothing re-sequences queued tasks; the consumer of `logistics.route_published` comes with M7 and sets `route_id`/`stop_seq` on queued tasks.
+- **`flat_label`** is `"<tower label>, <flat>"` (`"B wing, B-402"`), or the flat alone when the tower is unknown, or `null` without an address. Tower and flat are copied from `identity.api.delivery_labels` when the task is built; society names and tower labels come from `community.api.society_labels`, the packer's name from `identity.api.user_names`.
+- **Lines** are ordered by the catalog category's `sort_order` (then category slug) and the name in the request's language; `catalog.api.LineProduct` gained `shelf` (category sort order, category slug) for this.
+- **Summary.** `crates` is the highest crate number packed so far in the society (0 before the first bag).
+- **Who.** The franchise owner and admins read the queue (`packing:read`); hub managers and admins build (`packing:manage`). A task of another hub is 404 `hub_ops.task_not_found`; another hub's list, summary or build is 403 `auth.forbidden`.
+- **Facade.** `hub_ops.api.society_loads` and `hub_ops.api.bag_for_order` are built as listed below.
+
+**As built (PR b2, the packer's moves).**
+- **"Never substitute, refund" (ADR-0026 §6, M1 §3.4).** Packing reads the household's preference through `identity.api.shortage_preferences` when the shortage is recorded (`hub_ops.packing.household_allows_substitutes`), so a change applies at once; a substitute for a household that chose `refund` is 422 `hub_ops.substitute_invalid` with `reason: "refund_preferred"` (the packer then records a refund). M4's `mark_shortage` checks the same rule again.
+- **`next`** works on today's tasks (IST). Besides queued tasks it offers started tasks a hub manager released (status `picking`, no packer), by `seq`. A task whose order M4 refuses to move (packed in the console) is passed over and stays `queued`. `204` keeps no `Idempotency-Key` (nothing happened), so a retry asks again.
+- **`start`** by the packer who holds the task returns it unchanged; on a released task it only sets the packer (the order is already `picking`). `bag_qr` is checked before anything else, also on a packed task (`hub_ops.task_packed` wins).
+- **Shortage codes.** M6 checks the ranges first (`hub_ops.qty_invalid`: no substitute, 1 … qty − picked; `hub_ops.substitute_invalid` with `reason: "partial"` for a substitute that is not the whole line or after a pick). M4's refusals are passed on as `hub_ops.substitute_invalid` with M4's `reason` (`not_a_substitute`, `on_order`, `pricier`, `no_price`, or `unknown` for an inactive product); `billing.wallet_limit` and `orders.not_editable` are passed on as they are. A substituted line keeps `short_qty` 0 (nothing was refunded by steps; M4 refunds the price difference) and is done once `qty` steps of the substitute are picked; `pick` takes either the ordered or the substitute's product id.
+- **Complete.** `bags` defaults to the task's (1). Without `crate_no` the crate is `⌊bags already packed in the society today ÷ 3⌋ + 1` (at most 99); a multi-bag task gets the crate of its first bag. Packed tasks keep their packer.
+- **Who.** A hub manager acting on a task is actor `hub` on the order (`actor_user_id` = the manager); a packer is `packer`. Admins may release (`packing:manage`) but not pack (`packing:write` is packer and hub manager only). Another hub's `next` is 403 `auth.forbidden`; its tasks are 404 `hub_ops.task_not_found`.
+- **Events.** Each change writes a `hub_ops.packing_events` row (`start` with the scanned QR, `pick` with the absolute quantity, `shortage`, `complete` with bags and crate, `release` with the previous packer) and `client_at`; a `pick` that changes nothing writes none and keeps the version.
+- **Not tested here:** two packers calling `next` at the same instant on separate database connections (the test database rolls each test back inside one connection); sequential claims by two packers are tested, and the claim uses `FOR UPDATE SKIP LOCKED`.
+
 **Error codes** (in addition to §3.1)
 
 | Status | Code | When |
@@ -338,6 +360,22 @@ Deliver by 04:00 on Tue 15 Dec 2026 to Plot 12, Sector 19, Kharghar
 Total ₹1,600.00 + 1 item at market price
 ```
 
+**As built (PR c1, plans and lines).** Details the rules above leave open, settled in the code:
+- One migration creates all four §3.3 tables.
+- A plan's `version` counts changes to its lines (a rebuild that changes something, a line edit). Status moves made by purchase orders do not bump it, so sending one PO never makes the plan's other drafts stale.
+- A number sent as `order_qty` pins the line (`edited: true`) and needs a `reason`, unless the line is already edited at that quantity; `order_qty: null` needs none. A `PATCH` that changes nothing keeps the version and writes no audit row; otherwise `platform.audit_log` gets `procurement.line_updated` (entity `<plan id>:<product id>`) with the changed fields before and after, and the reason.
+- A rebuild uses the hub's current `procurement_buffer_pct`. `buffer_qty` is rounded half up to 0.001 before `suggested_qty` is rounded up. Lines are listed by the catalog category's sort order, then by name in Accept-Language.
+- `POST …/build` on a closed plan is 409 `hub_ops.plan_not_editable`; the jobs skip it and report how many plans were `built`, `rebuilt`, `unchanged` or `closed`. `refresh_procurement_plan` and the `intel.forecast_ready` consumer never create a plan.
+- Until the sections they read exist, three hooks stand in: the forecast (`_forecast_for`, wired to `intel_gateway.api.hub_forecast` when M10's forecast PRs land; none today, so `source` is `fallback` and every line uses the buffer), usable stock (`_on_hand_for`, §3.4 lots; 0 today) and the last receipt cost (`_last_costs`, §3.4; null today). Carried-over lines are left out once M4's order lines carry `carried_from_order_id`.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/…` paths and 404 `hub_ops.plan_not_found` for its plan ids.
+- `just seed` adds "Kharghar Kisan FPO" (`fpo`, leafy greens) and "Patil Wholesale" (`wholesaler`, staples) beside the default "Shinde Traders".
+
+**As built (PR c2, purchase orders).**
+- `share_text` reads "PO draft" until the PO is sent, then carries its number; it uses the hub's full address and `timings.receiving`, and lists the lines by English name. `whatsapp_url` is made on each read from the vendor's current phone and WhatsApp flag.
+- A number counts every numbered PO of the hub and delivery date (a cancelled one keeps its number), so numbers are never reused; sending locks the hub, then the plan, then the PO.
+- A cancelled draft stays, `cancelled` with its reason; regenerating deletes the plan's drafts instead.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/purchase-orders` and 404 `hub_ops.po_not_found` for its PO ids.
+
 **Error codes** (in addition to §3.1 and §3.2)
 
 | Status | Code | When |
@@ -429,6 +467,21 @@ POST /v1/lots/{id}/count                   hub_manager; Idempotency-Key
 - **reliability** (20 %) = ½ × the fill rate (mean over its POs' lines of `min(1, received_qty ÷ qty)`, a cancelled `not_delivered` PO counting 0) + ½ × the share of its POs whose first receipt came by the hub's `timings.packing` on the delivery day;
 - **defects** (stored as the rejected share: the mean over its receipt lines of rejected ÷ received; it counts 20 % as `1 − defects`);
 - `score` = the weighted sum over the components that have data, divided by their weights; rounded to 2 decimals.
+
+**As built (PR d1, receipts, lots and the stock ledger).** Details the rules above leave open, settled in the code:
+- One migration creates all five §3.4 tables (`vendor_scores` too, filled by PR d2). `stock_moves.kept_item_id` arrives with kept items (§3.5).
+- `received_at` and `best_before` must carry a time zone (else 422 `request.invalid`) and are stored in UTC; a `received_at` up to one minute ahead is taken as now (a tablet's clock). A receipt without a PO and without `vendor_id` is 422 `request.invalid`; a PO of another hub is 404 `hub_ops.po_not_found`; a received quantity of 0 is `hub_ops.qty_invalid`.
+- A line that leaves `unit_cost_paise` out takes the PO line's cost; one that sends `null` has no cost. A `reject_reason` sent with nothing rejected is dropped (the table checks that a reason is stored exactly when something went back).
+- A receipt locks the hub, then (with a PO) the plan, the PO and its lines, the procurement lock order. A PO that becomes `received` gets `closed_at`. The receipt is audited (`goods_receipts.created`, with the request).
+- The 201 answer shows the PO's status after the receipt; `GET` shows its current status. `GET …/goods-receipts?date=` takes any IST day (default today), newest `received_at` first; lines are listed by name.
+- Every stock change goes through one function that inserts the move with `ON CONFLICT DO NOTHING` and applies it to the (row-locked) lot only when it was written, so the lot's `qty_on_hand` stays the sum of its moves.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/goods-receipts` and 404 `hub_ops.receipt_not_found` for its receipt ids.
+
+**As built (PR d2, inventory, counts, vendor scores and the plan hooks).**
+- Inventory items are listed by shelf, then name; `expiring_before` must carry a time zone. `packed_not_drawn_qty` is 0 until the 12:30 draw-down (§3.5) exists. `GET /v1/lots/{id}` lists moves oldest first, each with its `reason` (a count's; additive).
+- A count needs `inventory:manage` (the hub's manager, admin). Each count is its own source (a fresh `ref_id`); a count that matches the lot writes no move but is still audited (`inventory.counted`, the quantity before and after, the reason). Another hub's lot is 404 `hub_ops.lot_not_found`.
+- Plans now read stock (§3.3's hooks): `on_hand_qty` sums grade A and B lots with stock whose `best_before` is after the next IST midnight; a new line's cost is the latest receipt line at the hub (by `received_at`, then id) with a cost and something accepted, from any vendor.
+- Vendor scores take the purchase orders delivered in the week that were sent; one cancelled by hand after sending is left out, one still `sent` counts like one not delivered. A receipt line whose product had a single vendor at the hub that week (or cost 0) scores 1 on price. Components are stored to 3 decimals, the score to 2 (half up); a rerun rewrites the week's rows (`computed_at`). `Vendor.score` is the latest week's score. The job runs from `jobs-staging.yml` at `3 22 * * 0` (Monday 03:33 IST).
 
 **Error codes** (in addition to §3.1–§3.3)
 
@@ -551,7 +604,7 @@ GET /v1/hubs/{id}/waste-summary?from=&to=    at most 31 days; default the last 7
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, data_source, version, created_at, updated_at |
+| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, pre_live_box_fee_paise bigint (default 3000, 0 to 10,000), data_source, version, created_at, updated_at |
 | `hub_ops.vendors` | id, hub_id → hubs, name (unique per hub, case-insensitive), kind (apmc_trader, fpo, farmer, wholesaler), phone_e164 null, whatsapp, is_default (partial unique per hub), notes, active, version, created_at |
 | `hub_ops.packing_tasks` | id, hub_id → hubs, order_id (unique), order_kind, delivery_date, slot_id, society_id, tower_id, flat, seq, route_id null, stop_seq null, status (queued, picking, packed), packer_user_id null, bags, crate_no null, started_at, packed_at, drawn_at null (§3.4, added with the draw-down), version, created_at; index (hub_id, delivery_date, status, seq) |
 | `hub_ops.packing_lines` | task_id → packing_tasks, product_id (the ordered product), carried (bool, default false; §3.5, added with kept items), step_qty, step_unit, qty, picked_qty, short_qty, substitute_product_id null, updated_at; primary key (task_id, product_id), becoming (task_id, product_id, carried) with kept items |

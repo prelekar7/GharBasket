@@ -451,7 +451,7 @@ M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/captur
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
-- **Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.
+- ~~**Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.~~ **Superseded (owner, 2026-10-09; built 2026-10-10):** a box order for a society with no `live_at` pays the hub's `pre_live_box_fee_paise` (M6, default ₹30) as `fees_paise`, set by `create_from_cycle` from `orders.api.box_fee(session, hub_id, society_id)` and dropped to 0 at the lock if the society went live meanwhile (never raised). `total_paise = subtotal_paise + fees_paise − discount_paise` is what the cut-off debits; shortage refunds and issue credits never return the fee. Add-on and tiffin orders pay none. The rules are M9 §3.6 and its M4 follow-up in §11.
 - Direct orders (`POST /v1/orders`) and the SSE stream arrive in P3 with tiffins and live tracking.
 - **Decided by the owner (2026-10-09):**
   - ~~Leftovers (§3.5): add-on-only orders outside a box (e.g. a week the household skipped): refuse them, or let an add-on-only order un-skip the week?~~ Decided: add-on-only orders are refused (`orders.kind_unavailable`); M4 does not depend on M3's delivery days.

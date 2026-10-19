@@ -177,9 +177,10 @@ async def _publish_resolved(session: AsyncSession, issue: OrderIssue) -> None:
 
 
 async def _creditable(session: AsyncSession, order: Order) -> int:
-    """What may still be refunded on a row-locked order: its paid total minus the issue credits
-    already made on it. Shortage refunds at packing are already out of the total, which follows
-    the lines (`service.mark_shortage`); billing.api has no per-order refund total."""
+    """What may still be refunded on a row-locked order: its paid total without the delivery fee
+    (never credited back for a problem, M9 §3.6) minus the issue credits already made on it.
+    Shortage refunds at packing are already out of the total, which follows the lines
+    (`service.mark_shortage`); billing.api has no per-order refund total."""
     credited = (
         await session.execute(
             select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
@@ -187,7 +188,7 @@ async def _creditable(session: AsyncSession, order: Order) -> int:
             )
         )
     ).scalar_one()
-    return max(0, order.total_paise - int(credited))
+    return max(0, service.food_paid(order) - int(credited))
 
 
 async def _auto_credit(session: AsyncSession, order: Order, issue: OrderIssue) -> str | None:
@@ -321,7 +322,7 @@ async def resolve(
     if outcome != "credit":
         raise ValueError("outcome is 'credit' or 'reject'")
     most = min(
-        issue.amount_paise if issue.kind in LINE_KINDS else order.total_paise,
+        issue.amount_paise if issue.kind in LINE_KINDS else service.food_paid(order),
         await _creditable(session, order),
     )
     if not 0 < credit_paise <= most:
