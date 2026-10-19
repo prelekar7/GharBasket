@@ -52,6 +52,8 @@ ENTRY_KINDS = (
     "refund_to_source",
     "refund_to_source_failed",
     "unclaimed",
+    # What a partner is owed for work on an order (M5 §3.5).
+    "earning",
 )
 REF_TYPES = ("topup", "order", "donation", "referral", "refund")
 PROVIDERS = ("razorpay", "dev")

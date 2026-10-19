@@ -6,6 +6,9 @@ keyed by the order (and reason), so a retried cut-off or refund never moves mone
 For M1's account deletion (spec §3.3, M1 §3.5): `close_wallet` in the deletion's transaction, and
 `wallet_closed` before the purge. For M9 (§3.6): `credit_points` credits Kindness points once per
 source (a referral, a donation).
+
+For M8 (spec §3.5): `accrue_earning` owes a partner for work on an order, once per (partner, basis,
+order); `partner_week` and `partner_rolling_earnings` read the earnings back.
 """
 
 import copy
@@ -16,6 +19,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import refunds, service
+from gharbasket.modules.billing.earnings import (
+    BasisTotal,
+    DayTotal,
+    EarningEntry,
+    PartnerWeek,
+    accrue_earning,
+    partner_rolling_earnings,
+    partner_week,
+)
 from gharbasket.modules.billing.events import (
     POINTS_CREDITED,
     REFUND_TO_SOURCE_SETTLED,
@@ -43,14 +55,21 @@ __all__ = [
     "POINTS_CREDITED",
     "REFUND_TO_SOURCE_SETTLED",
     "WALLET_TOPPED_UP",
+    "BasisTotal",
+    "DayTotal",
+    "EarningEntry",
     "InsufficientBalance",
+    "PartnerWeek",
     "RefundOut",
+    "accrue_earning",
     "anonymise_for_user",
     "balance",
     "close_wallet",
     "credit_points",
     "debit_for_order",
     "export_for_user",
+    "partner_rolling_earnings",
+    "partner_week",
     "refund_to_wallet",
     "wallet_closed",
 ]
