@@ -89,15 +89,19 @@ async def create_for(
     return kitchen
 
 
-async def own(session: AsyncSession, user_id: uuid.UUID) -> tuple[Partner, Kitchen]:
-    """The caller's kitchen partner record and kitchen; 404 without one."""
-    row = (
-        await session.execute(
-            select(Partner, Kitchen)
-            .join(Kitchen, Kitchen.partner_id == Partner.id)
-            .where(Partner.user_id == user_id, Partner.kind == "kitchen")
-        )
-    ).first()
+async def own(
+    session: AsyncSession, user_id: uuid.UUID, *, for_update: bool = False
+) -> tuple[Partner, Kitchen]:
+    """The caller's kitchen partner record and kitchen; 404 without one. `for_update` locks the
+    kitchen row, for a check of its version followed by a write."""
+    stmt = (
+        select(Partner, Kitchen)
+        .join(Kitchen, Kitchen.partner_id == Partner.id)
+        .where(Partner.user_id == user_id, Partner.kind == "kitchen")
+    )
+    if for_update:
+        stmt = stmt.with_for_update(of=Kitchen)
+    row = (await session.execute(stmt)).first()
     if row is None:
         raise not_found()
     return row[0], row[1]
@@ -139,6 +143,28 @@ def check_skills(skills: list[str]) -> list[str]:
     return sorted(set(skills), key=SKILLS.index)
 
 
+async def pin_locked_dates(session: AsyncSession, kitchen: Kitchen) -> None:
+    """A new weekly default must not change the capacity of a date that has closed: today, and
+    tomorrow once 21:00 has passed. Each such date and meal without an override of its own gets
+    the old default stored as one, so the kitchen keeps what she had when it closed."""
+    for day in (today(), today() + timedelta(days=1)):
+        if not is_locked(day):
+            continue
+        for meal in MEALS:
+            await session.execute(
+                insert(KitchenCapacity)
+                .values(
+                    {
+                        KitchenCapacity.partner_id: kitchen.partner_id,
+                        KitchenCapacity.on_date: day,
+                        KitchenCapacity.meal: meal,
+                        KitchenCapacity.max_portions: default_for(kitchen, day, meal),
+                    }
+                )
+                .on_conflict_do_nothing(index_elements=["partner_id", "date", "meal"])
+            )
+
+
 async def edit(
     session: AsyncSession, partner: Partner, kitchen: Kitchen, changes: dict[str, Any]
 ) -> Kitchen:
@@ -146,7 +172,9 @@ async def edit(
     if "skills" in changes:
         kitchen.skills = check_skills(changes["skills"] or [])
     if "default_portions" in changes:
-        kitchen.default_portions = _check_week(changes["default_portions"])
+        week = _check_week(changes["default_portions"])
+        await pin_locked_dates(session, kitchen)  # before the new default shows through
+        kitchen.default_portions = week
     if "display_name" in changes and changes["display_name"] != partner.display_name:
         partner.display_name = changes["display_name"]
         partner.version += 1

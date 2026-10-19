@@ -243,6 +243,7 @@ async def decline(
         400: _problem("request.idempotency_key_required"),
         401: _problem("auth.invalid_token"),
         403: _problem("auth.forbidden, auth.role_not_granted"),
+        409: _problem("partners.assignment_busy: another change to the hub's tiffins; retry"),
         422: _problem("request.idempotency_mismatch, request.invalid"),
     },
 )
@@ -256,14 +257,15 @@ async def run_round(
     settings: AppSettings,
 ) -> RunOut:
     permit.ensure(hub_id)
-    result = await assignments.run_round(
-        session,
-        getattr(request.app.state, "http", None),
-        settings,
-        hub_id,
-        body.date,
-        at=kitchens.now(),
-    )
+    with assignments.retry_on_conflict():
+        result = await assignments.run_round(
+            session,
+            getattr(request.app.state, "http", None),
+            settings,
+            hub_id,
+            body.date,
+            at=kitchens.now(),
+        )
     out = RunOut(
         run_id=result.run_ids[0] if result.run_ids else None,
         run_ids=result.run_ids,

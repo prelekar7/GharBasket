@@ -8,7 +8,7 @@ Taking an order lowers her room and raises her rolling earnings by portions x th
 
 import math
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 RATING_FLOOR = 3.8
@@ -129,17 +129,71 @@ def gini(values: list[int]) -> float:
     return round((2 * weighted) / (n * total) - (n + 1) / n, 4)
 
 
-def summary(matches: list[Match], cooks: list[Cook]) -> dict[str, Any]:
-    """The run's numbers for the fairness dashboard: km per portion and the Gini of earnings
-    over the kitchens used and over every eligible kitchen."""
+def eligible_ids(orders: list[Order], cooks: list[Cook]) -> set[uuid.UUID]:
+    """Kitchens that could take at least one of the orders as the request stands (M10's
+    `gini_eligible` is over these); read before any order is taken."""
+    return {c.id for c in cooks if any(why_not(c, o) is None for o in orders)}
+
+
+def summary(matches: list[Match], cooks: list[Cook], eligible: set[uuid.UUID]) -> dict[str, Any]:
+    """The run's numbers for the fairness dashboard, as M10 counts them (M10 §3.5): portions,
+    kitchens used and km per portion over the matches the solver (here: the greedy) made, not the
+    preferred cooks' who were settled before it; `gini` over the earnings of every kitchen in the
+    request after those matches (their rolling earnings plus what they took), `gini_eligible`
+    over the kitchens that could take some order."""
     portions = sum(m.portions for m in matches)
-    used = {m.partner_id for m in matches}
     return {
         "portions": portions,
-        "kitchens_used": len(used),
+        "kitchens_used": len({m.partner_id for m in matches}),
         "km_per_portion": round(sum((m.km or 0) * m.portions for m in matches) / portions, 3)
         if portions
         else 0.0,
-        "gini": gini([c.earnings for c in cooks if c.id in used]),
-        "gini_eligible": gini([c.earnings for c in cooks]),
+        "gini": gini([c.earnings for c in cooks]),
+        "gini_eligible": gini([c.earnings for c in cooks if c.id in eligible]),
     }
+
+
+def plan_problem(
+    orders: list[Order],
+    cooks: list[Cook],
+    assigned: list[tuple[str, str, int]],
+    unassigned: list[str],
+) -> str | None:
+    """Why a solver's plan cannot be used, or None: every order and kitchen must be one of the
+    request's, each order at most once (assigned or left out, not both), with its own portions,
+    each pair one the rules allow (skills, rating floor, reach) and no kitchen over the room it
+    was given. The caller then uses `greedy` instead."""
+    by_order = {o.id: o for o in orders}
+    by_cook = {c.id: c for c in cooks}
+    room = {c.id: c.left for c in cooks}
+    seen: set[uuid.UUID] = set()
+    for order_id, kitchen_id, portions in assigned:
+        try:
+            order, kitchen = uuid.UUID(order_id), uuid.UUID(kitchen_id)
+        except ValueError:
+            return "an id is not a uuid"
+        if order not in by_order:
+            return "an order that was not asked about"
+        if kitchen not in room:
+            return "a kitchen that was not offered"
+        if order in seen:
+            return "an order assigned twice"
+        seen.add(order)
+        if portions != by_order[order].portions:
+            return "portions differ from the order's"
+        cook = by_cook[kitchen]  # skills, rating floor and reach, as for any match (room: below)
+        if why_not(replace(cook, left=max(cook.left, portions)), by_order[order]) is not None:
+            return "a kitchen that cannot cook the order"
+        room[kitchen] -= portions
+        if room[kitchen] < 0:
+            return "a kitchen over its capacity"
+    for raw in unassigned:
+        try:
+            order = uuid.UUID(raw)
+        except ValueError:
+            return "an id is not a uuid"
+        if order not in by_order:
+            return "an order that was not asked about"
+        if order in seen:
+            return "an order both assigned and left out"
+    return None

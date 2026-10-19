@@ -15,12 +15,16 @@ their orders (`partners.assignment_released`) for the next round.
 import time as clock
 import uuid
 from collections import defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 import httpx2
+import structlog
 from sqlalchemy import func, select, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
@@ -46,6 +50,7 @@ from gharbasket.platform.outbox import publish
 from gharbasket.platform.settings import Settings
 
 IST = kitchens.IST
+log = structlog.get_logger("gharbasket.partners")
 LUNCH_BEFORE = time(16, 0)  # a tiffin slot starting before 16:00 is lunch
 FIRST_REPLY = time(22, 30)  # round 1 offers are open until 22:30 IST the evening before
 LATER_REPLY = timedelta(minutes=30)
@@ -212,6 +217,13 @@ def respond_by(round_no: int, day: date, at: datetime) -> datetime:
     return at + LATER_REPLY
 
 
+async def lock_hub(session: AsyncSession, hub_id: uuid.UUID) -> None:
+    """One assignment change per hub at a time: rounds, manual assignments and the refund job."""
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key(f"partners.assign:{hub_id}")}
+    )
+
+
 @dataclass
 class RoundResult:
     run_ids: list[uuid.UUID]
@@ -229,10 +241,11 @@ async def run_round(
     at: datetime,
 ) -> RoundResult:
     """One round for both meals of `day` at a hub; only orders no assignment holds take part,
-    so running it again changes nothing for orders already offered."""
-    await session.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key(f"partners.assign:{hub_id}")}
-    )
+    so running it again changes nothing for orders already offered. Offers that have run out of
+    time are expired first (the 15-minute job stops at T 00:30, a round run later is not covered
+    by it)."""
+    await lock_hub(session, hub_id)
+    await expire_overdue(session, at, hub_id)
     items = await tiffins(session, hub_id, day)
     taken = await held(session, [t.order.id for t in items])
     by_meal: dict[str, list[Tiffin]] = defaultdict(list)
@@ -297,6 +310,7 @@ async def _meal_round(
     available = await cooks(session, hub_id, day, meal)
     matches, rest = matching.preferred_first(orders, available, rate)
     plan = None
+    eligible = matching.eligible_ids(rest, available)
     if rest and available:
         request = AssignRequest.model_validate(
             {
@@ -319,19 +333,40 @@ async def _meal_round(
         )
         plan = await _solve(http, settings, request, session, hub_id, day)
     if plan is not None:
+        problem = matching.plan_problem(
+            rest,
+            available,
+            [(a.order_id, a.kitchen_id, a.portions) for a in plan.assignments],
+            [u.order_id for u in plan.unassigned],
+        )
+        if problem is not None:  # ML never blocks the evening: M8's greedy answers instead
+            log.warning("assignment_plan_rejected", hub_id=str(hub_id), problem=problem)
+            await intel_api.reject_assignment_plan(session, hub_id, day, problem)
+            plan = None
+    if plan is not None:
         source, model, status = "ml", plan.model, plan.status
         matches += [
             matching.Match(uuid.UUID(a.order_id), uuid.UUID(a.kitchen_id), a.portions, a.km)
             for a in plan.assignments
         ]
         unassigned |= {uuid.UUID(u.order_id): u.reason for u in plan.unassigned}
+        for order in rest:  # an order the plan neither placed nor mentioned is not lost
+            if order.id not in {m.order_id for m in matches} and order.id not in unassigned:
+                unassigned[order.id] = "no_room"
         summary = plan.summary.model_dump(exclude={"earnings_paise"}) if plan.summary else {}
-    else:
+    elif rest and available:
         source, model, status = "fallback", "greedy-m8", "fallback"
         more, missed = matching.greedy(rest, available, rate)
         matches += more
         unassigned |= missed
-        summary = matching.summary(matches, available)
+        summary = matching.summary(more, available, eligible)
+    else:
+        # Nothing to solve: every order went to its preferred cook, or no kitchen has room. Runs
+        # are `ml` or `fallback` (M8 §4); this is not a fallback, so the model says what it was.
+        source, status = "fallback", "solved" if not rest else "infeasible"
+        model = "preferred-m8" if not rest else "no-kitchens-m8"
+        unassigned |= {order.id: "no_room" for order in rest}
+        summary = matching.summary([], available, eligible)
     run = AssignmentRun(
         hub_id=hub_id,
         on_date=day,
@@ -588,19 +623,46 @@ async def release(
     return order_ids
 
 
-async def expire_overdue(session: AsyncSession, at: datetime) -> int:
-    """Offers past `respond_by` become `expired` and release their orders."""
+async def overdue_hubs(session: AsyncSession, at: datetime) -> list[uuid.UUID]:
+    """Hubs with an offer past `respond_by`, read without locking any row."""
+    rows = await session.execute(
+        select(Assignment.hub_id)
+        .where(Assignment.status == "offered", Assignment.respond_by <= at)
+        .distinct()
+    )
+    return sorted(rows.scalars(), key=str)
+
+
+@contextmanager
+def retry_on_conflict() -> Iterator[None]:
+    """A deadlock or serialization failure between two changes to one hub's tiffins is a 409 the
+    caller may retry, not a 500. Everything takes the hub's lock first and its rows after, so this
+    is a backstop."""
+    try:
+        yield
+    except DBAPIError as exc:
+        cause = exc.orig
+        state = None
+        for found in (cause, getattr(cause, "__cause__", None)):
+            state = state or getattr(found, "sqlstate", None) or getattr(found, "pgcode", None)
+        if state in ("40P01", "40001"):
+            raise ProblemError(
+                409,
+                "partners.assignment_busy",
+                "Another change to this hub's tiffins was in progress: try again.",
+            ) from exc
+        raise
+
+
+async def expire_overdue(
+    session: AsyncSession, at: datetime, hub_id: uuid.UUID | None = None
+) -> int:
+    """Offers past `respond_by` become `expired` and release their orders (of one hub, or all)."""
+    stmt = select(Assignment).where(Assignment.status == "offered", Assignment.respond_by <= at)
+    if hub_id is not None:
+        stmt = stmt.where(Assignment.hub_id == hub_id)
     overdue = (
-        (
-            await session.execute(
-                select(Assignment)
-                .where(Assignment.status == "offered", Assignment.respond_by <= at)
-                .order_by(Assignment.id)
-                .with_for_update()
-            )
-        )
-        .scalars()
-        .all()
+        (await session.execute(stmt.order_by(Assignment.id).with_for_update())).scalars().all()
     )
     for assignment in overdue:
         assignment.status = "expired"

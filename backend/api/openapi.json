@@ -38185,7 +38185,7 @@
                 }
               }
             },
-            "description": "partners.order_not_assignable, partners.assignment_closed"
+            "description": "partners.order_not_assignable, partners.assignment_closed, partners.assignment_busy"
           },
           "422": {
             "content": {
@@ -38308,6 +38308,16 @@
               }
             },
             "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_busy: another change to the hub's tiffins; retry"
           },
           "422": {
             "content": {

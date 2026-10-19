@@ -433,6 +433,8 @@ Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots onl
 **Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
 **Consumed:** `subscriptions.box_approved` (→ `create_from_cycle`), `subscriptions.box_skipped` (→ `cancel_from_cycle`), `billing.wallet_topped_up` (retry a failed debit in the grace period); `billing.payment_failed` (Autopay captures, pilot phase).
 
+**Payload of the events a status change publishes** (the fulfilment events and the three above) also carries `order_event_id`: the id of that move's own `order_events` row (a timeline row id, not a person's id). A consumer that needs who moved the order and when reads that row through `orders.api.last_move(order, status, event_id)`, which matters when a status is reached twice (a free redelivery dispatches a box again). **As built (M8 earnings):** `order_event_id` is in every such event, and the person still never travels in a payload (`actor_user_id` is read from the row).
+
 ## 6. Jobs
 | Job | Schedule | Notes |
 |---|---|---|
