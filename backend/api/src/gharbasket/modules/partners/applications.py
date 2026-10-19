@@ -8,7 +8,7 @@ person who is already a partner of a kind cannot apply for it again.
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select, tuple_
@@ -16,13 +16,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.partners import events, training
+from gharbasket.modules.partners import events, kyc, training
 from gharbasket.modules.partners.models import (
     KINDS,
     OPEN_STATUSES,
     REQUIRED_DOCUMENTS,
     REQUIRED_TRAININGS,
     Application,
+    KycDocument,
     Partner,
 )
 from gharbasket.platform import audit
@@ -254,7 +255,9 @@ async def withdraw(session: AsyncSession, application: Application) -> Applicati
     ensure_open(application)
     application.status = "withdrawn"
     application.version += 1
-    await session.flush()
+    await kyc.release_files(
+        session, await kyc.for_application(session, application), datetime.now(UTC)
+    )
     return application
 
 
@@ -265,6 +268,21 @@ class View:
     documents: list[dict[str, Any]]
     trainings: list[dict[str, Any]]
     next_step: str | None
+    current: list[KycDocument]
+
+
+REVIEW_TO_REQUIREMENT = {"pending": "submitted", "accepted": "accepted", "rejected": "rejected"}
+
+
+def _requirement(doc_type: str, document: KycDocument | None) -> dict[str, Any]:
+    if document is None:
+        return {"doc_type": doc_type, "status": "missing", "document_id": None, "reason": None}
+    return {
+        "doc_type": doc_type,
+        "status": REVIEW_TO_REQUIREMENT[document.review_status],
+        "document_id": document.id,
+        "reason": document.review_reason,
+    }
 
 
 def next_step(application: Application, documents: list[dict[str, Any]]) -> str | None:
@@ -279,13 +297,15 @@ def next_step(application: Application, documents: list[dict[str, Any]]) -> str 
 
 
 async def views(session: AsyncSession, applications: list[Application]) -> dict[uuid.UUID, View]:
-    """Requirements and next step of each application. Documents arrive with the KYC PR: until
-    then every required type is missing."""
+    """Requirements, current documents and next step of each application."""
     states = await training.states_for_users(session, [a.user_id for a in applications])
+    current = await kyc.current(session, [a.id for a in applications])
     out: dict[uuid.UUID, View] = {}
     for application in applications:
-        documents: list[dict[str, Any]] = [
-            {"doc_type": doc_type, "status": "missing", "document_id": None, "reason": None}
+        held = current.get(application.id, [])
+        by_type = {document.doc_type: document for document in held}
+        documents = [
+            _requirement(doc_type, by_type.get(doc_type))
             for doc_type in REQUIRED_DOCUMENTS[application.kind]
         ]
         mine = states.get(application.user_id, {})
@@ -293,7 +313,7 @@ async def views(session: AsyncSession, applications: list[Application]) -> dict[
             {"code": code, "status": mine[code].status if code in mine else "todo"}
             for code in REQUIRED_TRAININGS[application.kind]
         ]
-        out[application.id] = View(documents, trainings, next_step(application, documents))
+        out[application.id] = View(documents, trainings, next_step(application, documents), held)
     return out
 
 

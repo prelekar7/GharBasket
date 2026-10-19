@@ -13,9 +13,10 @@ from fastapi import APIRouter, Depends, Header, Path, Query, Response
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import applications, training
-from gharbasket.modules.partners.models import Application
+from gharbasket.modules.partners.models import Application, KycDocument
 from gharbasket.modules.partners.schemas import (
     ApplicantOut,
+    ApplicationDetailOut,
     ApplicationIn,
     ApplicationOut,
     ApplicationReviewOut,
@@ -23,6 +24,9 @@ from gharbasket.modules.partners.schemas import (
     ApplicationStatus,
     ApplicationStepOut,
     HubApplicationIn,
+    KycCheckOut,
+    KycDocumentOut,
+    KycReviewOut,
     PartnerKind,
     TrainingCompleteIn,
     TrainingModuleOut,
@@ -66,6 +70,31 @@ async def _outs(session: DbSession, items: list[Application]) -> list[Applicatio
     return [_out(application, views[application.id]) for application in items]
 
 
+def document_out(document: KycDocument) -> KycDocumentOut:
+    """A document as the applicant and hub staff see it: the number only masked."""
+    return KycDocumentOut(
+        id=document.id,
+        application_id=document.application_id,
+        doc_type=document.doc_type,
+        id_kind=document.id_kind,
+        number_masked=document.number_masked,
+        fssai_reg_no=document.fssai_reg_no,
+        details=document.details,
+        file_count=len(document.file_keys),
+        check=KycCheckOut(
+            status=document.check_status,  # pyright: ignore[reportArgumentType]
+            code=document.check_code,  # pyright: ignore[reportArgumentType]
+            at=document.checked_at,
+        ),
+        review=KycReviewOut(
+            status=document.review_status,  # pyright: ignore[reportArgumentType]
+            reason=document.review_reason,
+            at=document.reviewed_at,
+        ),
+        created_at=document.created_at,
+    )
+
+
 def _out(application: Application, view: applications.View) -> ApplicationOut:
     return ApplicationOut(
         id=application.id,
@@ -89,10 +118,12 @@ def _out(application: Application, view: applications.View) -> ApplicationOut:
     )
 
 
-async def _reviews(session: DbSession, items: list[Application]) -> list[ApplicationReviewOut]:
-    outs = await _outs(session, items)
+async def reviews(session: DbSession, items: list[Application]) -> list[ApplicationReviewOut]:
+    """Applications as hub staff of their hub see them."""
+    views = await applications.views(session, items)
+    outs = [_out(application, views[application.id]) for application in items]
     contacts = await identity_api.user_contacts(session, [a.user_id for a in items])
-    reviews = []
+    staff: list[ApplicationReviewOut] = []
     for application, out in zip(items, outs, strict=True):
         contact = contacts.get(application.user_id)
         society = None
@@ -106,7 +137,7 @@ async def _reviews(session: DbSession, items: list[Application]) -> list[Applica
                 )
                 is not None,
             )
-        reviews.append(
+        staff.append(
             ApplicationReviewOut(
                 **out.model_dump(),
                 applicant=ApplicantOut(
@@ -115,9 +146,10 @@ async def _reviews(session: DbSession, items: list[Application]) -> list[Applica
                     phone_e164=contact.phone_e164 if contact else None,
                 ),
                 society=society,
+                documents=[document_out(d) for d in views[application.id].current],
             )
         )
-    return reviews
+    return staff
 
 
 async def _own(session: DbSession, user_id: uuid.UUID, application_id: uuid.UUID) -> Application:
@@ -233,15 +265,18 @@ async def get_application(
     reviewer: Annotated[Permit | None, Depends(_reviewer)],
     session: DbSession,
     response: Response,
-) -> ApplicationReviewOut | ApplicationOut:
+) -> ApplicationReviewOut | ApplicationDetailOut:
     _no_store(response)
     application = await applications.get(session, application_id)
     if application.user_id == principal.user_id:
-        (out,) = await _outs(session, [application])
-        return out
+        view = (await applications.views(session, [application]))[application.id]
+        return ApplicationDetailOut(
+            **_out(application, view).model_dump(),
+            documents=[document_out(d) for d in view.current],
+        )
     if reviewer is None or not reviewer.allows(application.hub_id):
         raise applications.not_found()
-    (review,) = await _reviews(session, [application])
+    (review,) = await reviews(session, [application])
     return review
 
 
@@ -291,7 +326,7 @@ async def review_queue(
     items, next_cursor = await applications.queue(
         session, hub_id, status=status, kind=kind, cursor=cursor, limit=limit
     )
-    return Page(items=await _reviews(session, items), next_cursor=next_cursor)
+    return Page(items=await reviews(session, items), next_cursor=next_cursor)
 
 
 # --- training (§3.2) ----------------------------------------------------------------------------
@@ -343,6 +378,7 @@ async def complete_training(
     session: DbSession,
     idem: Idempotent,
 ) -> TrainingResultOut:
+    application = await applications.open_for(session, principal.user_id)
     result = await training.complete(
         session,
         principal.user_id,
@@ -351,7 +387,6 @@ async def complete_training(
         answers=[answer.model_dump() for answer in body.answers],
     )
     step = None
-    application = await applications.open_for(session, principal.user_id)
     if application is not None:
         view = (await applications.views(session, [application]))[application.id]
         step = ApplicationStepOut(

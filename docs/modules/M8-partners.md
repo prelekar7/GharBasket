@@ -265,6 +265,15 @@ ApplicationReview : Application & {
 - **`PartnerStaff.requested_society`** comes from the partner's captain application; seeded partners have none.
 - **The data export** gains `applications` (without `created_by`, `decided_by` and `data_source`).
 
+**As built (KYC documents, S6 build order (b), third PR).**
+- **Endpoints.** `POST /v1/kyc-documents` and `POST /v1/kyc-documents/{id}/file-links`; the decision and verification follow in the next PR, so applications reach `kyc_pending` and wait there. The applicant's `GET /v1/partner-applications/{id}` carries her current `documents`, and `ApplicationReview` does too.
+- **Secrets.** `KYC_ENCRYPTION_KEY` (with `KYC_KEY_VERSION`, default 1) and `KYC_HASH_PEPPER` are required on staging and prod (at least 32 bytes each); local runs and tests use dev-only values. Encryption runs as its own `SELECT pgp_sym_encrypt(:number, :key)`, so no failing INSERT can echo the key. The hash is HMAC-SHA256 of `<type>:<number>`, where the type is `id_kind` for an ID proof.
+- **Checks, in order.** Own application (404), open (409), then the document: type, `id_kind`, Aadhaar (kind or a 12-digit ID or licence number), number format, IFSC and account holder (bank; `field: account_holder` when missing), `valid_until` (missing is `number_invalid` with `field: valid_until`; past is `document_expired`), vehicle number (driving licence), the file count (distinct keys), then each file (`files.verify`, the stored object's type and size, `claim` by `partners`). Kitchen photos with a number are `number_invalid`. Fields a type does not use are ignored.
+- **Duplicates** count current documents of other people whose application is open or verified. A failed penny drop and a duplicate still store the document; a duplicate wins over the penny drop's code.
+- **Superseding.** One application row lock serialises uploads; the older document of the same type gets `superseded_by` and its files `delete_after` 30 days on. Withdrawal sets the same on the current documents' files.
+- **File links** answer `{ files: [{ url, content_type, expires_at }] }` and write `kyc.file_read` (actor, document, application id, file count) on every call; a document outside the caller's hubs is 404 `partners.document_not_found`. Permission `kyc_files:read` (hub_manager, admin).
+- **The data export** gains `kyc_documents` (masked references with check and review states; no files, hashes, encrypted numbers, key versions or reviewers).
+
 ### 3.2 Training (frozen for S6)
 ```
 TrainingModule : {

@@ -1619,6 +1619,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/kyc-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a KYC document for your open application (Idempotency-Key required) */
+        post: operations["upload_document_v1_kyc_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kyc-documents/{document_id}/file-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 5-minute links to a document's files (hub staff of its hub, admin; audit-logged) */
+        post: operations["file_links_v1_kyc_documents__document_id__file_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/lots/{lot_id}": {
         parameters: {
             query?: never;
@@ -3205,6 +3239,77 @@ export interface components {
              */
             user_id: string;
         };
+        /**
+         * ApplicationDetailOut
+         * @description The applicant's own application with its current documents.
+         */
+        ApplicationDetailOut: {
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /** Documents */
+            documents: components["schemas"]["KycDocumentOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
         /** ApplicationIn */
         ApplicationIn: {
             /**
@@ -3304,6 +3409,11 @@ export interface components {
              * @example Meena tai
              */
             display_name: string;
+            /**
+             * Documents
+             * @description The current documents
+             */
+            documents: components["schemas"]["KycDocumentOut"][];
             /**
              * Hub Id
              * Format: uuid
@@ -4376,6 +4486,23 @@ export interface components {
             /** To */
             to: unknown;
         };
+        /** FileLinkOut */
+        FileLinkOut: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Url */
+            url: string;
+        };
+        /** FileLinksOut */
+        FileLinksOut: {
+            /** Files */
+            files: components["schemas"]["FileLinkOut"][];
+        };
         /** ForecastItemIn */
         ForecastItemIn: {
             /** Committed */
@@ -5436,6 +5563,131 @@ export interface components {
              * @example 500
              */
             points: number;
+        };
+        /** KycCheckOut */
+        KycCheckOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "format_ok" | "penny_drop_ok" | "penny_drop_failed" | "duplicate";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed";
+        };
+        /** KycDocumentIn */
+        KycDocumentIn: {
+            /**
+             * Account Holder
+             * @description bank only
+             */
+            account_holder?: string | null;
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            /**
+             * Doc Type
+             * @description id_proof, pan, bank, fssai, driving_licence or kitchen_photos; only the kind's required types
+             * @example pan
+             */
+            doc_type: string;
+            /**
+             * File Keys
+             * @description Keys from POST /v1/files/presign (kyc_document): kitchen_photos 2 to 4, others 0 to 2
+             */
+            file_keys?: string[];
+            /**
+             * Id Kind
+             * @description id_proof only: voter_id, passport or driving_licence; never Aadhaar
+             */
+            id_kind?: string | null;
+            /**
+             * Ifsc
+             * @example SBIN0001234
+             */
+            ifsc?: string | null;
+            /**
+             * Number
+             * @description Every type but kitchen_photos; bank: the account number. Upper-cased, spaces and hyphens removed
+             * @example ABCDE1234F
+             */
+            number?: string | null;
+            /**
+             * Valid Until
+             * @description fssai and driving_licence; must be in the future
+             */
+            valid_until?: string | null;
+            /**
+             * Vehicle No
+             * @description driving_licence only
+             * @example MH46AB1234
+             */
+            vehicle_no?: string | null;
+        };
+        /** KycDocumentOut */
+        KycDocumentOut: {
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            check: components["schemas"]["KycCheckOut"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Details
+             * @description ifsc, account_holder, valid_until, vehicle_no
+             */
+            details: {
+                [key: string]: string;
+            };
+            /** Doc Type */
+            doc_type: string;
+            /** File Count */
+            file_count: number;
+            /**
+             * Fssai Reg No
+             * @description fssai only, in full (public by law)
+             */
+            fssai_reg_no: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Id Kind */
+            id_kind: string | null;
+            /**
+             * Number Masked
+             * @description Only the last 4 characters
+             * @example XXXXXX234F
+             */
+            number_masked: string | null;
+            review: components["schemas"]["KycReviewOut"];
+        };
+        /** KycReviewOut */
+        KycReviewOut: {
+            /** At */
+            at: string | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "accepted" | "rejected";
         };
         /**
          * Label
@@ -18547,6 +18799,155 @@ export interface operations {
             };
         };
     };
+    upload_document_v1_kyc_documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KycDocumentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KycDocumentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.doc_type_invalid, partners.number_invalid (with field), partners.aadhaar_not_accepted, partners.document_expired, partners.file_key_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    file_links_v1_kyc_documents__document_id__file_links_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileLinksOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.document_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_lot_v1_lots__lot_id__get: {
         parameters: {
             query?: never;
@@ -20468,7 +20869,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApplicationReviewOut"] | components["schemas"]["ApplicationOut"];
+                    "application/json": components["schemas"]["ApplicationReviewOut"] | components["schemas"]["ApplicationDetailOut"];
                 };
             };
             /** @description auth.invalid_token */

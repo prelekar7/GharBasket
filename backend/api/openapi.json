@@ -643,6 +643,169 @@
         "title": "ApplicantOut",
         "type": "object"
       },
+      "ApplicationDetailOut": {
+        "description": "The applicant's own application with its current documents.",
+        "properties": {
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "display_name": {
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/KycDocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "documents",
+                  "review",
+                  "training"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null once verified, rejected or withdrawn",
+            "title": "Next Step"
+          },
+          "partner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set at verification",
+            "title": "Partner Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was rejected or sent back",
+            "title": "Reason"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/Requirements"
+          },
+          "scope_id": {
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "description": "society: the captain's own society; hub: everyone else",
+            "enum": [
+              "society",
+              "hub"
+            ],
+            "title": "Scope Type",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "training",
+              "verified",
+              "rejected",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "scope_type",
+          "scope_id",
+          "hub_id",
+          "display_name",
+          "requirements",
+          "next_step",
+          "reason",
+          "partner_id",
+          "submitted_at",
+          "decided_at",
+          "verified_at",
+          "version",
+          "documents"
+        ],
+        "title": "ApplicationDetailOut",
+        "type": "object"
+      },
       "ApplicationIn": {
         "additionalProperties": false,
         "properties": {
@@ -870,6 +1033,14 @@
             "title": "Display Name",
             "type": "string"
           },
+          "documents": {
+            "description": "The current documents",
+            "items": {
+              "$ref": "#/components/schemas/KycDocumentOut"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
           "hub_id": {
             "format": "uuid",
             "title": "Hub Id",
@@ -1011,7 +1182,8 @@
           "verified_at",
           "version",
           "applicant",
-          "society"
+          "society",
+          "documents"
         ],
         "title": "ApplicationReviewOut",
         "type": "object"
@@ -3554,6 +3726,46 @@
         "title": "FieldChange",
         "type": "object"
       },
+      "FileLinkOut": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "content_type",
+          "expires_at"
+        ],
+        "title": "FileLinkOut",
+        "type": "object"
+      },
+      "FileLinksOut": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileLinkOut"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "FileLinksOut",
+        "type": "object"
+      },
       "ForecastItemIn": {
         "properties": {
           "committed": {
@@ -6003,6 +6215,298 @@
           "code"
         ],
         "title": "KindnessGoal",
+        "type": "object"
+      },
+      "KycCheckOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "format_ok",
+              "penny_drop_ok",
+              "penny_drop_failed",
+              "duplicate"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "passed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "code",
+          "at"
+        ],
+        "title": "KycCheckOut",
+        "type": "object"
+      },
+      "KycDocumentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "account_holder": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "bank only",
+            "title": "Account Holder"
+          },
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "doc_type": {
+            "description": "id_proof, pan, bank, fssai, driving_licence or kitchen_photos; only the kind's required types",
+            "examples": [
+              "pan"
+            ],
+            "maxLength": 24,
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "file_keys": {
+            "description": "Keys from POST /v1/files/presign (kyc_document): kitchen_photos 2 to 4, others 0 to 2",
+            "items": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "File Keys",
+            "type": "array"
+          },
+          "id_kind": {
+            "anyOf": [
+              {
+                "maxLength": 24,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "id_proof only: voter_id, passport or driving_licence; never Aadhaar",
+            "title": "Id Kind"
+          },
+          "ifsc": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "SBIN0001234"
+            ],
+            "title": "Ifsc"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Every type but kitchen_photos; bank: the account number. Upper-cased, spaces and hyphens removed",
+            "examples": [
+              "ABCDE1234F"
+            ],
+            "title": "Number"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "fssai and driving_licence; must be in the future",
+            "title": "Valid Until"
+          },
+          "vehicle_no": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "driving_licence only",
+            "examples": [
+              "MH46AB1234"
+            ],
+            "title": "Vehicle No"
+          }
+        },
+        "required": [
+          "application_id",
+          "doc_type"
+        ],
+        "title": "KycDocumentIn",
+        "type": "object"
+      },
+      "KycDocumentOut": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "check": {
+            "$ref": "#/components/schemas/KycCheckOut"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "ifsc, account_holder, valid_until, vehicle_no",
+            "title": "Details",
+            "type": "object"
+          },
+          "doc_type": {
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "file_count": {
+            "title": "File Count",
+            "type": "integer"
+          },
+          "fssai_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "fssai only, in full (public by law)",
+            "title": "Fssai Reg No"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "id_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id Kind"
+          },
+          "number_masked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only the last 4 characters",
+            "examples": [
+              "XXXXXX234F"
+            ],
+            "title": "Number Masked"
+          },
+          "review": {
+            "$ref": "#/components/schemas/KycReviewOut"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "doc_type",
+          "id_kind",
+          "number_masked",
+          "fssai_reg_no",
+          "details",
+          "file_count",
+          "check",
+          "review",
+          "created_at"
+        ],
+        "title": "KycDocumentOut",
+        "type": "object"
+      },
+      "KycReviewOut": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "at"
+        ],
+        "title": "KycReviewOut",
         "type": "object"
       },
       "Label": {
@@ -32738,6 +33242,227 @@
         ]
       }
     },
+    "/v1/kyc-documents": {
+      "post": {
+        "operationId": "upload_document_v1_kyc_documents_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KycDocumentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KycDocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.doc_type_invalid, partners.number_invalid (with field), partners.aadhaar_not_accepted, partners.document_expired, partners.file_key_invalid, request.idempotency_mismatch, request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Upload a KYC document for your open application (Idempotency-Key required)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/kyc-documents/{document_id}/file-links": {
+      "post": {
+        "operationId": "file_links_v1_kyc_documents__document_id__file_links_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileLinksOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.document_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "platform.storage_unavailable"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "5-minute links to a document's files (hub staff of its hub, admin; audit-logged)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/lots/{lot_id}": {
       "get": {
         "operationId": "get_lot_v1_lots__lot_id__get",
@@ -36048,7 +36773,7 @@
                       "$ref": "#/components/schemas/ApplicationReviewOut"
                     },
                     {
-                      "$ref": "#/components/schemas/ApplicationOut"
+                      "$ref": "#/components/schemas/ApplicationDetailOut"
                     }
                   ],
                   "title": "Response Get Application V1 Partner Applications  Application Id  Get"

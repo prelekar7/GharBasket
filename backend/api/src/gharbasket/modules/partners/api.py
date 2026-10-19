@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import applications, service, training
+from gharbasket.modules.partners import applications, kyc, service, training
 from gharbasket.modules.partners.events import (
     APPLICATION_SUBMITTED,
     REINSTATED,
@@ -33,6 +33,12 @@ __all__ = [
     "partner_for_user",
     "profile_card",
 ]
+
+
+# Never in an export: the files, the encrypted number and its key, the hash, the reviewer.
+KYC_PRIVATE = frozenset(
+    {"file_keys", "number_enc", "key_version", "number_hash", "reviewed_by", "user_id"}
+)
 
 
 @dataclass(frozen=True)
@@ -88,13 +94,18 @@ async def profile_card(session: AsyncSession, partner_id: uuid.UUID) -> ProfileC
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
-    """M8's section of the user's data export (M1 §3.3), read-only: her applications, her training
-    attempts and her partner records, without staff-only fields (the suspension note, who
-    decided). Masked KYC references and ratings join it when they ship (S6)."""
+    """M8's section of the user's data export (M1 §3.3), read-only: her applications, her KYC
+    documents as masked references with their check and review states (no files, hashes or
+    encrypted numbers), her training attempts and her partner records, without staff-only fields
+    (the suspension note, who decided or reviewed). Ratings join it when they ship (S6)."""
     return {
         "applications": [
             application.as_dict(exclude={"created_by", "decided_by", "data_source"})
             for application in await applications.for_user(session, user_id)
+        ],
+        "kyc_documents": [
+            document.as_dict(exclude=KYC_PRIVATE)
+            for document in await kyc.all_for_user(session, user_id)
         ],
         "training_attempts": [
             attempt.as_dict(exclude={"user_id"})

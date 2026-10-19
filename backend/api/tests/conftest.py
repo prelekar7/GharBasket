@@ -39,6 +39,8 @@ DEPLOYED_SECRETS: dict[str, object] = {
     "jwt_signing_key": "test-deployed-jwt-signing-key-0123456789",
     "refresh_token_pepper": "test-deployed-refresh-pepper-0123456789",
     "firebase_project_id": "gharbasket-test",
+    "kyc_encryption_key": "test-deployed-kyc-encryption-key-0123456789",
+    "kyc_hash_pepper": "test-deployed-kyc-hash-pepper-0123456789",
 }
 
 

@@ -12,4 +12,6 @@ for role in ("hub_manager", "admin"):
         # The review queue and decisions, and a rider or packer application created for a
         # person without a household (§3.1).
         "partner_applications:review",
+        # KYC files, through 5-minute links; every call audit-logged (owner, 2026-10-09).
+        "kyc_files:read",
     )
