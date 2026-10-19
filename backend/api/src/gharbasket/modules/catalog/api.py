@@ -17,7 +17,7 @@ from gharbasket.modules.catalog.models import (
     RecipeIngredient,
     TiffinMenu,
 )
-from gharbasket.modules.catalog.pricing import prices_for
+from gharbasket.modules.catalog.pricing import latest_prices_on, prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
 from gharbasket.modules.catalog.service import search, step_label
 from gharbasket.modules.catalog.substitutes import substitutes
@@ -30,14 +30,17 @@ __all__ = [
     "PlanProduct",
     "PlanRecipe",
     "ProductMatch",
+    "StockProduct",
     "TiffinMenuRef",
     "festivals_between",
     "find_products",
+    "latest_prices_on",
     "line_grams",
     "line_products",
     "plan_catalog",
     "product_ids_by_slug",
     "step_label",
+    "stock_products",
     "substitute_ids",
     "tiffin_menu",
     "tiffin_menus",
@@ -92,6 +95,51 @@ async def line_products(
             (order, category),
         )
         for p, order, category in found
+    }
+
+
+@dataclass(frozen=True)
+class StockProduct:
+    """What M6 needs to buy, receive and count a product (M6 §3.3, §3.4)."""
+
+    id: uuid.UUID
+    slug: str
+    kind: str
+    names: dict[str, str]
+    step_qty: int
+    step_unit: str
+    shelf_life_h: int | None
+    unit_g: float | None  # grams per piece or bunch, from the nutrition data
+    shelf: tuple[int, str]  # (category sort order, category slug): how the hub's shelves run
+    active: bool
+
+
+async def stock_products(
+    session: AsyncSession, product_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, StockProduct]:
+    """Products by id, active or not (stock bought before a product was retired still counts);
+    unknown ids are left out."""
+    if not product_ids:
+        return {}
+    rows = await session.execute(
+        select(Product, Category.sort_order, Category.slug)
+        .join(Category, Category.id == Product.category_id)
+        .where(Product.id.in_(product_ids))
+    )
+    return {
+        p.id: StockProduct(
+            p.id,
+            p.slug,
+            p.kind,
+            dict(p.names),
+            p.step_qty,
+            p.step_unit,
+            p.shelf_life_h,
+            (p.nutrition or {}).get("unit_g"),
+            (order, category),
+            p.active,
+        )
+        for p, order, category in rows.all()
     }
 
 

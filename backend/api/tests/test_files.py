@@ -124,6 +124,8 @@ def _presign(purpose: str, content_type: str, size_bytes: int) -> dict[str, Any]
         ("order_issue_photo", "image/jpeg", 834221, "jpg"),
         ("donation_photo", "image/webp", 5 * MiB, "webp"),
         ("kyc_document", "application/pdf", 10 * MiB, "pdf"),
+        ("delivery_photo", "image/webp", 5 * MiB, "webp"),
+        ("handoff_photo", "image/png", 5 * MiB, "png"),
     ],
 )
 async def test_presign_signs_a_put_for_each_purpose(
@@ -183,6 +185,26 @@ async def test_presign_signs_a_put_for_each_purpose(
             {"max_bytes": 10 * MiB},
         ),
         (_presign("donation_photo", "image/png", 0), "platform.upload_too_large", {}),
+        (
+            _presign("delivery_photo", "image/png", 10),
+            "platform.upload_type_not_allowed",
+            {"allowed": ["image/jpeg", "image/webp"]},
+        ),
+        (
+            _presign("delivery_photo", "image/jpeg", 5 * MiB + 1),
+            "platform.upload_too_large",
+            {"max_bytes": 5 * MiB},
+        ),
+        (
+            _presign("handoff_photo", "application/pdf", 10),
+            "platform.upload_type_not_allowed",
+            {"allowed": ["image/jpeg", "image/png", "image/webp"]},
+        ),
+        (
+            _presign("handoff_photo", "image/webp", 5 * MiB + 1),
+            "platform.upload_too_large",
+            {"max_bytes": 5 * MiB},
+        ),
     ],
 )
 async def test_wrong_purpose_type_or_size_is_422_and_writes_nothing(
