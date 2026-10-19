@@ -345,7 +345,7 @@ async def test_the_data_export_has_her_applications_without_staff_fields(
     (application,) = section["applications"]
     assert (application["kind"], application["status"]) == ("packer", "applied")
     assert not {"created_by", "decided_by", "data_source"} & set(application)
-    assert section["partners"] == []
+    assert section["training_attempts"] == [] and section["partners"] == []
 
 
 async def test_the_review_view_shows_whether_the_society_has_an_active_captain(

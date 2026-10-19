@@ -1,18 +1,18 @@
-"""HTTP endpoints of M8 for applications (spec §3.1).
+"""HTTP endpoints of M8 for applications (spec §3.1) and training (§3.2).
 
-Applicants apply, follow and withdraw their own application; hub staff of the application's hub
-(and admins) read the review queue and create rider and packer applications for people without a
-household.
+Applicants apply, follow and withdraw their own application and take the training; hub staff of
+the application's hub (and admins) read the review queue and create rider and packer applications
+for people without a household.
 """
 
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Depends, Header, Path, Query, Response
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.partners import applications
+from gharbasket.modules.partners import applications, training
 from gharbasket.modules.partners.models import Application
 from gharbasket.modules.partners.schemas import (
     ApplicantOut,
@@ -21,12 +21,18 @@ from gharbasket.modules.partners.schemas import (
     ApplicationReviewOut,
     ApplicationSocietyOut,
     ApplicationStatus,
+    ApplicationStepOut,
     HubApplicationIn,
     PartnerKind,
+    TrainingCompleteIn,
+    TrainingModuleOut,
+    TrainingModulesOut,
+    TrainingResultOut,
 )
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.idempotency import Idempotent
+from gharbasket.platform.locale import Lang
 from gharbasket.platform.pagination import Cursor, Limit, Page
 from gharbasket.platform.permissions import PERMISSIONS, Permit, active_grants, require
 
@@ -34,6 +40,7 @@ router = APIRouter(tags=["partners"])
 
 REVIEW = "partner_applications:review"
 CanReview = Annotated[Permit, require(REVIEW)]
+TrainingCode = Annotated[str, Path(max_length=32, pattern=r"^[a-z][a-z_]*$")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -285,3 +292,82 @@ async def review_queue(
         session, hub_id, status=status, kind=kind, cursor=cursor, limit=limit
     )
     return Page(items=await _reviews(session, items), next_cursor=next_cursor)
+
+
+# --- training (§3.2) ----------------------------------------------------------------------------
+
+
+@router.get(
+    "/trainings",
+    summary="The training modules you need, in the order to take them",
+    responses={401: _problem("auth.invalid_token")},
+)
+async def trainings(
+    principal: CurrentPrincipal, session: DbSession, lang: Lang, response: Response
+) -> TrainingModulesOut:
+    _no_store(response)
+    items = []
+    for module, state in await training.modules_for(session, principal.user_id):
+        items.append(
+            TrainingModuleOut(
+                code=module.code,
+                version=module.version,
+                minutes=module.minutes,
+                for_kinds=module.for_kinds,  # pyright: ignore[reportArgumentType]
+                pass_score=float(module.pass_score),
+                status=state.status,  # pyright: ignore[reportArgumentType]
+                best_score=None if state.best_score is None else float(state.best_score),
+                passed_at=state.passed_at,
+                **training.localised(module, lang),
+            )
+        )
+    return TrainingModulesOut(items=items)
+
+
+@router.post(
+    "/trainings/{code}/complete",
+    summary="Send a module's quiz answers; scored on the server (Idempotency-Key required)",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        401: _problem("auth.invalid_token"),
+        404: _problem("partners.training_not_found"),
+        409: _problem("partners.training_version_stale (with version)"),
+        422: _problem("partners.answers_invalid, request.idempotency_mismatch, request.invalid"),
+        429: _problem("partners.training_attempts_exceeded"),
+    },
+)
+async def complete_training(
+    code: TrainingCode,
+    body: TrainingCompleteIn,
+    principal: CurrentPrincipal,
+    session: DbSession,
+    idem: Idempotent,
+) -> TrainingResultOut:
+    result = await training.complete(
+        session,
+        principal.user_id,
+        code,
+        version=body.version,
+        answers=[answer.model_dump() for answer in body.answers],
+    )
+    step = None
+    application = await applications.open_for(session, principal.user_id)
+    if application is not None:
+        view = (await applications.views(session, [application]))[application.id]
+        step = ApplicationStepOut(
+            id=application.id,
+            status=application.status,  # pyright: ignore[reportArgumentType]
+            next_step=view.next_step,  # pyright: ignore[reportArgumentType]
+        )
+    out = TrainingResultOut(
+        code=result.code,
+        score=float(result.score),
+        correct=result.correct,
+        total=result.total,
+        passed=result.passed,
+        status=result.status,  # pyright: ignore[reportArgumentType]
+        application=step,
+    )
+    await idem.save(200, out)
+    await session.commit()
+    return out

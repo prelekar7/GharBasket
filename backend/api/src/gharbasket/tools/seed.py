@@ -17,6 +17,7 @@ data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed
 hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
 The seed hub itself (M6, ADR-0026 §5) is Kharghar, with a service area around the seed societies
 and one default vendor, so every hub id above points at a real `hub_ops.hubs` row.
+The partner training modules (M8) come from data/seeds/trainings, placeholders until reviewed.
 Later module PRs add their rows here and use the hub, society and NGO ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
@@ -62,6 +63,7 @@ from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service as partners_service
+from gharbasket.modules.partners import training as partners_training
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
@@ -72,6 +74,7 @@ from gharbasket.platform.settings import DatabaseSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 CATALOG_SEED = REPO_ROOT / "data" / "seeds" / "catalog"
+TRAININGS_SEED = REPO_ROOT / "data" / "seeds" / "trainings" / "modules.json"
 
 # Fixed ids, so every machine gets the same world and later seeds can point at these rows.
 SEED_HUB_ID = uuid.UUID("0199a000-0000-7000-8000-00000000a001")  # Kharghar hub
@@ -451,6 +454,16 @@ async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
     return done
 
 
+async def seed_trainings(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Create or refresh the partner training modules (M8 §3.2) from data/seeds/trainings:
+    placeholders until Rhythm and Manish write the real ones. (code, created) each."""
+    saved: list[tuple[str, bool]] = []
+    for data in json.loads(TRAININGS_SEED.read_text())["modules"]:
+        module, created = await partners_training.save_module(session, data)
+        saved.append((module.code, created))
+    return saved
+
+
 async def _kept(session: AsyncSession, model: Any, slug: str, refresh: bool) -> Any:
     """The existing row the seed leaves alone: every existing one, or with `refresh` only those
     edited in the console (`updated_by` set). None when the seed should write the row."""
@@ -615,6 +628,7 @@ class Report:
     households: list[tuple[str, bool]]
     partners: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
+    trainings: list[tuple[str, bool]] = field(default_factory=list)
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
@@ -631,6 +645,7 @@ async def run(database_url: str, *, refresh: bool = False) -> Report:
                 households=await seed_households(session),
                 partners=await seed_partners(session),
                 products=await seed_catalog(session, refresh=refresh),
+                trainings=await seed_trainings(session),
                 delivery=await seed_delivery(session),
             )
             await session.commit()
@@ -676,6 +691,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{len(report.partners)} synthetic captain partners")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
+    print(f"{len(report.trainings)} partner training modules (placeholders)")
     if report.delivery:
         print(f"delivery: slot {report.delivery[0]} on Tuesdays for {report.delivery[1]} societies")
     return 0
