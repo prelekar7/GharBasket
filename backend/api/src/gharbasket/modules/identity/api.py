@@ -115,6 +115,16 @@ async def user_contacts(
     return {user_id: UserContact(name, phone) for user_id, name, phone in rows.all()}
 
 
+async def user_by_phone(session: AsyncSession, phone_e164: str) -> uuid.UUID | None:
+    """The signed-up user with this phone (M8: a hub manager creates a rider or packer
+    application for a person without a household); None when nobody signed up with it."""
+    return (
+        await session.execute(
+            select(User.id).where(User.phone_e164 == phone_e164, User.status == "active")
+        )
+    ).scalar_one_or_none()
+
+
 async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> uuid.UUID | None:
     """The user whose wallet pays for this household's boxes."""
     return (

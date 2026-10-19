@@ -23,6 +23,7 @@ async def test_get_society_gives_what_an_address_needs(db_session: AsyncSession)
         hub_id=SEED_HUB_ID,
         status="live",
         tower_ids=frozenset({"a", "b", "c"}),
+        name="Sunrise Towers",
         live_at=society.live_at,
     )
     unlocking = await api.get_society(db_session, GREEN_VALLEY)

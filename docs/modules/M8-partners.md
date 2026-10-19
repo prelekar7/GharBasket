@@ -255,6 +255,16 @@ ApplicationReview : Application & {
 | 403 | `auth.forbidden` | A role without the permission, or hub staff of another hub |
 | 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
 
+**As built (applications, S6 build order (b), first PR).**
+- **Endpoints.** `POST /v1/partner-applications`, `POST /v1/hubs/{id}/partner-applications`, `GET /v1/partner-applications/me`, `GET /v1/partner-applications/{id}`, `POST …/withdraw` and the review queue. Training, KYC documents, the decision and verification follow in the next PRs; until then every required document shows `missing`, every module `todo`, and applications stay `applied`.
+- **Permissions.** A customer's own application needs only sign-in. The hub-created application and the review queue take `partner_applications:review` (hub_manager, admin), so a customer's unscoped role can never reach another hub's queue.
+- **Checks, in order.** Kind, then `partners.already_applied`, then household, hub and scope, then the display name. Two applications at the same moment meet the one-open-application index, and the second gets 409.
+- **`GET /v1/partner-applications/{id}`.** The applicant sees her `Application`; hub staff of its hub and admins see `ApplicationReview` (the applicant's name and phone from `identity.api.user_contacts`, the society's name from `community.api.get_society`). Anyone else gets 404.
+- **`society.has_active_captain`** comes from M9's `community.api.captain_for_society`.
+- **M1.** `identity.api.user_by_phone(phone_e164)` (active users only), as listed in §10.
+- **`PartnerStaff.requested_society`** comes from the partner's captain application; seeded partners have none.
+- **The data export** gains `applications` (without `created_by`, `decided_by` and `data_source`).
+
 ### 3.2 Training (frozen for S6)
 ```
 TrainingModule : {

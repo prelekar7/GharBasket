@@ -605,6 +605,449 @@
         "title": "AiHealthOut",
         "type": "object"
       },
+      "ApplicantOut": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone_e164": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone E164"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "phone_e164"
+        ],
+        "title": "ApplicantOut",
+        "type": "object"
+      },
+      "ApplicationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What customers will see, 2 to 40 characters; default your M1 name",
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name"
+          },
+          "kind": {
+            "description": "kitchen, captain, rider or packer (else 422 partners.kind_invalid)",
+            "examples": [
+              "captain"
+            ],
+            "maxLength": 16,
+            "title": "Kind",
+            "type": "string"
+          },
+          "scope_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional: a captain's own society, anyone else's household hub",
+            "title": "Scope Id"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "ApplicationIn",
+        "type": "object"
+      },
+      "ApplicationOut": {
+        "properties": {
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "display_name": {
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "documents",
+                  "review",
+                  "training"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null once verified, rejected or withdrawn",
+            "title": "Next Step"
+          },
+          "partner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set at verification",
+            "title": "Partner Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was rejected or sent back",
+            "title": "Reason"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/Requirements"
+          },
+          "scope_id": {
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "description": "society: the captain's own society; hub: everyone else",
+            "enum": [
+              "society",
+              "hub"
+            ],
+            "title": "Scope Type",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "training",
+              "verified",
+              "rejected",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "scope_type",
+          "scope_id",
+          "hub_id",
+          "display_name",
+          "requirements",
+          "next_step",
+          "reason",
+          "partner_id",
+          "submitted_at",
+          "decided_at",
+          "verified_at",
+          "version"
+        ],
+        "title": "ApplicationOut",
+        "type": "object"
+      },
+      "ApplicationReviewOut": {
+        "description": "An application as hub staff of its hub (and admins) see it.",
+        "properties": {
+          "applicant": {
+            "$ref": "#/components/schemas/ApplicantOut"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "display_name": {
+            "examples": [
+              "Meena tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "next_step": {
+            "anyOf": [
+              {
+                "enum": [
+                  "documents",
+                  "review",
+                  "training"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null once verified, rejected or withdrawn",
+            "title": "Next Step"
+          },
+          "partner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set at verification",
+            "title": "Partner Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it was rejected or sent back",
+            "title": "Reason"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/Requirements"
+          },
+          "scope_id": {
+            "format": "uuid",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "scope_type": {
+            "description": "society: the captain's own society; hub: everyone else",
+            "enum": [
+              "society",
+              "hub"
+            ],
+            "title": "Scope Type",
+            "type": "string"
+          },
+          "society": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationSocietyOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Captain applications"
+          },
+          "status": {
+            "enum": [
+              "applied",
+              "kyc_pending",
+              "training",
+              "verified",
+              "rejected",
+              "withdrawn"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "title": "Submitted At",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "scope_type",
+          "scope_id",
+          "hub_id",
+          "display_name",
+          "requirements",
+          "next_step",
+          "reason",
+          "partner_id",
+          "submitted_at",
+          "decided_at",
+          "verified_at",
+          "version",
+          "applicant",
+          "society"
+        ],
+        "title": "ApplicationReviewOut",
+        "type": "object"
+      },
+      "ApplicationSocietyOut": {
+        "properties": {
+          "has_active_captain": {
+            "description": "Whether the society already has an active captain (M9)",
+            "title": "Has Active Captain",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "has_active_captain"
+        ],
+        "title": "ApplicationSocietyOut",
+        "type": "object"
+      },
       "BudgetLockIn": {
         "additionalProperties": false,
         "properties": {
@@ -1805,6 +2248,59 @@
           "current"
         ],
         "title": "DeviceOut",
+        "type": "object"
+      },
+      "DocumentRequirement": {
+        "properties": {
+          "doc_type": {
+            "examples": [
+              "pan"
+            ],
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the hub asked for it again",
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "missing",
+              "submitted",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_type",
+          "status",
+          "document_id",
+          "reason"
+        ],
+        "title": "DocumentRequirement",
         "type": "object"
       },
       "DonationLine": {
@@ -3795,6 +4291,46 @@
           }
         },
         "title": "HouseholdUpdate",
+        "type": "object"
+      },
+      "HubApplicationIn": {
+        "additionalProperties": false,
+        "description": "A rider or packer application a hub manager creates for a person without a household.",
+        "properties": {
+          "display_name": {
+            "description": "2 to 40 characters",
+            "examples": [
+              "Ravi"
+            ],
+            "maxLength": 100,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "description": "rider or packer",
+            "examples": [
+              "rider"
+            ],
+            "maxLength": 16,
+            "title": "Kind",
+            "type": "string"
+          },
+          "phone_e164": {
+            "description": "A signed-up user's phone",
+            "examples": [
+              "+919812345678"
+            ],
+            "pattern": "^\\+[1-9][0-9]{7,14}$",
+            "title": "Phone E164",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "phone_e164",
+          "display_name"
+        ],
+        "title": "HubApplicationIn",
         "type": "object"
       },
       "HubDriftOut": {
@@ -8142,6 +8678,34 @@
           "next_cursor"
         ],
         "title": "Page[AdminRecipe]",
+        "type": "object"
+      },
+      "Page_ApplicationReviewOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicationReviewOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[ApplicationReviewOut]",
         "type": "object"
       },
       "Page_Entry_": {
@@ -13169,6 +13733,31 @@
         "title": "ReplacedOut",
         "type": "object"
       },
+      "Requirements": {
+        "properties": {
+          "documents": {
+            "description": "The kind's required types only",
+            "items": {
+              "$ref": "#/components/schemas/DocumentRequirement"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "trainings": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingRequirement"
+            },
+            "title": "Trainings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents",
+          "trainings"
+        ],
+        "title": "Requirements",
+        "type": "object"
+      },
       "Review": {
         "properties": {
           "at": {
@@ -16348,6 +16937,32 @@
           "label"
         ],
         "title": "Tower",
+        "type": "object"
+      },
+      "TrainingRequirement": {
+        "properties": {
+          "code": {
+            "examples": [
+              "hygiene"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "todo",
+              "passed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "status"
+        ],
+        "title": "TrainingRequirement",
         "type": "object"
       },
       "TurnOut": {
@@ -28674,6 +29289,295 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/partner-applications": {
+      "get": {
+        "operationId": "review_queue_v1_hubs__hub_id__partner_applications_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "kyc_pending",
+              "enum": [
+                "applied",
+                "kyc_pending",
+                "training",
+                "verified",
+                "rejected",
+                "withdrawn"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kitchen",
+                    "captain",
+                    "rider",
+                    "packer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ApplicationReviewOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's review queue, oldest submitted first (hub staff, admin)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      },
+      "post": {
+        "operationId": "create_for_person_v1_hubs__hub_id__partner_applications_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HubApplicationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.already_applied (with application_id or partner_id)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kind_invalid, partners.user_not_found, partners.display_name_invalid, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Create a rider or packer application for a person without a household (hub staff, admin; Idempotency-Key required; audit-logged)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/partners": {
       "get": {
         "operationId": "hub_partners_v1_hubs__hub_id__partners_get",
@@ -34637,6 +35541,357 @@
         "summary": "Start a task (the order moves locked → picking; Idempotency-Key)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/partner-applications": {
+      "post": {
+        "operationId": "apply_v1_partner_applications_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.already_applied (with application_id or partner_id)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kind_invalid, partners.household_required, partners.no_hub, partners.captain_not_resident, partners.scope_invalid, partners.display_name_invalid, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Apply to become a partner (Idempotency-Key required)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/partner-applications/me": {
+      "get": {
+        "operationId": "my_application_v1_partner_applications_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_not_found"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your open application, else your latest",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/partner-applications/{application_id}": {
+      "get": {
+        "operationId": "get_application_v1_partner_applications__application_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApplicationReviewOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApplicationOut"
+                    }
+                  ],
+                  "title": "Response Get Application V1 Partner Applications  Application Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "An application: the applicant's own, or the review view for hub staff of its hub",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/partner-applications/{application_id}/withdraw": {
+      "post": {
+        "operationId": "withdraw_v1_partner_applications__application_id__withdraw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.application_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Withdraw your application before verification (Idempotency-Key required)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },

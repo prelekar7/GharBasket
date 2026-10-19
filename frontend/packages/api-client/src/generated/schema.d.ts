@@ -1264,6 +1264,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/partner-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's review queue, oldest submitted first (hub staff, admin) */
+        get: operations["review_queue_v1_hubs__hub_id__partner_applications_get"];
+        put?: never;
+        /** Create a rider or packer application for a person without a household (hub staff, admin; Idempotency-Key required; audit-logged) */
+        post: operations["create_for_person_v1_hubs__hub_id__partner_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/partners": {
         parameters: {
             query?: never;
@@ -2031,6 +2049,74 @@ export interface paths {
         put?: never;
         /** Start a task (the order moves locked → picking; Idempotency-Key) */
         post: operations["start_packing_v1_packing_tasks__task_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply to become a partner (Idempotency-Key required) */
+        post: operations["apply_v1_partner_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your open application, else your latest */
+        get: operations["my_application_v1_partner_applications_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An application: the applicant's own, or the review view for hub staff of its hub */
+        get: operations["get_application_v1_partner_applications__application_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/{application_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw your application before verification (Idempotency-Key required) */
+        post: operations["withdraw_v1_partner_applications__application_id__withdraw_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3073,6 +3159,191 @@ export interface components {
             /** Window Days */
             window_days: number;
         };
+        /** ApplicantOut */
+        ApplicantOut: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** ApplicationIn */
+        ApplicationIn: {
+            /**
+             * Display Name
+             * @description What customers will see, 2 to 40 characters; default your M1 name
+             * @example Meena tai
+             */
+            display_name?: string | null;
+            /**
+             * Kind
+             * @description kitchen, captain, rider or packer (else 422 partners.kind_invalid)
+             * @example captain
+             */
+            kind: string;
+            /**
+             * Scope Id
+             * @description Optional: a captain's own society, anyone else's household hub
+             */
+            scope_id?: string | null;
+        };
+        /** ApplicationOut */
+        ApplicationOut: {
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * ApplicationReviewOut
+         * @description An application as hub staff of its hub (and admins) see it.
+         */
+        ApplicationReviewOut: {
+            applicant: components["schemas"]["ApplicantOut"];
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /** @description Captain applications */
+            society: components["schemas"]["ApplicationSocietyOut"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /** ApplicationSocietyOut */
+        ApplicationSocietyOut: {
+            /**
+             * Has Active Captain
+             * @description Whether the society already has an active captain (M9)
+             */
+            has_active_captain: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string | null;
+        };
         /** BudgetLockIn */
         BudgetLockIn: {
             /**
@@ -3550,6 +3821,26 @@ export interface components {
              * Format: date-time
              */
             signed_in_at: string;
+        };
+        /** DocumentRequirement */
+        DocumentRequirement: {
+            /**
+             * Doc Type
+             * @example pan
+             */
+            doc_type: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Reason
+             * @description Why the hub asked for it again
+             */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "missing" | "submitted" | "accepted" | "rejected";
         };
         /** DonationLine */
         DonationLine: {
@@ -4343,6 +4634,30 @@ export interface components {
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
+        };
+        /**
+         * HubApplicationIn
+         * @description A rider or packer application a hub manager creates for a person without a household.
+         */
+        HubApplicationIn: {
+            /**
+             * Display Name
+             * @description 2 to 40 characters
+             * @example Ravi
+             */
+            display_name: string;
+            /**
+             * Kind
+             * @description rider or packer
+             * @example rider
+             */
+            kind: string;
+            /**
+             * Phone E164
+             * @description A signed-up user's phone
+             * @example +919812345678
+             */
+            phone_e164: string;
         };
         /** HubDriftOut */
         HubDriftOut: {
@@ -6243,6 +6558,13 @@ export interface components {
         Page_AdminRecipe_: {
             /** Items */
             items: components["schemas"]["AdminRecipe"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[ApplicationReviewOut] */
+        Page_ApplicationReviewOut_: {
+            /** Items */
+            items: components["schemas"]["ApplicationReviewOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -8338,6 +8660,16 @@ export interface components {
             /** Unit Price Paise */
             unit_price_paise: number;
         };
+        /** Requirements */
+        Requirements: {
+            /**
+             * Documents
+             * @description The kind's required types only
+             */
+            documents: components["schemas"]["DocumentRequirement"][];
+            /** Trainings */
+            trainings: components["schemas"]["TrainingRequirement"][];
+        };
         /** Review */
         Review: {
             /**
@@ -9733,6 +10065,19 @@ export interface components {
              * @example A wing
              */
             label: string;
+        };
+        /** TrainingRequirement */
+        TrainingRequirement: {
+            /**
+             * Code
+             * @example hygiene
+             */
+            code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "todo" | "passed" | "failed";
         };
         /** TurnOut */
         TurnOut: {
@@ -16306,6 +16651,138 @@ export interface operations {
             };
         };
     };
+    review_queue_v1_hubs__hub_id__partner_applications_get: {
+        parameters: {
+            query?: {
+                status?: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+                kind?: ("kitchen" | "captain" | "rider" | "packer") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ApplicationReviewOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_for_person_v1_hubs__hub_id__partner_applications_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubApplicationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.already_applied (with application_id or partner_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kind_invalid, partners.user_not_found, partners.display_name_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_partners_v1_hubs__hub_id__partners_get: {
         parameters: {
             query?: {
@@ -19695,6 +20172,235 @@ export interface operations {
                 };
             };
             /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    apply_v1_partner_applications_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.already_applied (with application_id or partner_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kind_invalid, partners.household_required, partners.no_hub, partners.captain_not_resident, partners.scope_invalid, partners.display_name_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_application_v1_partner_applications_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_application_v1_partner_applications__application_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationReviewOut"] | components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    withdraw_v1_partner_applications__application_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

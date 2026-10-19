@@ -308,7 +308,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "partners",
         "community",
     }
-    assert sections["partners"] == {"partners": []}
+    assert sections["partners"] == {"applications": [], "partners": []}
     assert sections["community"] == {
         "captain_appointments": [],
         "donations": [],
