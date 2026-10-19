@@ -1,0 +1,31 @@
+# The backend end-to-end suite (`just e2e-day`): a fresh database, the real app over HTTP with real
+# commits, the real outbox relay and the real jobs, driven through one simulated delivery day.
+# A virtual workspace member: tests and helpers only, nothing to build or import from elsewhere.
+[project]
+name = "gharbasket-e2e"
+version = "0.1.0"
+description = "GharBasket backend end-to-end suite: the simulated delivery day"
+requires-python = ">=3.13"
+dependencies = [
+    "gharbasket-api",
+    "gharbasket-ml",
+    "gharbasket-sim",
+    "time-machine>=3.5.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+gharbasket-api = { workspace = true }
+gharbasket-ml = { workspace = true }
+gharbasket-sim = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+python_files = ["test_*.py"]
+pythonpath = ["."]
+# The day's steps run in file order, each building on the one before.
+addopts = "-q -p no:cacheprovider -rxXs"
+# Alembic notes that it cannot compare generated columns; `alembic check` still compares the rest.
+filterwarnings = ["ignore:Computed default on:UserWarning"]

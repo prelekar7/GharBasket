@@ -309,7 +309,13 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "community",
     }
     assert sections["partners"] == {"applications": [], "training_attempts": [], "partners": []}
-    assert sections["community"] == {"captain_appointments": []}
+    assert sections["community"] == {
+        "captain_appointments": [],
+        "donations": [],
+        "referral_code": None,
+        "referrals_made": [],
+        "referred": None,
+    }
     assert sections["notifications"] == {"messages": []}
     assert sections["identity"]["user"]["phone_e164"] == "+919800000001"
     assert sections["identity"]["household"]["address"]["flat"] == "A-1203"
@@ -504,5 +510,10 @@ async def test_a_user_without_a_household_gets_empty_sections(
     sections = s3.file(f"data_export/{user_id}/{export_id}.json")["sections"]
     assert sections["identity"]["household"] is None
     assert sections["subscriptions"]["cycles"] == [] and sections["orders"]["orders"] == []
-    assert sections["billing"] == {"wallet_balance_paise": 0, "wallet_entries": [], "topups": []}
+    assert sections["billing"] == {
+        "wallet_balance_paise": 0,
+        "wallet_entries": [],
+        "topups": [],
+        "kindness_points": [],
+    }
     assert (await db_session.get(User, user_id)) is not None

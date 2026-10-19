@@ -20,10 +20,16 @@ class Settings(BaseSettings):
     s3_secret_key: SecretStr | None = None
     s3_region: str = "auto"
     s3_bucket_lake: str = "gb-lake"
+    # The model registry (ADR-0025): models/<name>/<version>/ and models/<name>/latest.json.
+    s3_bucket_mlflow: str = "gb-mlflow"
 
     # Where results go: the API's internal endpoints, with the operator token.
     api_url: str | None = None
     jobs_token: SecretStr | None = None
+
+    # The database, read with a read-only role in Actions (snapshots, features).
+    database_url_ro: SecretStr | None = None
+    database_url: SecretStr | None = None
 
     http_timeout_s: float = Field(default=60.0, gt=0)
 
