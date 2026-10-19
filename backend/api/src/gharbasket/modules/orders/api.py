@@ -21,7 +21,10 @@ from gharbasket.modules.orders import issues, service
 from gharbasket.modules.orders.events import (
     CANCELLED,
     DELIVERED,
+    DELIVERY_FAILED,
+    DISPATCHED,
     LOCKED,
+    PACKED,
     PAYMENT_FAILED,
     TIFFIN_BOOKED,
 )
@@ -49,8 +52,11 @@ from gharbasket.platform import files
 __all__ = [
     "CANCELLED",
     "DELIVERED",
+    "DELIVERY_FAILED",
+    "DISPATCHED",
     "LOCKED",
     "NOT_SOLD",
+    "PACKED",
     "PAYMENT_FAILED",
     "SOLD",
     "TIFFIN_BOOKED",

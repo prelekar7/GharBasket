@@ -247,9 +247,10 @@ async def cancel_for_partner(session: AsyncSession, partner_id: uuid.UUID, from_
         .all()
     )
     for assignment in found:
+        accepted = assignment.status == "accepted"
         assignment.status = "cancelled"
         await assignments.event(session, assignment, "cancelled", None)
-        await assignments.release(session, assignment, "cancelled")
+        await assignments.release(session, assignment, "cancelled", clear_kitchen=accepted)
     return len(found)
 
 

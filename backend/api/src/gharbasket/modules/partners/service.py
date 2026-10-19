@@ -199,6 +199,39 @@ async def set_paused(session: AsyncSession, partner: Partner, *, paused: bool) -
     return partner
 
 
+async def leave_for_user(session: AsyncSession, user_id: uuid.UUID) -> int:
+    """She asked to delete her account (M1 §3.5): every record of hers that has not left becomes
+    `left`, her offered and accepted tiffins are cancelled as for a suspension, `partners.suspended`
+    goes out with `reason_code: "left"` (M9 ends a captain's appointment, M1 the role), and her
+    KYC files may be deleted 30 days later. What she earned is still paid (§3.7). Returns how
+    many records left; running it again changes nothing."""
+    from gharbasket.modules.partners import kyc  # deferred: kyc imports this module's siblings
+
+    gone = [p for p in await for_user(session, user_id) if p.status != "left"]
+    for partner in gone:
+        before = {"status": partner.status}
+        partner.status = "left"
+        partner.version += 1
+        await session.flush()
+        await audit.record(
+            session,
+            actor_user_id=None,
+            action="partners.left",
+            entity_type="partner",
+            entity_id=str(partner.id),
+            before=before,
+            after={"status": "left"},
+        )
+        if partner.kind == "kitchen":
+            await cooking.cancel_for_partner(session, partner.id, kitchens.today())
+        await publish(session, events.SUSPENDED, {**_ref(partner), "reason_code": "left"})
+    if gone:
+        await kyc.release_files(
+            session, await kyc.all_for_user(session, user_id), datetime.now(UTC)
+        )
+    return len(gone)
+
+
 async def rename(session: AsyncSession, partner: Partner, display_name: str) -> Partner:
     """Her own display name (2 to 40 characters, as on the application): the name customers see
     on her card. Changing it to what it is changes nothing."""

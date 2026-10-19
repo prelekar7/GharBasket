@@ -25,3 +25,6 @@ ASSIGNMENT_CREATED = "partners.assignment_created"
 ASSIGNMENT_RELEASED = "partners.assignment_released"
 # {hub_id, date, meal, run_id, order_ids, reasons}: once per run; M11 tells the hub managers.
 TIFFINS_UNASSIGNED = "partners.tiffins_unassigned"
+# {assignment_id, partner_id, hub_id, date, meal, portions_delivered, orders_failed}: every order
+# of the assignment was delivered or failed (§3.4).
+ASSIGNMENT_COMPLETED = "partners.assignment_completed"

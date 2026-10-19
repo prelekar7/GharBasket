@@ -7,34 +7,47 @@ into roles.
 
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import applications, kyc, service, training
+from gharbasket.modules.partners import applications, kyc, pickups, service, training
 from gharbasket.modules.partners.events import (
     APPLICATION_DECIDED,
     APPLICATION_SUBMITTED,
+    ASSIGNMENT_COMPLETED,
+    ASSIGNMENT_CREATED,
+    ASSIGNMENT_RELEASED,
     REINSTATED,
     SUSPENDED,
+    TIFFINS_UNASSIGNED,
     VERIFIED,
 )
 from gharbasket.modules.partners.models import Application, Partner
+from gharbasket.modules.partners.pickups import PickupRef
 
 __all__ = [
     "APPLICATION_DECIDED",
     "APPLICATION_SUBMITTED",
+    "ASSIGNMENT_COMPLETED",
+    "ASSIGNMENT_CREATED",
+    "ASSIGNMENT_RELEASED",
     "REINSTATED",
     "SUSPENDED",
+    "TIFFINS_UNASSIGNED",
     "VERIFIED",
     "PartnerRef",
+    "PickupRef",
     "ProfileCard",
     "application_reason",
     "export_for_user",
     "get_partner",
     "partner_for_user",
+    "pickup",
     "profile_card",
+    "tiffin_pickups",
 ]
 
 
@@ -94,6 +107,19 @@ async def profile_card(session: AsyncSession, partner_id: uuid.UUID) -> ProfileC
     partner_photo upload purpose exists (§11)."""
     partner = await session.get(Partner, partner_id)
     return None if partner is None else ProfileCard(partner.display_name, None)
+
+
+async def tiffin_pickups(
+    session: AsyncSession, hub_id: uuid.UUID, on_date: date, meal: str
+) -> list[PickupRef]:
+    """M7's tiffin routes: the hub's kitchens with tiffins to collect for a date and meal."""
+    return await pickups.tiffin_pickups(session, hub_id, on_date, meal)
+
+
+async def pickup(session: AsyncSession, pickup_qr: str, hub_id: uuid.UUID) -> PickupRef:
+    """M7's rider scan: the orders ready at the kitchen whose `GB1A:` code this is. Raises 404
+    `partners.pickup_invalid` for an unknown, malformed or other hub's code."""
+    return await pickups.pickup(session, pickup_qr, hub_id)
 
 
 async def application_reason(session: AsyncSession, application_id: uuid.UUID) -> str | None:
