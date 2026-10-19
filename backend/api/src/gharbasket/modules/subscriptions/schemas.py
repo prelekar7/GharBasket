@@ -153,7 +153,8 @@ class BudgetLockIn(BaseModel):
 
     month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", examples=["2026-10"])
     budget_paise: int | None = Field(
-        default=None, ge=50_000, description="At least ₹500; null switches the lock off"
+        default=None,
+        description="At least ₹500 (else 422 subscriptions.budget_invalid); null switches it off",
     )
 
 

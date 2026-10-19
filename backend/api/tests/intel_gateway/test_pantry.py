@@ -6,6 +6,9 @@ from datetime import date
 
 import httpx2
 import pytest
+from gharbasket_ml.schemas import RouteRequest as MlRouteRequest
+from gharbasket_ml.settings import Settings as MlSettings
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import api, fallback
@@ -98,3 +101,105 @@ def test_the_fallback_interval_is_for_next_weeks_use() -> None:
     sd = (35.6 * 13) ** 0.5 / 12 * 500
     assert item.p90 - item.mean == pytest.approx(1.2816 * sd, abs=0.02)
     assert item.p90 - item.p10 > 2 * 1.2816 * (35.6**0.5 / 12 * 500)  # not the rate's interval
+
+
+# --- /route/solve through the gateway (M10 §3.4) ------------------------------------------------
+
+
+def route_request(**overrides: object) -> api.RouteRequest:
+    return api.RouteRequest.model_validate(
+        {
+            "hub": {"lat": 19.03, "lng": 73.069},
+            "depart_s": 23400,
+            "return_by_s": 41400,
+            "stops": [
+                {
+                    "id": f"society-{i}",
+                    "lat": 19.03 + i * 0.004,
+                    "lng": 73.07 + i * 0.003,
+                    "orders": 6,
+                    "kg_tenths": 240,
+                    "crates": 2,
+                    "window_start_s": 25200,
+                    "window_end_s": 32400,
+                }
+                for i in range(4)
+            ],
+            "vans": {"count": 2},
+            "time_limit_s": 1.0,
+            **overrides,
+        }
+    )
+
+
+async def test_routes_come_from_the_service_and_are_recorded_for_the_hub(
+    db_session: AsyncSession,
+) -> None:
+    settings = make_settings(ml_service_url="http://ml", ml_service_token=TOKEN)
+    hub = uuid.uuid4()
+    async with httpx2.AsyncClient(transport=ml_transport(), base_url="http://ml") as http:
+        plan = await api.solve_routes(
+            http,
+            settings,
+            route_request(),
+            session=db_session,
+            hub_id=hub,
+            for_date=date(2026, 10, 13),
+        )
+    assert plan is not None and plan.status == "solved" and plan.source == "haversine"
+    assert plan.summary.problems == [] and sum(len(r.stops) for r in plan.routes) == 4
+    kept = await api.latest_prediction(
+        db_session, kind="route", subject_id=hub, for_date=date(2026, 10, 13)
+    )
+    assert kept is not None and kept.model_name == "cvrptw-waves-v0"
+
+
+async def test_without_the_service_there_are_no_routes() -> None:
+    down = make_settings(ml_service_url="http://down.invalid", ml_timeout_s=0.5)
+    async with httpx2.AsyncClient() as http:
+        assert await api.solve_routes(http, down, route_request()) is None
+    assert await api.solve_routes(httpx2.AsyncClient(), make_settings(), route_request()) is None
+
+
+async def test_service_and_cost_reach_the_service_in_its_own_shape() -> None:
+    request = route_request(
+        service={"drop_s": 300, "per_crate_s": 20},
+        cost={"fixed_paise_per_van": 30_000, "late_paise_per_s": 80},
+        max_late_s=900,
+    )
+    # The ML service forbids unknown fields: the gateway's copy must match it field for field.
+    assert MlRouteRequest.model_validate(request.model_dump(mode="json")).service.drop_s == 300
+    settings = make_settings(ml_service_url="http://ml", ml_service_token=TOKEN)
+    async with httpx2.AsyncClient(transport=ml_transport(), base_url="http://ml") as http:
+        plan = await api.solve_routes(http, settings, request)
+    assert plan is not None and plan.summary.problems == []
+
+
+def test_the_gateway_refuses_what_the_service_would_refuse() -> None:
+    with pytest.raises(ValidationError, match="donations need a food_bank"):
+        route_request(
+            stops=[
+                {
+                    "id": "s",
+                    "lat": 19.03,
+                    "lng": 73.07,
+                    "donation_kg_tenths": 30,
+                    "window_start_s": 25200,
+                    "window_end_s": 32400,
+                }
+            ]
+        )
+    with pytest.raises(ValidationError, match="depart_s must be before return_by_s"):
+        route_request(depart_s=41400)
+    with pytest.raises(ValidationError, match="window_start_s is after window_end_s"):
+        route_request(
+            food_bank={"lat": 19.02, "lng": 73.04, "window_start_s": 43200, "window_end_s": 28800}
+        )
+
+
+def test_the_route_timeout_covers_the_osrm_wait_and_the_solver() -> None:
+    settings = make_settings()
+    request = route_request(time_limit_s=20.0)
+    osrm = MlSettings(app_env="test").osrm_timeout_s
+    assert api.route_timeout_s(settings, request) >= osrm + request.time_limit_s + 2.0
+    assert api.route_timeout_s(settings, route_request(time_limit_s=0.5)) >= osrm + 0.5 + 2.0
