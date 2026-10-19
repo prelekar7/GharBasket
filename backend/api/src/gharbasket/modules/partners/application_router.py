@@ -1,8 +1,8 @@
-"""HTTP endpoints of M8 for applications (spec §3.1) and training (§3.2).
+"""HTTP endpoints of M8 for applications and the hub's decision (spec §3.1) and training (§3.2).
 
 Applicants apply, follow and withdraw their own application and take the training; hub staff of
-the application's hub (and admins) read the review queue and create rider and packer applications
-for people without a household.
+the application's hub (and admins) read the review queue, decide, and create rider and packer
+applications for people without a household.
 """
 
 import uuid
@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Header, Path, Query, Response
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.partners import applications, training
+from gharbasket.modules.partners import applications, review, training
 from gharbasket.modules.partners.models import Application, KycDocument
 from gharbasket.modules.partners.schemas import (
     ApplicantOut,
@@ -23,6 +23,7 @@ from gharbasket.modules.partners.schemas import (
     ApplicationSocietyOut,
     ApplicationStatus,
     ApplicationStepOut,
+    DecisionIn,
     HubApplicationIn,
     KycCheckOut,
     KycDocumentOut,
@@ -329,6 +330,48 @@ async def review_queue(
     return Page(items=await reviews(session, items), next_cursor=next_cursor)
 
 
+@router.post(
+    "/partner-applications/{application_id}/decision",
+    summary="Approve, ask for documents again, or reject (hub staff of its hub, admin; "
+    "Idempotency-Key required; audit-logged)",
+    responses={
+        400: _problem("request.idempotency_key_required"),
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        404: _problem("partners.application_not_found, partners.document_not_found"),
+        409: _problem(
+            "partners.not_reviewable, partners.documents_missing (with doc_types), "
+            "partners.already_applied"
+        ),
+        422: _problem("partners.reason_required, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def decide(
+    application_id: uuid.UUID,
+    body: DecisionIn,
+    permit: CanReview,
+    session: DbSession,
+    idem: Idempotent,
+) -> ApplicationReviewOut:
+    application = await session.get(Application, application_id, with_for_update=True)
+    if application is None:
+        raise applications.not_found()
+    permit.ensure(application.hub_id)
+    await review.decide(
+        session,
+        application,
+        outcome=body.outcome,
+        reason=body.reason,
+        document_ids=body.document_ids,
+        hygiene_grade=body.hygiene_grade,
+        by_user_id=permit.principal.user_id,
+    )
+    (out,) = await reviews(session, [application])
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
 # --- training (§3.2) ----------------------------------------------------------------------------
 
 
@@ -366,7 +409,7 @@ async def trainings(
         400: _problem("request.idempotency_key_required"),
         401: _problem("auth.invalid_token"),
         404: _problem("partners.training_not_found"),
-        409: _problem("partners.training_version_stale (with version)"),
+        409: _problem("partners.training_version_stale (with version), partners.already_applied"),
         422: _problem("partners.answers_invalid, request.idempotency_mismatch, request.invalid"),
         429: _problem("partners.training_attempts_exceeded"),
     },
@@ -388,6 +431,9 @@ async def complete_training(
     )
     step = None
     if application is not None:
+        if result.passed:
+            # The last required pass after the hub's approval verifies, in this transaction.
+            await review.verify_if_complete(session, application)
         view = (await applications.views(session, [application]))[application.id]
         step = ApplicationStepOut(
             id=application.id,
