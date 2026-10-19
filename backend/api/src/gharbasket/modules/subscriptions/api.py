@@ -2,7 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select
@@ -21,9 +21,11 @@ from gharbasket.modules.subscriptions.models import (
 from gharbasket.platform.locale import Language, localised
 
 MAX_QTY = service.MAX_QTY  # steps a line may hold
+DailyUseShare = service.DailyUseShare
 
 __all__ = [
     "MAX_QTY",
+    "DailyUseShare",
     "LineEdit",
     "WeekLineView",
     "WeekView",
@@ -32,7 +34,9 @@ __all__ = [
     "current_cycle_of",
     "cycle_after",
     "cycle_for",
+    "daily_use_history",
     "delete_for_user",
+    "delivery_dates",
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
@@ -52,6 +56,17 @@ async def cycle_for(
     session: AsyncSession, household_id: uuid.UUID, delivery_date: date
 ) -> WeeklyCycle | None:
     return await service.cycle_for(session, household_id, delivery_date)
+
+
+async def daily_use_history(
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+) -> list[DailyUseShare]:
+    """Every locked box's daily-use share of the twin products (milk, curd) and its tap, oldest
+    first, exactly as the serving twin observes them (M10 §3.3): the pantry priors' refit
+    (`backend/training`, `refit_pantry`) reads it so the priors learn what the twin sees."""
+    return await service.daily_use_history(session, profile, catalog)
 
 
 async def current_cycle_of(session: AsyncSession, household_id: uuid.UUID) -> WeeklyCycle | None:
@@ -233,6 +248,21 @@ async def mark_locked(session: AsyncSession, cycle_id: uuid.UUID, order_id: uuid
     cycle = await session.get(WeeklyCycle, cycle_id)
     if cycle is not None:
         await service.mark_locked(session, cycle, order_id)
+
+
+async def delivery_dates(
+    session: AsyncSession, society_id: uuid.UUID, after: date, n: int
+) -> list[date]:
+    """The society's next `n` delivery dates strictly after `after`, soonest first; [] without
+    delivery days (M9's donation pickup dates, M9 §3.4)."""
+    weekdays = {day.weekday for day in await service.delivery_days(session, society_id)}
+    found: list[date] = []
+    day = after
+    while weekdays and len(found) < n:
+        day += timedelta(days=1)
+        if day.weekday() in weekdays:
+            found.append(day)
+    return found
 
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:

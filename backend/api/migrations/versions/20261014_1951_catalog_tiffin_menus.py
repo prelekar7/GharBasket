@@ -1,7 +1,7 @@
 """catalog: kitchens' tiffin menus per date and meal, booked through M4 (M2 §4, M4 §3.5)
 
 Revision ID: 483e9f3cf1cf
-Revises: 0874299d92b5
+Revises: 98790006ab63
 Create Date: 2026-10-14 19:51:28.046486+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "483e9f3cf1cf"
-down_revision: str | Sequence[str] | None = "c75d9df60d08"
+down_revision: str | Sequence[str] | None = "98790006ab63"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

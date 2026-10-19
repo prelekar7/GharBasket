@@ -81,6 +81,63 @@ def test_arms_are_compared_with_each_baseline_as_paired_differences() -> None:
     assert not checks["verdict"]["holds"]
 
 
+def test_v2_is_paired_with_v1_from_week_2_with_a_ci_verdict_and_guards() -> None:
+    base = dict.fromkeys(planner_ab.METRICS, 0.0)
+
+    def run(planner: str, seed: int, acceptance: float, perishables: float = 6.0) -> PlannerRun:
+        # Weeks 0-1 are identical for v1 and v2; `later` holds the weeks from FROM_WEEK on.
+        metrics = {**base, "acceptance": 0.75, "distinct_perishables": 6.0}
+        later = {**base, "acceptance": acceptance, "distinct_perishables": perishables}
+        return PlannerRun(planner, seed, 10, 4, metrics, later)
+
+    lifts = {7: 0.02, 11: 0.01, 13: 0.03, 17: 0.02, 19: 0.015}
+    runs = [
+        r for s, d in lifts.items() for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d))
+    ]
+
+    diffs = planner_ab.paired(runs)
+    assert set(diffs) == {"cpsat_v2"} and set(diffs["cpsat_v2"]) == {"cpsat"}  # no greedy here
+    later = planner_ab.paired(runs, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(runs), diffs, later)
+
+    assert checks["v2_acceptance_over_v1_all_weeks"]["value"] == 0  # diluted to nothing
+    assert checks["v2_acceptance_over_v1_all_weeks"]["holds"] is None  # reference only
+    assert abs(checks["v2_acceptance_over_v1"]["value"] - 0.019) < 1e-9
+    assert checks["v2_acceptance_over_v1"]["holds"] and checks["v2_verdict"]["holds"]
+
+    # A lift whose interval reaches below 0 does not hold; nor do more perishables than v1 + 1.
+    mixed = {7: 0.02, 11: -0.03, 13: 0.03, 17: -0.02, 19: 0.01}
+    noisy = [
+        r for s, d in mixed.items() for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d))
+    ]
+    later = planner_ab.paired(noisy, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(noisy), planner_ab.paired(noisy), later)
+    assert checks["v2_acceptance_over_v1"]["holds"] is False and not checks["v2_verdict"]["holds"]
+    wasteful = [
+        r
+        for s, d in lifts.items()
+        for r in (run("cpsat", s, 0.75), run("cpsat_v2", s, 0.75 + d, 7.5))
+    ]
+    later = planner_ab.paired(wasteful, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(
+        planner_ab.summarise(wasteful), planner_ab.paired(wasteful), later
+    )
+    assert not checks["v2_perishables_within_1_of_v1"]["holds"]
+    assert checks["v2_verdict"]["holds"] is False
+
+    # Fewer than five paired seeds: no verdict; a run without week 2: no verdict either.
+    three = [r for r in runs if r.seed in (7, 11, 13)]
+    later = planner_ab.paired(three, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(three), planner_ab.paired(three), later)
+    assert (
+        checks["v2_acceptance_over_v1"]["holds"] is None and checks["v2_verdict"]["holds"] is None
+    )
+    short = [PlannerRun(r.planner, r.seed, 10, 2, r.metrics) for r in runs]
+    later = planner_ab.paired(short, later=True, arms=("cpsat_v2",))
+    checks = planner_ab.against_target(planner_ab.summarise(short), planner_ab.paired(short), later)
+    assert later == {} and checks["v2_verdict"]["holds"] is None
+
+
 def test_the_smoke_run_scores_every_planner_and_the_pantry_baseline(tmp_path: Path) -> None:
     catalog = from_seed_files()
     start = date(2026, 10, 5)
@@ -181,6 +238,48 @@ def test_the_pantry_metric_is_mae_over_weekly_quantity_with_zero_weeks_kept(
     assert abs(run.rule_table_mae - (20 / 30 + 0) / 2) < 1e-9
     # The running mean, scaled by milk's mean week (10): week 2 |10 - 0|, week 3 |5 - 20|.
     assert run.cold_start == pytest.approx([(1.0 + 0) / 2, (1.5 + 0) / 2])
+
+
+def test_the_learned_priors_reference_arm_learns_on_another_seed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from gharbasket_training import pantry_priors
+
+    monkeypatch.setattr(pantry_priors, "WARMUP", 100)
+    monkeypatch.setattr(pantry_priors, "SAMPLES", 100)
+    catalog, start = from_seed_files(), date(2026, 10, 5)
+    assert cli.learned_from(7, None) == 11 and cli.learned_from(19, None) == 7
+    assert cli.learned_from(5, None) == 6 and cli.learned_from(7, 7) == 11  # never itself
+    assert cli.learned_from(7, 13) == 13
+
+    priors = pantry_baseline.learned_priors(11, catalog, weeks=3, start=start, adoption=0.02)
+
+    assert priors and {product for _, product in priors} <= {"milk", "curd"}
+    assert all(p.prior_mean_per_ae > 0 for p in priors.values())
+    with pytest.raises(ValueError, match="another seed"):
+        pantry_baseline.run_pantry(
+            11, catalog, weeks=3, start=start, adoption=0.02, priors=priors, learned_from=11
+        )
+    run = pantry_baseline.run_pantry(
+        7, catalog, weeks=3, start=start, adoption=0.02, priors=priors, learned_from=11
+    )
+    assert run.learned_from == 11 and len(run.twin_learned) == 2
+    assert all(0 < e < 1 for e in run.twin_learned)
+
+    built = report.build([], [run], args={"weeks": 3})
+    scope = built["pantry"]["twin_scope"]
+    assert len(scope["twin_learned_mae"]) == 2 and scope["learned_from"] == {7: 11}
+    # Reference only: the M-A target stays on the twin v0 with the rule prior.
+    assert built["pantry"]["target_mae_le_15pct_after_4_weeks"]["estimator"].startswith(
+        "pantry_twin_v0"
+    )
+    rows = [
+        r for r in report.metrics_rows(built) if r["model_name"] == "pantry_twin_learned_priors"
+    ]
+    assert [r["metric"] for r in rows] == ["mae_pct_week_1", "mae_pct_week_2"]
+    assert all(r["details"]["reference_only"] for r in rows)
+    html_path, _ = report.write(built, tmp_path)
+    assert "learned priors (reference)" in html_path.read_text()
 
 
 @pytest.mark.anyio
