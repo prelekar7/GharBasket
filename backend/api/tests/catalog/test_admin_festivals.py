@@ -95,7 +95,8 @@ async def test_an_admin_adds_a_manual_day_that_the_app_shows(
         params={"from": day.isoformat(), "to": day.isoformat(), "region": "maharashtra"},
         headers=neha,
     )
-    assert listed.json()["items"] == [out]
+    # The seeded calendar may hold another festival on the same day (Sankashti on 29 Oct 2026)
+    assert [f for f in listed.json()["items"] if f["code"] == "gramdevi_jatra"] == [out]
     [entry] = (
         await db_session.execute(
             select(AuditEntry).where(AuditEntry.action == "catalog.festival_created")
