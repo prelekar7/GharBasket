@@ -1179,6 +1179,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's stock by product: lots with stock, first expiry first */
+        get: operations["get_inventory_v1_hubs__hub_id__inventory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/packing-summary": {
         parameters: {
             query?: never;
@@ -1578,6 +1595,40 @@ export interface paths {
         get: operations["list_kindness_entries_v1_kindness_entries_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lots/{lot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A lot with its stock moves */
+        get: operations["get_lot_v1_lots__lot_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lots/{lot_id}/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a lot's stock after a physical count (a count move; audited) */
+        post: operations["count_lot_v1_lots__lot_id__count_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3208,6 +3259,17 @@ export interface components {
             /** Version */
             version: string;
         };
+        /** CountIn */
+        CountIn: {
+            /**
+             * Qty On Hand
+             * @description Absolute
+             * @example 10
+             */
+            qty_on_hand: number;
+            /** Reason */
+            reason: string;
+        };
         /** CycleLineOut */
         CycleLineOut: {
             /** Name */
@@ -4511,6 +4573,53 @@ export interface components {
              */
             unit: "g" | "ml" | "piece" | "bunch";
         };
+        /** InventoryItem */
+        InventoryItem: {
+            /**
+             * Lots
+             * @description Lots with stock, by best_before
+             */
+            lots: components["schemas"]["LotOut"][];
+            /** Name */
+            name: string;
+            /**
+             * On Hand Qty
+             * @description Sum of the lots' qty_on_hand
+             */
+            on_hand_qty: number;
+            /**
+             * Packed Not Drawn Qty
+             * @description Packed, not yet drawn down at 12:30
+             */
+            packed_not_drawn_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** InventoryOut */
+        InventoryOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Items
+             * @description By shelf, then name
+             */
+            items: components["schemas"]["InventoryItem"][];
+        };
         /** IssueContact */
         IssueContact: {
             /** Name */
@@ -5133,6 +5242,125 @@ export interface components {
              * @example Your box has reached your society
              */
             title: string;
+        };
+        /** LotDetailOut */
+        LotDetailOut: {
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Moves
+             * @description Oldest first
+             */
+            moves: components["schemas"]["StockMoveOut"][];
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty In */
+            qty_in: number;
+            /** Qty On Hand */
+            qty_on_hand: number;
+            /** Receipt Id */
+            receipt_id: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @description returned: a bag back (§3.5)
+             * @enum {string}
+             */
+            source: "receipt" | "returned";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
+        };
+        /** LotOut */
+        LotOut: {
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty In */
+            qty_in: number;
+            /** Qty On Hand */
+            qty_on_hand: number;
+            /** Receipt Id */
+            receipt_id: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @description returned: a bag back (§3.5)
+             * @enum {string}
+             */
+            source: "receipt" | "returned";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
         };
         /** MeOut */
         MeOut: {
@@ -9069,6 +9297,38 @@ export interface components {
             hi?: string | null;
             /** Mr */
             mr?: string | null;
+        };
+        /** StockMoveOut */
+        StockMoveOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** @description null: a job */
+            by: components["schemas"]["gharbasket__modules__hub_ops__schemas__UserRef"] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "receive" | "return" | "pack" | "waste" | "offer" | "count";
+            /**
+             * Qty
+             * @description Signed, in the lot's unit
+             * @example -3
+             */
+            qty: number;
+            /**
+             * Reason
+             * @description A count's reason
+             */
+            reason: string | null;
+            /**
+             * Ref Id
+             * Format: uuid
+             * @description The receipt line, task, waste log, offer or count
+             */
+            ref_id: string;
         };
         /** SubscriptionIn */
         SubscriptionIn: {
@@ -15716,6 +15976,62 @@ export interface operations {
             };
         };
     };
+    get_inventory_v1_hubs__hub_id__inventory_get: {
+        parameters: {
+            query?: {
+                product_id?: string | null;
+                /** @description Only lots whose best_before is earlier */
+                expiring_before?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     packing_summary_v1_hubs__hub_id__packing_summary_get: {
         parameters: {
             query?: {
@@ -17577,6 +17893,142 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_lot_v1_lots__lot_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                lot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LotDetailOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.lot_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    count_lot_v1_lots__lot_id__count_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                lot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CountIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LotOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.lot_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

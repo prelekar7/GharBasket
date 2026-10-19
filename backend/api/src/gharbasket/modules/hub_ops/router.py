@@ -1,18 +1,29 @@
 """HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), packing
-(§3.2), procurement plans and purchase orders (§3.3), and goods receipts (§3.4)."""
+(§3.2), procurement plans and purchase orders (§3.3), goods receipts, lots, inventory and counts
+(§3.4)."""
 
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Query, Response, status
+from pydantic import AwareDatetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
-from gharbasket.modules.hub_ops import packing, procurement, purchasing, receiving, service
+from gharbasket.modules.hub_ops import (
+    packing,
+    procurement,
+    purchasing,
+    receiving,
+    scores,
+    service,
+    stock,
+)
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.hub_ops.models import (
     Hub,
+    InventoryLot,
     PackingTask,
     ProcurementPlan,
     PurchaseOrder,
@@ -23,6 +34,7 @@ from gharbasket.modules.hub_ops.schemas import (
     BuildOut,
     CancelIn,
     CompleteIn,
+    CountIn,
     GeneratedPurchaseOrders,
     GeoPolygon,
     GoodsReceiptOut,
@@ -32,6 +44,9 @@ from gharbasket.modules.hub_ops.schemas import (
     HubPatch,
     HubsOut,
     HubSummary,
+    InventoryOut,
+    LotDetailOut,
+    LotOut,
     PackingSummary,
     PackingTaskDetail,
     PackingTaskOut,
@@ -74,6 +89,7 @@ PlanDay = Annotated[
 ]
 CanReadInventory = Annotated[Permit, require("inventory:read")]
 CanReceive = Annotated[Permit, require("receiving:write")]
+CanManageInventory = Annotated[Permit, require("inventory:manage")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -114,7 +130,7 @@ def _hub_out(hub: Hub) -> HubOut:
     )
 
 
-def _vendor_out(vendor: Vendor) -> VendorOut:
+def _vendor_out(vendor: Vendor, score: float | None = None) -> VendorOut:
     return VendorOut(
         id=vendor.id,
         hub_id=vendor.hub_id,
@@ -125,7 +141,7 @@ def _vendor_out(vendor: Vendor) -> VendorOut:
         is_default=vendor.is_default,
         notes=vendor.notes,
         active=vendor.active,
-        score=None,  # vendor scores arrive with goods receipts (§3.4)
+        score=score,
         version=vendor.version,
         created_at=vendor.created_at,
     )
@@ -258,7 +274,8 @@ async def list_vendors(
     hub = await service.get_hub(session, hub_id)
     vendors = await service.list_vendors(session, hub.id, active)
     response.headers["Cache-Control"] = "no-store"
-    return VendorsOut(items=[_vendor_out(vendor) for vendor in vendors])
+    found = await scores.latest(session, [vendor.id for vendor in vendors])
+    return VendorsOut(items=[_vendor_out(vendor, found.get(vendor.id)) for vendor in vendors])
 
 
 @router.post(
@@ -310,7 +327,8 @@ async def patch_vendor(
     vendor = await service.get_vendor(session, vendor_id)
     if not permit.allows(vendor.hub_id):
         raise service.vendor_not_found()
-    out = _vendor_out(await service.update_vendor(session, vendor, body, expected))
+    vendor = await service.update_vendor(session, vendor, body, expected)
+    out = _vendor_out(vendor, (await scores.latest(session, [vendor.id])).get(vendor.id))
     await session.commit()
     set_etag(response, out.version)
     return out
@@ -652,6 +670,79 @@ async def get_goods_receipt(
         raise receiving.receipt_not_found()
     response.headers["Cache-Control"] = "no-store"
     return (await receiving.receipts_out(session, [receipt], lang))[0]
+
+
+# --- lots, inventory and counts (§3.4) ----------------------------------------------------------
+
+
+async def _lot(
+    session: DbSession, permit: Permit, lot_id: uuid.UUID, *, for_update: bool = False
+) -> InventoryLot:
+    lot = await stock.get_lot(session, lot_id)
+    if not permit.allows(lot.hub_id):
+        raise stock.lot_not_found()
+    return await stock.get_lot(session, lot_id, for_update=True) if for_update else lot
+
+
+@router.get(
+    "/hubs/{hub_id}/inventory",
+    summary="The hub's stock by product: lots with stock, first expiry first",
+    responses=SIGNED_IN,
+)
+async def get_inventory(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    product_id: uuid.UUID | None = None,
+    expiring_before: Annotated[
+        AwareDatetime | None, Query(description="Only lots whose best_before is earlier")
+    ] = None,
+) -> InventoryOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await stock.inventory(
+        session, hub_id, lang, product_id=product_id, expiring_before=expiring_before
+    )
+
+
+@router.get(
+    "/lots/{lot_id}",
+    summary="A lot with its stock moves",
+    responses={**SIGNED_IN, 404: _problem("hub_ops.lot_not_found")},
+)
+async def get_lot(
+    lot_id: uuid.UUID, permit: CanReadInventory, session: DbSession, response: Response, lang: Lang
+) -> LotDetailOut:
+    lot = await _lot(session, permit, lot_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await stock.lot_detail(session, lot, lang)
+
+
+@router.post(
+    "/lots/{lot_id}/count",
+    summary="Set a lot's stock after a physical count (a count move; audited)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.lot_not_found"),
+        422: _problem("hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def count_lot(
+    lot_id: uuid.UUID,
+    body: CountIn,
+    permit: CanManageInventory,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> LotOut:
+    lot = await _lot(session, permit, lot_id, for_update=True)
+    await stock.count(session, lot, body, permit.principal.user_id)
+    out = (await stock.lots_out(session, [lot], lang))[0]
+    await idem.save(200, out)
+    await session.commit()
+    return out
 
 
 # --- packing (§3.2) -------------------------------------------------------------------------------

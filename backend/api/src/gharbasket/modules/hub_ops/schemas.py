@@ -551,3 +551,59 @@ class GoodsReceiptOut(BaseModel):
 
 class GoodsReceiptsOut(BaseModel):
     items: list[GoodsReceiptOut]
+
+
+class LotOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    unit: OpsUnit
+    source: Literal["receipt", "returned"] = Field(description="returned: a bag back (§3.5)")
+    grade: Grade
+    qty_in: float
+    qty_on_hand: float
+    unit_cost_paise: int | None
+    received_at: datetime
+    best_before: datetime
+    receipt_id: uuid.UUID | None
+    vendor: Ref | None
+
+
+class StockMoveOut(BaseModel):
+    kind: Literal["receive", "return", "pack", "waste", "offer", "count"]
+    qty: float = Field(examples=[-3.0], description="Signed, in the lot's unit")
+    ref_id: uuid.UUID = Field(description="The receipt line, task, waste log, offer or count")
+    reason: str | None = Field(description="A count's reason")
+    by: UserRef | None = Field(description="null: a job")
+    at: datetime
+
+
+class LotDetailOut(LotOut):
+    moves: list[StockMoveOut] = Field(description="Oldest first")
+
+
+class InventoryItem(BaseModel):
+    product_id: uuid.UUID
+    slug: str
+    name: str
+    unit: OpsUnit
+    shelf_life_h: int | None
+    on_hand_qty: float = Field(description="Sum of the lots' qty_on_hand")
+    packed_not_drawn_qty: float = Field(description="Packed, not yet drawn down at 12:30")
+    lots: list[LotOut] = Field(description="Lots with stock, by best_before")
+
+
+class InventoryOut(BaseModel):
+    as_of: datetime
+    items: list[InventoryItem] = Field(description="By shelf, then name")
+
+
+class CountIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    qty_on_hand: float = Field(allow_inf_nan=False, examples=[10.0], description="Absolute")
+    reason: str = Field(min_length=3, max_length=200)
+
+    _tidy_text = field_validator("reason", mode="before")(_tidy)

@@ -7,18 +7,22 @@ Orders come through `orders.api`, products through `catalog.api`; M6 never write
 
 import uuid
 from collections import defaultdict
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import events, service
 from gharbasket.modules.hub_ops.models import (
+    GoodsReceipt,
+    GoodsReceiptLine,
+    InventoryLot,
     ProcurementLine,
     ProcurementPlan,
     PurchaseOrder,
@@ -153,17 +157,45 @@ async def _forecast_for(
 async def _on_hand_for(
     session: AsyncSession, hub_id: uuid.UUID, delivery_date: date, product_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, Decimal]:
-    """Usable stock for the date by product (grade A and B lots lasting past the day, §3.4). It
-    reads the inventory lots that goods receipt brings; until they exist nothing is on hand."""
-    return {}
+    """Usable stock for the date by product (§3.4): grade A and B lots at the hub whose best-before
+    is after the end of the day (IST), so what is packed that day lasts it."""
+    end = datetime.combine(delivery_date + timedelta(days=1), time(), IST)
+    rows = await session.execute(
+        select(InventoryLot.product_id, func.sum(InventoryLot.qty_on_hand))
+        .where(
+            InventoryLot.hub_id == hub_id,
+            InventoryLot.product_id.in_(product_ids),
+            InventoryLot.grade.in_(("A", "B")),
+            InventoryLot.qty_on_hand > 0,
+            InventoryLot.best_before > end,
+        )
+        .group_by(InventoryLot.product_id)
+    )
+    return {product_id: qty for product_id, qty in rows.all()}
 
 
 async def _last_costs(
     session: AsyncSession, hub_id: uuid.UUID, product_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, int]:
-    """Each product's cost on its latest goods receipt line at the hub (§3.4). It reads the
-    receipts that §3.4 brings; until they exist a new line has no cost."""
-    return {}
+    """Each product's cost on its latest goods receipt line at the hub that accepted something
+    and has a cost (§3.4)."""
+    rows = await session.execute(
+        select(GoodsReceiptLine.product_id, GoodsReceiptLine.unit_cost_paise)
+        .join(GoodsReceipt, GoodsReceipt.id == GoodsReceiptLine.receipt_id)
+        .where(
+            GoodsReceipt.hub_id == hub_id,
+            GoodsReceiptLine.product_id.in_(product_ids),
+            GoodsReceiptLine.unit_cost_paise.is_not(None),
+            GoodsReceiptLine.accepted_qty > 0,
+        )
+        .order_by(
+            GoodsReceiptLine.product_id,
+            GoodsReceipt.received_at.desc(),
+            GoodsReceiptLine.id.desc(),
+        )
+        .ext(distinct_on(GoodsReceiptLine.product_id))
+    )
+    return {product_id: cost for product_id, cost in rows.all() if cost is not None}
 
 
 # --- building ------------------------------------------------------------------------------------

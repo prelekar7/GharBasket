@@ -1078,6 +1078,31 @@
         "title": "ConsentOut",
         "type": "object"
       },
+      "CountIn": {
+        "additionalProperties": false,
+        "properties": {
+          "qty_on_hand": {
+            "description": "Absolute",
+            "examples": [
+              10.0
+            ],
+            "title": "Qty On Hand",
+            "type": "number"
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty_on_hand",
+          "reason"
+        ],
+        "title": "CountIn",
+        "type": "object"
+      },
       "CycleLineOut": {
         "properties": {
           "name": {
@@ -4324,6 +4349,98 @@
         "title": "IngredientOut",
         "type": "object"
       },
+      "InventoryItem": {
+        "properties": {
+          "lots": {
+            "description": "Lots with stock, by best_before",
+            "items": {
+              "$ref": "#/components/schemas/LotOut"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "on_hand_qty": {
+            "description": "Sum of the lots' qty_on_hand",
+            "title": "On Hand Qty",
+            "type": "number"
+          },
+          "packed_not_drawn_qty": {
+            "description": "Packed, not yet drawn down at 12:30",
+            "title": "Packed Not Drawn Qty",
+            "type": "number"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "shelf_life_h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life H"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "shelf_life_h",
+          "on_hand_qty",
+          "packed_not_drawn_qty",
+          "lots"
+        ],
+        "title": "InventoryItem",
+        "type": "object"
+      },
+      "InventoryOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "items": {
+            "description": "By shelf, then name",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "items"
+        ],
+        "title": "InventoryOut",
+        "type": "object"
+      },
       "IssueContact": {
         "properties": {
           "name": {
@@ -5650,6 +5767,267 @@
           "deliveries"
         ],
         "title": "LogEntry",
+        "type": "object"
+      },
+      "LotDetailOut": {
+        "properties": {
+          "best_before": {
+            "format": "date-time",
+            "title": "Best Before",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "moves": {
+            "description": "Oldest first",
+            "items": {
+              "$ref": "#/components/schemas/StockMoveOut"
+            },
+            "title": "Moves",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty_in": {
+            "title": "Qty In",
+            "type": "number"
+          },
+          "qty_on_hand": {
+            "title": "Qty On Hand",
+            "type": "number"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "source": {
+            "description": "returned: a bag back (§3.5)",
+            "enum": [
+              "receipt",
+              "returned"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Paise"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "source",
+          "grade",
+          "qty_in",
+          "qty_on_hand",
+          "unit_cost_paise",
+          "received_at",
+          "best_before",
+          "receipt_id",
+          "vendor",
+          "moves"
+        ],
+        "title": "LotDetailOut",
+        "type": "object"
+      },
+      "LotOut": {
+        "properties": {
+          "best_before": {
+            "format": "date-time",
+            "title": "Best Before",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty_in": {
+            "title": "Qty In",
+            "type": "number"
+          },
+          "qty_on_hand": {
+            "title": "Qty On Hand",
+            "type": "number"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "source": {
+            "description": "returned: a bag back (§3.5)",
+            "enum": [
+              "receipt",
+              "returned"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          },
+          "unit_cost_paise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Paise"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "source",
+          "grade",
+          "qty_in",
+          "qty_on_hand",
+          "unit_cost_paise",
+          "received_at",
+          "best_before",
+          "receipt_id",
+          "vendor"
+        ],
+        "title": "LotOut",
         "type": "object"
       },
       "MeOut": {
@@ -15020,6 +15398,74 @@
           "en"
         ],
         "title": "StepTextIn",
+        "type": "object"
+      },
+      "StockMoveOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__hub_ops__schemas__UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: a job"
+          },
+          "kind": {
+            "enum": [
+              "receive",
+              "return",
+              "pack",
+              "waste",
+              "offer",
+              "count"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Signed, in the lot's unit",
+            "examples": [
+              -3.0
+            ],
+            "title": "Qty",
+            "type": "number"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A count's reason",
+            "title": "Reason"
+          },
+          "ref_id": {
+            "description": "The receipt line, task, waste log, offer or count",
+            "format": "uuid",
+            "title": "Ref Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "qty",
+          "ref_id",
+          "reason",
+          "by",
+          "at"
+        ],
+        "title": "StockMoveOut",
         "type": "object"
       },
       "SubscriptionIn": {
@@ -27531,6 +27977,144 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/inventory": {
+      "get": {
+        "operationId": "get_inventory_v1_hubs__hub_id__inventory_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Product Id"
+            }
+          },
+          {
+            "description": "Only lots whose best_before is earlier",
+            "in": "query",
+            "name": "expiring_before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only lots whose best_before is earlier",
+              "title": "Expiring Before"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's stock by product: lots with stock, first expiry first",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/packing-summary": {
       "get": {
         "operationId": "packing_summary_v1_hubs__hub_id__packing_summary_get",
@@ -30927,6 +31511,266 @@
         "summary": "The caller's Kindness points history, newest first",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/v1/lots/{lot_id}": {
+      "get": {
+        "operationId": "get_lot_v1_lots__lot_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lot Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LotDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.lot_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A lot with its stock moves",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/lots/{lot_id}/count": {
+      "post": {
+        "operationId": "count_lot_v1_lots__lot_id__count_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lot_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lot Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.lot_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Set a lot's stock after a physical count (a count move; audited)",
+        "tags": [
+          "hub_ops"
         ]
       }
     },

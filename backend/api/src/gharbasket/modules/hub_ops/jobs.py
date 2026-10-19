@@ -1,9 +1,9 @@
 """Jobs of M6 Hub Operations (spec §6, ADR-0021): the procurement plan at T-1 21:10, its refresh
-at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, and
-`build_packing_tasks` at T 05:00 IST.
+at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, the vendor scores of
+the past week on Monday at 03:33, and `build_packing_tasks` at T 05:00 IST.
 
 `scheduled_for` decides the delivery date (its IST calendar day for packing, the next IST day for
-procurement), never the clock.
+procurement) or the week, never the clock.
 """
 
 import uuid
@@ -13,7 +13,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import packing, procurement, service
+from gharbasket.modules.hub_ops import packing, procurement, scores, service
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -53,6 +53,13 @@ async def build_procurement_plan(ctx: JobContext) -> dict[str, Any]:
 @job("refresh_procurement_plan", "Rebuild tomorrow's plans after the payment grace (23:05)")
 async def refresh_procurement_plan(ctx: JobContext) -> dict[str, Any]:
     return await _plans(ctx, existing_only=True)
+
+
+@job("compute_vendor_scores", "Score every vendor on the past IST week (Monday 03:33)")
+async def compute_vendor_scores(ctx: JobContext) -> dict[str, Any]:
+    today = ctx.scheduled_for.astimezone(procurement.IST).date()
+    week = today - timedelta(days=today.weekday() + 7)  # the Monday of the week before
+    return {"week": week.isoformat(), "vendors": await scores.compute(ctx.session, week)}
 
 
 async def on_forecast_ready(session: AsyncSession, event: OutboxEvent) -> None:

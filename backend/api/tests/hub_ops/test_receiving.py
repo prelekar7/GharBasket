@@ -3,7 +3,7 @@ accepted and rejected quantities with grades and reasons, a lot per accepted lin
 best-before time, and a stock ledger that never moves stock twice."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -28,7 +28,7 @@ from gharbasket.tools.seed import SEED_HUB_ID
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from .conftest import KAVITA, NEHA, PRIYA, SANJAY, VIKRAM, as_user, hub_body, key
-from .test_procurement import ARJUN, build, order, patch, vendor_ids, world
+from .test_procurement import ARJUN, DELIVERY, build, order, patch, vendor_ids, world
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("world")]
 __all__ = ["world"]  # the fixture, imported so this module can use it
@@ -48,11 +48,12 @@ async def sent_po(
     lines: dict[str, int | tuple[int, int]],
     *,
     fpo: tuple[str, ...] = (),
+    day: date = DELIVERY,
 ) -> dict[str, Any]:
     """Shinde Traders' purchase order for `lines` (steps), tomato at ₹32/kg, sent; the `fpo` slugs
     go on a draft for the Kharghar Kisan FPO (returned under "drafts")."""
-    await order(db, "locked", lines)
-    plan = (await build(api, manager)).json()
+    await order(db, "locked", lines, day=day)
+    plan = (await build(api, manager, date=day.isoformat())).json()
     vendors = await vendor_ids(db)
     if "tomato" in lines:
         plan = (await patch(api, manager, plan, "tomato", unit_cost_paise=3200)).json()
