@@ -23,6 +23,7 @@ import httpx2
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.intel_gateway import api as intel_api
@@ -51,6 +52,7 @@ LATER_REPLY = timedelta(minutes=30)
 READY_BEFORE_SLOT = timedelta(minutes=60)
 RATED_FROM = 5
 TIME_LIMIT_S = 5.0  # the solver's budget (M10 §3.5)
+ROLLING = timedelta(days=28)  # the window of the earnings M10's fairness term sees (§3.4)
 LEFT_OUT = ("declined", "expired")  # kitchens left out of the next rounds for that date and meal
 
 
@@ -177,6 +179,9 @@ async def cooks(
     ids = [partner.id for partner, _ in rows if partner.id not in left_out]
     overrides = await kitchens.overrides(session, ids, day, day)
     live = await live_portions(session, ids, day, day)
+    # Her tiffin earnings of the last 28 days: the fair assignment favours who earned least.
+    since = datetime.combine(day - ROLLING, time(0), IST)
+    earned = await billing_api.partner_rolling_earnings(session, ids, "tiffin_portion", since)
     found = []
     for partner, kitchen in rows:
         if partner.id in left_out or kitchen.lat is None or kitchen.lng is None:
@@ -193,7 +198,7 @@ async def cooks(
                     left,
                     frozenset(kitchen.skills),
                     float(partner.rating_avg) if rated and partner.rating_avg else matching.UNRATED,
-                    0,  # rolling earnings: billing.api.partner_rolling_earnings is not built yet
+                    earned[partner.id],
                 )
             )
     return found

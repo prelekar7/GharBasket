@@ -12,7 +12,8 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
   tiffins that nobody asked about yet and that are not rated.
 
 Consumers (§5): M4's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` of tiffins
-move the assignment's orders along and complete it; `identity.deletion_requested` makes her
+move the assignment's orders along and complete it, and `orders.delivered`, `orders.dispatched` and
+`orders.packed` post what the work earned (`earnings`); `identity.deletion_requested` makes her
 partner records `left`.
 """
 
@@ -25,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.partners import assignments, cooking, fulfilment, ratings, service
+from gharbasket.modules.partners import assignments, cooking, earnings, fulfilment, ratings, service
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -97,4 +98,6 @@ async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> No
 
 for _event in (orders_api.DISPATCHED, orders_api.DELIVERED, orders_api.DELIVERY_FAILED):
     subscribe(_event, fulfilment.on_order_event)
+for _event in (orders_api.DELIVERED, orders_api.DISPATCHED, orders_api.PACKED):
+    subscribe(_event, earnings.on_order_event)
 subscribe(identity_api.DELETION_REQUESTED, on_deletion_requested)

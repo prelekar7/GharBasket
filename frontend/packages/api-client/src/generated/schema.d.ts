@@ -1154,6 +1154,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What you earned in a week, by day and kind, from the ledger (every kind you are) */
+        get: operations["my_earnings_v1_earnings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/festivals": {
         parameters: {
             query?: never;
@@ -5249,6 +5266,120 @@ export interface components {
             items: components["schemas"]["DriveOut"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** EarningOut */
+        EarningOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             * @description When the work was done
+             */
+            at: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "tiffin_portion" | "bag_delivered" | "dispatched_order" | "packed_order";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            ref: components["schemas"]["EarningRefOut"];
+            /** Units */
+            units: number;
+        };
+        /** EarningRefOut */
+        EarningRefOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Type
+             * @constant
+             */
+            type: "order";
+        };
+        /** EarningsDayOut */
+        EarningsDayOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** EarningsKindOut */
+        EarningsKindOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "tiffin_portion" | "bag_delivered" | "dispatched_order" | "packed_order";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /** Units */
+            units: number;
+        };
+        /** EarningsWeekOut */
+        EarningsWeekOut: {
+            /** By Kind */
+            by_kind: components["schemas"]["EarningsKindOut"][];
+            /**
+             * Days
+             * @description Seven entries, zeros included
+             */
+            days: components["schemas"]["EarningsDayOut"][];
+            /**
+             * Entries
+             * @description Newest first
+             */
+            entries: components["schemas"]["EarningOut"][];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Payouts
+             * @description M5's payouts of the week; none until payouts exist (§3.7)
+             */
+            payouts: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W02
+             */
+            week: string;
         };
         /** Entry */
         Entry: {
@@ -18839,6 +18970,57 @@ export interface operations {
                 };
             };
             /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_earnings_v1_earnings_get: {
+        parameters: {
+            query?: {
+                week?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsWeekOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.week_invalid, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

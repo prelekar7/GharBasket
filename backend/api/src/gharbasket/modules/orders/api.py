@@ -62,6 +62,7 @@ __all__ = [
     "TIFFIN_BOOKED",
     "ApprovedCycle",
     "CycleLine",
+    "Move",
     "Order",
     "OrderIssue",
     "OrderLine",
@@ -81,6 +82,7 @@ __all__ = [
     "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
+    "last_move",
     "mark_shortage",
     "order_ids_of_household",
     "orders_for_delivery",
@@ -185,6 +187,32 @@ async def get_order_ref(session: AsyncSession, order_id: uuid.UUID) -> OrderRef 
         status=order.status,
         delivered_at=delivered_at,
     )
+
+
+@dataclass(frozen=True)
+class Move:
+    actor: str
+    actor_user_id: uuid.UUID | None
+    at: datetime
+
+
+async def last_move(
+    session: AsyncSession,
+    order_id: uuid.UUID,
+    to_status: str,
+    event_id: uuid.UUID | None = None,
+) -> Move | None:
+    """Who moved the order into `to_status`, and when (the timeline row). `event_id` is the
+    `order_event_id` of the fulfilment event being handled: it picks that very row, which matters
+    when the status was reached twice. Without it, the latest row. M8's earnings read the person
+    here: the fulfilment events carry the actor kind only (ADR-0026 §2)."""
+    stmt = select(OrderEvent.actor, OrderEvent.actor_user_id, OrderEvent.at).where(
+        OrderEvent.order_id == order_id, OrderEvent.to_status == to_status
+    )
+    if event_id is not None:
+        stmt = stmt.where(OrderEvent.id == event_id)
+    row = (await session.execute(stmt.order_by(OrderEvent.id.desc()).limit(1))).first()
+    return None if row is None else Move(row[0], row[1], row[2])
 
 
 async def set_kitchen(
