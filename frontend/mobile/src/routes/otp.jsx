@@ -1,9 +1,13 @@
-import { Button, TextField, toast } from "@gharbasket/ui";
+import { Button, IconButton, toast } from "@gharbasket/ui";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { OtpBoxes } from "@/components/OtpBoxes.jsx";
+import { householdQuery } from "@/features/identity/profile.js";
 import { exchange, me } from "@/lib/api.js";
-import { OtpError, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
+import { OtpError, onAutoVerified, pendingPhone, sendCode, verifyCode } from "@/lib/otp.js";
+import { queryClient } from "@/lib/queryClient.js";
 import { nextSearch } from "@/lib/search.js";
 import { useSession } from "@/lib/session.js";
 
@@ -51,15 +55,22 @@ function Otp() {
     setError(null);
     try {
       const { phone: verified, idToken } = await verifyCode(code);
-      const out = await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
+      await exchange(idToken ? { firebaseIdToken: idToken } : { devPhone: verified });
       signIn(await me());
-      // A new household sets up its society, flat and family first.
-      navigate({ to: out.is_new_user ? "/onboarding/society" : (next ?? "/") });
+      // `is_new_user` only says the user row was just created. Whether a customer still has to set
+      // up a household is the customer shell's call (GET /v1/households/me is 404: onboarding).
+      queryClient.removeQueries({ queryKey: householdQuery.queryKey });
+      navigate({ to: next ?? "/" });
     } catch (e) {
       setError(t(errorKey(e)));
       setBusy(false);
     }
   };
+
+  // Android can verify the number by itself (instant verification or SMS auto-retrieval); then
+  // there is no code to type, so sign in straight away.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe once; verify ignores the typed code then
+  useEffect(() => onAutoVerified(() => verify()), []);
 
   const resend = async () => {
     setError(null);
@@ -74,25 +85,25 @@ function Otp() {
 
   const display = phone.replace(/^\+91(\d{5})(\d{5})$/, "+91 $1 $2");
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-5 px-5 pt-[calc(24px+env(safe-area-inset-top))] pb-6">
-      <Button
-        variant="quiet"
-        className="-ml-3 self-start"
-        onPress={() => navigate({ to: "/login", search: { next } })}
-      >
-        {t("otp.back")}
-      </Button>
-      <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("otp.title")}</h1>
-      <p className="-mt-3 text-fg-secondary">
-        {t("otp.sent", { phone: display })}{" "}
-        <button
-          type="button"
-          className="font-semibold text-link underline outline-none focus-visible:shadow-focus"
-          onClick={() => navigate({ to: "/login", search: { next } })}
+    <main className="mx-auto flex min-h-dvh max-w-[480px] flex-col gap-5 px-5 pt-[calc(12px+env(safe-area-inset-top))] pb-6">
+      <div className="-ml-3 flex min-h-12 items-center">
+        <IconButton
+          label={t("otp.back")}
+          variant="quiet"
+          onPress={() => navigate({ to: "/login", search: { next } })}
         >
-          {t("otp.change")}
-        </button>
-      </p>
+          <ArrowLeftIcon size={24} />
+        </IconButton>
+      </div>
+      <div className="flex flex-col gap-1">
+        <h1 className="font-display text-[28px] leading-[34px] font-semibold">{t("otp.title")}</h1>
+        <div className="flex flex-wrap items-center gap-1">
+          <p className="text-fg-secondary">{t("otp.sent", { phone: display })}</p>
+          <Button variant="quiet" onPress={() => navigate({ to: "/login", search: { next } })}>
+            {t("otp.change")}
+          </Button>
+        </div>
+      </div>
       <form
         className="flex flex-1 flex-col gap-5"
         noValidate
@@ -101,28 +112,9 @@ function Otp() {
           if (code.length === 6) verify();
         }}
       >
-        <TextField
-          label={t("otp.legend")}
-          value={code}
-          onChange={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          autoFocus
-          isInvalid={!!error}
-          errorMessage={error ?? undefined}
-        />
+        <OtpBoxes legend={t("otp.legend")} value={code} onChange={setCode} error={error} />
         <p className="text-sm text-fg-secondary">{t("otp.auto")}</p>
         <div className="mt-auto flex flex-col gap-3">
-          {wait > 0 ? (
-            <p className="text-sm text-fg-secondary">
-              {t("otp.resendIn", { time: `0:${String(wait).padStart(2, "0")}` })}
-            </p>
-          ) : (
-            <Button variant="quiet" block onPress={resend}>
-              {t("otp.resend")}
-            </Button>
-          )}
           <Button
             type="submit"
             variant="primary"
@@ -133,6 +125,15 @@ function Otp() {
           >
             {t("otp.cta")}
           </Button>
+          {wait > 0 ? (
+            <p className="text-center text-sm text-fg-secondary tabular-nums">
+              {t("otp.resendIn", { time: `0:${String(wait).padStart(2, "0")}` })}
+            </p>
+          ) : (
+            <Button variant="quiet" block onPress={resend}>
+              {t("otp.resend")}
+            </Button>
+          )}
         </div>
       </form>
       <div id="recaptcha" />

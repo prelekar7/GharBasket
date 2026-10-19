@@ -1,5 +1,6 @@
 # uv workspace root. Python services live in their own packages: backend/api, backend/ml,
-# backend/training and data/simulator. Shared developer tools sit in the root "dev" group, installed by `uv sync`.
+# backend/training and data/simulator; e2e/backend is the backend end-to-end suite (a virtual
+# member). Shared developer tools sit in the root "dev" group, installed by `uv sync`.
 [project]
 name = "gharbasket-workspace"
 version = "0.0.0"
@@ -16,7 +17,7 @@ gharbasket-sim = { workspace = true }
 gharbasket-training = { workspace = true }
 
 [tool.uv.workspace]
-members = ["backend/api", "backend/ml", "backend/training", "data/simulator"]
+members = ["backend/api", "backend/ml", "backend/training", "data/simulator", "e2e/backend"]
 
 [dependency-groups]
 dev = [

@@ -2,7 +2,8 @@ import { Button, Chip, SegmentedControl } from "@gharbasket/ui";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { OnboardingFrame } from "@/components/OnboardingFrame.jsx";
-import { nextStep, useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useOnboardingDraft } from "@/features/onboarding/draft.js";
+import { useStepGo } from "@/features/onboarding/useStepGo.js";
 
 const MINUTES = ["15", "30", "45", "60"];
 const DAYS = [0, 1, 2, 3, 4, 5, 6]; // Monday … Sunday
@@ -13,8 +14,9 @@ export const Route = createFileRoute("/_auth/onboarding/cooking")({ component: C
 
 function Cooking() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const { household: h, updateHousehold } = useOnboardingDraft();
+  const step = useStepGo("/onboarding/cooking");
   const times = MINUTES.map((value) => ({ value, label: t(`onboarding.cooking.times.m${value}`) }));
   const label = "text-sm leading-5 font-semibold";
 
@@ -22,13 +24,8 @@ function Cooking() {
     <OnboardingFrame
       step={4}
       footer={
-        <Button
-          variant="primary"
-          size="lg"
-          block
-          onPress={() => navigate({ to: nextStep("/onboarding/cooking") })}
-        >
-          {t("onboarding.next")}
+        <Button variant="primary" size="lg" block isPending={step.busy} onPress={step.go}>
+          {step.label}
         </Button>
       }
     >
