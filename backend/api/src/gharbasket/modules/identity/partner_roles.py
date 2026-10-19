@@ -5,7 +5,8 @@ M8 §3.3; ADR-0026 §4).
 `partners.suspended` marks it `suspended` (it leaves the access token at the next refresh) and
 `partners.reinstated` marks it `verified` again. Captains get nothing here: their role follows
 M9's appointments. Each event is handled by reading the partner's current state through
-`partners.api`, so a redelivered or late event can never undo a newer change.
+`partners.api`, so a redelivered or late event can never undo a newer change. The consumer is
+registered in `identity/jobs.py`, where the loader finds every consumer.
 """
 
 import uuid
@@ -18,7 +19,6 @@ from gharbasket.modules.identity.models import User, UserRole
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform import audit
 from gharbasket.platform.models import OutboxEvent
-from gharbasket.platform.outbox import subscribe
 
 ROLE_OF_KIND = {"kitchen": "kitchen_partner", "rider": "rider", "packer": "packer"}
 
@@ -67,7 +67,3 @@ async def sync_partner_role(session: AsyncSession, event: OutboxEvent) -> None:
         before=before,
         after={"role": role, "scope_id": str(partner.hub_id), "status": status},
     )
-
-
-for _event in (partners_api.VERIFIED, partners_api.SUSPENDED, partners_api.REINSTATED):
-    subscribe(_event, sync_partner_role)
