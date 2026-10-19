@@ -20,3 +20,7 @@ PERMISSIONS.allow("kitchen_partner", "kitchens:write", "assignments:read", "assi
 for role in ("hub_manager", "admin"):
     # Kitchen inspections, and running an assignment round or assigning by hand (§3.4).
     PERMISSIONS.allow(role, "kitchens:inspect", "assignments:manage")
+# The rate card (§3.6): hub staff read their hub's, only an admin changes it.
+for role in ("hub_manager", "franchise_owner", "admin"):
+    PERMISSIONS.allow(role, "partner_rates:read")
+PERMISSIONS.allow("admin", "partner_rates:write")

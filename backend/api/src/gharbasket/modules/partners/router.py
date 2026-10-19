@@ -22,9 +22,11 @@ from gharbasket.modules.partners.cooking_router import router as cooking_router
 from gharbasket.modules.partners.kitchen_router import router as kitchen_router
 from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
+from gharbasket.modules.partners.rate_router import router as rate_router
 from gharbasket.modules.partners.schemas import (
     PartnerKind,
     PartnerOut,
+    PartnerPatchIn,
     PartnersOut,
     PartnerStaffOut,
     PartnerStatus,
@@ -36,6 +38,8 @@ from gharbasket.modules.partners.schemas import (
 )
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.pagination import Cursor, Limit, Page
 from gharbasket.platform.permissions import Permit, require
@@ -46,6 +50,7 @@ router.include_router(kyc_router)
 router.include_router(kitchen_router)
 router.include_router(assignment_router)
 router.include_router(cooking_router)
+router.include_router(rate_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]
@@ -125,8 +130,10 @@ async def _staff_partner(session: DbSession, permit: Permit, partner_id: uuid.UU
     return partner
 
 
-async def _own_partner(session: DbSession, user_id: uuid.UUID, partner_id: uuid.UUID) -> Partner:
-    partner = await service.get(session, partner_id)
+async def _own_partner(
+    session: DbSession, user_id: uuid.UUID, partner_id: uuid.UUID, *, for_update: bool = False
+) -> Partner:
+    partner = await service.get(session, partner_id, for_update=for_update)
     if partner.user_id != user_id:
         raise service.not_found()
     return partner
@@ -188,6 +195,38 @@ async def get_partner(
     partner = await _staff_partner(session, permit, partner_id)
     (view,) = await _staff_views(session, [partner])
     return view
+
+
+@router.patch(
+    # The uuid converter keeps `PATCH /partners/me` a 405: `me` is the read-only route above.
+    "/partners/{partner_id:uuid}",
+    summary="Change your display name (If-Match)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        404: _problem("partners.partner_not_found"),
+        405: _problem("http.method_not_allowed: the path is not a partner id (PATCH /partners/me)"),
+        412: _problem("request.version_mismatch: reload and try again"),
+        422: _problem("partners.display_name_invalid, request.invalid"),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def edit_partner(
+    partner_id: uuid.UUID,
+    body: PartnerPatchIn,
+    principal: CurrentPrincipal,
+    session: DbSession,
+    expected: IfMatch,
+    response: Response,
+) -> PartnerOut:
+    # Row-locked, so the If-Match check and the write are one step.
+    partner = await _own_partner(session, principal.user_id, partner_id, for_update=True)
+    if partner.version != expected:
+        raise ProblemError(412, "request.version_mismatch", "The record changed; reload it.")
+    await service.rename(session, partner, body.display_name)
+    out = PartnerOut(**_out(partner))
+    await session.commit()
+    set_etag(response, out.version)
+    return out
 
 
 @router.post(

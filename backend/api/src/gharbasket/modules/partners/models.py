@@ -4,7 +4,8 @@ The partner core (spec §3.3, build order (a)): one `partners` row per verified 
 Applications, KYC documents and training (§3.1, §3.2): `applications`, `kyc_documents`,
 `training_modules` and `training_attempts`. Kitchens and their capacity (§3.4): `kitchens` and
 `kitchen_capacity`. Tiffin assignments (§3.4): `assignment_runs`, `assignments`, their
-`assignment_orders` and `assignment_events`. Ratings and the rate card follow in S6 (spec §4).
+`assignment_orders` and `assignment_events`. The rate card (§3.6): `rate_cards`. Ratings follow
+in S6 (spec §4).
 """
 
 import uuid
@@ -14,6 +15,7 @@ from typing import Any
 
 from geoalchemy2 import Geography, WKBElement, WKTElement
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -84,6 +86,14 @@ LIVE = ("offered", "accepted", "preparing", "ready")
 ASSIGNMENT_ORDER_STATUSES = ("assigned", "ready", "picked_up", "delivered", "failed", "released")
 SOURCES = ("ml", "fallback", "manual")
 DECLINE_REASONS = ("unwell", "no_ingredients", "family", "other")
+# What each kind earns for (§3.6): one basis per kind in v1.
+BASES = ("tiffin_portion", "bag_delivered", "dispatched_order", "packed_order")
+BASIS_OF_KIND = {
+    "kitchen": "tiffin_portion",
+    "captain": "bag_delivered",
+    "rider": "dispatched_order",
+    "packer": "packed_order",
+}
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -472,3 +482,26 @@ class AssignmentEvent(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
     client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RateCard(Base):
+    """What a partner kind earns per unit at a hub from a date on (§3.6): one row per
+    (hub, kind, basis, valid_from). The defaults of every hub's card are in `rates.DEFAULTS`; a
+    row here replaces them from its `valid_from`."""
+
+    __tablename__ = "rate_cards"
+    __table_args__ = (
+        UniqueConstraint("hub_id", "kind", "basis", "valid_from"),
+        CheckConstraint(_one_of("kind", KINDS), name="kind"),
+        CheckConstraint(_one_of("basis", BASES), name="basis"),
+        CheckConstraint("amount_paise >= 0", name="amount_paise"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    kind: Mapped[str] = mapped_column(String(16))
+    basis: Mapped[str] = mapped_column(String(24))
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    valid_from: Mapped[date] = mapped_column(Date)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)

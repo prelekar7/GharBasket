@@ -1484,6 +1484,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/partner-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What each partner kind earns at the hub (hub staff, franchise owner, admin) */
+        get: operations["get_rates_v1_hubs__hub_id__partner_rates_get"];
+        /** Set rates from a date on (admin; today or later; audit-logged) */
+        put: operations["set_rates_v1_hubs__hub_id__partner_rates_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/partners": {
         parameters: {
             query?: never;
@@ -2532,7 +2550,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Change your display name (If-Match) */
+        patch: operations["edit_partner_v1_partners__partner_id__patch"];
         trace?: never;
     };
     "/v1/partners/{partner_id}/pause": {
@@ -8325,6 +8344,15 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** PartnerPatchIn */
+        PartnerPatchIn: {
+            /**
+             * Display Name
+             * @description What customers see, 2 to 40 characters (else 422 partners.display_name_invalid)
+             * @example Meena tai
+             */
+            display_name: string;
+        };
         /**
          * PartnerStaffOut
          * @description A partner as hub staff of her hub (and admins) see her.
@@ -9626,6 +9654,74 @@ export interface components {
              * @description The FCM registration token of this device; null when notifications are off
              */
             push_token: string | null;
+        };
+        /** RateCardOut */
+        RateCardOut: {
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Rates
+             * @description The rate in force today for each kind, then rates scheduled for later
+             */
+            rates: components["schemas"]["RateOut"][];
+        };
+        /** RateIn */
+        RateIn: {
+            /**
+             * Amount Paise
+             * @example 600
+             */
+            amount_paise: number;
+            /**
+             * Basis
+             * @description One per kind: kitchen tiffin_portion, captain bag_delivered, rider dispatched_order, packer packed_order
+             * @enum {string}
+             */
+            basis: "tiffin_portion" | "bag_delivered" | "dispatched_order" | "packed_order";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Valid From
+             * Format: date
+             * @description Today or later (IST)
+             */
+            valid_from: string;
+        };
+        /** RateOut */
+        RateOut: {
+            /**
+             * Amount Paise
+             * @example 600
+             */
+            amount_paise: number;
+            /**
+             * Basis
+             * @description One per kind: kitchen tiffin_portion, captain bag_delivered, rider dispatched_order, packer packed_order
+             * @enum {string}
+             */
+            basis: "tiffin_portion" | "bag_delivered" | "dispatched_order" | "packed_order";
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Valid From
+             * Format: date
+             * @description Today or later (IST)
+             */
+            valid_from: string;
+        };
+        /** RatesIn */
+        RatesIn: {
+            /** Rates */
+            rates: components["schemas"]["RateIn"][];
         };
         /** RatingOut */
         RatingOut: {
@@ -20094,6 +20190,139 @@ export interface operations {
             };
         };
     };
+    get_rates_v1_hubs__hub_id__partner_rates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateCardOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_rates_v1_hubs__hub_id__partner_rates_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RatesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateCardOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.rate_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_partners_v1_hubs__hub_id__partners_get: {
         parameters: {
             query?: {
@@ -24739,6 +24968,97 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_partner_v1_partners__partner_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartnerPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description http.method_not_allowed: the path is not a partner id (PATCH /partners/me) */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.display_name_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
                 headers: {
                     [name: string]: unknown;
                 };

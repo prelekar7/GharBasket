@@ -121,14 +121,6 @@
       "pr": "M8 stack (know your cook, M8 §3.5)",
       "milestone": "MS-B"
     },
-    "GET /v1/hubs/{}/partner-rates": {
-      "app": "console",
-      "class": "pending-pr",
-      "owner": "prathamesh",
-      "pr": "M8 stack (rate cards, M8 §3.6)",
-      "milestone": "MS-B",
-      "note": "Behind orNotShipped today."
-    },
     "GET /v1/earnings/certificate": {
       "app": "mobile",
       "class": "later",
