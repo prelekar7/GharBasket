@@ -24,3 +24,5 @@ for role in ("hub_manager", "admin"):
 for role in ("hub_manager", "franchise_owner", "admin"):
     PERMISSIONS.allow(role, "partner_rates:read")
 PERMISSIONS.allow("admin", "partner_rates:write")
+# A household rates its own tiffins (§3.5); a partner reads her own earnings (§3.6).
+PERMISSIONS.allow("customer", "ratings:write")

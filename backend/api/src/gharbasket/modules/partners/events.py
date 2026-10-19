@@ -28,3 +28,5 @@ TIFFINS_UNASSIGNED = "partners.tiffins_unassigned"
 # {assignment_id, partner_id, hub_id, date, meal, portions_delivered, orders_failed}: every order
 # of the assignment was delivered or failed (§3.4).
 ASSIGNMENT_COMPLETED = "partners.assignment_completed"
+# {order_id, household_id, partner_id}: ask the household to rate a delivered tiffin (§3.5, §6).
+RATING_REQUESTED = "partners.rating_requested"

@@ -114,13 +114,6 @@
       "milestone": "MS-B",
       "note": "Reads M5's partner week; ships with M8 in S6."
     },
-    "GET /v1/partners/{}/card": {
-      "app": "mobile+console",
-      "class": "pending-pr",
-      "owner": "prathamesh",
-      "pr": "M8 stack (know your cook, M8 §3.5)",
-      "milestone": "MS-B"
-    },
     "GET /v1/earnings/certificate": {
       "app": "mobile",
       "class": "later",

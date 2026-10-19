@@ -647,3 +647,44 @@ class RateCardOut(BaseModel):
     rates: list[RateOut] = Field(
         description="The rate in force today for each kind, then rates scheduled for later"
     )
+
+
+# --- know your cook and ratings (§3.5) -----------------------------------------------------------
+
+
+class KitchenCardOut(BaseModel):
+    """What a customer may see of the kitchen that cooked: never an address, phone, pin or KYC
+    detail."""
+
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Sunita tai"])
+    photo_url: str | None = Field(description="Always null for now (M8 §11)")
+    area: str | None = Field(examples=["Sector 20, Kharghar"])
+    since: str = Field(description="Month of verification", examples=["2026-12"])
+    fssai_reg_no: str | None = Field(examples=["11521999000123"])
+    fssai_valid_until: date | None
+    hygiene: HygieneOut | None
+    rating: RatingOut | None = Field(description="From 5 ratings on; else null")
+    skills: list[str]
+    portions_served: int = Field(description="Delivered, all time")
+
+
+class TiffinRatingIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: uuid.UUID
+    score: int = Field(ge=1, le=5, examples=[4])
+    comment: str | None = Field(default=None, max_length=300, description="Staff-only")
+
+    @field_validator("comment")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class TiffinRatingOut(BaseModel):
+    order_id: uuid.UUID
+    partner_id: uuid.UUID
+    score: int
+    comment: str | None
+    created_at: datetime
