@@ -5,12 +5,7 @@ import asyncio
 from collections.abc import Iterator
 
 import pytest
-from harness import IST, SUMMARY, App, Config
-from redis.asyncio import Redis
-from sqlalchemy import text
-from sqlalchemy.engine import make_url
-
-from gharbasket.platform.db import create_engine
+from harness import IST, SUMMARY, App, Config, flush_valkey, recreate_database
 
 _APP: list[App] = []  # the started app, for the summary at the end
 
@@ -31,22 +26,8 @@ def loop() -> Iterator[asyncio.Runner]:
 
 
 async def _recreate(config: Config, *, drop_only: bool = False) -> None:
-    url = make_url(config.database_url)
-    admin = url.set(database="postgres").render_as_string(hide_password=False)
-    engine = create_engine(admin, pooled=False)
-    try:
-        async with engine.connect() as connection:
-            connection = await connection.execution_options(isolation_level="AUTOCOMMIT")
-            await connection.execute(text(f'DROP DATABASE IF EXISTS "{url.database}" WITH (FORCE)'))
-            if not drop_only:
-                await connection.execute(text(f'CREATE DATABASE "{url.database}"'))
-    finally:
-        await engine.dispose()
-    valkey = Redis.from_url(config.valkey_url)
-    try:
-        await valkey.flushdb()
-    finally:
-        await valkey.aclose()
+    await recreate_database(config.database_url, create=not drop_only)
+    await flush_valkey(config.valkey_url)
 
 
 @pytest.fixture(scope="session")
