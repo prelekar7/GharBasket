@@ -15,6 +15,8 @@ PlaceholderType = Literal["money", "weekday", "time"]
 CATEGORIES = ("weekly_box", "delivery", "money", "kindness", "offers")
 # Always in the inbox and pushed; not a preference.
 ACCOUNT = "account"
+# M8's partner kinds (`partners.verified` names one); each has its own home in the app.
+PARTNER_KINDS = ("kitchen", "captain", "rider", "packer")
 
 
 @dataclass(frozen=True)
@@ -65,4 +67,11 @@ KINDS: dict[str, Kind] = {
         "billing.wallet_topped_up", "money", "/wallet", {"amount": "money"}
     ),
     "identity.data_export_ready": Kind("identity.data_export_ready", ACCOUNT, "/profile"),
+    # Partner messages are account messages: about the work itself, not a preference to turn
+    # off. One text per partner kind, each opening that kind's home in the partner app.
+    **{
+        f"partners.verified.{kind}": Kind("partners.verified", ACCOUNT, f"/{kind}")
+        for kind in PARTNER_KINDS
+    },
+    "community.captain_assigned": Kind("community.captain_assigned", ACCOUNT, "/captain"),
 }

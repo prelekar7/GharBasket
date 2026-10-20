@@ -10,10 +10,16 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.catalog.models import Category, Product, Recipe, RecipeIngredient
-from gharbasket.modules.catalog.pricing import prices_for
+from gharbasket.modules.catalog.models import (
+    Category,
+    Product,
+    Recipe,
+    RecipeIngredient,
+    TiffinMenu,
+)
+from gharbasket.modules.catalog.pricing import latest_prices_on, prices_for
 from gharbasket.modules.catalog.recipes import BASE_UNIT, festivals
-from gharbasket.modules.catalog.service import step_label
+from gharbasket.modules.catalog.service import search, step_label
 from gharbasket.modules.catalog.substitutes import substitutes
 from gharbasket.platform.errors import ProblemError
 
@@ -23,12 +29,21 @@ __all__ = [
     "PlanIngredient",
     "PlanProduct",
     "PlanRecipe",
+    "ProductMatch",
+    "StockProduct",
+    "TiffinMenuRef",
     "festivals_between",
+    "find_products",
+    "latest_prices_on",
+    "line_grams",
     "line_products",
     "plan_catalog",
     "product_ids_by_slug",
     "step_label",
+    "stock_products",
     "substitute_ids",
+    "tiffin_menu",
+    "tiffin_menus",
 ]
 
 
@@ -81,6 +96,100 @@ async def line_products(
         )
         for p, order, category in found
     }
+
+
+@dataclass(frozen=True)
+class StockProduct:
+    """What M6 needs to buy, receive and count a product (M6 §3.3, §3.4)."""
+
+    id: uuid.UUID
+    slug: str
+    kind: str
+    names: dict[str, str]
+    step_qty: int
+    step_unit: str
+    shelf_life_h: int | None
+    unit_g: float | None  # grams per piece or bunch, from the nutrition data
+    shelf: tuple[int, str]  # (category sort order, category slug): how the hub's shelves run
+    active: bool
+
+
+async def stock_products(
+    session: AsyncSession, product_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, StockProduct]:
+    """Products by id, active or not (stock bought before a product was retired still counts);
+    unknown ids are left out."""
+    if not product_ids:
+        return {}
+    rows = await session.execute(
+        select(Product, Category.sort_order, Category.slug)
+        .join(Category, Category.id == Product.category_id)
+        .where(Product.id.in_(product_ids))
+    )
+    return {
+        p.id: StockProduct(
+            p.id,
+            p.slug,
+            p.kind,
+            dict(p.names),
+            p.step_qty,
+            p.step_unit,
+            p.shelf_life_h,
+            (p.nutrition or {}).get("unit_g"),
+            (order, category),
+            p.active,
+        )
+        for p, order, category in rows.all()
+    }
+
+
+@dataclass(frozen=True)
+class ProductMatch:
+    """A product a person may mean, with today's price at their hub."""
+
+    id: uuid.UUID
+    slug: str
+    names: dict[str, str]
+    step_qty: int
+    step_unit: str
+    price_paise: int
+    exact: bool  # the words are its slug or one of its spellings exactly
+    score: float  # how well the words match (1.0 for an exact spelling)
+
+
+async def find_products(
+    session: AsyncSession, words: str, hub_id: uuid.UUID | None, *, limit: int = 4
+) -> list[ProductMatch]:
+    """Products the hub sells today that `words` may name (a slug, or any spelling in English,
+    Hindi, Marathi or Hinglish), best first; products without a price at the hub are left out."""
+    term = " ".join(words.split())
+    if not term or hub_id is None:
+        return []
+    slug = term.lower().replace(" ", "-")
+    exact_ids = await product_ids_by_slug(session, [slug])
+    if exact_ids:
+        ranked = [(exact_ids[slug], True, 1.0)]
+    else:
+        hits = await search(session, term, limit=limit)
+        ranked = [(h.product.id, h.matched.lower() == term.lower(), h.score) for h in hits]
+    products = await line_products(session, [pid for pid, _, _ in ranked], hub_id=hub_id)
+    found = []
+    for pid, exact, score in ranked:
+        product = products.get(pid)
+        if product is not None and product.price_paise is not None:
+            found.append(
+                ProductMatch(
+                    product.id,
+                    product.slug,
+                    product.names,
+                    product.step_qty,
+                    product.step_unit,
+                    product.price_paise,
+                    exact,
+                    score,
+                )
+            )
+    return found
 
 
 async def substitute_ids(
@@ -184,6 +293,27 @@ def grams_of(product: PlanProduct, qty_base_units: float) -> float | None:
     return None if unit_g is None else qty_base_units * unit_g
 
 
+async def line_grams(
+    session: AsyncSession, lines: list[tuple[uuid.UUID, int, int, str]]
+) -> list[float | None]:
+    """The weight in grams of order lines given as (product id, steps, step_qty, step_unit), by
+    `grams_of`'s rule (M7's van loads): g and ml by the unit, a piece or bunch through the
+    product's `unit_g`; None where that is unknown (a pack, or a piece without `unit_g`)."""
+    ids = sorted({product_id for product_id, *_ in lines})
+    rows = await session.execute(select(Product.id, Product.nutrition).where(Product.id.in_(ids)))
+    unit_g = {pid: (nutrition or {}).get("unit_g") for pid, nutrition in rows.all()}
+    weights: list[float | None] = []
+    for product_id, steps, step_qty, step_unit in lines:
+        if step_unit not in BASE_UNIT:  # a pack has no weight of its own
+            weights.append(None)
+            continue
+        base, factor = BASE_UNIT[step_unit]
+        per_unit = 1 if base in ("g", "ml") else unit_g.get(product_id)
+        weight = None if per_unit is None else steps * step_qty * factor * float(per_unit)
+        weights.append(weight)
+    return weights
+
+
 async def plan_catalog(session: AsyncSession, hub_id: uuid.UUID | None) -> PlanCatalog:
     """Every active product with today's hub price, and every active recipe with its
     ingredients and cost per serving; the planner's whole menu, loaded once per job run."""
@@ -270,3 +400,64 @@ async def festivals_between(
 ) -> list[tuple[date, str, dict[str, bool]]]:
     """(day, code, rules) of every festival day in the range, any region."""
     return [(f.day, f.code, dict(f.rules)) for f in await festivals(session, start, end, None)]
+
+
+# --- tiffin menus (§4; booked through M4 §3.5) ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TiffinMenuRef:
+    """A kitchen's tiffin offer for a date and meal, with its dishes' names {en, hi, mr}."""
+
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    partner_id: uuid.UUID
+    on_date: date
+    meal: str
+    product_id: uuid.UUID
+    price_paise: int  # per portion
+    status: str
+    dishes: tuple[tuple[uuid.UUID, dict[str, str]], ...]  # (recipe_id, names), menu order
+
+
+async def _refs(session: AsyncSession, menus: list[TiffinMenu]) -> list[TiffinMenuRef]:
+    ids = {rid for menu in menus for rid in menu.recipe_ids}
+    names: dict[uuid.UUID, dict[str, str]] = {}
+    if ids:
+        rows = await session.execute(select(Recipe.id, Recipe.names).where(Recipe.id.in_(ids)))
+        names = {rid: dict(n) for rid, n in rows.all()}
+    return [
+        TiffinMenuRef(
+            menu.id,
+            menu.hub_id,
+            menu.partner_id,
+            menu.on_date,
+            menu.meal,
+            menu.product_id,
+            menu.price_paise,
+            menu.status,
+            tuple((rid, names[rid]) for rid in menu.recipe_ids if rid in names),
+        )
+        for menu in menus
+    ]
+
+
+async def tiffin_menus(
+    session: AsyncSession, hub_id: uuid.UUID, first: date, last: date, meal: str | None = None
+) -> list[TiffinMenuRef]:
+    """A hub's approved menus from `first` to `last`, by date, meal and id."""
+    stmt = select(TiffinMenu).where(
+        TiffinMenu.hub_id == hub_id,
+        TiffinMenu.on_date.between(first, last),
+        TiffinMenu.status == "approved",
+    )
+    if meal is not None:
+        stmt = stmt.where(TiffinMenu.meal == meal)
+    rows = await session.execute(stmt.order_by(TiffinMenu.on_date, TiffinMenu.meal, TiffinMenu.id))
+    return await _refs(session, list(rows.scalars()))
+
+
+async def tiffin_menu(session: AsyncSession, menu_id: uuid.UUID) -> TiffinMenuRef | None:
+    """Any menu by id, whatever its status (the caller checks it is approved)."""
+    menu = await session.get(TiffinMenu, menu_id)
+    return None if menu is None else (await _refs(session, [menu]))[0]
