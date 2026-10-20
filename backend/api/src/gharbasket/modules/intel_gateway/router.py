@@ -49,6 +49,40 @@ async def put_price_index(body: PriceIndexIn, session: DbSession) -> PriceIndexO
     return PriceIndexOut(accepted=accepted, unknown_slugs=[s for s in slugs if s not in ids])
 
 
+class PantryPriorIn(BaseModel):
+    cohort: Literal["small", "medium", "large"]
+    product: str = Field(max_length=60, description="The product's slug")
+    prior_mean_per_ae: float = Field(
+        ge=0, description="Base units a week per adult equivalent (M3 scales by the household)"
+    )
+    prior_weeks: float = Field(gt=0, le=52)
+
+
+class PantryPriorsIn(BaseModel):
+    version: str = Field(min_length=1, max_length=40)
+    items: list[PantryPriorIn] = Field(min_length=1, max_length=2000)
+
+
+class PantryPriorsOut(BaseModel):
+    accepted: int
+    unknown_slugs: list[str]
+
+
+@router.post(
+    "/internal/intel/pantry-priors",
+    summary="Replace the pantry twin's cohort priors with a promoted version's "
+    "(`just promote pantry_priors`; operator token)",
+)
+async def put_pantry_priors(body: PantryPriorsIn, session: DbSession) -> PantryPriorsOut:
+    slugs = sorted({item.product for item in body.items})
+    ids = await catalog_api.product_ids_by_slug(session, slugs)
+    accepted = await service.save_pantry_priors(
+        session, [item.model_dump() for item in body.items], ids, body.version
+    )
+    await session.commit()
+    return PantryPriorsOut(accepted=accepted, unknown_slugs=[s for s in slugs if s not in ids])
+
+
 class ModelMetricIn(BaseModel):
     model_name: str = Field(min_length=1, max_length=60)
     version: str = Field(min_length=1, max_length=40)

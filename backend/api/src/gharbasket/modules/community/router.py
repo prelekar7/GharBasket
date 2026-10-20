@@ -1,5 +1,8 @@
 """HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1),
-and captain appointments (§3.2, captain_router.py)."""
+captain appointments (§3.2, captain_router.py), referrals (§3.3, referral_router.py), the hub's
+unlock settings (§3.6), point rates and drives (§3.4, drive_router.py), and donations with their
+verification (donation_router.py).
+"""
 
 import uuid
 from dataclasses import asdict
@@ -10,15 +13,21 @@ from fastapi import APIRouter, Query, status
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.community import jobs as _jobs  # noqa: F401 (registers the consumers)
 from gharbasket.modules.community import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.community import service
+from gharbasket.modules.community import service, unlock
+from gharbasket.modules.community.captain_router import covers
 from gharbasket.modules.community.captain_router import router as captain_router
+from gharbasket.modules.community.donation_router import router as donation_router
+from gharbasket.modules.community.drive_router import router as drive_router
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.community.referral_router import router as referral_router
 from gharbasket.modules.community.schemas import (
     CaptainCard,
     SocietyOut,
     SocietyRequestIn,
     SocietyRequestOut,
     SocietySummary,
+    SocietyUnlockAdminOut,
+    SocietyUnlockIn,
     Tower,
     UnlockOut,
 )
@@ -26,6 +35,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import rate_limit
 from gharbasket.platform.auth import CurrentPrincipal
 from gharbasket.platform.db import DbSession
+from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.pagination import Cursor, Page
 from gharbasket.platform.permissions import Permit, require
@@ -33,6 +43,9 @@ from gharbasket.platform.valkey import Valkey
 
 router = APIRouter(tags=["community"])
 router.include_router(captain_router)
+router.include_router(referral_router)
+router.include_router(drive_router)
+router.include_router(donation_router)
 
 SEARCH_LIMIT = 50
 # Society requests per user per day (spec §3.1).
@@ -124,12 +137,49 @@ async def society_unlock(
     society_id: uuid.UUID, _principal: CurrentPrincipal, session: DbSession
 ) -> UnlockOut:
     society = await service.get(session, society_id)
+    return await _unlock_view(session, society)
+
+
+async def _unlock_view(session: DbSession, society: Society) -> UnlockOut:
     return UnlockOut(
         society_id=society.id,
         status=society.status,  # pyright: ignore[reportArgumentType]
         joined=await service.joined(session, society.id),
         threshold=society.unlock_threshold,
+        live_at=society.live_at,
+        threshold_source=society.threshold_source,  # pyright: ignore[reportArgumentType]
+        box_fee_paise=unlock.box_fee_paise(society),
     )
+
+
+@router.patch(
+    "/admin/societies/{society_id}",
+    summary="Pin or set a society's unlock threshold, or set its status (hub manager, admin)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden, auth.role_not_granted"),
+        404: _problem("community.society_not_found"),
+        422: _problem("request.invalid"),
+    },
+)
+async def update_society_unlock(
+    society_id: uuid.UUID,
+    body: SocietyUnlockIn,
+    permit: Annotated[Permit, require("societies:write")],
+    session: DbSession,
+) -> SocietyUnlockAdminOut:
+    society = await session.get(Society, society_id, with_for_update=True)
+    if society is None or not covers(permit, society.hub_id):
+        raise ProblemError(404, "community.society_not_found", "No such society.")
+    await unlock.update(
+        session, society, body.model_dump(exclude_none=True), permit.principal.user_id
+    )
+    view = SocietyUnlockAdminOut(
+        **(await _unlock_view(session, society)).model_dump(),
+        unlock_threshold_pinned=society.unlock_threshold_pinned,
+    )
+    await session.commit()
+    return view
 
 
 @router.post(

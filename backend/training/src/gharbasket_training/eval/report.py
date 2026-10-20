@@ -95,6 +95,13 @@ def build(
     twin_mean = [estimate([r.twin_running_mean[k] for r in pantry_runs]) for k in range(weeks)]
     twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
     coverage = [estimate([r.twin_coverage[k] for r in pantry_runs]) for k in range(weeks)]
+    # Reference only (no target): the twin from priors learned on another seed's households.
+    with_learned = [r for r in pantry_runs if r.twin_learned]
+    learned = (
+        [estimate([r.twin_learned[k] for r in with_learned]) for k in range(weeks)]
+        if with_learned and len(with_learned) == len(pantry_runs)
+        else []
+    )
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": commit(),
@@ -139,6 +146,9 @@ def build(
                 "running_mean_mae": [e.as_dict() for e in twin_mean],
                 "twin_mae": [e.as_dict() for e in twin],
                 "twin_coverage_80": [e.as_dict() for e in coverage],
+                # Reference arm, no target: priors learned on another seed (`learned_from`).
+                "twin_learned_mae": [e.as_dict() for e in learned],
+                "learned_from": {r.seed: r.learned_from for r in with_learned},
             },
             # M-A's MAE target, on the twin: after four observed weeks (predicting the fifth); no
             # verdict when the run is shorter. Until it holds, PANTRY_TWIN_ENABLED stays off and
@@ -276,6 +286,24 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                     },
                 }
             )
+    for k, e in enumerate(scope.get("twin_learned_mae", []), start=1):
+        rows.append(
+            {
+                "model_name": "pantry_twin_learned_priors",
+                "version": report["commit"],
+                "metric": f"mae_pct_week_{k}",
+                "value": e["mean"],
+                "split": "holdout",
+                "data_source": "synthetic",
+                "details": {
+                    **details,
+                    "reference_only": True,
+                    "learned_from": scope.get("learned_from", {}),
+                    "ci95": e["ci95"],
+                    "per_seed": {str(r["seed"]): r["twin_learned"][k - 1] for r in runs["pantry"]},
+                },
+            }
+        )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -386,14 +414,37 @@ def to_html(report: dict[str, Any]) -> str:
         ],
     )
     scope = report["pantry"]["twin_scope"]
+    learned = scope.get("twin_learned_mae") or []
     twin = _table(
         "RQ1 — the pantry twin's scope: next week's daily use of milk and curd (MAE as a share; "
-        "coverage of the 80 % interval)",
-        ["observed weeks", "rule table", "running mean", "pantry twin v0", "80 % coverage"],
+        "coverage of the 80 % interval)"
+        + (
+            "; reference arm, no target: the twin from cohort priors learned on another seed's "
+            "households (seed → learned on: "
+            + ", ".join(f"{a} → {b}" for a, b in scope.get("learned_from", {}).items())
+            + ")"
+            if learned
+            else ""
+        ),
         [
-            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—"],
+            "observed weeks",
+            "rule table",
+            "running mean",
+            "pantry twin v0",
+            "80 % coverage",
+            *(["twin, learned priors (reference)"] if learned else []),
+        ],
+        [
+            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—", *(["—"] if learned else [])],
             *(
-                [str(k), _cell(scope["rule_table_mae"]), _cell(e), _cell(t), _cell(c)]
+                [
+                    str(k),
+                    _cell(scope["rule_table_mae"]),
+                    _cell(e),
+                    _cell(t),
+                    _cell(c),
+                    *([_cell(learned[k - 1])] if learned else []),
+                ]
                 for k, (e, t, c) in enumerate(
                     zip(
                         scope["running_mean_mae"],

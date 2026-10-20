@@ -15,6 +15,7 @@
 #   30 13 * * *   19:00 IST  remind_unapproved       (T-1: cutoff_reminder)
 #   25 15 * * *   20:55 IST  apply_auto_approve      (T-1)
 #   30 15 * * *   21:00 IST  cutoff_lock             (T-1)
+#   0 17 * * *    22:30 IST  sweep_missed_pickups    (T: donation pickups no stop reported)
 #   30 17 * * *   23:00 IST  payment_grace_expiry    (T-1)
 #   */10 * * * *             build_data_export
 #   every few minutes        outbox_sweep
@@ -28,8 +29,12 @@ on:
     - cron: "3 22 * * *" # 03:33 IST daily: monitor_drift
     - cron: "43 22 * * *" # 04:13 IST daily: sweep_uploads
     - cron: "53 22 * * *" # 04:23 IST daily: expire_data_exports
+    - cron: "40 20 * * 0" # 02:10 IST Monday: recompute_unlock_thresholds
+    - cron: "40 21 * * *" # 03:10 IST daily: expire_referrals
+    - cron: "03 19 * * *" # 00:33 IST daily: expire_kindness_points
     - cron: "03 23 * * *" # 04:33 IST daily: purge_notifications
     - cron: "17 * * * *" # hourly safety net: outbox_sweep
+    - cron: "3 22 * * 0" # Monday 03:33 IST weekly: compute_vendor_scores (the past IST week)
   workflow_dispatch:
     inputs:
       job:
@@ -74,8 +79,12 @@ jobs:
             "3 22 * * *") job=monitor_drift ;;
             "43 22 * * *") job=sweep_uploads ;;
             "53 22 * * *") job=expire_data_exports ;;
+            "40 20 * * 0") job=recompute_unlock_thresholds ;;
+            "40 21 * * *") job=expire_referrals ;;
+            "03 19 * * *") job=expire_kindness_points ;;
             "03 23 * * *") job=purge_notifications ;;
             "17 * * * *") job=outbox_sweep ;;
+            "3 22 * * 0") job=compute_vendor_scores ;;
             "") job="$INPUT_JOB" ;;
             *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;
           esac

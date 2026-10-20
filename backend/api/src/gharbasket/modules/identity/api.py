@@ -3,6 +3,7 @@
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -19,6 +20,9 @@ from gharbasket.modules.identity.models import (
     UserRole,
 )
 
+# Events other modules consume (M9: the unlock count).
+HOUSEHOLD_CREATED = events.HOUSEHOLD_CREATED
+HOUSEHOLD_UPDATED = events.HOUSEHOLD_UPDATED
 # Events other modules consume (spec §3.5): the deletion request, its cancelling, the purge.
 DELETION_REQUESTED = events.DELETION_REQUESTED
 DELETION_CANCELLED = events.DELETION_CANCELLED
@@ -45,6 +49,7 @@ class HouseholdRef:
     owner_user_id: uuid.UUID
     society_id: uuid.UUID
     hub_id: uuid.UUID | None
+    data_source: str = "real"
 
 
 async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> HouseholdRef | None:
@@ -52,11 +57,44 @@ async def household_for_user(session: AsyncSession, user_id: uuid.UUID) -> House
     row = (
         await session.execute(
             select(
-                Household.id, Household.owner_user_id, Household.society_id, Household.hub_id
+                Household.id,
+                Household.owner_user_id,
+                Household.society_id,
+                Household.hub_id,
+                Household.data_source,
             ).where(Household.owner_user_id == user_id)
         )
     ).first()
     return None if row is None else HouseholdRef(*row)
+
+
+async def signed_up_at(session: AsyncSession, user_id: uuid.UUID) -> datetime | None:
+    """When the user first signed in (M9: the 14-day referral claim window)."""
+    return (
+        await session.execute(select(User.created_at).where(User.id == user_id))
+    ).scalar_one_or_none()
+
+
+@dataclass(frozen=True)
+class DeliveryLabel:
+    tower_id: str
+    flat: str
+
+
+async def delivery_labels(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, DeliveryLabel]:
+    """Tower and flat per household, for bag labels and hub queues (ADR-0026): never a name
+    or a phone. Households without an address are left out."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Address.household_id, Address.tower_id, Address.flat).where(
+            Address.household_id.in_(ids)
+        )
+    )
+    return {household_id: DeliveryLabel(tower, flat) for household_id, tower, flat in rows.all()}
 
 
 @dataclass(frozen=True)
@@ -75,6 +113,16 @@ async def user_contacts(
         select(User.id, User.name, User.phone_e164).where(User.id.in_(set(user_ids)))
     )
     return {user_id: UserContact(name, phone) for user_id, name, phone in rows.all()}
+
+
+async def user_by_phone(session: AsyncSession, phone_e164: str) -> uuid.UUID | None:
+    """The signed-up user with this phone (M8: a hub manager creates a rider or packer
+    application for a person without a household); None when nobody signed up with it."""
+    return (
+        await session.execute(
+            select(User.id).where(User.phone_e164 == phone_e164, User.status == "active")
+        )
+    ).scalar_one_or_none()
 
 
 async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> uuid.UUID | None:
@@ -289,33 +337,14 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
     }
 
 
-@dataclass(frozen=True)
-class DeliveryLabel:
-    tower_id: str
-    flat: str
-
-
-async def delivery_labels(
-    session: AsyncSession, household_ids: list[uuid.UUID]
-) -> dict[uuid.UUID, DeliveryLabel]:
-    """Tower and flat of each household's address, for bag labels (ADR-0026 §6): no names, no
-    phones. Households without an address are left out."""
-    if not household_ids:
+async def user_names(session: AsyncSession, user_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, str]:
+    """Names of staff for "edited by" and history in the console (M2 §3.3); unnamed users and
+    unknown ids are left out."""
+    wanted = set(user_ids)
+    if not wanted:
         return {}
-    rows = await session.execute(
-        select(Address.household_id, Address.tower_id, Address.flat).where(
-            Address.household_id.in_(household_ids)
-        )
-    )
-    return {household: DeliveryLabel(tower, flat) for household, tower, flat in rows.all()}
-
-
-async def user_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
-    """Display names of staff (who holds a packing task); users without a name are left out."""
-    if not user_ids:
-        return {}
-    rows = await session.execute(select(User.id, User.name).where(User.id.in_(user_ids)))
-    return {user_id: name for user_id, name in rows.all() if name is not None}
+    rows = await session.execute(select(User.id, User.name).where(User.id.in_(wanted)))
+    return {user_id: name for user_id, name in rows.all() if name}
 
 
 async def holds_role(
