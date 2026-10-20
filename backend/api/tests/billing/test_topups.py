@@ -205,7 +205,7 @@ async def test_razorpay_orders_and_the_signed_webhook(
     outcomes = {}
     for name, body in {
         "unknown": captured("order_nope", 100),
-        "ignored": {"event": "refund.processed", "payload": {}},
+        "ignored": {"event": "payment.authorized", "payload": {}},
         "malformed": {"event": "payment.captured", "payload": {"payment": {}}},
     }.items():
         outcomes[name] = (await api.post(hook, **signed(body, f"evt_{name}"))).json()["outcome"]

@@ -73,6 +73,7 @@ __all__ = [
     "latest_prediction",
     "model_health",
     "next_recipe",
+    "pantry_priors",
     "pantry_quantities",
     "plan_week",
     "price_spikes",
@@ -119,6 +120,13 @@ async def plan_week(
             model_name=plan.model,
         )
     return plan
+
+
+async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
+    """The twin's learned priors for a household-size cohort (`small`, `medium`, `large`):
+    {product_id: (prior mean in base units a week per adult equivalent, prior_weeks)}, the
+    promoted registry version's; empty until one is promoted, so M3 keeps the rule table."""
+    return await service.pantry_priors(session, cohort)
 
 
 async def pantry_quantities(

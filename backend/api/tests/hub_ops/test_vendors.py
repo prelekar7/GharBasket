@@ -43,7 +43,9 @@ async def test_a_hub_manager_adds_vendors_and_one_is_the_default(
     listed = (await api.get(VENDORS, headers=manager)).json()["items"]
     # By name; the seed's default vendor stopped being the default (and got a new version).
     assert [(v["name"], v["is_default"], v["version"]) for v in listed] == [
+        ("Kharghar Kisan FPO", False, 1),
         ("Kisan FPO", True, 1),
+        ("Patil Wholesale", False, 1),
         ("Shinde Traders", False, 2),
     ]
 
@@ -77,7 +79,7 @@ async def test_patching_and_deactivating_a_vendor(
 ) -> None:
     api = clients()
     manager = await as_user(api, google, VIKRAM)
-    seed_vendor = (await api.get(VENDORS, headers=manager)).json()["items"][0]
+    seed_vendor = (await api.get(VENDORS, headers=manager)).json()["items"][-1]  # Shinde
     kisan = (await api.post(VENDORS, json=vendor(), headers={**manager, **key()})).json()
     url = f"/v1/vendors/{seed_vendor['id']}"
     await db_session.commit()
@@ -104,7 +106,7 @@ async def test_patching_and_deactivating_a_vendor(
     assert [
         v["name"]
         for v in (await api.get(f"{VENDORS}?active=true", headers=manager)).json()["items"]
-    ] == ["Kisan FPO"]
+    ] == ["Kharghar Kisan FPO", "Kisan FPO", "Patil Wholesale"]
     inactive = (await api.get(f"{VENDORS}?active=false", headers=manager)).json()["items"]
     assert [v["id"] for v in inactive] == [seed_vendor["id"]]
 

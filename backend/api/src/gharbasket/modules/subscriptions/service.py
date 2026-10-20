@@ -465,36 +465,46 @@ async def learned_preferences(
 
 
 OBSERVED_WEEKS = 12  # how far back the twin looks at boxes and taps
+RULE_PRIOR_WEEKS = 2.0  # the rule table's weight as the twin's prior
 
 
-async def pantry_observations(
+@dataclass(frozen=True)
+class DailyUseShare:
+    """One locked box's daily-use share of one twin product (M10 §3.3): what the box delivered
+    minus what that week's planned recipes needed, never below 0, and the household's tap."""
+
+    delivery_date: date
+    data_source: str  # the cycle's: real | synthetic
+    product_id: uuid.UUID
+    share: float  # base units
+    signal: str | None
+
+
+async def daily_use_history(
     session: AsyncSession,
     profile: identity_api.HouseholdPlanProfile,
     catalog: catalog_api.PlanCatalog,
-    delivery_date: date,
-) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
-    """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
-    that carried it, oldest first, as (daily-use share in base units, the household's tap). The
-    share is what the box delivered minus what that week's planned recipes needed, computed the
-    way the draft computes it, so the twin learns daily use and never the recipes on top."""
-    since = delivery_date - timedelta(weeks=OBSERVED_WEEKS)
-    cycles = list(
-        (
-            await session.execute(
-                select(WeeklyCycle)
-                .where(
-                    WeeklyCycle.household_id == profile.id,
-                    WeeklyCycle.delivery_date >= since,
-                    WeeklyCycle.delivery_date < delivery_date,
-                    WeeklyCycle.status == "locked",
-                )
-                .order_by(WeeklyCycle.delivery_date)
-            )
-        ).scalars()
+    *,
+    since: date | None = None,
+    before: date | None = None,
+) -> list[DailyUseShare]:
+    """Every locked box of the household delivered in [since, before) that carried a twin
+    product (perishable daily use), oldest first, as its daily-use share and tap. The share is
+    computed the way the draft computes the need (`planning.recipe_need` on the cycle's stored
+    `meal_plan`), so the twin learns daily use and never the recipes on top. The serving twin
+    (`pantry_observations`) and the weekly refit of its cohort priors (`backend/training`,
+    `refit_pantry`) both read this, so they observe the same thing."""
+    query = select(WeeklyCycle).where(
+        WeeklyCycle.household_id == profile.id, WeeklyCycle.status == "locked"
     )
+    if since is not None:
+        query = query.where(WeeklyCycle.delivery_date >= since)
+    if before is not None:
+        query = query.where(WeeklyCycle.delivery_date < before)
+    cycles = list((await session.execute(query.order_by(WeeklyCycle.delivery_date))).scalars())
     products = [p for p in catalog.products.values() if planning.twin_product(p)]
     if not cycles or not products:
-        return {}
+        return []
     ids = [c.id for c in cycles]
     wanted = [p.id for p in products]
     delivered: dict[tuple[uuid.UUID, uuid.UUID], float] = {}
@@ -515,15 +525,42 @@ async def pantry_observations(
             )
         )
     }
-    out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
+    out: list[DailyUseShare] = []
     for cycle in cycles:
         need, _ = planning.recipe_need(profile, catalog, planning.plan_of(cycle.meal_plan))
         for product in products:
             units = delivered.get((cycle.id, product.id))
             if not units:
                 continue  # not in that week's box: nothing observed
-            share = max(0.0, units - need.get(product.id, 0.0))
-            out.setdefault(product.id, []).append((share, taps.get((cycle.id, product.id))))
+            out.append(
+                DailyUseShare(
+                    cycle.delivery_date,
+                    cycle.data_source,
+                    product.id,
+                    max(0.0, units - need.get(product.id, 0.0)),
+                    taps.get((cycle.id, product.id)),
+                )
+            )
+    return out
+
+
+async def pantry_observations(
+    session: AsyncSession,
+    profile: identity_api.HouseholdPlanProfile,
+    catalog: catalog_api.PlanCatalog,
+    delivery_date: date,
+) -> dict[uuid.UUID, list[tuple[float, str | None]]]:
+    """Per twin product (perishable daily use): each locked box of the last OBSERVED_WEEKS weeks
+    that carried it, oldest first, as (daily-use share in base units, the household's tap)."""
+    out: dict[uuid.UUID, list[tuple[float, str | None]]] = {}
+    for row in await daily_use_history(
+        session,
+        profile,
+        catalog,
+        since=delivery_date - timedelta(weeks=OBSERVED_WEEKS),
+        before=delivery_date,
+    ):
+        out.setdefault(row.product_id, []).append((row.share, row.signal))
     return out
 
 
@@ -538,23 +575,36 @@ async def twin_quantities(
     record_for: uuid.UUID | None,
 ) -> dict[uuid.UUID, tuple[float, dict[str, Any]]]:
     """The pantry twin's weekly daily use for the perishable daily-use items (M10 §3.3): the
-    rule table is the cohort prior, the daily-use share of the household's locked boxes and its
-    taps are the observations. Empty when the twin is switched off (`pantry_twin_enabled`) or
-    the household has no observed week yet, so the rule table drafts those boxes."""
+    cohort prior is the promoted learned prior per adult equivalent times the household's
+    equivalents (v1, `intel.pantry_priors`), else the rule table; the daily-use share of the
+    household's locked boxes and its taps are the observations. Empty when the twin is switched
+    off (`pantry_twin_enabled`) or the household has no observed week yet, so the rule table
+    drafts those boxes."""
     if not settings.pantry_twin_enabled:
         return {}
     observed = await pantry_observations(session, profile, catalog, delivery_date)
     equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    learned = await intel_api.pantry_priors(session, rules.cohort_of(equivalents))  # v1
     items = []
+    prior_of: dict[str, str] = {}
     for slug, prior in rules.daily_use_plan(equivalents).items():
         product = catalog.product_by_slug(slug)
         if product is None or product.id not in observed:
             continue
+        # v1: the learned prior is per adult equivalent, so it scales with the household as
+        # the rule table does; without one (too few households, or before a promotion) the
+        # table and its weight of two weeks.
+        if product.id in learned:
+            per_equivalent, prior_weeks = learned[product.id]
+            prior_mean, prior_of[slug] = per_equivalent * equivalents, "learned"
+        else:
+            prior_mean, prior_weeks, prior_of[slug] = prior, RULE_PRIOR_WEEKS, "rule"
         items.append(
             PantryItem(
                 product=slug,
                 step=product.step_qty * planning.BASE_FACTOR[product.step_unit],
-                prior_mean=prior,
+                prior_mean=prior_mean,
+                prior_weeks=prior_weeks,
                 observations=[
                     PantryObservation(qty=qty, signal=signal)  # pyright: ignore[reportArgumentType]
                     for qty, signal in observed[product.id]
@@ -581,6 +631,7 @@ async def twin_quantities(
                 "p90": by_slug[slug].p90,
                 "weeks": by_slug[slug].weeks_observed,
                 "source": answer.source,
+                "prior": prior_of.get(slug, "rule"),
             },
         )
         for slug in by_slug
@@ -1213,6 +1264,47 @@ async def set_meal(
         )
     )
     return await _saved(session, cycle, lines)
+
+
+async def mark_tiffin_meal(
+    session: AsyncSession, household_id: uuid.UUID, on: date, slot: str, *, booked: bool
+) -> bool:
+    """A tiffin booked for a meal sets that meal to `tiffin` (its ingredients leave the box), and
+    a cancelled one sets it back to the plan, exactly as `PUT /v1/cycles/{id}/meals` does, while
+    the week can still be edited (M4 §3.5). Returns whether the week changed."""
+    cycle = (
+        await session.execute(
+            select(WeeklyCycle)
+            .where(
+                WeeklyCycle.household_id == household_id,
+                WeeklyCycle.week_start <= on,
+                WeeklyCycle.week_start > on - timedelta(days=7),
+                WeeklyCycle.status.in_(EDITABLE),
+            )
+            .order_by(WeeklyCycle.delivery_date.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    day = next((d for d in cycle.meal_plan if d["date"] == on.isoformat()), None) if cycle else None
+    meal = next((m for m in day["meals"] if m["slot"] == slot), None) if day else None
+    if cycle is None or meal is None or bool(meal.get("tiffin")) == booked:
+        return False
+    if not booked and meal.get("source") != "customer":
+        return False
+    try:
+        async with session.begin_nested():
+            await set_meal(
+                session,
+                cycle,
+                on=on,
+                slot=slot,
+                choice="tiffin" if booked else "planned",
+                recipe_id=None,
+                expected_version=cycle.version,
+            )
+    except ProblemError:  # past the cut-off, or over the Budget Lock: the box stays as it is
+        return False
+    return True
 
 
 def approved_cycle(cycle: WeeklyCycle, lines: list[BoxLine]) -> orders_api.ApprovedCycle:
