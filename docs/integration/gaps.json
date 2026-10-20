@@ -106,21 +106,6 @@
       "fix": "Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public.",
       "note": "M12 §3.7: public cook profiles are M8's card."
     },
-    "GET /v1/captains/me/today": {
-      "app": "mobile",
-      "class": "pending-pr",
-      "owner": "prathamesh",
-      "pr": "#326",
-      "milestone": "MS-B",
-      "note": "The captain's day."
-    },
-    "GET /v1/stops/{}/deliveries": {
-      "app": "mobile",
-      "class": "pending-pr",
-      "owner": "prathamesh",
-      "pr": "#326",
-      "milestone": "MS-B"
-    },
     "GET /v1/deliveries/{}": {
       "app": "mobile",
       "class": "pending-pr",
