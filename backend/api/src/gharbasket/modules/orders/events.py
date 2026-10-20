@@ -15,6 +15,8 @@ DELIVERY_FAILED = "orders.delivery_failed"
 # Own payload: order_id, household_id, product_id, shortage_qty, substitute_product_id,
 # refund_paise, total_paise
 SHORTAGE_SUBSTITUTED = "orders.shortage_substituted"
+# Own payload (§3.5): order_id, household_id, delivery_date, meal, portions; M3 marks the meal
+TIFFIN_BOOKED = "orders.tiffin_booked"
 # Issues (§3.2) carry their own payload, without notes, photo keys or names:
 ISSUE_REPORTED = "orders.issue_reported"  # issue_id, order_id, household_id, hub_id, kind, ...
 ISSUE_RESOLVED = "orders.issue_resolved"  # issue_id, order_id, household_id, status, credit, by

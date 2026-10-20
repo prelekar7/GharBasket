@@ -31,6 +31,8 @@ CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
 # secrets. Deployed environments refuse to start without their own keys.
 _DEV_SIGNING_KEY = "gharbasket-dev-only-jwt-signing-key-never-deployed"
 _DEV_REFRESH_PEPPER = "gharbasket-dev-only-refresh-token-pepper-never-deployed"
+_DEV_KYC_KEY = "gharbasket-dev-only-kyc-encryption-key-never-deployed"
+_DEV_KYC_PEPPER = "gharbasket-dev-only-kyc-hash-pepper-never-deployed"
 MIN_SECRET_BYTES = 32
 LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidator(_upper)]
 
@@ -97,6 +99,12 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
+    public_web_url: str = "https://gharbasket.in"
+    # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
+    # §3.3, owner 2026-10-09): half a donated meal each.
+    referral_points_referrer: int = Field(default=250, ge=0, le=5000)
+    referral_points_referee: int = Field(default=250, ge=0, le=5000)
     # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
     # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
     real_data_source: Literal["pilot", "live"] = "pilot"
@@ -109,6 +117,10 @@ class Settings(DatabaseSettings):
     razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
+    # Refund to source (M5 §3.3): only top-ups captured this recently can take money back.
+    razorpay_refund_window_days: int = Field(default=180, ge=1, le=365)
+    # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
+    kindness_goal: int = Field(default=500, ge=1, le=100_000)
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
@@ -131,6 +143,12 @@ class Settings(DatabaseSettings):
     whatsapp_phone_number_id: str | None = Field(default=None, pattern=r"^[0-9]{5,30}$")
     whatsapp_app_secret: SecretStr | None = None
     whatsapp_verify_token: SecretStr | None = None
+    # KYC numbers (M8 §3.1, handbook 13 §13.5) are stored as pgp_sym_encrypt(number, key), the key
+    # named by KYC_KEY_VERSION for rotation, and as HMAC-SHA256(pepper, number) for duplicate
+    # checks. Required on staging and prod; local runs use dev-only values.
+    kyc_encryption_key: SecretStr | None = None
+    kyc_key_version: int = Field(default=1, ge=1, le=32767)
+    kyc_hash_pepper: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -140,6 +158,8 @@ class Settings(DatabaseSettings):
                 "JWT_SIGNING_KEY": self.jwt_signing_key,
                 "REFRESH_TOKEN_PEPPER": self.refresh_token_pepper,
                 "FIREBASE_PROJECT_ID": self.firebase_project_id,
+                "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
+                "KYC_HASH_PEPPER": self.kyc_hash_pepper,
             }
             missing = [name for name, value in required.items() if value is None]
             if missing:
@@ -149,6 +169,8 @@ class Settings(DatabaseSettings):
         for name, secret in (
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
+            ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
+            ("KYC_HASH_PEPPER", self.kyc_hash_pepper),
             *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
         ):
             if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
@@ -182,6 +204,17 @@ class Settings(DatabaseSettings):
     def refresh_pepper(self) -> bytes:
         pepper = self.refresh_token_pepper
         return (pepper.get_secret_value() if pepper else _DEV_REFRESH_PEPPER).encode()
+
+    @property
+    def kyc_key(self) -> str:
+        """The pgcrypto key for KYC numbers; send it only as a bind parameter."""
+        key = self.kyc_encryption_key
+        return key.get_secret_value() if key else _DEV_KYC_KEY
+
+    @property
+    def kyc_pepper(self) -> bytes:
+        pepper = self.kyc_hash_pepper
+        return (pepper.get_secret_value() if pepper else _DEV_KYC_PEPPER).encode()
 
     @property
     def is_local(self) -> bool:

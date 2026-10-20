@@ -19,7 +19,7 @@ from gharbasket_sim.households import sample
 from gharbasket_sim.pantry import price_of, weekly_prices
 from gharbasket_sim.weeks import cached, rules_planner, simulate
 from gharbasket_training import ranker
-from gharbasket_training.jobs import train_ranker
+from gharbasket_training.jobs import promote, train_ranker
 from gharbasket_training.lake import LocalLake, open_registry
 from gharbasket_training.settings import Settings
 from pydantic import SecretStr
@@ -354,9 +354,13 @@ def test_the_job_trains_per_source_publishes_without_promoting(tmp_path: Path) -
     assert where == "basket_ranker/2026-10-05-synthetic"  # the MODELS_DIR layout
     assert (tmp_path / "basket_ranker/2026-10-05-synthetic/model.txt").exists()
     assert not (tmp_path / "basket_ranker/latest.json").exists()  # promotion is manual
-    with pytest.raises(RuntimeError, match="not in the registry"):
-        train_ranker.promote(registry, "2026-10-05-real")
-    train_ranker.promote(registry, "2026-10-05-synthetic")
+    with pytest.raises(SystemExit, match="not in the registry"):
+        promote.promote(registry, "basket_ranker", "2026-10-05-real")
+    # `just promote basket_ranker <v> --out D` finds what `train_ranker --out D` wrote.
+    assert (
+        promote.main(["basket_ranker", "2026-10-05-synthetic", "--out", str(tmp_path), "--force"])
+        == 0
+    )
     pointer = json.loads((tmp_path / "basket_ranker/latest.json").read_text())
     assert pointer["version"] == "2026-10-05-synthetic"
     lake = LocalLake(tmp_path)
@@ -371,7 +375,7 @@ def test_the_ml_service_loads_what_the_job_writes_to_out(tmp_path: Path) -> None
     trained = train_ranker.fit(simulated_rows(weeks=4, households=6), "v")
     registry = open_registry(Settings(), tmp_path)
     train_ranker.publish(registry, trained[0])
-    train_ranker.promote(registry, trained[0].version)
+    promote.promote(registry, "basket_ranker", trained[0].version, force=True)
     assert tuple(serving.FEATURES) == ranker.FEATURES
     assert serving.WEEKS_SINCE_NEVER == ranker.WEEKS_SINCE_NEVER
 
