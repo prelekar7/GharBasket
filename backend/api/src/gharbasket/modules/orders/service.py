@@ -610,9 +610,9 @@ async def transition(
     and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
     Only the state machine is checked: the caller has checked that this person may act."""
     state.check(order.kind, order.status, to_status, actor)
+    from_status = order.status
     if to_status == "refunded":
         payload = await _refund(session, order, payload or {})
-    from_status = order.status
     order.status = to_status
     order.version += 1
     if to_status == "locked":
@@ -654,33 +654,6 @@ async def transition(
             ]
         await publish(session, event_type, body)
     return order
-
-
-async def paid_left(session: AsyncSession, order: Order) -> int:
-    """What a refund may still return: the paid total (net of shortage refunds) less the
-    order's issue credits."""
-    credited = await session.scalar(
-        select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
-            OrderIssue.order_id == order.id, OrderIssue.status == "credited"
-        )
-    )
-    return max(0, order.total_paise - int(credited or 0))
-
-
-async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> dict[str, Any]:
-    """Money back on a move to `refunded` (ADR-0027): `payload.refund_paise` (default what is
-    left of the paid total) to the owner's wallet, keyed by order and `payload.reason` (default
-    `undelivered`), in the caller's transaction. `billing.wallet_limit` is raised as is."""
-    reason = str(payload.get("reason") or "undelivered")
-    amount = payload.get("refund_paise")
-    amount = await paid_left(session, order) if amount is None else int(amount)
-    if amount > 0:
-        owner = await identity_api.owner_of_household(session, order.household_id)
-        if owner is None:
-            raise ValueError(f"order {order.id} has no household owner")
-        async with session.begin_nested():  # a refused refund leaves no move behind
-            await billing_api.refund_to_wallet(session, owner, order.id, amount, reason=reason)
-    return {**payload, "reason": reason, "refund_paise": amount}
 
 
 async def set_kitchen(session: AsyncSession, order: Order, partner_id: uuid.UUID | None) -> Order:
@@ -864,3 +837,48 @@ async def mark_shortage(
         },
     )
     return line
+
+
+async def refunded_paise(session: AsyncSession, order: Order) -> int:
+    """Everything already paid back on an order after packing: its issue credits and the money
+    of its move to `refunded` (M7's refunds). Shortage refunds are already out of the total, which
+    follows the lines. The one count every later refund subtracts, so nothing is paid twice."""
+    credited = await session.scalar(
+        select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
+            OrderIssue.order_id == order.id, OrderIssue.status == "credited"
+        )
+    )
+    moved = await session.execute(
+        select(OrderEvent.payload).where(
+            OrderEvent.order_id == order.id, OrderEvent.to_status == "refunded"
+        )
+    )
+    refunded = sum(int((p or {}).get("refund_paise") or 0) for p in moved.scalars())
+    return int(credited or 0) + refunded
+
+
+async def refundable_paise(session: AsyncSession, order: Order) -> int:
+    """What a refund of the order may still pay back: its paid total minus all that was already
+    paid back (`refunded_paise`)."""
+    return max(0, order.total_paise - await refunded_paise(session, order))
+
+
+async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> dict[str, Any]:
+    """The money of a move to `refunded` (ADR-0027 §5): `payload.refund_paise` (default: all that
+    is refundable, 0 to that at most) back to the wallet, keyed by order and `payload.reason`
+    (default `undelivered`; `no_kitchen` for a tiffin no kitchen took), in the caller's
+    transaction. `billing.wallet_limit` is raised as is. Returns the payload with the `reason`
+    and the `refund_paise` paid, which the timeline row and the event carry."""
+    reason = str(payload.get("reason") or "undelivered")
+    most = await refundable_paise(session, order)
+    amount = payload.get("refund_paise")
+    amount = most if amount is None else int(amount)
+    if not 0 <= amount <= most:
+        raise ValueError(f"refund_paise must be 0 to {most}")
+    if amount > 0:
+        owner = await identity_api.owner_of_household(session, order.household_id)
+        if owner is None:
+            raise ValueError(f"order {order.id} has no household owner")
+        async with session.begin_nested():  # a refused refund leaves no move behind
+            await billing_api.refund_to_wallet(session, owner, order.id, amount, reason=reason)
+    return {**payload, "reason": reason, "refund_paise": amount}

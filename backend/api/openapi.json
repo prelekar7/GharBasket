@@ -20322,6 +20322,66 @@
         "title": "TurnOut",
         "type": "object"
       },
+      "UndeliveredIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the tap happened on the phone (stored for audit)",
+            "title": "Client At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for other",
+            "title": "Note"
+          },
+          "photo_key": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Key"
+          },
+          "reason": {
+            "enum": [
+              "not_home",
+              "refused",
+              "wrong_address",
+              "damaged",
+              "missing",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "UndeliveredIn",
+        "type": "object"
+      },
       "UnlockOut": {
         "description": "How close a society is to free delivery (US-2).",
         "properties": {
@@ -24902,7 +24962,7 @@
                 }
               }
             },
-            "description": "orders.issue_not_open"
+            "description": "orders.issue_not_open, orders.order_refunded"
           },
           "422": {
             "content": {
@@ -31051,6 +31111,148 @@
           }
         ],
         "summary": "Deliver a bag at the door with its scan, the household's code or a photo",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/deliveries/{order_id}/undelivered": {
+      "post": {
+        "description": "A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage.",
+        "operationId": "mark_undelivered_v1_deliveries__order_id__undelivered_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndeliveredIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/gharbasket__modules__logistics__schemas__DeliveryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_society_captain"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.delivery_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.delivery_closed, orders.illegal_transition"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.photo_key_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Nobody home, refused, damaged…: hold, send back, refund or triage (Idempotency-Key)",
         "tags": [
           "logistics"
         ]

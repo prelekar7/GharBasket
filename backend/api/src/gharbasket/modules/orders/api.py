@@ -76,6 +76,7 @@ __all__ = [
     "mark_shortage",
     "order_ids_of_household",
     "orders_for_delivery",
+    "refundable_paise",
     "resolve_issue",
     "set_kitchen",
     "slot_ref",
@@ -124,13 +125,18 @@ async def transition(
     active captain of its society, kitchen of its assignment).
 
     A move to `refunded` returns money to the owner's wallet through `billing.api`:
-    `payload.refund_paise` (default what is left of the paid total after issue credits), keyed
-    by order and `payload.reason` (default `undelivered`; `no_kitchen` for a locked tiffin no
-    kitchen took, ADR-0027), so a replay never pays twice."""
+    `payload.refund_paise` (0 up to `refundable_paise`, the paid total less everything already
+    paid back; default all of it), keyed by order and `payload.reason` (default `undelivered`;
+    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice."""
     order = await service.get(session, order_id, for_update=True)
     return await service.transition(
         session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
     )
+
+
+async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
+    """What a refund of the order may still pay back (M7's triage bound)."""
+    return await service.refundable_paise(session, await service.get(session, order_id))
 
 
 async def set_kitchen(

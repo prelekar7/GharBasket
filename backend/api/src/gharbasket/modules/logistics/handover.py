@@ -21,10 +21,10 @@ from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import attempts, events, tracking
 from gharbasket.modules.logistics.execution import ensure_running, stop_not_found, tap
-from gharbasket.modules.logistics.models import Handover, Route, RouteStop
+from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
 from gharbasket.modules.logistics.routing import DETOUR, metres
-from gharbasket.modules.logistics.schemas import CaptainFlat, HandoverIn
+from gharbasket.modules.logistics.schemas import CaptainFlat, FlatStatus, HandoverIn
 from gharbasket.modules.logistics.views import now
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform import files
@@ -300,6 +300,7 @@ async def flats(
         if s.order.society_id == society_id and (slot_id is None or s.order.slot_id == slot_id)
     ]
     labels = await identity_api.delivery_labels(session, [o.household_id for o in orders])
+    tries = {o.id: await attempts.latest(session, o.id) for o in orders}
     society = (await community_api.society_labels(session, [society_id])).get(society_id)
     towers = society.towers if society else {}
     rows = []
@@ -315,8 +316,8 @@ async def flats(
                     kind=order.kind,  # pyright: ignore[reportArgumentType]
                     bags=1,
                     redelivery=False,
-                    status=FLAT_STATUS[order.status],  # pyright: ignore[reportArgumentType]
-                    hold_until=None,
+                    status=_flat_status(order.status, tries[order.id]),
+                    hold_until=_hold(tries[order.id]),
                 ),
             )
         )
@@ -342,3 +343,15 @@ async def society_stops(
         .order_by(RouteStop.eta)
     )
     return [(stop, route) for stop, route in rows.all()]
+
+
+def _flat_status(order_status: str, attempt: Delivery | None) -> FlatStatus:
+    if attempt is not None and attempt.status == "held" and order_status == "at_society":
+        return "held"
+    return FLAT_STATUS[order_status]  # pyright: ignore[reportReturnType]
+
+
+def _hold(attempt: Delivery | None) -> str | None:
+    if attempt is None or attempt.status != "held" or attempt.hold_until is None:
+        return None
+    return attempt.hold_until.strftime("%H:%M")

@@ -1008,6 +1008,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/deliveries/{order_id}/undelivered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Nobody home, refused, damaged…: hold, send back, refund or triage (Idempotency-Key)
+         * @description A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. Damaged or missing is refunded in full at once; refused, wrong address and other go to the hub's triage.
+         */
+        post: operations["mark_undelivered_v1_deliveries__order_id__undelivered_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/donations": {
         parameters: {
             query?: never;
@@ -12095,6 +12115,26 @@ export interface components {
             /** Tokens Today */
             tokens_today: number;
         };
+        /** UndeliveredIn */
+        UndeliveredIn: {
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Note
+             * @description Required for other
+             */
+            note?: string | null;
+            /** Photo Key */
+            photo_key?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other";
+        };
         /**
          * UnlockOut
          * @description How close a society is to free delivery (US-2).
@@ -14264,7 +14304,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description orders.issue_not_open */
+            /** @description orders.issue_not_open, orders.order_refunded */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -17736,6 +17776,89 @@ export interface operations {
             };
             /** @description logistics.code_attempts_exceeded */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    mark_undelivered_v1_deliveries__order_id__undelivered_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UndeliveredIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_society_captain */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_closed, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.photo_key_invalid, request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

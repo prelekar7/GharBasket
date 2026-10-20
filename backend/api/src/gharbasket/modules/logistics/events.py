@@ -17,3 +17,5 @@ ROUTE_COMPLETED = "logistics.route_completed"
 # handover_id, stop_id, route_id, hub_id, society_id, by_actor, user_id, partner_id, crates, bags,
 # order_ids, mismatch — M12 (captains are paid at orders.delivered, not here)
 HANDOVER_COMPLETED = "logistics.handover_completed"
+# order_id, household_id, society_id, hold_until — M11 tells the family to collect from the captain
+DELIVERY_HELD = "logistics.delivery_held"

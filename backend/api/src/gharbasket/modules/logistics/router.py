@@ -57,6 +57,7 @@ from gharbasket.modules.logistics.schemas import (
     StartIn,
     StopOut,
     StopPatch,
+    UndeliveredIn,
     UserRef,
     VehicleIn,
     VehicleKind,
@@ -933,4 +934,32 @@ async def prove_delivery(
         await session.commit()
         raise
     await deliveries.deliver(session, attempt, order, actor, body)
+    return await _door_answer(session, idem, order_id)
+
+
+@router.post(
+    "/deliveries/{order_id}/undelivered",
+    summary="Nobody home, refused, damaged…: hold, send back, refund or triage (Idempotency-Key)",
+    description="A captain holds a not-home bag until 20:00; a rider's not-home bag rides back. "
+    "Damaged or missing is refunded in full at once; refused, wrong address and other go to the "
+    "hub's triage.",
+    responses={**DOOR_MOVES, 422: _problem("logistics.photo_key_invalid, request.invalid")},
+)
+async def mark_undelivered(
+    order_id: uuid.UUID,
+    body: UndeliveredIn,
+    permit: CanDeliver,
+    session: DbSession,
+    idem: Idempotent,
+    request: Request,
+) -> DeliveryOut:
+    attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
+    store = getattr(request.app.state, "storage", None)
+    if body.photo_key is not None and not await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    ):
+        raise ProblemError(
+            422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
+        )
+    await deliveries.fail(session, attempt, order, actor, body)
     return await _door_answer(session, idem, order_id)
