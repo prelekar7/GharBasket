@@ -7,10 +7,11 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Body, Depends, Header, Query, Request, Response, status
+from fastapi.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import execution, jobs, plans, service, tracking, views
+from gharbasket.modules.logistics import execution, jobs, live, plans, service, tracking, views
 from gharbasket.modules.logistics import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.logistics import routes as route_ops
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
@@ -604,7 +605,9 @@ async def skip_stop(
     return await _stop_answer(session, idem, route, stop)
 
 
-# --- GPS (§3.3) -------------------------------------------------------------------------------
+# --- GPS and live tracking (§3.3) ---------------------------------------------------------------
+
+CanWatch = Annotated[Permit, require("routes:live")]
 
 
 @router.post(
@@ -637,3 +640,34 @@ async def post_location(
     accepted = await tracking.accept(session, valkey, route, rider, body.pings)
     await session.commit()
     return LocationOut(accepted=accepted, dropped=len(body.pings) - accepted)
+
+
+@router.get(
+    "/routes/{route_id}/live",
+    summary="The van on the map: a Server-Sent Events stream",
+    description="Events: `snapshot` first, then `position`, `stop` and `end` (`handed_over`, "
+    "`route_completed`, `access_ended`, `reconnect` after 30 minutes); `: keep-alive` every 20 s. "
+    "The route's rider and the hub's managers see every stop; a captain sees her stop and a "
+    "customer the stop of their order (positions rounded), until its handover.",
+    responses={
+        200: {"content": {"text/event-stream": {"schema": {"type": "string"}}}},
+        **SIGNED_IN,
+        **ROUTE_404,
+        429: _problem("logistics.too_many_streams: more than 3 open streams for this user"),
+    },
+)
+async def live_route(
+    route_id: uuid.UUID, permit: CanWatch, session: DbSession, valkey: Valkey
+) -> Response:
+    route = await session.get(Route, route_id)
+    if route is None:
+        raise route_ops.route_not_found()
+    who = await live.audience(session, permit, route)
+    user_id = permit.principal.user_id
+    body = live.stream(session, valkey, route.id, who)
+    stream_id = await live.claim(valkey, user_id)
+    if valkey is not None and stream_id is not None:
+        body = live.counted(body, valkey, user_id, stream_id)
+    return EventSourceResponse(
+        body, headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"}
+    )

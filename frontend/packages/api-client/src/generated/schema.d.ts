@@ -2891,6 +2891,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/routes/{route_id}/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The van on the map: a Server-Sent Events stream
+         * @description Events: `snapshot` first, then `position`, `stop` and `end` (`handed_over`, `route_completed`, `access_ended`, `reconnect` after 30 minutes); `: keep-alive` every 20 s. The route's rider and the hub's managers see every stop; a captain sees her stop and a customer the stop of their order (positions rounded), until its handover.
+         */
+        get: operations["live_route_v1_routes__route_id__live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/routes/{route_id}/start": {
         parameters: {
             query?: never;
@@ -25647,6 +25667,76 @@ export interface operations {
             };
             /** @description request.idempotency_mismatch, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    live_route_v1_routes__route_id__live_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.too_many_streams: more than 3 open streams for this user */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
