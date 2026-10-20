@@ -21,6 +21,7 @@ import uuid
 from datetime import date, time, timedelta
 from typing import Any
 
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
@@ -31,18 +32,30 @@ from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
 
+log = structlog.get_logger("gharbasket.partners")
 NOON = time(12, 0)  # a run in the evening works for tomorrow, one after midnight for today
 
 
-async def _rounds(ctx: JobContext, day: date) -> dict[str, int]:
+async def _rounds(ctx: JobContext, day: date) -> dict[str, Any]:
+    """Each hub's round in its own savepoint: one hub's failure is logged and listed in the
+    summary as `failed_hubs`, and the other hubs' offers stand."""
     offers = unassigned = runs = 0
+    failed: list[str] = []
     for hub_id in await hub_ops_api.active_hub_ids(ctx.session):
-        result = await assignments.run_round(
-            ctx.session, ctx.http, ctx.settings, hub_id, day, at=ctx.scheduled_for
-        )
+        try:
+            async with ctx.session.begin_nested():
+                result = await assignments.run_round(
+                    ctx.session, ctx.http, ctx.settings, hub_id, day, at=ctx.scheduled_for
+                )
+        except Exception as exc:
+            log.error("assignment_round_failed", hub_id=str(hub_id), error=type(exc).__name__)
+            failed.append(str(hub_id))
+            continue
         runs, offers = runs + len(result.run_ids), offers + result.offers
         unassigned += result.unassigned
-    return {"runs": runs, "offers": offers, "unassigned": unassigned}
+    return {"runs": runs, "offers": offers, "unassigned": unassigned} | (
+        {"failed_hubs": failed} if failed else {}
+    )
 
 
 @job("assign_kitchens", "Round 1 of tomorrow's tiffin assignment at every active hub (21:30 IST)")
@@ -56,13 +69,41 @@ async def assign_kitchens(ctx: JobContext) -> dict[str, Any]:
     "Expire unanswered tiffin offers and run the next round (every 15 min, 21:45 to 00:30 IST)",
 )
 async def assignment_acceptance_timeout(ctx: JobContext) -> dict[str, Any]:
+    """Per hub, in its own savepoint and in the one lock order everything uses (the hub's lock,
+    then its offer rows): lock, expire its overdue offers, then its round while T 00:00 is ahead.
+    Offers of hubs that are no longer active are expired last, each under its hub's lock."""
     local = ctx.scheduled_for.astimezone(assignments.IST)
     day = local.date() + timedelta(days=1) if local.time() >= NOON else local.date()
-    expired = await assignments.expire_overdue(ctx.session, ctx.scheduled_for)
+    before_midnight = local.date() < day
+    expired = runs = offers = unassigned = 0
+    failed: list[str] = []
+    active = await hub_ops_api.active_hub_ids(ctx.session)
+    for hub_id in active:
+        try:
+            async with ctx.session.begin_nested():
+                await assignments.lock_hub(ctx.session, hub_id)
+                done = await assignments.expire_overdue(ctx.session, ctx.scheduled_for, hub_id)
+                result = None
+                if before_midnight:
+                    result = await assignments.run_round(
+                        ctx.session, ctx.http, ctx.settings, hub_id, day, at=ctx.scheduled_for
+                    )
+        except Exception as exc:
+            log.error("assignment_round_failed", hub_id=str(hub_id), error=type(exc).__name__)
+            failed.append(str(hub_id))
+            continue
+        expired += done
+        if result is not None:
+            runs, offers = runs + len(result.run_ids), offers + result.offers
+            unassigned += result.unassigned
+    for hub_id in await assignments.overdue_hubs(ctx.session, ctx.scheduled_for):
+        if hub_id not in active:
+            await assignments.lock_hub(ctx.session, hub_id)
+            expired += await assignments.expire_overdue(ctx.session, ctx.scheduled_for, hub_id)
     summary: dict[str, Any] = {"delivery_date": day.isoformat(), "expired": expired}
-    if local.date() < day:  # before T 00:00
-        summary |= await _rounds(ctx, day)
-    return summary
+    if before_midnight:
+        summary |= {"runs": runs, "offers": offers, "unassigned": unassigned}
+    return summary | ({"failed_hubs": failed} if failed else {})
 
 
 @job(
@@ -70,12 +111,25 @@ async def assignment_acceptance_timeout(ctx: JobContext) -> dict[str, Any]:
     "Refund locked tiffins no kitchen took once manual assignment closed (T 09:30 for lunch)",
 )
 async def refund_unassigned_tiffins(ctx: JobContext) -> dict[str, Any]:
+    """Each hub in its own savepoint: a failing hub is logged and listed as `failed_hubs`, and
+    the other hubs' refunds stand."""
     day = ctx.scheduled_for.astimezone(assignments.IST).date()
     refunded = refused = 0
+    failed_hubs: list[str] = []
     for hub_id in await hub_ops_api.active_hub_ids(ctx.session):
-        done, failed = await cooking.refund_unassigned(ctx.session, hub_id, day, ctx.scheduled_for)
+        try:
+            async with ctx.session.begin_nested():
+                done, failed = await cooking.refund_unassigned(
+                    ctx.session, hub_id, day, ctx.scheduled_for
+                )
+        except Exception as exc:
+            log.error("tiffin_refund_hub_failed", hub_id=str(hub_id), error=type(exc).__name__)
+            failed_hubs.append(str(hub_id))
+            continue
         refunded, refused = refunded + done, refused + failed
-    return {"delivery_date": day.isoformat(), "refunded": refunded, "refused": refused}
+    return {"delivery_date": day.isoformat(), "refunded": refunded, "refused": refused} | (
+        {"failed_hubs": failed_hubs} if failed_hubs else {}
+    )
 
 
 @job("prompt_tiffin_ratings", "Ask households to rate today's delivered lunch tiffins (14:30 IST)")

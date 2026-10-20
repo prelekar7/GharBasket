@@ -72,8 +72,10 @@ def kitchen_out(partner: Partner, kitchen: Kitchen) -> KitchenOut:
     )
 
 
-async def _own(session: DbSession, permit: Permit) -> tuple[Partner, Kitchen]:
-    partner, kitchen = await kitchens.own(session, permit.principal.user_id)
+async def _own(
+    session: DbSession, permit: Permit, *, for_update: bool = False
+) -> tuple[Partner, Kitchen]:
+    partner, kitchen = await kitchens.own(session, permit.principal.user_id, for_update=for_update)
     if not permit.allows(partner.hub_id):
         raise kitchens.not_found()
     return partner, kitchen
@@ -103,7 +105,7 @@ async def edit_kitchen(
     expected: IfMatch,
     response: Response,
 ) -> KitchenOut:
-    partner, kitchen = await _own(session, permit)
+    partner, kitchen = await _own(session, permit, for_update=True)  # check and write as one
     if kitchen.version != expected:
         raise ProblemError(412, "request.version_mismatch", "The kitchen changed; reload it.")
     changes = body.model_dump(exclude_unset=True)

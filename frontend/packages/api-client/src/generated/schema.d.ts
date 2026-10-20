@@ -21533,7 +21533,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description partners.order_not_assignable, partners.assignment_closed */
+            /** @description partners.order_not_assignable, partners.assignment_closed, partners.assignment_busy */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -21600,6 +21600,15 @@ export interface operations {
             };
             /** @description auth.forbidden, auth.role_not_granted */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_busy: another change to the hub's tiffins; retry */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -119,7 +119,9 @@ async def ready(
         401: _problem("auth.invalid_token"),
         403: _problem("auth.forbidden, auth.role_not_granted"),
         404: _problem("partners.kitchen_not_found"),
-        409: _problem("partners.order_not_assignable, partners.assignment_closed"),
+        409: _problem(
+            "partners.order_not_assignable, partners.assignment_closed, partners.assignment_busy"
+        ),
         422: _problem("request.idempotency_mismatch, request.invalid"),
     },
 )
@@ -132,16 +134,17 @@ async def manual(
     lang: Lang,
 ) -> ManualOut:
     permit.ensure(hub_id)
-    assignment, over = await cooking.manual(
-        session,
-        hub_id=hub_id,
-        day=body.date,
-        order_ids=body.order_ids,
-        partner_id=body.partner_id,
-        note=body.note,
-        by_user_id=permit.principal.user_id,
-        at=kitchens.now(),
-    )
+    with assignments.retry_on_conflict():
+        assignment, over = await cooking.manual(
+            session,
+            hub_id=hub_id,
+            day=body.date,
+            order_ids=body.order_ids,
+            partner_id=body.partner_id,
+            note=body.note,
+            by_user_id=permit.principal.user_id,
+            at=kitchens.now(),
+        )
     (view,) = await views(session, [assignment], lang)
     out = ManualOut(**view.model_dump(), over_capacity=over)
     await idem.save(200, out)

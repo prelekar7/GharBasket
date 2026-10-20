@@ -16,6 +16,7 @@ from datetime import date, datetime, time, timedelta
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.orders import api as orders_api
@@ -102,7 +103,7 @@ async def ready(
         raise _not_accepted("Accept the assignment and cook it on its day.")
     rows = await _held_rows(session, assignment)
     cooking = {row.order_id: row for row in rows if row.status == "assigned"}
-    targets = list(cooking) if order_ids is None else order_ids
+    targets = list(cooking) if order_ids is None else list(dict.fromkeys(order_ids))
     unknown = [str(oid) for oid in targets if oid not in cooking]
     if unknown or not targets:
         raise ProblemError(
@@ -152,7 +153,13 @@ async def manual(
     at: datetime,
 ) -> tuple[Assignment, bool]:
     """An accepted assignment the hub manager agreed with the kitchen by phone (audit-logged);
-    it may exceed her capacity. Returns it and whether it is over capacity."""
+    it may exceed her capacity. Returns it and whether it is over capacity.
+
+    It takes the hub's assignment lock, as a round does, so the two never race for the same
+    orders or short codes; an offer that has run out of time is expired first, so it does not
+    hold its orders."""
+    await assignments.lock_hub(session, hub_id)
+    await assignments.expire_overdue(session, at, hub_id)
     partner = await session.get(Partner, partner_id)
     kitchen = await session.get(Kitchen, partner_id)
     if (
@@ -199,17 +206,26 @@ async def manual(
             return None
         return round(matching.km(kitchen.lat, kitchen.lng, *item.point), 2)
 
-    assignment = await assignments.create(
-        session,
-        partner=partner,
-        items=[(item, km(item)) for item in items],
-        round_no=last_round or 1,
-        run_id=None,
-        source="manual",
-        status="accepted",
-        respond_until=at,
-        by_user_id=by_user_id,
-    )
+    try:
+        async with session.begin_nested():
+            assignment = await assignments.create(
+                session,
+                partner=partner,
+                items=[(item, km(item)) for item in items],
+                round_no=last_round or 1,
+                run_id=None,
+                source="manual",
+                status="accepted",
+                respond_until=at,
+                by_user_id=by_user_id,
+            )
+    except IntegrityError as exc:  # an order another assignment took meanwhile
+        raise ProblemError(
+            409,
+            "partners.order_not_assignable",
+            "Only free locked tiffins of this hub, date and one meal can be assigned.",
+            extra={"order_ids": [str(t.order.id) for t in items]},
+        ) from exc
     await audit.record(
         session,
         actor_user_id=by_user_id,
@@ -259,7 +275,10 @@ async def refund_unassigned(
 ) -> tuple[int, int]:
     """Locked tiffins of `day` that no assignment holds once manual assignment has closed for
     their meal are refunded in full through M4 (once: a refunded order is no longer locked).
-    Returns (refunded, refused by M4)."""
+    Returns (refunded, refused by M4). It takes the hub's assignment lock and expires offers that
+    ran out of time first, so a dead offer does not keep a paid lunch from its refund."""
+    await assignments.lock_hub(session, hub_id)
+    await assignments.expire_overdue(session, at, hub_id)
     items = await assignments.tiffins(session, hub_id, day)
     taken = await assignments.held(session, [t.order.id for t in items])
     refunded = refused = 0

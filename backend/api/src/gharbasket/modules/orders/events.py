@@ -1,7 +1,9 @@
 """Outbox events published by M4 Orders & Checkout, named `orders.<event>` (spec §5).
 
 Payloads carry order_id, household_id, hub_id, society_id, delivery_date, slot_id and
-total_paise, plus what the row below says; `orders.locked` also carries the lines.
+total_paise, plus what the row below says; `orders.locked` also carries the lines. Events a status
+change publishes also carry `kind`, `actor` (the kind only, never the person) and `order_event_id`
+(the id of that move's own `order_events` row, for a consumer that reads who moved it and when).
 """
 
 LOCKED = "orders.locked"  # + lines [{product_id, qty, step_qty, step_unit}]

@@ -453,6 +453,8 @@ class AssignmentOrder(Base):
             unique=True,
             postgresql_where=text("status <> 'released'"),
         ),
+        # Any status: the short-code lookup in `create` reads an order's earlier rows too.
+        Index("ix_assignment_orders_order_id", "order_id"),
         {"schema": SCHEMA},
     )
 

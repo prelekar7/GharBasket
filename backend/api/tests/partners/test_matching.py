@@ -65,11 +65,13 @@ def test_the_runs_summary_for_the_fairness_dashboard() -> None:
     assert matching.gini([0, 0]) == 0.0 and matching.gini([0, 10]) == 0.5
     cooks = [cook(A, SUNRISE), cook(B, NEAR)]
     matches = [matching.take(cooks[0], order(C, 2))]
-    assert matching.summary(matches, cooks) == {
+    assert matching.summary(matches, cooks, {A, B}) == {
         "portions": 2,
         "kitchens_used": 1,
         "km_per_portion": 0.0,
-        "gini": 0.0,
+        "gini": 0.5,  # every kitchen of the request, as M10 counts it
         "gini_eligible": 0.5,
     }
-    assert matching.summary([], cooks)["km_per_portion"] == 0.0
+    # Only the kitchens that could take an order count in `gini_eligible`.
+    assert matching.summary(matches, cooks, {A})["gini_eligible"] == 0.0
+    assert matching.summary([], cooks, set())["km_per_portion"] == 0.0

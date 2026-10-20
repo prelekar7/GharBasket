@@ -79,6 +79,7 @@ __all__ = [
     "price_spikes",
     "rank_basket",
     "record_metrics",
+    "reject_assignment_plan",
     "route_timeout_s",
     "rule_breaks",
     "solve_routes",
@@ -361,6 +362,24 @@ async def assign_kitchens(
             model_name=plan.model,
         )
     return plan
+
+
+async def reject_assignment_plan(
+    session: AsyncSession, hub_id: uuid.UUID, for_date: date, problem: str
+) -> bool:
+    """M8 could not use the plan `assign_kitchens` just kept (it broke a rule of the request) and
+    assigned greedily instead: the stored prediction is marked `source: fallback`, with the
+    reason in its payload (`rejected`), so monitoring does not count it as an ML answer. Returns
+    whether there was one."""
+    kept = await service.latest_prediction(
+        session, kind="assignment", subject_id=hub_id, for_date=for_date
+    )
+    if kept is None or kept.source != "ml":
+        return False
+    kept.source = "fallback"
+    kept.payload = {**kept.payload, "rejected": problem}  # a new dict: JSONB sees the change
+    await session.flush()
+    return True
 
 
 def route_timeout_s(settings: Settings, request: RouteRequest) -> float:
