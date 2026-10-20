@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import events
+from gharbasket.modules.partners import cooking, events, kitchens
 from gharbasket.modules.partners.models import Partner
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
@@ -120,7 +120,8 @@ async def suspend(
     by_user_id: uuid.UUID | None,
 ) -> Partner:
     """Suspend at once (audit-logged) and publish `partners.suspended`: M1 suspends the hub role
-    and M9 ends a captain's appointment. 409 `partners.already_suspended` when she is suspended
+    and M9 ends a captain's appointment; a kitchen's offered and accepted assignments from today
+    are cancelled (§3.3). 409 `partners.already_suspended` when she is suspended
     already or has left."""
     if partner.status in ("suspended", "left"):
         raise ProblemError(
@@ -146,6 +147,8 @@ async def suspend(
         before=before,
         after={"status": "suspended", "reason_code": reason_code, "note": note},
     )
+    if partner.kind == "kitchen":  # her offered and accepted tiffins go to the next round
+        await cooking.cancel_for_partner(session, partner.id, kitchens.today())
     await publish(session, events.SUSPENDED, {**_ref(partner), "reason_code": reason_code})
     return partner
 
