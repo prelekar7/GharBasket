@@ -385,4 +385,9 @@ async def test_the_facade_and_the_export(db_session: AsyncSession) -> None:
     (record,) = exported["partners"]
     assert record["kind"] == "captain" and record["suspend_reason_code"] == "conduct"
     assert "suspend_note" not in record and "photo_key" not in record
-    assert await partners_api.export_for_user(db_session, uuid.uuid4()) == {"partners": []}
+    assert await partners_api.export_for_user(db_session, uuid.uuid4()) == {
+        "applications": [],
+        "kyc_documents": [],
+        "training_attempts": [],
+        "partners": [],
+    }

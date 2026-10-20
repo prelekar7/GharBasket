@@ -45,6 +45,8 @@ ROLES = (
     "franchise_owner",
     "ngo_coordinator",
     "admin",
+    # Curates recipes: names and the fasting and diabetic flags (M2 §3.3).
+    "catalog_editor",
 )
 # `deleting` during the 30-day grace of an account deletion (spec §3.5); a purged user has no row.
 USER_STATUSES = ("active", "blocked", "deleting")

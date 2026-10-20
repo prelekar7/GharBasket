@@ -1,5 +1,5 @@
-"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), and
-the customer statement (§3.2)."""
+"""HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), the
+customer statement (§3.2), refunds to source (§3.3) and reconciliation (§3.4)."""
 
 import json
 import uuid
@@ -9,9 +9,18 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
+from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs, consumer)
+from gharbasket.modules.billing import (
+    kindness,
+    reconciliation,
+    refunds,
+    settlement,
+    statements,
+    topups,
+    wallet,
+)
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.billing import statements, topups, wallet
-from gharbasket.modules.billing.models import Payment, PaymentWebhook
+from gharbasket.modules.billing.models import Payment, PaymentWebhook, ReconciliationItem
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
     payments_unavailable,
@@ -20,8 +29,25 @@ from gharbasket.modules.billing.razorpay import (
 from gharbasket.modules.billing.schemas import (
     DevPayIn,
     DevPayOut,
+    DonationIn,
+    DonationOut,
     Entry,
+    KindnessBalanceOut,
+    KindnessGoal,
     OrderRef,
+    PointsEntry,
+    PointsExpiring,
+    PointsRef,
+    ReconItem,
+    ReconKind,
+    ReconPage,
+    ReconResolution,
+    ReconRun,
+    ReconStatus,
+    RefundIn,
+    RefundOut,
+    RefundRef,
+    ResolveIn,
     StatementEntry,
     StatementOut,
     TopUpIn,
@@ -45,6 +71,9 @@ router = APIRouter(tags=["billing"])
 CanRead = Annotated[Permit, require("wallet:read")]
 CanWrite = Annotated[Permit, require("wallet:write")]
 CanReadStatements = Annotated[Permit, require("statements:read")]
+CanReadKindness = Annotated[Permit, require("kindness:read")]
+CanDonate = Annotated[Permit, require("kindness:donate")]
+CanRefund = Annotated[Permit, require("refunds:write")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
@@ -62,9 +91,11 @@ def _problem(description: str) -> dict[str, Any]:
 
 def _entry(row: WalletEntry) -> Entry:
     e = row.entry
-    ref: TopUpRef | OrderRef | None = None
+    ref: TopUpRef | OrderRef | RefundRef | None = None
     if e.ref_type == "topup" and e.ref_id is not None:
         ref = TopUpRef(type="topup", id=e.ref_id)
+    elif e.ref_type == "refund" and e.ref_id is not None:
+        ref = RefundRef(type="refund", id=e.ref_id)
     elif e.ref_type == "order" and e.ref_id is not None:
         ref = OrderRef(
             type="order", id=e.ref_id, delivery_date=(e.details or {}).get("delivery_date")
@@ -77,13 +108,17 @@ def _entry(row: WalletEntry) -> Entry:
     summary="The caller's wallet: balance, room to top up, latest entries",
     responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
 )
-async def get_wallet(permit: CanRead, session: DbSession, response: Response) -> WalletOut:
-    found = await wallet.summary(session, permit.principal.user_id)
+async def get_wallet(
+    permit: CanRead, session: DbSession, response: Response, settings: AppSettings
+) -> WalletOut:
+    user_id = permit.principal.user_id
+    found = await wallet.summary(session, user_id)
     response.headers["Cache-Control"] = "no-store"
     return WalletOut(
         balance_paise=found.balance_paise,
         cap_paise=CAP_PAISE,
         topup_room_paise=found.topup_room_paise,
+        refundable_paise=await refunds.refundable(session, user_id, settings),
         entries=[_entry(row) for row in found.entries],
     )
 
@@ -255,13 +290,73 @@ async def razorpay_webhook(
     ).scalar_one_or_none()
     if stored is None:
         return WebhookAck(outcome="duplicate")
-    outcome = await topups.handle_event(session, event, razorpay)
+    if str(event.get("event", "")).startswith("refund."):
+        outcome = await settlement.handle_event(session, event, settings)
+    else:
+        outcome = await topups.handle_event(session, event, razorpay)
     webhook = await session.get(PaymentWebhook, stored)
     if webhook is not None:
         webhook.outcome = outcome
         webhook.processed_at = datetime.now(UTC)
     await session.commit()
     return WebhookAck(outcome=outcome)
+
+
+@router.post(
+    "/wallet/refund-to-source",
+    status_code=202,
+    summary="Send unused wallet money back to the payments it came from (a job sends it)",
+    responses={
+        409: _problem("billing.refund_in_progress (with refund_id)"),
+        422: _problem(
+            "billing.refund_too_small, billing.refund_exceeds_refundable (with refundable_paise), "
+            "request.invalid"
+        ),
+        429: _problem("billing.too_many_refunds"),
+    },
+)
+async def refund_to_source(
+    body: RefundIn, permit: CanRefund, session: DbSession, idem: Idempotent, settings: AppSettings
+) -> RefundOut:
+    refund = await refunds.request_refund(
+        session,
+        permit.principal.user_id,
+        body.amount_paise,
+        settings=settings,
+        idempotency_key=idem.key,
+    )
+    out = await refunds.to_out(session, refund)
+    await idem.save(202, out)
+    await session.commit()
+    return out
+
+
+@router.get("/wallet/refunds", summary="The caller's refunds to source, newest first")
+async def list_refunds(
+    permit: CanRead,
+    session: DbSession,
+    response: Response,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[RefundOut]:
+    found, next_cursor = await refunds.list_refunds(
+        session, permit.principal.user_id, cursor, limit
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=[await refunds.to_out(session, r) for r in found], next_cursor=next_cursor)
+
+
+@router.get(
+    "/wallet/refunds/{refund_id}",
+    summary="A refund to source and its parts",
+    responses={404: _problem("billing.refund_not_found")},
+)
+async def get_refund(
+    refund_id: uuid.UUID, permit: CanRead, session: DbSession, response: Response
+) -> RefundOut:
+    refund = await refunds.get_refund(session, permit.principal.user_id, refund_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await refunds.to_out(session, refund)
 
 
 @router.post(
@@ -287,3 +382,143 @@ async def dev_pay(
     return DevPayOut(
         razorpay_payment_id=event["payload"]["payment"]["entity"]["id"], status="captured"
     )
+
+
+# --- Kindness points (§3.6) ---------------------------------------------------------------------
+
+
+def _points_entry(row: kindness.PointsEntry) -> PointsEntry:
+    e = row.entry
+    ref = None
+    if e.ref_type in ("donation", "referral") and e.ref_id is not None:
+        ref = PointsRef(type=e.ref_type, id=e.ref_id)  # pyright: ignore[reportArgumentType]
+    return PointsEntry(
+        id=e.id,
+        kind=e.kind,  # pyright: ignore[reportArgumentType]
+        points=row.points,
+        ref=ref,
+        expires_on=row.expires_on,
+        at=e.created_at,
+    )
+
+
+@router.get(
+    "/kindness/balance",
+    summary="The caller's Kindness points, the next expiry dates and the next meal's goal",
+    responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
+)
+async def get_kindness_balance(
+    permit: CanReadKindness, session: DbSession, response: Response, settings: AppSettings
+) -> KindnessBalanceOut:
+    found = await kindness.balance(session, permit.principal.user_id)
+    response.headers["Cache-Control"] = "no-store"
+    return KindnessBalanceOut(
+        points=found.points,
+        expiring=[PointsExpiring(points=e.points, on=e.on) for e in found.expiring],
+        goal=KindnessGoal(points=settings.kindness_goal, code=kindness.GOAL_CODE),
+    )
+
+
+@router.get(
+    "/kindness/entries",
+    summary="The caller's Kindness points history, newest first",
+    responses={401: _problem("auth.invalid_token"), 403: _problem("auth.forbidden")},
+)
+async def list_kindness_entries(
+    permit: CanReadKindness,
+    session: DbSession,
+    response: Response,
+    cursor: Cursor = None,
+    limit: Limit = 50,
+) -> Page[PointsEntry]:
+    rows, next_cursor = await kindness.entries(session, permit.principal.user_id, cursor, limit)
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=[_points_entry(row) for row in rows], next_cursor=next_cursor)
+
+
+@router.post(
+    "/kindness/donations",
+    status_code=201,
+    summary="Give Kindness points as donated meals (a meal for a child); the only way to use them",
+    responses={
+        409: _problem("billing.not_enough_points (with points and needed)"),
+        422: _problem("request.invalid: meals is 1 to 10"),
+    },
+)
+async def donate_meals(
+    body: DonationIn,
+    permit: CanDonate,
+    session: DbSession,
+    idem: Idempotent,
+    settings: AppSettings,
+) -> DonationOut:
+    goal = settings.kindness_goal
+    entry = await kindness.donate(session, permit.principal.user_id, body.meals, goal, idem.key)
+    out = DonationOut(
+        id=entry.id,
+        meals=body.meals,
+        points=body.meals * goal,
+        code=kindness.GOAL_CODE,
+        at=entry.created_at,
+    )
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
+# --- reconciliation (spec §3.4), admin -------------------------------------------------------
+
+CanReconcile = Annotated[Permit, require("reconciliation:read")]
+CanResolve = Annotated[Permit, require("reconciliation:resolve")]
+
+
+def _recon(item: ReconciliationItem) -> ReconItem:
+    resolution = None
+    if item.resolved_by is not None and item.resolved_at is not None:
+        resolution = ReconResolution(
+            by=item.resolved_by, note=item.resolution_note or "", at=item.resolved_at
+        )
+    fields = ReconItem.model_fields.keys() - {"resolution"}
+    return ReconItem(**{f: getattr(item, f) for f in fields}, resolution=resolution)
+
+
+@router.get(
+    "/admin/reconciliation",
+    summary="Admin: mismatches between Razorpay and our records, newest first, and the last run",
+    responses={403: _problem("auth.forbidden")},
+)
+async def list_reconciliation(
+    permit: CanReconcile,
+    session: DbSession,
+    response: Response,
+    status: ReconStatus | None = None,
+    kind: ReconKind | None = None,
+    cursor: Cursor = None,
+    limit: Limit = 50,
+) -> ReconPage:
+    items, next_cursor = await reconciliation.list_items(session, status, kind, cursor, limit)
+    run = await reconciliation.last_run(session)
+    response.headers["Cache-Control"] = "no-store"
+    return ReconPage(
+        items=[_recon(item) for item in items],
+        next_cursor=next_cursor,
+        last_run=ReconRun.model_validate(run, from_attributes=True) if run else None,
+    )
+
+
+@router.post(
+    "/admin/reconciliation/{item_id}/resolve",
+    summary="Admin: close an open item with a note (audit-logged); it moves no money",
+    responses={
+        403: _problem("auth.forbidden"),
+        404: _problem("billing.recon_not_found"),
+        409: _problem("billing.recon_not_open (with status)"),
+    },
+)
+async def resolve_reconciliation(
+    item_id: uuid.UUID, body: ResolveIn, permit: CanResolve, session: DbSession
+) -> ReconItem:
+    item = await reconciliation.resolve(session, item_id, permit.principal.user_id, body.note)
+    out = _recon(item)
+    await session.commit()
+    return out
