@@ -26,7 +26,11 @@ function record(entries) {
     known = JSON.parse(readFileSync(FILE, "utf8"));
   } catch {}
   const seen = new Set(known.map((e) => `${e.method} ${e.path}`));
-  for (const e of entries) if (!seen.has(`${e.method} ${e.path}`)) known.push(e);
+  for (const e of entries) {
+    if (seen.has(`${e.method} ${e.path}`)) continue;
+    seen.add(`${e.method} ${e.path}`);
+    known.push(e);
+  }
   writeFileSync(FILE, `${JSON.stringify(known, null, 2)}\n`);
 }
 
@@ -43,7 +47,11 @@ export function watch(page, testTitle) {
     const url = response.url();
     if (!backendAnswer(url)) return;
     const request = response.request();
-    const path = new URL(url).pathname;
+    // Ids out, so a route is listed once: /v1/cycles/{}/meals.
+    const path = new URL(url).pathname.replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g,
+      "{}",
+    );
     checks.push(
       (async () => {
         if (!(await response.headerValue("x-request-id"))) {

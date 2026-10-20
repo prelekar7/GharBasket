@@ -80,6 +80,10 @@ psql db="gharbasket":
 infra-check:
     ./scripts/infra-check.sh
 
+# Run CI locally and post it on the PR as `local-ci/*` commit statuses, e.g. `just ci-local 334`
+ci-local target *args:
+    ./scripts/ci-local.sh {{target}} {{args}}
+
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
     APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
