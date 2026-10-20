@@ -177,14 +177,14 @@ export function useEditCycle() {
   });
 }
 
-/** Swap one planned meal for another (PATCH /v1/cycles/{id}/meals, our proposal for M3), with If-Match. */
+/** Swap one planned meal for another (PUT /v1/cycles/{id}/meals, M3), with If-Match; `set` defaults to "next". */
 export function useSwapMeal() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (/** @type {{ cycle: Cycle, date: string, slot: PlannedMeal["slot"] }} */ v) =>
       /** @type {Promise<Cycle>} */ (
         request(`/v1/cycles/${v.cycle.id}/meals`, {
-          method: "PATCH",
+          method: "PUT",
           body: { date: v.date, slot: v.slot },
           headers: { "if-match": ifMatch(v.cycle) },
         })
