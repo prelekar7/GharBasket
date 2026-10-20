@@ -70,6 +70,8 @@ class LineProduct:
     price_paise: int | None
     # (category sort order, category slug): how packers walk the shelves (M6 §3.2)
     shelf: tuple[int, str] = (0, "")
+    # The product's tags; for a tiffin, the skill codes a kitchen needs (M8 §3.4).
+    tags: frozenset[str] = frozenset()
 
 
 async def line_products(
@@ -94,6 +96,7 @@ async def line_products(
             p.step_unit,
             prices[p.id].price_paise if p.id in prices else None,
             (order, category),
+            frozenset(p.tags),
         )
         for p, order, category in found
     }
