@@ -25,3 +25,7 @@ for role in ("captain", "rider", "hub_manager"):
     PERMISSIONS.allow(role, "handover:write")
 for role in ("captain", "rider", "hub_manager", "franchise_owner", "packer", "admin"):
     PERMISSIONS.allow(role, "deliveries:read")
+# The doors (§3.4): captains of their society, riders on rider-mode stops of their own route,
+# hub managers.
+for role in ("captain", "rider", "hub_manager"):
+    PERMISSIONS.allow(role, "deliveries:write")

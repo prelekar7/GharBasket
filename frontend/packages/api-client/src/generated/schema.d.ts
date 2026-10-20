@@ -988,6 +988,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/deliveries/{order_id}/proof": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deliver a bag at the door with its scan, the household's code or a photo
+         * @description The bag QR must be this order's. A captain may scan alone; a rider needs otp or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.
+         */
+        post: operations["prove_delivery_v1_deliveries__order_id__proof_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/donations": {
         parameters: {
             query?: never;
@@ -4731,29 +4751,6 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
-        /** DeliveryOut */
-        DeliveryOut: {
-            /** Attempts */
-            attempts: number;
-            /**
-             * Channel
-             * @example push
-             */
-            channel: string;
-            /** Last Error */
-            last_error: string | null;
-            /** Next Attempt At */
-            next_attempt_at: string | null;
-            /** Provider Ref */
-            provider_ref: string | null;
-            /** Sent At */
-            sent_at: string | null;
-            /**
-             * Status
-             * @description queued, held, sent, delivered, read, failed or skipped
-             */
-            status: string;
-        };
         /** DeviceIn */
         DeviceIn: {
             /**
@@ -6881,7 +6878,7 @@ export interface components {
              */
             created_at: string;
             /** Deliveries */
-            deliveries: components["schemas"]["DeliveryOut"][];
+            deliveries: components["schemas"]["gharbasket__modules__notifications__schemas__DeliveryOut"][];
             /**
              * Event Id
              * Format: uuid
@@ -9281,6 +9278,36 @@ export interface components {
             used_by_recipes: number;
             /** Version */
             version: number;
+        };
+        /** ProofIn */
+        ProofIn: {
+            /**
+             * Bag Qr
+             * @description This order's
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Delivery Code
+             * @description With otp
+             */
+            delivery_code?: string | null;
+            /**
+             * Photo Key
+             * @description With photo
+             */
+            photo_key?: string | null;
+            /**
+             * Proof
+             * @description A captain may scan alone; a rider needs otp or photo
+             * @enum {string}
+             */
+            proof: "scan" | "otp" | "photo";
         };
         /** ProposalOut */
         ProposalOut: {
@@ -12752,6 +12779,47 @@ export interface components {
              */
             empties_returned?: number | null;
         };
+        /** DeliveryOut */
+        gharbasket__modules__logistics__schemas__DeliveryOut: {
+            /** At */
+            at: string | null;
+            /**
+             * Attempt
+             * @example 1
+             */
+            attempt: number;
+            /** By */
+            by: ("captain" | "rider" | "hub" | "system") | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Hold Until
+             * @example 20:00
+             */
+            hold_until: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Proof */
+            proof: ("scan" | "otp" | "photo") | null;
+            /** Reason */
+            reason: ("not_home" | "refused" | "wrong_address" | "damaged" | "missing" | "other" | "returned_to_hub" | "not_confirmed" | "left_behind") | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "on_route" | "with_captain" | "held" | "delivered" | "undelivered" | "redelivery" | "refunded" | "triage";
+        };
         /** SocietyRef */
         gharbasket__modules__logistics__schemas__SocietyRef: {
             /**
@@ -12788,6 +12856,29 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** DeliveryOut */
+        gharbasket__modules__notifications__schemas__DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Channel
+             * @example push
+             */
+            channel: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Next Attempt At */
+            next_attempt_at: string | null;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @description queued, held, sent, delivered, read, failed or skipped
+             */
+            status: string;
         };
         /** DishOut */
         gharbasket__modules__orders__schemas__DishOut: {
@@ -17553,6 +17644,98 @@ export interface operations {
             };
             /** @description request.precondition_required */
             428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    prove_delivery_v1_deliveries__order_id__proof_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProofIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__logistics__schemas__DeliveryOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_society_captain */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.delivery_closed, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.bag_mismatch, logistics.proof_required, logistics.code_invalid, logistics.photo_key_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.code_attempts_exceeded */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

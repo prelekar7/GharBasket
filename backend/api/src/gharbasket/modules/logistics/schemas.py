@@ -443,3 +443,57 @@ class HandoverOut(BaseModel):
     at_society: list[uuid.UUID]
     still_dispatched: list[uuid.UUID]
     mismatch: bool
+
+
+# --- doors (§3.4) and the customer's card (§3.5) ------------------------------------------------
+
+DeliveryStatus = Literal[
+    "scheduled",
+    "on_route",
+    "with_captain",
+    "held",
+    "delivered",
+    "undelivered",
+    "redelivery",
+    "refunded",
+    "triage",
+]
+
+
+class ProofIn(FieldTap):
+    bag_qr: str = Field(
+        pattern=BAG_QR,
+        examples=["GB1:0199a0000000700080000000000000ab"],
+        description="This order's",
+    )
+    proof: Literal["scan", "otp", "photo"] = Field(
+        description="A captain may scan alone; a rider needs otp or photo"
+    )
+    delivery_code: str | None = Field(default=None, pattern=r"^\d{4}$", description="With otp")
+    photo_key: str | None = Field(default=None, max_length=200, description="With photo")
+
+
+class DeliveryOut(BaseModel):
+    order_id: uuid.UUID
+    attempt: int = Field(examples=[1])
+    delivery_date: date
+    society_id: uuid.UUID
+    status: DeliveryStatus
+    reason: (
+        Literal[
+            "not_home",
+            "refused",
+            "wrong_address",
+            "damaged",
+            "missing",
+            "other",
+            "returned_to_hub",
+            "not_confirmed",
+            "left_behind",
+        ]
+        | None
+    )
+    hold_until: str | None = Field(examples=["20:00"])
+    proof: Literal["scan", "otp", "photo"] | None
+    by: Literal["captain", "rider", "hub", "system"] | None
+    at: datetime | None

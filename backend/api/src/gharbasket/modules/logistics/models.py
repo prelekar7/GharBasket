@@ -14,6 +14,7 @@ from typing import Any
 from geoalchemy2 import Geography
 from sqlalchemy import (
     ARRAY,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -317,3 +318,72 @@ class GpsPing(Base):
     accuracy_m: Mapped[int] = mapped_column(SmallInteger)
     speed_mps: Mapped[float | None] = mapped_column(Float)
     heading: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+DELIVERY_STATUSES = (
+    "scheduled",
+    "on_route",
+    "with_captain",
+    "held",
+    "delivered",
+    "undelivered",
+    "redelivery",
+    "refunded",
+    "triage",
+)
+DELIVERY_REASONS = (
+    "not_home",
+    "refused",
+    "wrong_address",
+    "damaged",
+    "missing",
+    "other",
+    "returned_to_hub",
+    "not_confirmed",
+    "left_behind",  # not packed when its route started; the day-end sweep sends it to triage
+)
+
+
+class Delivery(Base):
+    """One attempt at an order's door (spec §3.4): attempt 1 when its route starts, attempt 2 for
+    the one free redelivery. `delivery_code` is the household's code for a rider's otp proof."""
+
+    __tablename__ = "deliveries"
+    __table_args__ = (
+        CheckConstraint("attempt IN (1, 2)", name="attempt"),
+        CheckConstraint(_one_of("status", DELIVERY_STATUSES), name="status"),
+        CheckConstraint(f"reason IS NULL OR {_one_of('reason', DELIVERY_REASONS)}", name="reason"),
+        CheckConstraint("proof IS NULL OR proof IN ('scan', 'otp', 'photo')", name="proof"),
+        CheckConstraint(
+            "by_actor IS NULL OR by_actor IN ('captain', 'rider', 'hub', 'system')",
+            name="by_actor",
+        ),
+        UniqueConstraint("order_id", "attempt"),
+        Index("ix_deliveries_hub_date", "hub_id", "delivery_date", "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    order_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M4's order
+    attempt: Mapped[int] = mapped_column(SmallInteger)
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    order_kind: Mapped[str] = mapped_column(String(8))
+    delivery_date: Mapped[date] = mapped_column(Date)  # the attempt's day
+    slot_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    stop_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.route_stops.id", ondelete="SET NULL")
+    )
+    status: Mapped[str] = mapped_column(String(12))
+    reason: Mapped[str | None] = mapped_column(String(16))
+    hold_until: Mapped[time | None] = mapped_column(Time)  # IST
+    proof: Mapped[str | None] = mapped_column(String(8))
+    photo_key: Mapped[str | None] = mapped_column(String(200))
+    delivery_code: Mapped[str] = mapped_column(String(8))
+    code_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    by_actor: Mapped[str | None] = mapped_column(String(8))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    refund_paise: Mapped[int | None] = mapped_column(BigInteger)
+    note: Mapped[str | None] = mapped_column(String(300))
+    client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

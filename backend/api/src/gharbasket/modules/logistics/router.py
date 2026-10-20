@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import (
+    attempts,
+    deliveries,
     execution,
     handover,
     jobs,
@@ -29,6 +31,7 @@ from gharbasket.modules.logistics.schemas import (
     CaptainDay,
     CaptainStop,
     CompleteIn,
+    DeliveryOut,
     Expected,
     FieldTap,
     FlatCounts,
@@ -39,6 +42,7 @@ from gharbasket.modules.logistics.schemas import (
     LocationOut,
     PlanKind,
     PlanSummary,
+    ProofIn,
     PublishIn,
     RiderRef,
     RouteDetail,
@@ -870,3 +874,63 @@ async def hand_over(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+# --- doors (§3.4) and the customer's card (§3.5) ------------------------------------------------
+
+CanDeliver = Annotated[Permit, require("deliveries:write")]
+DELIVERY_404: dict[int | str, dict[str, Any]] = {404: _problem("logistics.delivery_not_found")}
+DOOR_MOVES: dict[int | str, dict[str, Any]] = {
+    **CREATES,
+    **DELIVERY_404,
+    403: _problem("auth.forbidden, logistics.not_society_captain"),
+    409: _problem("logistics.delivery_closed, orders.illegal_transition"),
+}
+
+
+async def _door_answer(
+    session: AsyncSession, idem: Idempotency, order_id: uuid.UUID
+) -> DeliveryOut:
+    attempt = await attempts.latest(session, order_id)
+    assert attempt is not None
+    out = attempts.delivery_out(attempt)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/deliveries/{order_id}/proof",
+    summary="Deliver a bag at the door with its scan, the household's code or a photo",
+    description="The bag QR must be this order's. A captain may scan alone; a rider needs otp "
+    "or photo. Five wrong codes for an order allow only a photo. Idempotency-Key required.",
+    responses={
+        **DOOR_MOVES,
+        422: _problem(
+            "logistics.bag_mismatch, logistics.proof_required, logistics.code_invalid, "
+            "logistics.photo_key_invalid, request.invalid"
+        ),
+        429: _problem("logistics.code_attempts_exceeded"),
+    },
+)
+async def prove_delivery(
+    order_id: uuid.UUID,
+    body: ProofIn,
+    permit: CanDeliver,
+    session: DbSession,
+    idem: Idempotent,
+    request: Request,
+) -> DeliveryOut:
+    attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
+    store = getattr(request.app.state, "storage", None)
+    photo_valid = body.photo_key is not None and await handover.photo_ok(
+        session, store, body.photo_key, actor.user_id
+    )
+    try:
+        deliveries.check_proof(attempt, order, actor, body, photo_valid)
+    except handover.CodeInvalid as wrong:
+        await idem.save(422, {"status": 422, "code": wrong.code, "detail": wrong.detail})
+        await session.commit()
+        raise
+    await deliveries.deliver(session, attempt, order, actor, body)
+    return await _door_answer(session, idem, order_id)

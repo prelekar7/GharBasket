@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import events
+from gharbasket.modules.logistics import attempts, events
 from gharbasket.modules.logistics.models import FieldEvent, Route, RouteStop
 from gharbasket.modules.logistics.routes import Caller, conflict, get_route
 from gharbasket.modules.logistics.views import IST, ist_seconds, now, stops_of
@@ -208,6 +208,7 @@ async def start(
             await orders_api.transition(
                 session, order.id, "dispatched", actor=actor, actor_user_id=actor_user
             )
+        await attempts.open_attempts(session, stop, packed)
         stop.bags, stop.crates = len(packed), math.ceil(len(packed) / BAGS_PER_CRATE)
         stop.handover_code = f"{secrets.randbelow(10_000):04d}"
         stop.code_attempts = 0
@@ -319,6 +320,14 @@ async def close(
             actor_user_id=actor_user,
             payload={"reason": "returned_to_hub"},
         )
+    await attempts.set_status(
+        session,
+        [o.id for o in back],
+        "undelivered",
+        reason="returned_to_hub",
+        by_actor=actor,
+        user_id=actor_user,
+    )
     stops = await stops_of(session, route.id)
     done_at = now()
     route.status, route.completed_at = "completed", done_at
