@@ -19,3 +19,5 @@ ROUTE_COMPLETED = "logistics.route_completed"
 HANDOVER_COMPLETED = "logistics.handover_completed"
 # order_id, household_id, society_id, hold_until — M11 tells the family to collect from the captain
 DELIVERY_HELD = "logistics.delivery_held"
+# order_id, household_id, society_id, delivery_date, window — M11
+REDELIVERY_SCHEDULED = "logistics.redelivery_scheduled"
