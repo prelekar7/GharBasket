@@ -2,7 +2,19 @@
 
 End-to-end tests. Owners: Rhythm Thakur and Manish Raje.
 
-- **Apps (Playwright):** mobile-web viewport and console. Arrives in `test/e2e-setup`; runs nightly and on PRs labelled `e2e` against the full Docker stack seeded by the simulator. See `docs/handbook/11-engineering-process.md`.
+- **Apps (Playwright, `web/`).** Both apps in a real browser (Chromium) on the real backend, no mocks. `just up && just e2e-web`; once per machine `pnpm --filter @gharbasket/e2e exec playwright install chromium`. It is a stack of its own, so it runs beside `just dev-real` (stop the dev-real console first: both build into `frontend/console/.next`).
+
+  | Piece | Address | What it is |
+  |---|---|---|
+  | API | http://127.0.0.1:8020 | `backend/live_server.py serve`: the real app, `APP_ENV=dev`, database `gharbasket_e2e_web`, Valkey db 13, one worker, no reload, sign-in rate limit off for this process |
+  | mobile | http://localhost:5174 | `vite`, mocks and Firebase keys empty (a `.env.local` cannot turn dev sign-in off), `/v1` proxied to the API |
+  | console | http://localhost:3001 | `next build && next start` with `GB_API_MOCK=false` (`E2E_CONSOLE_DEV=1`: `next dev`, no build) |
+
+  - **Database.** `just e2e-web-prepare` builds `gharbasket_e2e_web_seed` (migrate to head, `tools/seed`) and stamps it with the alembic head and a hash of `data/seeds/**` and `tools/seed.py`; it is rebuilt only when the stamp changes. The launcher copies it to `gharbasket_e2e_web` on every start and on `POST /__e2e/reset` (outbox drained, pool closed, `DROP … WITH (FORCE)`, `CREATE … TEMPLATE`, Valkey flushed, clock back to now). Never `gharbasket`, `gharbasket_test` or `gharbasket_e2e`.
+  - **The clock moves forward only.** The wallet compares a Python-time `expires_at` with Postgres `now()` (not moved) and the outbox backs off in Python time, so only a reset goes back. The launcher runs under `time_machine.travel(now, tick=True)`; `time.monotonic` is not patched, so uvicorn and asyncio are fine. Move it with `stack.travel(to)` (`POST /__e2e/clock {to}`, 409 backwards), keep the browser in step with `travelClock(page, to)` (`page.clock.setFixedTime`) and reload. Jobs go through the normal `/v1/internal/jobs/{name}` with `scheduled_for` (`stack.job`); `stack.sweep()` drains the outbox and runs `outbox_sweep` until nothing is due. All launcher routes need the operator token.
+  - **Sign-in.** `signInApi(page, app, phone)` posts `/v1/auth/exchange` with `dev_phone` (mobile: through its own origin; console: to the API, the cookies copied onto the console's origin); `signInMobileUi` and the console login test use the real screens with the code 123456. A `__Host-` cookie is accepted on `http://localhost` by Chromium only, which is why only Chromium runs.
+  - **Guards.** Every test (`fixtures/real-guard.js`) fails if a `/v1` answer lacks the backend's `X-Request-ID` (a mock answered), and records the calls the backend answered `http.not_found` or `http.method_not_allowed` in `web/test-results/unshipped.json` (mobile and direct calls; the console's calls are server-side). A step that is blocked by a frontend fix or a missing endpoint is `test.fail("F6 …")`: the suite stays green and turns red the day it is fixed, and the mark goes. `docs/integration/contract-gaps.md` lists the gaps.
+  - **Running.** `just e2e-web [args]`, `just e2e-web-ui`, `E2E_REUSE=1` to keep servers you started by hand. `workers: 1`. Run plugged in (or under `caffeinate`): a sleeping laptop stalls the servers.
 - **Backend: the simulated day (`backend/`, pytest).** `just up && just e2e-day` (a few minutes). On a fresh database of its own (`gharbasket_e2e`, Valkey db 14; created and dropped by the suite), with real commits, the real after-commit outbox relay and the real job endpoints:
   1. migrations: `upgrade head`, `downgrade base`, `upgrade head`, one head, `alembic check` clean;
   2. `just seed` (twice: the second run changes nothing), then `just sim --write-db` for two weeks of synthetic households;
