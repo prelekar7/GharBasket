@@ -27,6 +27,8 @@ export default defineConfig({
     timezoneId: "Asia/Kolkata",
     serviceWorkers: "block",
     trace: "retain-on-failure",
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     screenshot: "only-on-failure",
   },
   projects: [
@@ -39,6 +41,12 @@ export default defineConfig({
       name: "console",
       testMatch: "console/**/*.spec.js",
       use: { ...devices["Desktop Chrome"], baseURL: CONSOLE },
+    },
+    {
+      // Journeys cross the apps in time: a mobile context by default, and a console context made in the spec.
+      name: "journeys",
+      testMatch: "journeys/**/*.spec.js",
+      use: { ...devices["Pixel 7"], baseURL: MOBILE },
     },
   ],
   webServer: [
