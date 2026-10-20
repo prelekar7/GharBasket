@@ -115,6 +115,8 @@ if [[ -f backend/api/pyproject.toml ]]; then
   step python "alembic check" env DATABASE_URL="$TEST_DATABASE_URL" uv run --directory backend/api alembic check
   step python "openapi up to date" bash -c \
     "uv run python -m gharbasket.tools.export_openapi '$work/.openapi.json' && diff -u backend/api/openapi.json '$work/.openapi.json'"
+  # The simulated day (its own database gharbasket_e2e and Valkey db 14), when the branch has it.
+  [[ -d e2e/backend ]] && step python "simulated day" uv run --directory e2e/backend pytest -q -p no:cacheprovider
   finish python "passed; api ${coverage:-coverage n/a}"
 else
   status python success "no backend/api"
