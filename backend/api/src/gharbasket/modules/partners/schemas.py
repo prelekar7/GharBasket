@@ -447,6 +447,78 @@ class CapacityIn(BaseModel):
 # --- tiffin assignments (§3.4) ------------------------------------------------------------------
 
 
+AssignmentStatus = Literal[
+    "offered", "accepted", "preparing", "ready", "completed", "declined", "expired", "cancelled"
+]
+
+
+class SlotOut(BaseModel):
+    id: uuid.UUID
+    label: str
+    start: str = Field(examples=["12:30"])
+    end: str = Field(examples=["13:30"])
+
+
+class AssignedPartnerOut(BaseModel):
+    id: uuid.UUID
+    display_name: str
+
+
+class DishOut(BaseModel):
+    product_id: uuid.UUID
+    name: str = Field(examples=["Diet thali"])
+    portions: int
+
+
+class AssignmentOrderOut(BaseModel):
+    order_id: uuid.UUID
+    short_code: str = Field(examples=["T-07"])
+    portions: int
+    product: str = Field(examples=["Diet thali"])
+    society: SocietyRef
+    status: Literal["assigned", "ready", "picked_up", "delivered", "failed", "released"]
+
+
+class AssignmentOut(BaseModel):
+    """An offer to one kitchen: short codes, dishes and society names, never a flat or a name."""
+
+    id: uuid.UUID
+    date: date
+    meal: Meal
+    hub_id: uuid.UUID
+    slot: SlotOut
+    partner: AssignedPartnerOut
+    status: AssignmentStatus
+    round: int
+    source: Literal["ml", "fallback", "manual"]
+    portions: int
+    dishes: list[DishOut]
+    orders: list[AssignmentOrderOut]
+    respond_by: datetime
+    ready_by: str = Field(description="Slot start minus 60 min, HH:MM IST", examples=["11:30"])
+    pickup_qr: str | None = Field(description="GB1A: + the id without hyphens, once any is ready")
+    checklist: dict[str, bool] | None
+    accepted_at: datetime | None
+    ready_at: datetime | None
+    version: int
+
+
+class AssignmentsOut(BaseModel):
+    items: list[AssignmentOut]
+
+
+class DeclineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Literal["unwell", "no_ingredients", "family", "other"]
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
 class RunIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
