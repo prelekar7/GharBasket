@@ -24,24 +24,9 @@ test("a customer's number ends on /not-staff, through the real sign-in screens",
 // with the fix, so the suite turns red the day the frontend fix or the endpoint lands and the mark must go.
 const HOMES = [
   ["admin", "Neha Iyer", /\/catalog/, null],
-  [
-    "hubManager",
-    "Vikram Desai",
-    /\/today/,
-    "F6: /today calls GET /v1/analytics/hubs/{id}/today (M12, not built); wrap it in orNotShipped",
-  ],
-  [
-    "franchiseOwner",
-    "Sanjay Mehta",
-    /\/pnl/,
-    "F9: /pnl calls GET /v1/analytics/pnl (M12, not built) without orNotShipped, so the error page shows",
-  ],
-  [
-    "ngo",
-    "Asha Fernandes",
-    /\/handoffs/,
-    "F10: /handoffs calls GET /v1/ngos, /v1/ngo-handoffs and /v1/ngo/offers (M9, not built) without orNotShipped; Next shows its server-error page",
-  ],
+  ["hubManager", "Vikram Desai", /\/today/, null],
+  ["franchiseOwner", "Sanjay Mehta", /\/pnl/, null],
+  ["ngo", "Asha Fernandes", /\/handoffs/, null],
 ];
 
 for (const [person, name, home, broken] of HOMES) {
