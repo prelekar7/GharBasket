@@ -175,7 +175,9 @@ class PackingTask(Base):
 
 
 class PackingLine(Base):
-    """An order line to pick, in steps; done when picked + short = qty."""
+    """An order line to pick, in steps; done when picked + short = qty. A `carried` line is a
+    kept item riding free on this box (M4 §3.8, §3.5): picked from the shelf, never short, and
+    apart from a paid line of the same product."""
 
     __tablename__ = "packing_lines"
     __table_args__ = (
@@ -190,6 +192,7 @@ class PackingLine(Base):
         ForeignKey(f"{SCHEMA}.packing_tasks.id", ondelete="CASCADE"), primary_key=True
     )
     product_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # as ordered
+    carried: Mapped[bool] = mapped_column(Boolean, primary_key=True, server_default=text("false"))
     step_qty: Mapped[int] = mapped_column(Integer)
     step_unit: Mapped[str] = mapped_column(String(8))
     qty: Mapped[int] = mapped_column(Integer)

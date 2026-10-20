@@ -256,6 +256,11 @@ class PackingSubstitute(BaseModel):
 
 class PackingLineOut(BaseModel):
     product_id: uuid.UUID = Field(description="The ordered product")
+    carried: bool = Field(
+        default=False,
+        description='A kept item riding on this box at no charge ("Kept item: from the shelf"): '
+        "its own line, apart from a paid line of the same product; it takes no shortage",
+    )
     slug: str
     name: str
     step: PackingStep
@@ -311,11 +316,18 @@ class StartIn(_PackingAction):
 
 class PickIn(_PackingAction):
     product_id: uuid.UUID
+    carried: bool = Field(
+        default=False,
+        description="The kept item's line (not needed if the product has no paid line)",
+    )
     picked_qty: int = Field(description="Absolute, not a delta: 0 to qty - short_qty")
 
 
 class ShortageIn(_PackingAction):
     product_id: uuid.UUID
+    carried: bool = Field(
+        default=False, description="The carried line of the product: 422 hub_ops.qty_invalid"
+    )
     short_qty: int = Field(examples=[1])
     substitute_product_id: uuid.UUID | None = None
 

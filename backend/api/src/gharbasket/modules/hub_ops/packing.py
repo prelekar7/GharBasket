@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.hub_ops import service
-from gharbasket.modules.hub_ops.models import PackingEvent, PackingLine, PackingTask
+from gharbasket.modules.hub_ops import procurement, receiving, service
+from gharbasket.modules.hub_ops.models import KeptItem, PackingEvent, PackingLine, PackingTask
 from gharbasket.modules.hub_ops.schemas import (
     Packer,
     PackingLineOut,
@@ -109,7 +109,9 @@ async def build(session: AsyncSession, hub_id: uuid.UUID, day: date) -> tuple[in
     """One task per locked box or add-on order of the hub and date that has none yet; returns
     (created, existing). New tasks join the end of the queue, sorted by slot start, society
     name, tower and flat. Route order (M7's `logistics.route_published`, not built yet) will
-    re-sequence queued tasks; `route_id` and `stop_seq` stay null until then."""
+    re-sequence queued tasks; `route_id` and `stop_seq` stay null until then. The kept items M4
+    attached to an order (`OrderSummary.carried`, §3.5) are lines of their own with `carried`;
+    a queued task built earlier takes the ones attached since (or loses a refunded one)."""
     await service.get_hub(session, hub_id, for_update=True)  # one build per hub at a time
     have = (
         await session.execute(
@@ -122,6 +124,19 @@ async def build(session: AsyncSession, hub_id: uuid.UUID, day: date) -> tuple[in
     found = await orders_api.orders_for_delivery(
         session, hub_id, day, statuses=("locked",), kinds=PACKED_KINDS
     )
+    queued = {
+        task.order_id: task
+        for task in await session.scalars(
+            select(PackingTask).where(
+                PackingTask.hub_id == hub_id,
+                PackingTask.delivery_date == day,
+                PackingTask.status == "queued",
+            )
+        )
+    }
+    for summary in found:
+        if (task := queued.get(summary.order.id)) is not None:
+            await sync_carried(session, task, summary.carried)
     new = [summary for summary in found if summary.order.id not in existing]
     if not new:
         return 0, len(existing)
@@ -180,8 +195,55 @@ async def build(session: AsyncSession, hub_id: uuid.UUID, day: date) -> tuple[in
             )
             for line in summary.lines
         )
+        await sync_carried(session, task, summary.carried)
     await session.flush()
     return len(new), len(existing)
+
+
+def _carried_wanted(
+    carried: list[orders_api.CarriedLine],
+) -> dict[uuid.UUID, tuple[int, int, str]]:
+    """Carried items by product: (steps, step_qty, step_unit); two items of one product, from
+    two missed boxes, share the one carried line."""
+    wanted: dict[uuid.UUID, tuple[int, int, str]] = {}
+    for item in carried:
+        steps = wanted.get(item.product_id, (0, item.step_qty, item.step_unit))[0]
+        wanted[item.product_id] = (steps + item.steps, item.step_qty, item.step_unit)
+    return wanted
+
+
+async def sync_carried(
+    session: AsyncSession, task: PackingTask, carried: list[orders_api.CarriedLine]
+) -> bool:
+    """Make the task's carried lines the order's `carried` items: add the missing ones, follow a
+    change of steps, drop one M4 no longer carries (the hub lost it). True if anything changed."""
+    wanted = _carried_wanted(carried)
+    have = {line.product_id: line for line in await lines_of(session, task.id) if line.carried}
+    changed = False
+    for product_id, (steps, step_qty, step_unit) in wanted.items():
+        line = have.pop(product_id, None)
+        if line is None:
+            session.add(
+                PackingLine(
+                    task_id=task.id,
+                    product_id=product_id,
+                    carried=True,
+                    step_qty=step_qty,
+                    step_unit=step_unit,
+                    qty=steps,
+                )
+            )
+            changed = True
+        elif line.qty != steps:
+            line.qty, line.picked_qty = steps, min(line.picked_qty, steps)
+            changed = True
+    for gone in have.values():
+        await session.delete(gone)
+        changed = True
+    if changed:
+        task.version += 1
+        await session.flush()
+    return changed
 
 
 # --- reading ------------------------------------------------------------------------------------
@@ -349,6 +411,7 @@ async def detail(session: AsyncSession, task: PackingTask, lang: Language) -> Pa
         name = localised(product.names, lang) if product else ""
         out = PackingLineOut(
             product_id=line.product_id,
+            carried=line.carried,
             slug=product.slug if product else "",
             name=name,
             step=step(line.step_qty, line.step_unit),
@@ -367,7 +430,10 @@ async def detail(session: AsyncSession, task: PackingTask, lang: Language) -> Pa
         )
         return (product.shelf if product else (1 << 30, "")), out
 
-    ordered = sorted((shown(line) for line in lines), key=lambda x: (x[0], x[1].name.casefold()))
+    ordered = sorted(
+        (shown(line) for line in lines),
+        key=lambda x: (x[0], x[1].name.casefold(), x[1].carried),
+    )
     (view,) = await views(session, [task])
     return PackingTaskDetail(**view.model_dump(), lines=[line for _, line in ordered])
 
@@ -420,11 +486,19 @@ def _held(task: PackingTask, by: Actor) -> None:
         raise _problem(403, "hub_ops.not_your_task", "Another packer holds this task.")
 
 
-async def _line(session: AsyncSession, task: PackingTask, product_id: uuid.UUID) -> PackingLine:
-    """The line of the ordered product, or of its substitute."""
-    for line in await lines_of(session, task.id):
-        if product_id in (line.product_id, line.substitute_product_id):
-            return line
+async def _line(
+    session: AsyncSession, task: PackingTask, product_id: uuid.UUID, carried: bool = False
+) -> PackingLine:
+    """The line of the ordered product, or of its substitute. The paid line comes first; the
+    kept item's own line is meant by `carried`, or when the product has no paid line."""
+    found = [
+        line
+        for line in await lines_of(session, task.id)
+        if product_id in (line.product_id, line.substitute_product_id)
+    ]
+    own = [line for line in found if line.carried == carried]
+    if own or (not carried and found):
+        return (own or found)[0]
     raise _problem(404, "hub_ops.line_not_found", "This product is not on the task.")
 
 
@@ -510,10 +584,11 @@ async def pick(
     product_id: uuid.UUID,
     picked_qty: int,
     client_at: datetime | None = None,
+    carried: bool = False,
 ) -> None:
     """Set the steps in the bag (absolute, so a repeat changes nothing)."""
     _held(task, by)
-    line = await _line(session, task, product_id)
+    line = await _line(session, task, product_id, carried)
     if not 0 <= picked_qty <= line.qty - line.short_qty:
         raise _problem(
             422, "hub_ops.qty_invalid", "Picked steps are from 0 to the line's quantity less short."
@@ -521,7 +596,9 @@ async def pick(
     if line.picked_qty == picked_qty:
         return
     line.picked_qty = picked_qty
-    payload = {"product_id": str(product_id), "picked_qty": picked_qty}
+    payload: dict[str, Any] = {"product_id": str(product_id), "picked_qty": picked_qty}
+    if line.carried:
+        payload["carried"] = True
     _changed(session, task, "pick", by, payload, client_at)
     await session.flush()
 
@@ -540,11 +617,21 @@ async def shortage(
     short_qty: int,
     substitute_id: uuid.UUID | None,
     client_at: datetime | None = None,
+    carried: bool = False,
 ) -> None:
     """Refund short steps, or replace the whole line with a substitute, through
-    `orders.api.mark_shortage` (which checks the substitute list and price, and refunds)."""
+    `orders.api.mark_shortage` (which checks the substitute list and price, and refunds). A
+    carried line takes no shortage: nothing was paid for it (422 `hub_ops.qty_invalid`,
+    `reason: "carried"`); the hub manager reports a kept item lost instead (§3.5)."""
     _held(task, by)
-    line = await _line(session, task, product_id)
+    line = await _line(session, task, product_id, carried)
+    if line.carried:
+        raise _problem(
+            422,
+            "hub_ops.qty_invalid",
+            "A kept item riding free takes no shortage; report it lost instead.",
+            reason="carried",
+        )
     if line.short_qty or line.substitute_product_id:
         raise _problem(409, "hub_ops.shortage_recorded", "This line already has its shortage.")
     if substitute_id is None:
@@ -617,9 +704,39 @@ async def complete(
     await orders_api.transition(
         session, task.order_id, "packed", actor=by.order_actor, actor_user_id=by.user_id
     )
+    await draw_carried(session, task, by.user_id)
     task.bags = bags or task.bags
     task.crate_no, task.status, task.packed_at = crate_no, "packed", datetime.now(UTC)
     _changed(session, task, "complete", by, {"bags": task.bags, "crate_no": crate_no}, client_at)
+    await session.flush()
+
+
+async def draw_carried(session: AsyncSession, task: PackingTask, by_user_id: uuid.UUID) -> None:
+    """The kept items on a packed bag leave the shelf (§3.5): the item of that carry becomes
+    `packed` with the task, and a `pack` move for it (no lot) is written; with no kept item (the
+    bag was never scanned) the move stands alone, unlotted. The 12:30 draw-down is not built yet;
+    when it is, it draws paid lines only, as these moves are keyed by the carried item."""
+    [summary] = await orders_api.summaries(session, [task.order_id])
+    for item in summary.carried:
+        kept = await session.scalar(
+            select(KeptItem)
+            .where(KeptItem.carry_id == item.carry_id, KeptItem.status == "kept")
+            .with_for_update()
+        )
+        if kept is not None:
+            kept.status, kept.packed_task_id = "packed", task.id
+            kept.settled_at = datetime.now(UTC)
+        await receiving.move(
+            session,
+            hub_id=task.hub_id,
+            product_id=item.product_id,
+            unit=procurement.OPS_UNIT[item.step_unit][0],
+            kind="pack",
+            ref_id=item.carry_id if kept is None else kept.id,
+            qty=-procurement.to_ops(item.steps, item.step_qty, item.step_unit),
+            kept_item_id=None if kept is None else kept.id,
+            by_user_id=by_user_id,
+        )
     await session.flush()
 
 

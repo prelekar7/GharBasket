@@ -8287,6 +8287,12 @@ export interface components {
         /** PackingLineOut */
         PackingLineOut: {
             /**
+             * Carried
+             * @description A kept item riding on this box at no charge ("Kept item: from the shelf"): its own line, apart from a paid line of the same product; it takes no shortage
+             * @default false
+             */
+            carried: boolean;
+            /**
              * Done
              * @description picked_qty + short_qty = qty
              */
@@ -8869,6 +8875,12 @@ export interface components {
         };
         /** PickIn */
         PickIn: {
+            /**
+             * Carried
+             * @description The kept item's line (not needed if the product has no paid line)
+             * @default false
+             */
+            carried: boolean;
             /**
              * Client At
              * @description When the packer tapped (audit only; the server's time decides)
@@ -11415,6 +11427,12 @@ export interface components {
         };
         /** ShortageIn */
         ShortageIn: {
+            /**
+             * Carried
+             * @description The carried line of the product: 422 hub_ops.qty_invalid
+             * @default false
+             */
+            carried: boolean;
             /**
              * Client At
              * @description When the packer tapped (audit only; the server's time decides)

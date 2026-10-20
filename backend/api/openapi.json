@@ -10889,6 +10889,12 @@
       },
       "PackingLineOut": {
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "A kept item riding on this box at no charge (\"Kept item: from the shelf\"): its own line, apart from a paid line of the same product; it takes no shortage",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "done": {
             "description": "picked_qty + short_qty = qty",
             "title": "Done",
@@ -12333,6 +12339,12 @@
       "PickIn": {
         "additionalProperties": false,
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "The kept item's line (not needed if the product has no paid line)",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "client_at": {
             "anyOf": [
               {
@@ -18361,6 +18373,12 @@
       "ShortageIn": {
         "additionalProperties": false,
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "The carried line of the product: 422 hub_ops.qty_invalid",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "client_at": {
             "anyOf": [
               {
