@@ -59,14 +59,20 @@ def _visible(route: Route, who: Caller) -> bool:
 
 
 async def get_route(
-    session: AsyncSession, route_id: uuid.UUID, permit: Permit, *, for_update: bool = False
+    session: AsyncSession,
+    route_id: uuid.UUID,
+    permit: Permit,
+    *,
+    for_update: bool = False,
+    acting: bool = False,
 ) -> tuple[Route, Caller]:
-    """The route, or 404 `logistics.route_not_found` (also outside the caller's scope)."""
+    """The route, or 404 `logistics.route_not_found` (also outside the caller's scope). A rider of
+    its hub `acting` on it finds it, so another rider's route answers 403 `not_your_route`."""
     route = await session.get(Route, route_id, with_for_update=for_update)
     if route is None:
         raise route_not_found()
     who = caller(permit, route.hub_id)
-    if not _visible(route, who):
+    if not (_visible(route, who) or (acting and (who.rider or who.manager))):
         raise route_not_found()
     return route, who
 
