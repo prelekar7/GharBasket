@@ -649,18 +649,21 @@ def test_in_the_grace_period_a_top_up_pays_a_short_one_does_not_and_a_skip_cance
 def test_the_evening_runs_the_tiffin_round_and_the_pickup_sweep(
     app: App, day: Day, loop: Runner
 ) -> None:
-    """Monday T-1 21:30 and 22:30: the tiffin assignment round (the day books no tiffin, so there
-    is nothing to assign) and the day's missed donation pickups."""
+    """Monday T-1 21:30, 22:00 and 22:30: the tiffin assignment round and its offer timeout (the
+    day books no tiffin, so there is nothing to assign or expire) and the day's missed donation
+    pickups."""
     monday = day.t - timedelta(days=1)
     out: dict[str, Any] = {}
 
     async def go() -> None:
         out["assign"] = await app.job("assign_kitchens", ist(monday, 21, 30))
+        out["timeout"] = await app.job("assignment_acceptance_timeout", ist(monday, 22, 0))
         out["pickups"] = await app.job("sweep_missed_pickups", ist(monday, 22, 30))
         await app.sweep(ist(monday, 22, 30))
 
     step(loop, ist(monday, 21, 30), go())
     assert out["assign"]["runs"] == out["assign"]["offers"] == out["assign"]["unassigned"] == 0, out
+    assert out["timeout"]["expired"] == 0, out  # no tiffin offers in the day, so none to expire
     assert out["pickups"]["rolled"] == out["pickups"]["cancelled"] == 0, out
 
 

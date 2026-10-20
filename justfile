@@ -172,3 +172,15 @@ promote model version *args:
 # Score Ghar Saathi on data/eval/assistant_utterances.jsonl (needs ANTHROPIC_API_KEY), e.g. `just eval-assistant --models claude-opus-5-5 claude-sonnet-5-5`
 eval-assistant *args:
     uv run --directory backend/ml python -m gharbasket_ml.eval_assistant {{args}}
+
+# Both frontends on the real local backend (API :8000, mobile :5173, console :3000); migrates and seeds first, Ctrl-C stops all
+dev-real:
+    ./scripts/dev-real.sh
+
+# Sign in as all 13 seed people against a running dev API and check /v1/me against the seed, e.g. `just real-check 8020`
+real-check *args:
+    ./scripts/real-check.sh {{args}}
+
+# Report the frontends' API calls that openapi.json lacks (docs/integration/contract-gaps.md); `node scripts/contract-gaps.mjs --check` gates
+contract-gaps:
+    node scripts/contract-gaps.mjs
