@@ -138,6 +138,7 @@ async def test_presign_signs_a_put_for_each_purpose(
 ) -> None:
     before = datetime.now(UTC).replace(microsecond=0)
     answer = await make_api().post("/v1/files/presign", json=_presign(purpose, content_type, size))
+    after = datetime.now(UTC)
 
     assert answer.status_code == 200, answer.text
     body = answer.json()
@@ -146,7 +147,8 @@ async def test_presign_signs_a_put_for_each_purpose(
     assert body["method"] == "PUT"
     assert body["headers"] == {"Content-Type": content_type, "Content-Length": str(size)}
     expires_at = datetime.fromisoformat(body["expires_at"])
-    assert before + timedelta(minutes=10) <= expires_at <= before + timedelta(minutes=10, seconds=5)
+    # Bounded by the request itself, not a fixed allowance: a loaded machine can take seconds.
+    assert before + timedelta(minutes=10) <= expires_at <= after + timedelta(minutes=10, seconds=1)
     url = urlsplit(body["url"])
     query = parse_qs(url.query)
     assert f"{url.scheme}://{url.netloc}" == "http://10.0.2.2:8333"  # S3_PUBLIC_ENDPOINT_URL
