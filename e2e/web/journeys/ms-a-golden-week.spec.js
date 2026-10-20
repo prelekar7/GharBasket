@@ -318,10 +318,6 @@ test.describe
       });
 
       test("the console's Packing page shows the bag for T", async () => {
-        test.fail(
-          true,
-          "F11: /packing offers only today-3 to today+2 (hubDays(3, 2)) by the console's own clock, so a delivery day four days on cannot be opened; the page falls back to today",
-        );
         await admin.goto(`/packing?date=${T.day}`);
         await expect(admin.getByRole("heading", { name: /^Packing · Sat 24 Oct/ })).toBeVisible();
         await expect(admin.getByText("Sunrise Towers").first()).toBeVisible();
