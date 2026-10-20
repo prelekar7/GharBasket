@@ -43,6 +43,8 @@ Indian family's food week, with women "Society Captains" running the last 50 met
 - Small PRs (about 400 changed lines of hand-written code, not counting tests and generated files such as `openapi.json`,
   lockfiles and the api-client), squash merge, CODEOWNER review, CI green.
 - One Alembic migration per PR, named `YYYYMMDD_HHMM_<module>_<desc>`; keep a single migration head.
+- ML/AI PRs (`backend/ml`, `backend/training`, `intel.*`, simulator, eval harness, assistant) are reviewed and tested by a
+  Claude Opus agent before merge (handbook §11.3); green CI alone is not enough.
 - Never commit secrets or `.env` files. Update the relevant handbook chapter when behaviour changes.
 
 <!-- code-review-graph MCP tools -->
