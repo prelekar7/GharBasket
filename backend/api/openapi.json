@@ -1264,6 +1264,423 @@
         "title": "ApplicationStepOut",
         "type": "object"
       },
+      "AssignedPartnerOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "AssignedPartnerOut",
+        "type": "object"
+      },
+      "AssignmentOrderOut": {
+        "properties": {
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "product": {
+            "examples": [
+              "Diet thali"
+            ],
+            "title": "Product",
+            "type": "string"
+          },
+          "short_code": {
+            "examples": [
+              "T-07"
+            ],
+            "title": "Short Code",
+            "type": "string"
+          },
+          "society": {
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SocietyRef"
+          },
+          "status": {
+            "enum": [
+              "assigned",
+              "ready",
+              "picked_up",
+              "delivered",
+              "failed",
+              "released"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "short_code",
+          "portions",
+          "product",
+          "society",
+          "status"
+        ],
+        "title": "AssignmentOrderOut",
+        "type": "object"
+      },
+      "AssignmentOut": {
+        "description": "An offer to one kitchen: short codes, dishes and society names, never a flat or a name.",
+        "properties": {
+          "accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          },
+          "checklist": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checklist"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentOrderOut"
+            },
+            "title": "Orders",
+            "type": "array"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/AssignedPartnerOut"
+          },
+          "pickup_qr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GB1A: + the id without hyphens, once any is ready",
+            "title": "Pickup Qr"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "ready_by": {
+            "description": "Slot start minus 60 min, HH:MM IST",
+            "examples": [
+              "11:30"
+            ],
+            "title": "Ready By",
+            "type": "string"
+          },
+          "respond_by": {
+            "format": "date-time",
+            "title": "Respond By",
+            "type": "string"
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SlotOut"
+          },
+          "source": {
+            "enum": [
+              "ml",
+              "fallback",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "offered",
+              "accepted",
+              "preparing",
+              "ready",
+              "completed",
+              "declined",
+              "expired",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "meal",
+          "hub_id",
+          "slot",
+          "partner",
+          "status",
+          "round",
+          "source",
+          "portions",
+          "dishes",
+          "orders",
+          "respond_by",
+          "ready_by",
+          "pickup_qr",
+          "checklist",
+          "accepted_at",
+          "ready_at",
+          "version"
+        ],
+        "title": "AssignmentOut",
+        "type": "object"
+      },
+      "AssignmentsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AssignmentsOut",
+        "type": "object"
+      },
+      "BoardMealOut": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "assigned": {
+            "description": "Orders held by any assignment",
+            "title": "Assigned",
+            "type": "integer"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "orders": {
+            "title": "Orders",
+            "type": "integer"
+          },
+          "picked_up": {
+            "title": "Picked Up",
+            "type": "integer"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "preparing": {
+            "title": "Preparing",
+            "type": "integer"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "integer"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/BoardUnassignedOut"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "meal",
+          "orders",
+          "portions",
+          "assigned",
+          "accepted",
+          "preparing",
+          "ready",
+          "picked_up",
+          "unassigned"
+        ],
+        "title": "BoardMealOut",
+        "type": "object"
+      },
+      "BoardRunOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "gini": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gini"
+          },
+          "km_per_portion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km Per Portion"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "ml",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meal",
+          "round",
+          "source",
+          "model",
+          "status",
+          "gini",
+          "km_per_portion",
+          "at"
+        ],
+        "title": "BoardRunOut",
+        "type": "object"
+      },
+      "BoardUnassignedOut": {
+        "properties": {
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "From the latest run; pending before any run",
+            "title": "Reason",
+            "type": "string"
+          },
+          "society": {
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SocietyRef"
+          }
+        },
+        "required": [
+          "order_id",
+          "society",
+          "portions",
+          "reason"
+        ],
+        "title": "BoardUnassignedOut",
+        "type": "object"
+      },
       "BudgetLockIn": {
         "additionalProperties": false,
         "properties": {
@@ -2466,6 +2883,38 @@
         "title": "DecisionIn",
         "type": "object"
       },
+      "DeclineIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "unwell",
+              "no_ingredients",
+              "family",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DeclineIn",
+        "type": "object"
+      },
       "DeletionOut": {
         "description": "DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs\nin again before then.",
         "properties": {
@@ -2679,29 +3128,6 @@
           "current"
         ],
         "title": "DeviceOut",
-        "type": "object"
-      },
-      "DishOut": {
-        "properties": {
-          "name": {
-            "description": "In Accept-Language",
-            "examples": [
-              "Varan bhaat"
-            ],
-            "title": "Name",
-            "type": "string"
-          },
-          "recipe_id": {
-            "format": "uuid",
-            "title": "Recipe Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "recipe_id",
-          "name"
-        ],
-        "title": "DishOut",
         "type": "object"
       },
       "DocumentRequirement": {
@@ -7947,6 +8373,224 @@
           "vendor"
         ],
         "title": "LotOut",
+        "type": "object"
+      },
+      "ManualIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Audit log",
+            "title": "Note"
+          },
+          "order_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Order Ids",
+            "type": "array"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "order_ids",
+          "partner_id"
+        ],
+        "title": "ManualIn",
+        "type": "object"
+      },
+      "ManualOut": {
+        "properties": {
+          "accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          },
+          "checklist": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checklist"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentOrderOut"
+            },
+            "title": "Orders",
+            "type": "array"
+          },
+          "over_capacity": {
+            "title": "Over Capacity",
+            "type": "boolean"
+          },
+          "partner": {
+            "$ref": "#/components/schemas/AssignedPartnerOut"
+          },
+          "pickup_qr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GB1A: + the id without hyphens, once any is ready",
+            "title": "Pickup Qr"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "ready_by": {
+            "description": "Slot start minus 60 min, HH:MM IST",
+            "examples": [
+              "11:30"
+            ],
+            "title": "Ready By",
+            "type": "string"
+          },
+          "respond_by": {
+            "format": "date-time",
+            "title": "Respond By",
+            "type": "string"
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
+          },
+          "slot": {
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SlotOut"
+          },
+          "source": {
+            "enum": [
+              "ml",
+              "fallback",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "offered",
+              "accepted",
+              "preparing",
+              "ready",
+              "completed",
+              "declined",
+              "expired",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "meal",
+          "hub_id",
+          "slot",
+          "partner",
+          "status",
+          "round",
+          "source",
+          "portions",
+          "dishes",
+          "orders",
+          "respond_by",
+          "ready_by",
+          "pickup_qr",
+          "checklist",
+          "accepted_at",
+          "ready_at",
+          "version",
+          "over_capacity"
+        ],
+        "title": "ManualOut",
         "type": "object"
       },
       "MeOut": {
@@ -13599,6 +14243,53 @@
         "title": "Ready",
         "type": "object"
       },
+      "ReadyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "checklist": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "handwash, hair_cover, clean_surface, sealed, fresh_today: all true (else 422 partners.checklist_incomplete)",
+            "title": "Checklist",
+            "type": "object"
+          },
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client At"
+          },
+          "order_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: every assigned order not yet ready",
+            "title": "Order Ids"
+          }
+        },
+        "required": [
+          "checklist"
+        ],
+        "title": "ReadyIn",
+        "type": "object"
+      },
       "ReceiptIn": {
         "additionalProperties": false,
         "properties": {
@@ -16397,6 +17088,63 @@
         "title": "RoutesOut",
         "type": "object"
       },
+      "RunIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "RunIn",
+        "type": "object"
+      },
+      "RunOut": {
+        "properties": {
+          "offers": {
+            "title": "Offers",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first meal's run; null with nothing to do",
+            "title": "Run Id"
+          },
+          "run_ids": {
+            "description": "One run per meal that had orders",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Run Ids",
+            "type": "array"
+          },
+          "unassigned": {
+            "title": "Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "run_ids",
+          "offers",
+          "unassigned"
+        ],
+        "title": "RunOut",
+        "type": "object"
+      },
       "SavedTemplatesOut": {
         "properties": {
           "items": {
@@ -16703,89 +17451,6 @@
         "title": "SlotIn",
         "type": "object"
       },
-      "SlotOut": {
-        "properties": {
-          "available": {
-            "title": "Available",
-            "type": "integer"
-          },
-          "booked": {
-            "description": "For the requested date",
-            "title": "Booked",
-            "type": "integer"
-          },
-          "capacity": {
-            "title": "Capacity",
-            "type": "integer"
-          },
-          "end": {
-            "format": "time",
-            "title": "End",
-            "type": "string"
-          },
-          "hub_id": {
-            "format": "uuid",
-            "title": "Hub Id",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "box",
-              "tiffin"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "meal": {
-            "anyOf": [
-              {
-                "enum": [
-                  "lunch",
-                  "dinner"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Tiffin slots only (§3.5)",
-            "title": "Meal"
-          },
-          "start": {
-            "description": "IST clock time",
-            "examples": [
-              "07:00"
-            ],
-            "format": "time",
-            "title": "Start",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "hub_id",
-          "label",
-          "kind",
-          "start",
-          "end",
-          "meal",
-          "capacity",
-          "booked",
-          "available"
-        ],
-        "title": "SlotOut",
-        "type": "object"
-      },
       "SlotPatch": {
         "additionalProperties": false,
         "properties": {
@@ -16888,7 +17553,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/SlotOut"
+              "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__SlotOut"
             },
             "title": "Items",
             "type": "array"
@@ -18802,6 +19467,44 @@
         "title": "Texts",
         "type": "object"
       },
+      "TiffinBoardOut": {
+        "properties": {
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentOut"
+            },
+            "title": "Assignments",
+            "type": "array"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "meals": {
+            "items": {
+              "$ref": "#/components/schemas/BoardMealOut"
+            },
+            "title": "Meals",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/BoardRunOut"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "meals",
+          "assignments",
+          "runs"
+        ],
+        "title": "TiffinBoardOut",
+        "type": "object"
+      },
       "TiffinMenuOut": {
         "properties": {
           "date": {
@@ -18811,7 +19514,7 @@
           },
           "dishes": {
             "items": {
-              "$ref": "#/components/schemas/DishOut"
+              "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__DishOut"
             },
             "title": "Dishes",
             "type": "array"
@@ -18930,7 +19633,7 @@
         "properties": {
           "dishes": {
             "items": {
-              "$ref": "#/components/schemas/DishOut"
+              "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__DishOut"
             },
             "title": "Dishes",
             "type": "array"
@@ -21498,6 +22201,29 @@
         "title": "DeliveryOut",
         "type": "object"
       },
+      "gharbasket__modules__orders__schemas__DishOut": {
+        "properties": {
+          "name": {
+            "description": "In Accept-Language",
+            "examples": [
+              "Varan bhaat"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_id": {
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "name"
+        ],
+        "title": "DishOut",
+        "type": "object"
+      },
       "gharbasket__modules__orders__schemas__ResolveIn": {
         "additionalProperties": false,
         "properties": {
@@ -21543,6 +22269,89 @@
           "outcome"
         ],
         "title": "ResolveIn",
+        "type": "object"
+      },
+      "gharbasket__modules__orders__schemas__SlotOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "booked": {
+            "description": "For the requested date",
+            "title": "Booked",
+            "type": "integer"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "end": {
+            "format": "time",
+            "title": "End",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "meal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lunch",
+                  "dinner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin slots only (§3.5)",
+            "title": "Meal"
+          },
+          "start": {
+            "description": "IST clock time",
+            "examples": [
+              "07:00"
+            ],
+            "format": "time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "label",
+          "kind",
+          "start",
+          "end",
+          "meal",
+          "capacity",
+          "booked",
+          "available"
+        ],
+        "title": "SlotOut",
         "type": "object"
       },
       "gharbasket__modules__orders__schemas__TimelineEntry": {
@@ -21593,6 +22402,68 @@
         "title": "TimelineEntry",
         "type": "object"
       },
+      "gharbasket__modules__partners__schemas__DishOut": {
+        "properties": {
+          "name": {
+            "examples": [
+              "Diet thali"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "portions": {
+            "title": "Portions",
+            "type": "integer"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "portions"
+        ],
+        "title": "DishOut",
+        "type": "object"
+      },
+      "gharbasket__modules__partners__schemas__SlotOut": {
+        "properties": {
+          "end": {
+            "examples": [
+              "13:30"
+            ],
+            "title": "End",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "start": {
+            "examples": [
+              "12:30"
+            ],
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "start",
+          "end"
+        ],
+        "title": "SlotOut",
+        "type": "object"
+      },
       "gharbasket__modules__partners__schemas__SocietyRef": {
         "properties": {
           "id": {
@@ -21610,6 +22481,26 @@
           "name"
         ],
         "title": "SocietyRef",
+        "type": "object"
+      },
+      "gharbasket__modules__partners__schemas__StartIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When she tapped (offline)",
+            "title": "Client At"
+          }
+        },
+        "title": "StartIn",
         "type": "object"
       },
       "gharbasket__modules__subscriptions__schemas__CaptainOut": {
@@ -25973,7 +26864,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SlotOut"
+                  "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__SlotOut"
                 }
               }
             },
@@ -26088,7 +26979,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SlotOut"
+                  "$ref": "#/components/schemas/gharbasket__modules__orders__schemas__SlotOut"
                 }
               }
             },
@@ -26585,6 +27476,752 @@
         "summary": "Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin)",
         "tags": [
           "analytics"
+        ]
+      }
+    },
+    "/v1/assignments": {
+      "get": {
+        "operationId": "my_assignments_v1_assignments_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your kitchen's assignments for a date (default tomorrow; a week back to tomorrow)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/assignments/{assignment_id}/accept": {
+      "post": {
+        "operationId": "accept_v1_assignments__assignment_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Accept the whole offer while it is open (Idempotency-Key required)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/assignments/{assignment_id}/decline": {
+      "post": {
+        "operationId": "decline_v1_assignments__assignment_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Decline the whole offer while it is open; its orders go to the next round",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/assignments/{assignment_id}/ready": {
+      "post": {
+        "operationId": "ready_v1_assignments__assignment_id__ready_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_accepted, orders.illegal_transition"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Mark orders ready with the hygiene checklist: orders show Ready at the kitchen",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/assignments/{assignment_id}/start": {
+      "post": {
+        "operationId": "start_v1_assignments__assignment_id__start_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__StartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.assignment_not_accepted, orders.illegal_transition"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Start cooking an accepted assignment on its day: orders show Being cooked",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },
@@ -34606,6 +36243,407 @@
         "summary": "A hub's routes for a date, by departure and vehicle",
         "tags": [
           "logistics"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/tiffin-assignments/manual": {
+      "post": {
+        "operationId": "manual_v1_hubs__hub_id__tiffin_assignments_manual_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.order_not_assignable, partners.assignment_closed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Assign tiffins to a kitchen by hand, accepted at once (hub manager, admin)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/tiffin-assignments/run": {
+      "post": {
+        "operationId": "run_round_v1_hubs__hub_id__tiffin_assignments_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Run one assignment round now for a date (hub manager, admin; Idempotency-Key)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/tiffin-board": {
+      "get": {
+        "operationId": "tiffin_board_v1_hubs__hub_id__tiffin_board_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinBoardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The day's tiffins per meal, the assignments and the runs (hub staff, admin)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },
