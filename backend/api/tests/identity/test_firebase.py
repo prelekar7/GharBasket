@@ -6,6 +6,7 @@ import hmac
 import json
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -28,9 +29,13 @@ async def _refused(google: FakeGoogle, token: str, code: str = "auth.invalid_tok
 async def test_a_valid_phone_sign_in_token_is_accepted() -> None:
     google = FakeGoogle()
 
-    identity = await google.verifier().verify(google.id_token())
+    identity = await google.verifier().verify(google.id_token(auth_time=1_791_000_000))
 
-    assert identity == FirebaseIdentity(uid="firebase-uid-1", phone_e164="+919800000001")
+    assert identity == FirebaseIdentity(
+        uid="firebase-uid-1",
+        phone_e164="+919800000001",
+        auth_time=datetime.fromtimestamp(1_791_000_000, UTC),  # when the OTP was entered
+    )
 
 
 @pytest.mark.parametrize(

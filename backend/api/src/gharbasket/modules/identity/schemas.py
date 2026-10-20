@@ -7,7 +7,7 @@ them needs a PR reviewed by both app owners.
 
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 
 import phonenumbers
@@ -38,6 +38,14 @@ class ExchangeIn(BaseModel):
     dev_phone: str | None = Field(default=None, examples=["+919800000001"])
     dev_name: str | None = Field(default=None, max_length=80, examples=["Priya"])
     device: DeviceIn
+    keep_account: bool = Field(
+        default=False,
+        description=(
+            'For an account whose deletion is scheduled: true (after the app asked "Keep my '
+            'account?") signs in and cancels the deletion; false gets 409 '
+            "identity.deletion_pending (spec §3.5)"
+        ),
+    )
 
     @field_validator("dev_phone")
     @classmethod
@@ -73,6 +81,26 @@ class TokensOut(BaseModel):
 class ExchangeOut(TokensOut):
     is_new_user: bool
     user: UserOut
+    deletion_cancelled: bool = Field(
+        default=False, description="True when this sign-in cancelled a scheduled deletion"
+    )
+
+
+class WalletRefundOut(BaseModel):
+    refund_id: uuid.UUID
+    amount_paise: int = Field(examples=[41000])
+
+
+class DeletionOut(BaseModel):
+    """DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+    in again before then."""
+
+    status: Literal["scheduled"]
+    requested_at: datetime
+    purge_on: date = Field(description="IST date, 30 days after the request")
+    wallet_refund: WalletRefundOut | None = Field(
+        description="The wallet balance on its way back to the original payment source"
+    )
 
 
 class RefreshIn(BaseModel):
@@ -156,6 +184,7 @@ class RoleGrantIn(BaseModel):
         "franchise_owner",
         "ngo_coordinator",
         "admin",
+        "catalog_editor",
     ]
     scope_id: uuid.UUID | None = None
 

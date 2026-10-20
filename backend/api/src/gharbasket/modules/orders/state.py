@@ -48,7 +48,8 @@ _BOX: Table = {
 # and handed over at the door; never held at the society, never redelivered (refunded at once).
 _TIFFIN: Table = {
     **_BEFORE_CUTOFF,
-    "locked": {"picking": frozenset({"kitchen", "hub"})},
+    # No kitchen took it by ready_by - 2 h: refunded in full at once (ADR-0027 §1, `no_kitchen`).
+    "locked": {"picking": frozenset({"kitchen", "hub"}), "refunded": frozenset({"system"})},
     "picking": {"packed": frozenset({"kitchen", "hub"})},
     "packed": {"dispatched": frozenset({"rider", "hub"})},
     "dispatched": {

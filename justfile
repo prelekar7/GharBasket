@@ -108,9 +108,10 @@ job name *args:
 grant-role *args:
     uv run python -m gharbasket.tools.grant_role {{args}}
 
-# Fill the local database with synthetic people, one per role (safe to run again; local only)
-seed:
-    uv run python -m gharbasket.tools.seed
+# Fill the local database with synthetic people, one per role (safe to run again; local only).
+# Catalog rows are only added; `just seed --refresh` re-applies the seed files to rows nobody edited in the console
+seed *args:
+    uv run python -m gharbasket.tools.seed {{args}}
 
 # Regenerate backend/api/openapi.json, the contract the frontend client is built from
 openapi:
@@ -151,3 +152,11 @@ cloud-ml url token="":
 # Evaluate the planner and the pantry baseline over simulator seeds; report in docs/eval (eval protocol)
 eval *args:
     uv run python -m gharbasket_training.eval {{args}}
+
+# Point a model's latest.json in the registry at a version (also rolls back), e.g. `just promote basket_ranker 2026-10-05`
+promote model version *args:
+    uv run --directory backend/training python -m gharbasket_training.jobs.promote {{model}} {{version}} {{args}}
+
+# Score Ghar Saathi on data/eval/assistant_utterances.jsonl (needs ANTHROPIC_API_KEY), e.g. `just eval-assistant --models claude-opus-5-5 claude-sonnet-5-5`
+eval-assistant *args:
+    uv run --directory backend/ml python -m gharbasket_ml.eval_assistant {{args}}

@@ -18,9 +18,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import state
+from gharbasket.modules.orders import fees, state
 from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
-from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot, SlotBooking
+from gharbasket.modules.orders.models import (
+    Order,
+    OrderEvent,
+    OrderIssue,
+    OrderLine,
+    Slot,
+    SlotBooking,
+)
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
@@ -113,11 +120,22 @@ async def create_slot(
     start: time,
     end: time,
     capacity: int,
+    meal: str | None = None,
 ) -> Slot:
     if end <= start:
         raise ProblemError(422, "orders.slot_invalid", "The slot must end after it starts.")
+    if (kind == "tiffin") != (meal is not None):
+        raise ProblemError(
+            422, "orders.slot_invalid", "A tiffin slot names its meal; a box slot has none."
+        )
     slot = Slot(
-        hub_id=hub_id, label=label, kind=kind, start_time=start, end_time=end, capacity=capacity
+        hub_id=hub_id,
+        label=label,
+        kind=kind,
+        start_time=start,
+        end_time=end,
+        capacity=capacity,
+        meal=meal,
     )
     try:
         async with session.begin_nested():
@@ -184,7 +202,16 @@ class ApprovedCycle:
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
     order.subtotal_paise = sum(line.total_paise for line in lines)
+    _total(order)
+
+
+def _total(order: Order) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
+
+
+def food_paid(order: Order) -> int:
+    """The paid total without the delivery fee: what shortage and issue refunds may return."""
+    return order.total_paise - order.fees_paise
 
 
 async def by_cycle(
@@ -283,6 +310,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             await _replace_box_lines(session, existing, cycle)
         return existing
     products = await _box_products(session, cycle)
+    fee = await fees.box_fee(session, cycle.hub_id, cycle.society_id)  # frozen, as line prices
     order = Order(
         household_id=cycle.household_id,
         hub_id=cycle.hub_id,
@@ -294,7 +322,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         cutoff_at=cutoff_for(cycle.delivery_date),
         status="approved",
         subtotal_paise=0,
-        fees_paise=0,
+        fees_paise=fee,
         discount_paise=0,
         total_paise=0,
         data_source=cycle.data_source,
@@ -527,11 +555,16 @@ async def debit_and_lock(session: AsyncSession, order: Order, *, actor: str) -> 
 
     The debit is M5's `box:<order id>` entry, the same for the cut-off, a top-up's retry and
     `pay`, so the order is never charged twice. `billing.insufficient_balance` is raised with
-    nothing changed (the debit runs in a savepoint).
+    nothing debited (the debit runs in a savepoint). A box whose society went live since it was
+    approved drops its delivery fee first (M9 §3.6).
     """
     owner = await identity_api.owner_of_household(session, order.household_id)
     if owner is None:
         raise ValueError(f"order {order.id} has no household owner")
+    if order.fees_paise > 0 and await fees.society_live(session, order.society_id):
+        order.fees_paise = 0  # went live after approval: free from this lock; never raised here
+        _total(order)
+        order.version += 1
     if order.total_paise > 0:
         async with session.begin_nested():
             await billing_api.debit_for_order(
@@ -577,6 +610,8 @@ async def transition(
     and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
     Only the state machine is checked: the caller has checked that this person may act."""
     state.check(order.kind, order.status, to_status, actor)
+    if to_status == "refunded":
+        payload = await _refund(session, order, payload or {})
     from_status = order.status
     order.status = to_status
     order.version += 1
@@ -618,6 +653,44 @@ async def transition(
                 for line in await lines_of(session, order.id)
             ]
         await publish(session, event_type, body)
+    return order
+
+
+async def paid_left(session: AsyncSession, order: Order) -> int:
+    """What a refund may still return: the paid total (net of shortage refunds) less the
+    order's issue credits."""
+    credited = await session.scalar(
+        select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
+            OrderIssue.order_id == order.id, OrderIssue.status == "credited"
+        )
+    )
+    return max(0, order.total_paise - int(credited or 0))
+
+
+async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> dict[str, Any]:
+    """Money back on a move to `refunded` (ADR-0027): `payload.refund_paise` (default what is
+    left of the paid total) to the owner's wallet, keyed by order and `payload.reason` (default
+    `undelivered`), in the caller's transaction. `billing.wallet_limit` is raised as is."""
+    reason = str(payload.get("reason") or "undelivered")
+    amount = payload.get("refund_paise")
+    amount = await paid_left(session, order) if amount is None else int(amount)
+    if amount > 0:
+        owner = await identity_api.owner_of_household(session, order.household_id)
+        if owner is None:
+            raise ValueError(f"order {order.id} has no household owner")
+        async with session.begin_nested():  # a refused refund leaves no move behind
+            await billing_api.refund_to_wallet(session, owner, order.id, amount, reason=reason)
+    return {**payload, "reason": reason, "refund_paise": amount}
+
+
+async def set_kitchen(session: AsyncSession, order: Order, partner_id: uuid.UUID | None) -> Order:
+    """Record the kitchen that cooks a tiffin, or clear it (M8, ADR-0026 §3)."""
+    if order.kind != "tiffin":
+        raise ProblemError(409, "orders.not_editable", "Only a tiffin has a kitchen.")
+    if order.kitchen_partner_id != partner_id:
+        order.kitchen_partner_id = partner_id
+        order.version += 1
+        await session.flush()
     return order
 
 
