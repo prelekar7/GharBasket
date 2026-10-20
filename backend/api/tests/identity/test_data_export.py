@@ -316,6 +316,7 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "kyc_documents": [],
         "training_attempts": [],
         "partners": [],
+        "ratings": [],
     }
     assert sections["community"] == {
         "captain_appointments": [],

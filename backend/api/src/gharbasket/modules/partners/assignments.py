@@ -119,6 +119,15 @@ async def held(session: AsyncSession, order_ids: list[uuid.UUID]) -> set[uuid.UU
     return set(rows.scalars())
 
 
+async def kitchen_of(session: AsyncSession, order_id: uuid.UUID) -> uuid.UUID | None:
+    """The kitchen whose assignment holds the order (not one that let it go)."""
+    return await session.scalar(
+        select(Assignment.partner_id)
+        .join(AssignmentOrder, AssignmentOrder.assignment_id == Assignment.id)
+        .where(AssignmentOrder.order_id == order_id, AssignmentOrder.status != "released")
+    )
+
+
 async def live_portions(
     session: AsyncSession, partner_ids: list[uuid.UUID], first: date, last: date
 ) -> dict[tuple[uuid.UUID, date, str], int]:

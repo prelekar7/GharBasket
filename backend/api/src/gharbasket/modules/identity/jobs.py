@@ -181,6 +181,7 @@ ERASERS: list[tuple[str, Eraser]] = [
     ("community", community_api.anonymise_for_user),
     ("hub_ops", hub_ops_api.anonymise_for_user),
     ("logistics", logistics_api.anonymise_for_user),
+    ("partners", partners_api.anonymise_for_user),
     ("subscriptions", subscriptions_api.delete_for_user),
     ("orders", orders_api.anonymise_for_user),
     ("billing", billing_api.anonymise_for_user),

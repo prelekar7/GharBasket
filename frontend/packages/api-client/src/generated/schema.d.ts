@@ -2554,6 +2554,23 @@ export interface paths {
         patch: operations["edit_partner_v1_partners__partner_id__patch"];
         trace?: never;
     };
+    "/v1/partners/{partner_id}/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Know your cook: a kitchen's public card (any signed-in user) */
+        get: operations["kitchen_card_v1_partners__partner_id__card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/partners/{partner_id}/pause": {
         parameters: {
             query?: never;
@@ -2837,6 +2854,24 @@ export interface paths {
         put?: never;
         /** Mark a draft as sent now (gives its number; nothing is sent automatically) */
         post: operations["send_purchase_order_v1_purchase_orders__po_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rating you gave an order */
+        get: operations["my_rating_v1_ratings_get"];
+        put?: never;
+        /** Rate a delivered tiffin, once, until 48 hours after delivery (Idempotency-Key) */
+        post: operations["rate_tiffin_v1_ratings_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6650,6 +6685,56 @@ export interface components {
              * @example 500
              */
             points: number;
+        };
+        /**
+         * KitchenCardOut
+         * @description What a customer may see of the kitchen that cooked: never an address, phone, pin or KYC
+         *     detail.
+         */
+        KitchenCardOut: {
+            /**
+             * Area
+             * @example Sector 20, Kharghar
+             */
+            area: string | null;
+            /**
+             * Display Name
+             * @example Sunita tai
+             */
+            display_name: string;
+            /**
+             * Fssai Reg No
+             * @example 11521999000123
+             */
+            fssai_reg_no: string | null;
+            /** Fssai Valid Until */
+            fssai_valid_until: string | null;
+            hygiene: components["schemas"]["HygieneOut"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Photo Url
+             * @description Always null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /**
+             * Portions Served
+             * @description Delivered, all time
+             */
+            portions_served: number;
+            /** @description From 5 ratings on; else null */
+            rating: components["schemas"]["RatingOut"] | null;
+            /**
+             * Since
+             * @description Month of verification
+             * @example 2026-12
+             */
+            since: string;
+            /** Skills */
+            skills: string[];
         };
         /**
          * KitchenOut
@@ -12043,6 +12128,46 @@ export interface components {
              * Format: uuid
              */
             menu_id: string;
+        };
+        /** TiffinRatingIn */
+        TiffinRatingIn: {
+            /**
+             * Comment
+             * @description Staff-only
+             */
+            comment?: string | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Score
+             * @example 4
+             */
+            score: number;
+        };
+        /** TiffinRatingOut */
+        TiffinRatingOut: {
+            /** Comment */
+            comment: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /** Score */
+            score: number;
         };
         /**
          * TimelineEvent
@@ -25068,6 +25193,55 @@ export interface operations {
             };
         };
     };
+    kitchen_card_v1_partners__partner_id__card_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenCardOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     pause_partner_v1_partners__partner_id__pause_post: {
         parameters: {
             query?: never;
@@ -26190,6 +26364,147 @@ export interface operations {
                 };
             };
             /** @description hub_ops.vendor_inactive, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_rating_v1_ratings_get: {
+        parameters: {
+            query: {
+                order_id: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinRatingOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.rating_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rate_tiffin_v1_ratings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TiffinRatingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinRatingOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.rating_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.rating_window_closed, partners.rating_exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

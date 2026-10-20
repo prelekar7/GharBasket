@@ -65,6 +65,7 @@ __all__ = [
     "Order",
     "OrderIssue",
     "OrderLine",
+    "OrderRef",
     "OrderSummary",
     "SlotRef",
     "SoldLine",
@@ -75,6 +76,7 @@ __all__ = [
     "cutoff_for",
     "export_for_user",
     "get",
+    "get_order_ref",
     "grace_until_for",
     "has_delivered_box",
     "has_open_issues",
@@ -153,6 +155,36 @@ async def summaries(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[O
 async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
     """What a refund of the order may still pay back (M7's triage bound)."""
     return await service.refundable_paise(session, await service.get(session, order_id))
+
+
+@dataclass(frozen=True)
+class OrderRef:
+    id: uuid.UUID
+    household_id: uuid.UUID
+    owner_user_id: uuid.UUID | None  # the household's owner: the person who may rate or report
+    kind: str
+    status: str
+    delivered_at: datetime | None  # when it reached `delivered`
+
+
+async def get_order_ref(session: AsyncSession, order_id: uuid.UUID) -> OrderRef | None:
+    """What M8's ratings need of an order (M8 §3.5): whose it is and when it was delivered."""
+    order = await session.get(Order, order_id)
+    if order is None:
+        return None
+    delivered_at = await session.scalar(
+        select(func.max(OrderEvent.at)).where(
+            OrderEvent.order_id == order_id, OrderEvent.to_status == "delivered"
+        )
+    )
+    return OrderRef(
+        id=order.id,
+        household_id=order.household_id,
+        owner_user_id=await identity_api.owner_of_household(session, order.household_id),
+        kind=order.kind,
+        status=order.status,
+        delivered_at=delivered_at,
+    )
 
 
 async def set_kitchen(

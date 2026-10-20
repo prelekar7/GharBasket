@@ -7357,6 +7357,131 @@
         "title": "KindnessGoal",
         "type": "object"
       },
+      "KitchenCardOut": {
+        "description": "What a customer may see of the kitchen that cooked: never an address, phone, pin or KYC\ndetail.",
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "display_name": {
+            "examples": [
+              "Sunita tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fssai_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "11521999000123"
+            ],
+            "title": "Fssai Reg No"
+          },
+          "fssai_valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fssai Valid Until"
+          },
+          "hygiene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HygieneOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Always null for now (M8 §11)",
+            "title": "Photo Url"
+          },
+          "portions_served": {
+            "description": "Delivered, all time",
+            "title": "Portions Served",
+            "type": "integer"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RatingOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From 5 ratings on; else null"
+          },
+          "since": {
+            "description": "Month of verification",
+            "examples": [
+              "2026-12"
+            ],
+            "title": "Since",
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "photo_url",
+          "area",
+          "since",
+          "fssai_reg_no",
+          "fssai_valid_until",
+          "hygiene",
+          "rating",
+          "skills",
+          "portions_served"
+        ],
+        "title": "KitchenCardOut",
+        "type": "object"
+      },
       "KitchenOut": {
         "description": "A kitchen as she and hub staff see it: `address` and `location` are private.",
         "properties": {
@@ -20066,6 +20191,87 @@
           "dishes"
         ],
         "title": "TiffinOut",
+        "type": "object"
+      },
+      "TiffinRatingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff-only",
+            "title": "Comment"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "score": {
+            "examples": [
+              4
+            ],
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Score",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "score"
+        ],
+        "title": "TiffinRatingIn",
+        "type": "object"
+      },
+      "TiffinRatingOut": {
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "partner_id",
+          "score",
+          "comment",
+          "created_at"
+        ],
+        "title": "TiffinRatingOut",
         "type": "object"
       },
       "TimelineEvent": {
@@ -44070,6 +44276,75 @@
         ]
       }
     },
+    "/v1/partners/{partner_id}/card": {
+      "get": {
+        "operationId": "kitchen_card_v1_partners__partner_id__card_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partner_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Partner Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenCardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.partner_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Know your cook: a kitchen's public card (any signed-in user)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/partners/{partner_id}/pause": {
       "post": {
         "operationId": "pause_partner_v1_partners__partner_id__pause_post",
@@ -46147,6 +46422,232 @@
         "summary": "Mark a draft as sent now (gives its number; nothing is sent automatically)",
         "tags": [
           "hub_ops"
+        ]
+      }
+    },
+    "/v1/ratings": {
+      "get": {
+        "operationId": "my_rating_v1_ratings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinRatingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.rating_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The rating you gave an order",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      },
+      "post": {
+        "operationId": "rate_tiffin_v1_ratings_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TiffinRatingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinRatingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.rating_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.rating_window_closed, partners.rating_exists"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Rate a delivered tiffin, once, until 48 hours after delivery (Idempotency-Key)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },

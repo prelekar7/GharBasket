@@ -828,6 +828,14 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
+def test_lunch_tiffins_are_prompted_for_a_rating_at_1430(app: App, day: Day, loop: Runner) -> None:
+    """Tuesday T 14:30: `prompt_tiffin_ratings` asks households to rate the day's delivered lunch
+    tiffins (the day books no tiffin, so nothing is delivered and nobody is asked)."""
+    when = ist(day.t, 14, 30)
+    summary = step(loop, when, app.job("prompt_tiffin_ratings", when))
+    assert summary == {"delivery_date": day.t.isoformat(), "prompted": 0}, summary
+
+
 def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_do(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:

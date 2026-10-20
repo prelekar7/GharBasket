@@ -390,4 +390,5 @@ async def test_the_facade_and_the_export(db_session: AsyncSession) -> None:
         "kyc_documents": [],
         "training_attempts": [],
         "partners": [],
+        "ratings": [],
     }

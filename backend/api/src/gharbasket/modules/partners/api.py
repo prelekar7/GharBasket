@@ -13,13 +13,14 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import applications, kyc, pickups, service, training
+from gharbasket.modules.partners import applications, kyc, pickups, ratings, service, training
 from gharbasket.modules.partners.events import (
     APPLICATION_DECIDED,
     APPLICATION_SUBMITTED,
     ASSIGNMENT_COMPLETED,
     ASSIGNMENT_CREATED,
     ASSIGNMENT_RELEASED,
+    RATING_REQUESTED,
     REINSTATED,
     SUSPENDED,
     TIFFINS_UNASSIGNED,
@@ -34,6 +35,7 @@ __all__ = [
     "ASSIGNMENT_COMPLETED",
     "ASSIGNMENT_CREATED",
     "ASSIGNMENT_RELEASED",
+    "RATING_REQUESTED",
     "REINSTATED",
     "SUSPENDED",
     "TIFFINS_UNASSIGNED",
@@ -41,6 +43,7 @@ __all__ = [
     "PartnerRef",
     "PickupRef",
     "ProfileCard",
+    "anonymise_for_user",
     "application_reason",
     "export_for_user",
     "get_partner",
@@ -129,11 +132,20 @@ async def application_reason(session: AsyncSession, application_id: uuid.UUID) -
     return None if application is None else application.reason
 
 
+async def anonymise_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5): the ratings she gave lose her user id and comment, and keep the
+    score, so a kitchen's rating is unchanged. Applications, KYC and partner records are not
+    touched here."""
+    return {"ratings": await ratings.erase_for_user(session, user_id)}
+
+
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
     """M8's section of the user's data export (M1 §3.3), read-only: her applications, her KYC
     documents as masked references with their check and review states (no files, hashes or
-    encrypted numbers), her training attempts and her partner records, without staff-only fields
-    (the suspension note, who decided or reviewed). Ratings join it when they ship (S6)."""
+    encrypted numbers), her training attempts, her partner records, without staff-only fields
+    (the suspension note, who decided or reviewed), and the ratings she gave."""
     return {
         "applications": [
             application.as_dict(exclude={"created_by", "decided_by", "data_source"})
@@ -150,5 +162,9 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
         "partners": [
             partner.as_dict(exclude={"suspend_note", "photo_key", "data_source"})
             for partner in await service.for_user(session, user_id)
+        ],
+        "ratings": [
+            rating.as_dict(exclude={"user_id"})
+            for rating in await ratings.given_by(session, user_id)
         ],
     }

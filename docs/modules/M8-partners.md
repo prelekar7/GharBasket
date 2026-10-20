@@ -583,6 +583,13 @@ GET  /v1/ratings?order_id=      200 Rating | 404 "partners.rating_not_found"   o
 - **Prompt.** A rating prompt goes out at T 14:30 (`prompt_tiffin_ratings`), which publishes `partners.rating_requested { order_id, household_id, partner_id }` for M11.
 - **Captains are not rated in v1.** A captain's public face is M9's card `{ display_name, photo_url }`, which M9 builds from `partners.api.profile_card`.
 
+**As built (ratings and the card, S6 build order (d)).**
+- **The card** (`GET /v1/partners/{id}/card`, any signed-in user, `Cache-Control: no-store`) is the kitchen's `area`, FSSAI number and validity, hygiene grade, skills, rating (from 5 ratings), `since` (the IST month of verification) and `portions_served` (the delivered portions of her assignments, all time). A partner who is not a kitchen, or a kitchen that is suspended or has left, is 404 `partners.partner_not_found`; a paused kitchen still has her card.
+- **Rating.** `POST /v1/ratings` is for the owner of the order's household (`ratings:write`, the customer role). The order must be a tiffin that an assignment still holds (the kitchen that cooked it), else 404 `partners.rating_not_found`, as for an order that is not hers. Before delivery or after 48 hours from the `delivered` timeline row (the clock is M8's `kitchens.now`) it is 409 `partners.rating_window_closed`. `GET /v1/ratings?order_id=` answers her own rating or 404.
+- **The kitchen's rating** is recomputed in the same transaction under the kitchen's row lock: `rating_avg` is the mean of her latest 50 ratings (two decimals) and `rating_count` is all of them; the card and `Partner.rating` show it from 5 ratings on, and the assignment round's floor reads it (kitchens with fewer than 5 count as 4.5).
+- **`prompt_tiffin_ratings`** takes the day from `scheduled_for` (IST) and publishes `partners.rating_requested` for that day's `delivered` lunch orders that are not rated and not prompted yet; each order is stamped (`assignment_orders.prompted_at`), so a rerun adds nothing.
+- **Facade.** `orders.api.get_order_ref(order_id)` gives M8 `{ household_id, owner_user_id, kind, status, delivered_at }`; `export_for_user` gains `ratings` (without `user_id`). **Erasure.** M1's purge calls `partners.api.anonymise_for_user` (listed after hub_ops in M1's erasers): her ratings lose `user_id` and `comment` and keep the score, so a kitchen's rating is unchanged; the count is `{ "ratings": n }`. Her applications, KYC and partner records are not touched by this step.
+
 ### 3.6 Earnings (frozen for S6)
 Money stays in M5's ledger. M8 only decides **who earns what for which event**, from its rate card, and asks M5 to post it.
 

@@ -4,8 +4,8 @@ The partner core (spec §3.3, build order (a)): one `partners` row per verified 
 Applications, KYC documents and training (§3.1, §3.2): `applications`, `kyc_documents`,
 `training_modules` and `training_attempts`. Kitchens and their capacity (§3.4): `kitchens` and
 `kitchen_capacity`. Tiffin assignments (§3.4): `assignment_runs`, `assignments`, their
-`assignment_orders` and `assignment_events`. The rate card (§3.6): `rate_cards`. Ratings follow
-in S6 (spec §4).
+`assignment_orders` and `assignment_events`. Ratings (§3.5): `ratings`. The rate card (§3.6):
+`rate_cards`.
 """
 
 import uuid
@@ -465,6 +465,8 @@ class AssignmentOrder(Base):
     short_code: Mapped[str] = mapped_column(String(8))
     status: Mapped[str] = mapped_column(String(16), server_default="assigned")
     km: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    # When `prompt_tiffin_ratings` asked the household to rate it (once; §3.5, §6).
+    prompted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AssignmentEvent(Base):
@@ -505,3 +507,25 @@ class RateCard(Base):
     amount_paise: Mapped[int] = mapped_column(BigInteger)
     valid_from: Mapped[date] = mapped_column(Date)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+
+
+class Rating(Base):
+    """A household's rating of a delivered tiffin (§3.5): one per order. The comment is
+    staff-only. The kitchen's own rating is recomputed from these in the same transaction."""
+
+    __tablename__ = "ratings"
+    __table_args__ = (
+        CheckConstraint("score BETWEEN 1 AND 5", name="score"),
+        Index("ix_ratings_partner_id_created_at", "partner_id", "created_at"),
+        {"schema": SCHEMA},
+    )
+
+    # An order is rated once, so the order is the key.
+    order_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    partner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.partners.id"))
+    household_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    # Erased with the comment when the rater's account is purged (M1 §3.5); the score stays.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    score: Mapped[int] = mapped_column(SmallInteger)
+    comment: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

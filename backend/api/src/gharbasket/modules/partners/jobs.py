@@ -8,6 +8,9 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
 - `refund_unassigned_tiffins` (T 09:30 IST for lunch, ready_by minus 2 hours for a dinner slot):
   locked tiffins of T that no assignment holds are refunded in full through M4.
 
+- `prompt_tiffin_ratings` (T 14:30 IST): `partners.rating_requested` for the day's delivered lunch
+  tiffins that nobody asked about yet and that are not rated.
+
 Consumers (§5): M4's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` of tiffins
 move the assignment's orders along and complete it; `identity.deletion_requested` makes her
 partner records `left`.
@@ -22,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.partners import assignments, cooking, fulfilment, service
+from gharbasket.modules.partners import assignments, cooking, fulfilment, ratings, service
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -72,6 +75,15 @@ async def refund_unassigned_tiffins(ctx: JobContext) -> dict[str, Any]:
         done, failed = await cooking.refund_unassigned(ctx.session, hub_id, day, ctx.scheduled_for)
         refunded, refused = refunded + done, refused + failed
     return {"delivery_date": day.isoformat(), "refunded": refunded, "refused": refused}
+
+
+@job("prompt_tiffin_ratings", "Ask households to rate today's delivered lunch tiffins (14:30 IST)")
+async def prompt_tiffin_ratings(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(assignments.IST).date()
+    return {
+        "delivery_date": day.isoformat(),
+        "prompted": await ratings.prompt(ctx.session, day, "lunch"),
+    }
 
 
 async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:

@@ -23,6 +23,7 @@ from gharbasket.modules.partners.kitchen_router import router as kitchen_router
 from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
 from gharbasket.modules.partners.rate_router import router as rate_router
+from gharbasket.modules.partners.rating_router import router as rating_router
 from gharbasket.modules.partners.schemas import (
     PartnerKind,
     PartnerOut,
@@ -51,6 +52,7 @@ router.include_router(kitchen_router)
 router.include_router(assignment_router)
 router.include_router(cooking_router)
 router.include_router(rate_router)
+router.include_router(rating_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]
