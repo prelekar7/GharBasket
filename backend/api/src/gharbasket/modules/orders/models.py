@@ -289,3 +289,49 @@ class OrderIssueItem(Base):
     product_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # a line of the order
     qty: Mapped[int] = mapped_column(Integer)  # steps
     unit_price_paise: Mapped[int] = mapped_column(BigInteger)  # the line's paid price
+
+
+CARRY_STATUSES = ("pending", "attached", "packed", "delivered", "refunded")
+CARRY_REFUNDERS = ("expiry", "hub")
+
+
+class CarryOver(Base):
+    """A non-perishable line of a box missed twice, kept for the household's next box (§3.8).
+
+    Not an order line: one row per (missed order, product), so it never collides with a paid line
+    of the same product and never counts towards totals, debits, shortages or procurement."""
+
+    __tablename__ = "carry_overs"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", CARRY_STATUSES), name="status"),
+        CheckConstraint(
+            "refunded_by IS NULL OR " + _one_of("refunded_by", CARRY_REFUNDERS), name="refunded_by"
+        ),
+        CheckConstraint("steps > 0 AND step_qty > 0 AND paid_paise >= 0", name="amounts"),
+        UniqueConstraint("from_order_id", "product_id"),
+        Index("ix_carry_overs_household_id_status", "household_id", "status"),
+        Index("ix_carry_overs_to_order_id", "to_order_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    from_order_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.orders.id"))
+    household_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M2
+    steps: Mapped[int] = mapped_column(Integer)
+    step_qty: Mapped[int] = mapped_column(Integer)
+    step_unit: Mapped[str] = mapped_column(String(8))
+    paid_paise: Mapped[int] = mapped_column(BigInteger)  # what those steps cost
+    missed_on: Mapped[date] = mapped_column(Date)  # the missed order's delivery date
+    expires_on: Mapped[date] = mapped_column(Date)  # missed_on + 14 days (ADR-0027 §6)
+    status: Mapped[str] = mapped_column(String(10), server_default="pending")
+    to_order_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(f"{SCHEMA}.orders.id"))
+    # The order it rode in and came back from (that order was missed twice too).
+    returned_in_order_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.orders.id")
+    )
+    refunded_by: Mapped[str | None] = mapped_column(String(6))
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -730,6 +730,21 @@ def test_after_the_grace_the_plan_is_refreshed_and_the_routes_are_solved(
     assert plan["summary"]["orders"] == len(paid), plan
 
 
+def test_the_night_refunds_no_carried_items_when_none_waited(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 02:40: `expire_carry_overs` (M4 §3.8) refunds carried items still waiting 14
+    days after a second miss; the day has no box missed twice, so nothing is due."""
+    when = ist(day.t, 2, 40)
+    summary = step(loop, when, app.job("expire_carry_overs", when))
+    assert summary == {
+        "date": day.t.isoformat(),
+        "refunded": 0,
+        "refunded_paise": 0,
+        "wallet_limit": 0,
+    }, summary
+
+
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
     jobs."""

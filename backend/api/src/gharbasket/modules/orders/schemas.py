@@ -160,8 +160,37 @@ class TiffinOut(BaseModel):
     dishes: list["DishOut"]
 
 
+class CarriedItemOut(BaseModel):
+    """A kept item riding on this order at no charge (M4 §3.8): "Kept from your box of 14 Oct"."""
+
+    product_id: uuid.UUID
+    name: str = Field(description="In the Accept-Language language")
+    steps: int
+    step_qty: int
+    step_unit: Unit
+    carried_from_order_id: uuid.UUID
+
+
+class CarryOverOut(BaseModel):
+    """What became of the non-perishables of a box missed twice (M4 §3.8)."""
+
+    status: Literal["pending", "attached", "packed", "delivered", "refunded"] = Field(
+        description="Of its oldest unsettled item: pending (waiting for the next box), attached, "
+        "packed, delivered or refunded"
+    )
+    expires_on: date = Field(description="Still pending then: refunded without the fee")
+    to_order_id: uuid.UUID | None
+
+
 class OrderOut(OrderSummaryOut):
     lines: list[OrderLineOut]
+    carried: list[CarriedItemOut] = Field(
+        default_factory=list,
+        description="Kept items riding on this order, apart from `lines` and the total (§3.8)",
+    )
+    carry_over: CarryOverOut | None = Field(
+        default=None, description="A box missed twice: its carried items; null if none (§3.8)"
+    )
     timeline: list[TimelineEntry]
     tiffin: TiffinOut | None = Field(
         default=None, description="Tiffin orders (§3.5): the booked menu; null otherwise"

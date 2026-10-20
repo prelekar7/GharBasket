@@ -22,3 +22,11 @@ TIFFIN_BOOKED = "orders.tiffin_booked"
 # Issues (§3.2) carry their own payload, without notes, photo keys or names:
 ISSUE_REPORTED = "orders.issue_reported"  # issue_id, order_id, household_id, hub_id, kind, ...
 ISSUE_RESOLVED = "orders.issue_resolved"  # issue_id, order_id, household_id, status, credit, by
+# Carry-over (§3.8): the household's kept items ride on this box or add-on order. Own payload:
+# order_id (the box they ride on), household_id, hub_id, lines [{carry_id, carried_from_order_id,
+# product_id, steps}]; once per box. M11 may tell the household.
+CARRY_OVER_ATTACHED = "orders.carry_over_attached"
+# Own payload: order_id (the missed order), household_id, hub_id, lines [{carry_id, product_id,
+# steps, paid_paise}], reason "carry_over_expired"; once per missed order and run. M6 releases the
+# kept items, M11 may tell the household.
+CARRY_OVER_EXPIRED = "orders.carry_over_expired"

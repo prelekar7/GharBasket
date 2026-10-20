@@ -4547,6 +4547,56 @@ export interface components {
             /** Items */
             items: components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"][];
         };
+        /**
+         * CarriedItemOut
+         * @description A kept item riding on this order at no charge (M4 §3.8): "Kept from your box of 14 Oct".
+         */
+        CarriedItemOut: {
+            /**
+             * Carried From Order Id
+             * Format: uuid
+             */
+            carried_from_order_id: string;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Step Qty */
+            step_qty: number;
+            /**
+             * Step Unit
+             * @enum {string}
+             */
+            step_unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+            /** Steps */
+            steps: number;
+        };
+        /**
+         * CarryOverOut
+         * @description What became of the non-perishables of a box missed twice (M4 §3.8).
+         */
+        CarryOverOut: {
+            /**
+             * Expires On
+             * Format: date
+             * @description Still pending then: refunded without the fee
+             */
+            expires_on: string;
+            /**
+             * Status
+             * @description Of its oldest unsettled item: pending (waiting for the next box), attached, packed, delivered or refunded
+             * @enum {string}
+             */
+            status: "pending" | "attached" | "packed" | "delivered" | "refunded";
+            /** To Order Id */
+            to_order_id: string | null;
+        };
         /** Categories */
         Categories: {
             /** Items */
@@ -7917,6 +7967,13 @@ export interface components {
         };
         /** OrderOut */
         OrderOut: {
+            /**
+             * Carried
+             * @description Kept items riding on this order, apart from `lines` and the total (§3.8)
+             */
+            carried?: components["schemas"]["CarriedItemOut"][];
+            /** @description A box missed twice: its carried items; null if none (§3.8) */
+            carry_over?: components["schemas"]["CarryOverOut"] | null;
             /**
              * Created At
              * Format: date-time

@@ -9,6 +9,7 @@
 """
 
 import uuid
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from typing import Any, Literal
@@ -17,9 +18,12 @@ from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import issues, service
+from gharbasket.modules.orders import carry, issues, service
+from gharbasket.modules.orders.carry import CarriedLine
 from gharbasket.modules.orders.events import (
     CANCELLED,
+    CARRY_OVER_ATTACHED,
+    CARRY_OVER_EXPIRED,
     DELIVERED,
     DELIVERY_FAILED,
     DISPATCHED,
@@ -31,6 +35,7 @@ from gharbasket.modules.orders.events import (
 from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     STATUSES,
+    CarryOver,
     Order,
     OrderEvent,
     OrderIssue,
@@ -51,6 +56,8 @@ from gharbasket.platform import files
 
 __all__ = [
     "CANCELLED",
+    "CARRY_OVER_ATTACHED",
+    "CARRY_OVER_EXPIRED",
     "DELIVERED",
     "DELIVERY_FAILED",
     "DISPATCHED",
@@ -61,6 +68,8 @@ __all__ = [
     "SOLD",
     "TIFFIN_BOOKED",
     "ApprovedCycle",
+    "CarriedLine",
+    "CarryOver",
     "CycleLine",
     "Move",
     "Order",
@@ -73,6 +82,8 @@ __all__ = [
     "anonymise_for_user",
     "box_fee",
     "cancel_from_cycle",
+    "carried_lines",
+    "carry_over",
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
@@ -86,6 +97,7 @@ __all__ = [
     "mark_shortage",
     "order_ids_of_household",
     "orders_for_delivery",
+    "refund_carry",
     "refundable_paise",
     "resolve_issue",
     "set_kitchen",
@@ -146,12 +158,39 @@ async def transition(
 
 
 async def summaries(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[OrderSummary]:
-    """Orders with their lines, by id (M7's redeliveries, which ride on a later day)."""
+    """Orders with their lines and carried items, by id (M7's redeliveries, which ride on a
+    later day)."""
     out = []
+    riding = await carry.carried_for(session, order_ids)
     for order_id in order_ids:
         order = await service.get(session, order_id)
-        out.append(OrderSummary(order, await service.lines_of(session, order_id)))
+        out.append(OrderSummary(order, await service.lines_of(session, order_id), riding[order_id]))
     return out
+
+
+async def carry_over(
+    session: AsyncSession, order_id: uuid.UUID, lines: Sequence[Mapping[str, Any]]
+) -> list[CarryOver]:
+    """M7's second miss (M4 §3.8, ADR-0027 §2), in the transaction that moved the order to
+    `refunded`: keep each line (`product_id`, `steps`, `paid_paise`) for the household's next
+    box or add-on order, attached at once when one is already locked. Once per (order, product).
+    The order must be a refunded box or add-on order (else `ValueError`)."""
+    return await carry.carry_over(session, order_id, lines)
+
+
+async def carried_lines(session: AsyncSession, order_id: uuid.UUID) -> list[CarriedLine]:
+    """The items in that order's returned bag (M6's scan, M6 §3.5): carried from it, or carried
+    in it and back after its own second miss; neither packed nor refunded yet."""
+    return await carry.carried_lines(session, order_id)
+
+
+async def refund_carry(
+    session: AsyncSession, carry_id: uuid.UUID, actor_user_id: uuid.UUID | None = None
+) -> CarryOver:
+    """A lost kept item (M6's hub manager, M4 §3.8): refund a pending or attached row at its paid
+    price, no fee, keyed per row. Refunded already: as is. Packed or delivered: 409
+    `orders.carry_not_refundable` with `current_status`. `billing.wallet_limit` is raised as is."""
+    return await carry.refund_carry(session, carry_id, actor_user_id)
 
 
 async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
@@ -324,10 +363,10 @@ async def resolve_issue(
 
 async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
     """M4's section of the user's data export (M1 §3.3), read-only: orders with lines and
-    timelines, and issues (their photos counted, never included)."""
+    timelines, issues (their photos counted, never included) and carried items."""
     household = await identity_api.household_for_user(session, user_id)
     if household is None:
-        return {"orders": [], "issues": []}
+        return {"orders": [], "issues": [], "carry_overs": []}
     orders = list(
         (
             await session.execute(
@@ -355,6 +394,7 @@ async def export_for_user(session: AsyncSession, user_id: uuid.UUID) -> dict[str
     return {
         "orders": [{**o.as_dict(exclude={"data_source"}), **found[o.id]} for o in orders],
         "issues": await _issues_for_export(session, ids),
+        "carry_overs": await carry.export(session, household.id),
     }
 
 
@@ -389,9 +429,12 @@ async def _issues_for_export(
 
 
 async def has_open_orders(session: AsyncSession, household_id: uuid.UUID) -> bool:
-    """Whether an order of the household is not final yet: M1's purge waits (M1 §3.5)."""
+    """Whether an order of the household is not final yet, or a carried item still waits or
+    rides (M4 §3.8): M1's purge waits (M1 §3.5)."""
     open_order = exists().where(Order.household_id == household_id, Order.status.not_in(FINAL))
-    return bool(await session.scalar(select(open_order)))
+    return bool(await session.scalar(select(open_order))) or await carry.has_open(
+        session, household_id
+    )
 
 
 async def has_open_issues(session: AsyncSession, household_id: uuid.UUID) -> bool:

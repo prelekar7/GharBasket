@@ -18,7 +18,7 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.logistics import attempts, deliveries
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.orders.models import Order
+from gharbasket.modules.orders.models import CarryOver, Order
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_SOCIETY_ID
@@ -278,7 +278,7 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
     kept = {str(ln.product_id) for ln in summary.lines if ln.product_id not in fresh}
     assert {line["product_id"] for line in tap["non_perishable"]} == kept
     # What was not refunded stays visible: the order has the rest of its paid total unrefunded and
-    # the carry-over record is published for the next packing (M4 carry_over / M6 are follow-ups).
+    # the carry-over record is published as M7's own record (M4 keeps the rows, M6 the goods).
     assert await orders_api.refundable_paise(db_session, ramesh) == paid[False] + 2_000
     [pending] = [
         e
@@ -287,6 +287,25 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
     ]
     assert {line["product_id"] for line in pending["lines"]} == kept
     assert sum(line["paid_paise"] for line in pending["lines"]) == paid[False]
+    # M4 keeps them in the same transaction (M4 §3.8): a pending row per line, until the
+    # household's next box (none here) or 14 days after the miss.
+    carried = list(
+        (
+            await db_session.execute(
+                select(CarryOver)
+                .where(CarryOver.from_order_id == ramesh)
+                .execution_options(populate_existing=True)
+            )
+        ).scalars()
+    )
+    assert {str(row.product_id) for row in carried} == kept
+    assert {row.status for row in carried} == {"pending"}
+    assert sum(row.paid_paise for row in carried) == paid[False]
+    assert {row.missed_on for row in carried} == {summary.order.delivery_date}
+    assert {(row.expires_on - row.missed_on).days for row in carried} == {14}
+    assert {c.product_id for c in await orders_api.carried_lines(db_session, ramesh)} == {
+        row.product_id for row in carried
+    }
 
 
 async def test_hold_expiry_sends_unconfirmed_bags_to_triage(
