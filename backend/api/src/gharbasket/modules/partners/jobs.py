@@ -5,13 +5,15 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
 - `assignment_acceptance_timeout` (every 15 minutes, T-1 21:45 to T 00:30 IST): expires offers past
   `respond_by`, then runs the next round for released and late-locked orders; no new round
   starts after T 00:00.
+- `refund_unassigned_tiffins` (T 09:30 IST for lunch, ready_by minus 2 hours for a dinner slot):
+  locked tiffins of T that no assignment holds are refunded in full through M4.
 """
 
 from datetime import date, time, timedelta
 from typing import Any
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.partners import assignments
+from gharbasket.modules.partners import assignments, cooking
 from gharbasket.platform.jobs import JobContext, job
 
 NOON = time(12, 0)  # a run in the evening works for tomorrow, one after midnight for today
@@ -46,3 +48,16 @@ async def assignment_acceptance_timeout(ctx: JobContext) -> dict[str, Any]:
     if local.date() < day:  # before T 00:00
         summary |= await _rounds(ctx, day)
     return summary
+
+
+@job(
+    "refund_unassigned_tiffins",
+    "Refund locked tiffins no kitchen took once manual assignment closed (T 09:30 for lunch)",
+)
+async def refund_unassigned_tiffins(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(assignments.IST).date()
+    refunded = refused = 0
+    for hub_id in await hub_ops_api.active_hub_ids(ctx.session):
+        done, failed = await cooking.refund_unassigned(ctx.session, hub_id, day, ctx.scheduled_for)
+        refunded, refused = refunded + done, refused + failed
+    return {"delivery_date": day.isoformat(), "refunded": refunded, "refused": refused}

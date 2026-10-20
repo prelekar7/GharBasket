@@ -572,6 +572,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assignments/{assignment_id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark orders ready with the hygiene checklist: orders show Ready at the kitchen */
+        post: operations["ready_v1_assignments__assignment_id__ready_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start cooking an accepted assignment on its day: orders show Being cooked */
+        post: operations["start_v1_assignments__assignment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assistant/confirm/{proposal_id}": {
         parameters: {
             query?: never;
@@ -1459,6 +1493,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/tiffin-assignments/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign tiffins to a kitchen by hand, accepted at once (hub manager, admin) */
+        post: operations["manual_v1_hubs__hub_id__tiffin_assignments_manual_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/tiffin-assignments/run": {
         parameters: {
             query?: never;
@@ -1470,6 +1521,23 @@ export interface paths {
         put?: never;
         /** Run one assignment round now for a date (hub manager, admin; Idempotency-Key) */
         post: operations["run_round_v1_hubs__hub_id__tiffin_assignments_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/tiffin-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The day's tiffins per meal, the assignments and the runs (hub staff, admin) */
+        get: operations["tiffin_board_v1_hubs__hub_id__tiffin_board_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3774,6 +3842,77 @@ export interface components {
         AssignmentsOut: {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
+        };
+        /** BoardMealOut */
+        BoardMealOut: {
+            /** Accepted */
+            accepted: number;
+            /**
+             * Assigned
+             * @description Orders held by any assignment
+             */
+            assigned: number;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Orders */
+            orders: number;
+            /** Picked Up */
+            picked_up: number;
+            /** Portions */
+            portions: number;
+            /** Preparing */
+            preparing: number;
+            /** Ready */
+            ready: number;
+            /** Unassigned */
+            unassigned: components["schemas"]["BoardUnassignedOut"][];
+        };
+        /** BoardRunOut */
+        BoardRunOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Gini */
+            gini: number | null;
+            /** Km Per Portion */
+            km_per_portion: number | null;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Model */
+            model: string;
+            /** Round */
+            round: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /** Status */
+            status: string;
+        };
+        /** BoardUnassignedOut */
+        BoardUnassignedOut: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Portions */
+            portions: number;
+            /**
+             * Reason
+             * @description From the latest run; pending before any run
+             */
+            reason: string;
+            society: components["schemas"]["SocietyRef"];
         };
         /** BudgetLockIn */
         BudgetLockIn: {
@@ -6450,6 +6589,97 @@ export interface components {
             unit_cost_paise: number | null;
             vendor: components["schemas"]["Ref"] | null;
         };
+        /** ManualIn */
+        ManualIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Note
+             * @description Audit log
+             */
+            note?: string | null;
+            /** Order Ids */
+            order_ids: string[];
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
+        /** ManualOut */
+        ManualOut: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /** Checklist */
+            checklist: {
+                [key: string]: boolean;
+            } | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dishes */
+            dishes: components["schemas"]["gharbasket__modules__partners__schemas__DishOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Orders */
+            orders: components["schemas"]["AssignmentOrderOut"][];
+            /** Over Capacity */
+            over_capacity: boolean;
+            partner: components["schemas"]["AssignedPartnerOut"];
+            /**
+             * Pickup Qr
+             * @description GB1A: + the id without hyphens, once any is ready
+             */
+            pickup_qr: string | null;
+            /** Portions */
+            portions: number;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Ready By
+             * @description Slot start minus 60 min, HH:MM IST
+             * @example 11:30
+             */
+            ready_by: string;
+            /**
+             * Respond By
+             * Format: date-time
+             */
+            respond_by: string;
+            /** Round */
+            round: number;
+            slot: components["schemas"]["gharbasket__modules__partners__schemas__SlotOut"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback" | "manual";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "offered" | "accepted" | "preparing" | "ready" | "completed" | "declined" | "expired" | "cancelled";
+            /** Version */
+            version: number;
+        };
         /** MeOut */
         MeOut: {
             /**
@@ -8762,6 +8992,23 @@ export interface components {
              */
             status: "ok";
         };
+        /** ReadyIn */
+        ReadyIn: {
+            /**
+             * Checklist
+             * @description handwash, hair_cover, clean_surface, sealed, fresh_today: all true (else 422 partners.checklist_incomplete)
+             */
+            checklist: {
+                [key: string]: boolean;
+            };
+            /** Client At */
+            client_at?: string | null;
+            /**
+             * Order Ids
+             * @description Default: every assigned order not yet ready
+             */
+            order_ids?: string[] | null;
+        };
         /** ReceiptIn */
         ReceiptIn: {
             /** Lines */
@@ -10277,19 +10524,6 @@ export interface components {
             /** Name */
             name: string;
         };
-        /** StartIn */
-        StartIn: {
-            /**
-             * Bag Qr
-             * @description When scanned
-             */
-            bag_qr?: string | null;
-            /**
-             * Client At
-             * @description When the packer tapped (audit only; the server's time decides)
-             */
-            client_at?: string | null;
-        };
         /** StatementEntry */
         StatementEntry: {
             /**
@@ -10694,6 +10928,20 @@ export interface components {
             hi: string;
             /** Mr */
             mr: string;
+        };
+        /** TiffinBoardOut */
+        TiffinBoardOut: {
+            /** Assignments */
+            assignments: components["schemas"]["AssignmentOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Meals */
+            meals: components["schemas"]["BoardMealOut"][];
+            /** Runs */
+            runs: components["schemas"]["BoardRunOut"][];
         };
         /** TiffinMenuOut */
         TiffinMenuOut: {
@@ -11706,6 +11954,19 @@ export interface components {
              */
             user_id: string;
         };
+        /** StartIn */
+        gharbasket__modules__hub_ops__schemas__StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+        };
         /** UserRef */
         gharbasket__modules__hub_ops__schemas__UserRef: {
             /** Name */
@@ -11861,6 +12122,14 @@ export interface components {
              * @example 12:30
              */
             start: string;
+        };
+        /** StartIn */
+        gharbasket__modules__partners__schemas__StartIn: {
+            /**
+             * Client At
+             * @description When she tapped (offline)
+             */
+            client_at?: string | null;
         };
         /**
          * CaptainOut
@@ -14660,6 +14929,174 @@ export interface operations {
                 };
             };
             /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ready_v1_assignments__assignment_id__ready_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_accepted, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_v1_assignments__assignment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__partners__schemas__StartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_accepted, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -18887,6 +19324,90 @@ export interface operations {
             };
         };
     };
+    manual_v1_hubs__hub_id__tiffin_assignments_manual_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.order_not_assignable, partners.assignment_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     run_round_v1_hubs__hub_id__tiffin_assignments_run_post: {
         parameters: {
             query?: never;
@@ -18942,6 +19463,60 @@ export interface operations {
                 };
             };
             /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tiffin_board_v1_hubs__hub_id__tiffin_board_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinBoardOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -22094,7 +22669,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["StartIn"] | null;
+                "application/json": components["schemas"]["gharbasket__modules__hub_ops__schemas__StartIn"] | null;
             };
         };
         responses: {

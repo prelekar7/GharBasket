@@ -543,6 +543,13 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 - **Accept** does not call `orders.api.set_kitchen` yet: M4 has no such move (ADR-0026 §3 follow-up), so the order does not show its cook until it does.
 - **The 15-minute job** takes T as tomorrow from noon IST and today before; it always expires overdue offers (`respond_by` ≤ `scheduled_for`) and runs a round only before T 00:00.
 
+**As built (cooking, manual assignment, the board and refunds, part 4).**
+- **Ready** also needs T 00:00 when start was skipped (409 `partners.assignment_not_accepted`); an empty or foreign `order_ids` is 422 `partners.order_not_in_assignment`. The checklist is stored as all five true. `late` is set when the last order is ready after `ready_by`.
+- **Manual assignment** takes orders of one meal (orders of another meal, taken or not free are listed in 409 `partners.order_not_assignable`); after the meal's `ready_by` minus 2 hours it is 409 `partners.assignment_closed`. The kitchen must be active or paused at that hub (else 404 `partners.kitchen_not_found`). Its round is the day's latest run round (1 without one); it is audit-logged as `partners.manual_assignment`.
+- **The board** needs `partners:read` (hub manager, franchise owner, admin). Counts are orders: `assigned` is held by any assignment, `accepted` and `preparing` by the assignment's status, `ready` and `picked_up` by the order's row. An unassigned order's `reason` is the latest run's, else `pending`.
+- **Refunds.** `refund_unassigned_tiffins` calls `orders.api.transition(…, "refunded", actor="system", payload={"reason": "no_kitchen"})` per order in a savepoint; M4 has no `locked → refunded` move for tiffins yet (ADR-0027 follow-up), so today it is refused and counted as `refused` in the run's summary.
+- **Suspension** of a kitchen cancels her offered and accepted assignments from today and releases their orders (`reason: cancelled`); `set_kitchen(order, None)` waits for M4.
+
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
 KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": null,   null for now (§11)
