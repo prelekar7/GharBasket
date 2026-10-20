@@ -122,7 +122,7 @@ Production for the pilot is not set up yet. Before P6 we decide on paid plans (R
 4. Migrations are expand-then-contract (add first, remove a release later), so the old API keeps working while they apply.
 
 **One-time setup (owner: Prathamesh Relekar):**
-1. Add `APP_ENV`, `JWT_SIGNING_KEY`, `REFRESH_TOKEN_PEPPER` (each `openssl rand -base64 48`) and `JOBS_TOKEN` to Infisical `staging`.
+1. Add `APP_ENV`, `JWT_SIGNING_KEY`, `REFRESH_TOKEN_PEPPER`, `KYC_ENCRYPTION_KEY`, `KYC_HASH_PEPPER` (each `openssl rand -base64 48`) and `JOBS_TOKEN` to Infisical `staging`. `KYC_KEY_VERSION` (default 1) names the KYC key; raise it when the key is rotated.
 2. Sign up to Render with GitHub and give it access to this repository only. Then Render → New → **Blueprint** → this repo, which reads `render.yaml`. Enter the `sync: false` values from Infisical.
 3. Copy the API's deploy hook (Settings → Deploy Hook).
 4. Add the GitHub Actions secrets `DATABASE_URL_DIRECT`, `RENDER_DEPLOY_HOOK_URL`, `JOBS_TOKEN` and `STAGING_API_URL`.

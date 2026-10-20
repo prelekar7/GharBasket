@@ -11,6 +11,7 @@ on:
     - cron: "3 13 * * *" # 18:33 IST daily: collect_mandi (Agmarknet publishes during the day)
     - cron: "33 20 * * *" # 02:03 IST daily: export_snapshots (the lake and the feature snapshots)
     - cron: "40 15 * * *" # 21:10 IST daily: forecast (next week's uncommitted demand, after the cut-off)
+    - cron: "33 21 * * 6" # 03:03 IST Sunday: refit_pantry (the twin's cohort priors)
   workflow_dispatch:
     inputs:
       job:
@@ -19,7 +20,7 @@ on:
         type: string
         default: collect_mandi
       args:
-        description: Extra arguments (blank = the job's default; collect_mandi --push-index, export_snapshots --push-features, forecast --push)
+        description: Extra arguments (blank = the job's default; collect_mandi --push-index, export_snapshots --push-features, forecast --push, refit_pantry --push for its metrics only; promotion is `just promote`)
         required: false
         type: string
 
@@ -47,8 +48,8 @@ jobs:
       JOBS_TOKEN: ${{ secrets.JOBS_TOKEN }}
       DATABASE_URL_RO: ${{ secrets.DATABASE_URL_RO }}
       # A schedule has no inputs: 18:33 IST runs the collector, 02:03 IST the snapshots,
-      # 21:10 IST the forecast.
-      JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || 'collect_mandi') }}
+      # 21:10 IST the forecast, 03:03 IST Sunday the pantry priors' refit.
+      JOB: ${{ inputs.job || (github.event.schedule == '33 20 * * *' && 'export_snapshots' || github.event.schedule == '40 15 * * *' && 'forecast' || github.event.schedule == '33 21 * * 6' && 'refit_pantry' || 'collect_mandi') }}
       ARGS: ${{ inputs.args }} # blank: the job's default, set in the run step
     steps:
       - name: Check that the secrets exist
@@ -56,8 +57,8 @@ jobs:
         run: |
           missing=""
           required="DATA_GOV_IN_API_KEY S3_ENDPOINT_URL S3_ACCESS_KEY S3_SECRET_KEY API_URL JOBS_TOKEN"
-          # The snapshot export also reads the database with the read-only role.
-          if [ "$JOB" = export_snapshots ]; then required="$required DATABASE_URL_RO"; fi
+          # The snapshot export and the pantry refit also read the database with the read-only role.
+          if [ "$JOB" = export_snapshots ] || [ "$JOB" = refit_pantry ]; then required="$required DATABASE_URL_RO"; fi
           for name in $required; do
             [ -n "${!name}" ] || missing="$missing $name"
           done
@@ -84,7 +85,7 @@ jobs:
             case "$JOB" in
               collect_mandi) ARGS="--push-index" ;;
               export_snapshots) ARGS="--push-features" ;;
-              forecast) ARGS="--push" ;;
+              forecast | refit_pantry) ARGS="--push" ;;
             esac
           fi
           uv run --directory backend/training python -m "gharbasket_training.jobs.$JOB" $ARGS

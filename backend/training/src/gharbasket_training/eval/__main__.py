@@ -19,6 +19,16 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 DEFAULT_SEEDS = (7, 11, 13, 17, 19)  # the protocol's five
 
 
+def learned_from(seed: int, override: int | None) -> int:
+    """The seed whose households the reference arm's priors are learned on: never `seed`
+    itself; by default the next of the protocol's five (19 → 7), else seed + 1."""
+    if override is not None and override != seed:
+        return override
+    if seed in DEFAULT_SEEDS:
+        return DEFAULT_SEEDS[(DEFAULT_SEEDS.index(seed) + 1) % len(DEFAULT_SEEDS)]
+    return seed + 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GharBasket evaluation harness (eval protocol).")
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_SEEDS))
@@ -33,6 +43,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--push", action="store_true", help="store the rows through the API")
     parser.add_argument("--no-assignment", action="store_true", help="skip the λ sweep (RQ4)")
     parser.add_argument(
+        "--learned-from",
+        type=int,
+        help="the seed the pantry reference arm learns its priors on (default: the next of the "
+        "five; never the scored seed itself)",
+    )
+    parser.add_argument(
+        "--no-learned", action="store_true", help="skip the pantry learned-priors reference arm"
+    )
+    parser.add_argument(
         "--smoke",
         action="store_true",
         help="CI: seed 7, one week, 2 %% adoption, no CP-SAT planner arm; the λ sweep still runs "
@@ -41,6 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.smoke:
         args.seeds, args.weeks, args.adoption = [7], 1, 0.02
+        args.no_learned = True  # one week has no week to predict
         args.planners = [p for p in args.planners if not p.startswith("cpsat")]
 
     catalog = from_seed_files()
@@ -58,9 +78,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         for planner in args.planners
         for seed in args.seeds
     ]
+    sources = {} if args.no_learned else {s: learned_from(s, args.learned_from) for s in args.seeds}
+    priors = {
+        source: pantry_baseline.learned_priors(
+            source, catalog, weeks=args.weeks, start=args.start, adoption=args.adoption
+        )
+        for source in sorted(set(sources.values()))
+    }
     pantry_runs = [
         pantry_baseline.run_pantry(
-            seed, catalog, weeks=args.weeks, start=args.start, adoption=args.adoption
+            seed,
+            catalog,
+            weeks=args.weeks,
+            start=args.start,
+            adoption=args.adoption,
+            priors=priors.get(sources[seed]) if seed in sources else None,
+            learned_from=sources.get(seed),
         )
         for seed in args.seeds
     ]
@@ -83,6 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "shocks": not args.no_shocks,
             "smoke": args.smoke,
             "no_assignment": args.no_assignment,
+            "learned_from": sources,
         },
     )
     html_path, json_path = report.write(built, args.out)
@@ -134,6 +168,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"rule table {scope['rule_table_mae']['mean']:.3f}; "
         f"running mean {series('running_mean_mae')}; twin {series('twin_mae')}; "
         f"twin 80 % coverage {series('twin_coverage_80')}"
+        + (
+            f"; reference: twin from learned priors {series('twin_learned_mae')}"
+            if scope.get("twin_learned_mae")
+            else ""
+        )
     )
     target = built["pantry"]["target_mae_le_15pct_after_4_weeks"]
     value = "n/a" if target["value"] is None else f"{target['value']:.3f}"
