@@ -100,6 +100,18 @@ test:
 e2e-day *args:
     uv run --directory e2e/backend pytest {{args}}
 
+# Build the seeded template database for the browser suite (gharbasket_e2e_web_seed); it is rebuilt only when the migrations or seed files change
+e2e-web-prepare:
+    uv run --directory e2e/backend python live_server.py prepare
+
+# The browser suite (Playwright, e2e/web): both apps on the real backend, on ports 8020, 5174 and 3001, Valkey db 13; e.g. `just e2e-web --project=mobile`
+e2e-web *args: e2e-web-prepare
+    pnpm --filter @gharbasket/e2e exec playwright test -c web/playwright.config.js {{args}}
+
+# The browser suite in Playwright's UI mode
+e2e-web-ui: e2e-web-prepare
+    pnpm --filter @gharbasket/e2e exec playwright test -c web/playwright.config.js --ui
+
 # Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
 job name *args:
     uv run python -m gharbasket.tools.run_job {{name}} {{args}}
