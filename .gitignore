@@ -65,3 +65,6 @@ data/external/mandi/
 data/external/**/*.parquet
 data/external/**/raw/
 data/external/nutrition/ifct2017_compositions.csv
+
+# Logs of scripts/ci-local.sh
+.ci-local/
