@@ -80,6 +80,10 @@ psql db="gharbasket":
 infra-check:
     ./scripts/infra-check.sh
 
+# Run CI locally and post it on the PR as `local-ci/*` commit statuses, e.g. `just ci-local 334`
+ci-local target *args:
+    ./scripts/ci-local.sh {{target}} {{args}}
+
 # Run the API with auto-reload on http://localhost:8000 (readable logs; docs at /v1/docs)
 dev:
     APP_ENV=${APP_ENV:-dev} LOG_JSON=${LOG_JSON:-false} uv run uvicorn gharbasket.main:create_app --factory --reload --port 8000 --no-access-log
@@ -99,6 +103,18 @@ test:
 # ML service down; `E2E_ML=1 just e2e-day` with `just dev-ml` running, `E2E_KEEP_DB=1` to keep the DB
 e2e-day *args:
     uv run --directory e2e/backend pytest {{args}}
+
+# Build the seeded template database for the browser suite (gharbasket_e2e_web_seed); it is rebuilt only when the migrations or seed files change
+e2e-web-prepare:
+    uv run --directory e2e/backend python live_server.py prepare
+
+# The browser suite (Playwright, e2e/web): both apps on the real backend, on ports 8020, 5174 and 3001, Valkey db 13; e.g. `just e2e-web --project=mobile`
+e2e-web *args: e2e-web-prepare
+    pnpm --filter @gharbasket/e2e exec playwright test -c web/playwright.config.js {{args}}
+
+# The browser suite in Playwright's UI mode
+e2e-web-ui: e2e-web-prepare
+    pnpm --filter @gharbasket/e2e exec playwright test -c web/playwright.config.js --ui
 
 # Run a scheduled job on the local database, e.g. `just job outbox_sweep` (ADR-0021)
 job name *args:
@@ -160,3 +176,15 @@ promote model version *args:
 # Score Ghar Saathi on data/eval/assistant_utterances.jsonl (needs ANTHROPIC_API_KEY), e.g. `just eval-assistant --models claude-opus-5-5 claude-sonnet-5-5`
 eval-assistant *args:
     uv run --directory backend/ml python -m gharbasket_ml.eval_assistant {{args}}
+
+# Both frontends on the real local backend (API :8000, mobile :5173, console :3000); migrates and seeds first, Ctrl-C stops all
+dev-real:
+    ./scripts/dev-real.sh
+
+# Sign in as all 13 seed people against a running dev API and check /v1/me against the seed, e.g. `just real-check 8020`
+real-check *args:
+    ./scripts/real-check.sh {{args}}
+
+# Report the frontends' API calls that openapi.json lacks (docs/integration/contract-gaps.md); `node scripts/contract-gaps.mjs --check` gates
+contract-gaps:
+    node scripts/contract-gaps.mjs
