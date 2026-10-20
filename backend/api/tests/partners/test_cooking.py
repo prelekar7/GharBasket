@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders.models import OrderEvent
 from gharbasket.modules.partners import kitchens
@@ -28,7 +29,7 @@ from gharbasket.tools.seed import (
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from .conftest import LATA, MEENA, PRIYA, SANJAY, VIKRAM, as_user
-from .tiffins import EVENING, T, kitchen, tag, tiffin_order
+from .tiffins import EVENING, T, kitchen, tag, tiffin_order, user_id
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("tiffin_world")]
 
@@ -301,39 +302,31 @@ async def test_the_board_counts_each_meal_and_lists_the_runs(
 
 
 async def test_locked_tiffins_nobody_took_are_refunded_once_manual_assignment_closes(
-    clients: ClientFactory,
-    google: FakeGoogle,
-    db_session: AsyncSession,
-    clock: list[datetime],
-    monkeypatch: pytest.MonkeyPatch,
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, clock: list[datetime]
 ) -> None:
     api = clients()
     vikram, _ = await as_user(api, google, VIKRAM)
     await kitchen(db_session, LATA, "Lata tai", lunch=2)
-    await tiffin_order(db_session, PRIYA, 2)
+    taken = await tiffin_order(db_session, PRIYA, 2)
     orphan = await tiffin_order(db_session, MEENA, 2)
     await accepted_offer(api, google, vikram)
     job = "/v1/internal/jobs/refund_unassigned_tiffins"
 
     early = await api.post(job, json={"scheduled_for": "2027-01-15T03:30:00Z"})  # 09:00 IST
-    refused = await api.post(job, json={"scheduled_for": "2027-01-15T04:00:00Z"})  # 09:30 IST
-    calls: list[tuple[uuid.UUID, str, dict[str, Any]]] = []
+    refunded = await api.post(job, json={"scheduled_for": "2027-01-15T04:00:00Z"})  # 09:30 IST
+    again = await api.post(job, json={"scheduled_for": "2027-01-15T04:05:00Z"})
 
-    async def transition(session: AsyncSession, order_id: uuid.UUID, to: str, **kw: Any) -> None:
-        calls.append((order_id, to, kw))
-
-    monkeypatch.setattr(orders_api, "transition", transition)
-    refunded = await api.post(job, json={"scheduled_for": "2027-01-15T04:00:00Z"})
-
-    assert early.json()["summary"] == {"delivery_date": T.isoformat(), "refunded": 0, "refused": 0}
-    # M4 has no locked → refunded move for tiffins yet (ADR-0027 follow-up): it refuses.
-    assert refused.json()["summary"]["refused"] == 1
-    assert refunded.json()["summary"] == {
-        "delivery_date": T.isoformat(),
-        "refunded": 1,
-        "refused": 0,
-    }
-    assert calls == [(orphan, "refunded", {"actor": "system", "payload": {"reason": "no_kitchen"}})]
+    summary = {"delivery_date": T.isoformat(), "refunded": 0, "refused": 0}
+    assert early.json()["summary"] == summary
+    assert refunded.json()["summary"] == {**summary, "refunded": 1}
+    assert again.json()["summary"] == summary  # a refunded order is no longer locked
+    # M4's locked → refunded move (ADR-0027): only the tiffin no assignment holds.
+    states = {o: (await orders_api.get(db_session, o)).status for o in (taken, orphan)}
+    assert states == {taken: "locked", orphan: "refunded"}
+    meena = await user_id(db_session, MEENA)
+    assert await billing_api.balance(db_session, meena) == (
+        (await orders_api.get(db_session, orphan)).total_paise
+    )
 
 
 async def test_suspending_a_kitchen_cancels_her_open_assignments_and_releases_the_orders(
