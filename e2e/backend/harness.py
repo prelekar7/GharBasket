@@ -25,13 +25,15 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from fastapi import FastAPI
 from pydantic import SecretStr
+from redis.asyncio import Redis
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from gharbasket.main import create_app
 from gharbasket.modules.identity.firebase import CERTS_URL, FirebaseTokenVerifier
 from gharbasket.modules.notifications.fcm import FcmClient
 from gharbasket.platform import outbox
-from gharbasket.platform.db import is_local_database
+from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.settings import Settings
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -123,6 +125,66 @@ class Config:
             ml_service_url=self.ml_url,
             ml_service_token=SecretStr(self.ml_token) if self.ml_token else None,
         )
+
+
+# --- databases, jobs -----------------------------------------------------------------------------
+
+
+async def recreate_database(url: str, *, template: str | None = None, create: bool = True) -> None:
+    """Drop the database `url` names (connections are cut) and create it again, empty or as a copy
+    of the database `template` (which must have no open connection). Only a local database."""
+    if not is_local_database(url):
+        raise SystemExit("recreate_database: the local Docker database only")
+    target = make_url(url)
+    admin = target.set(database="postgres").render_as_string(hide_password=False)
+    engine = create_engine(admin, pooled=False)
+    try:
+        async with engine.connect() as connection:
+            connection = await connection.execution_options(isolation_level="AUTOCOMMIT")
+            await connection.execute(
+                text(f'DROP DATABASE IF EXISTS "{target.database}" WITH (FORCE)')
+            )
+            if create:
+                copy = f' TEMPLATE "{template}"' if template else ""
+                await connection.execute(text(f'CREATE DATABASE "{target.database}"{copy}'))
+    finally:
+        await engine.dispose()
+
+
+async def flush_valkey(url: str) -> None:
+    """Empty the Valkey database `url` names (rate limits, locks, caches)."""
+    valkey = Redis.from_url(url)
+    try:
+        await valkey.flushdb()
+    finally:
+        await valkey.aclose()
+
+
+async def post_job(http: httpx2.AsyncClient, name: str, at: datetime) -> tuple[int, dict[str, Any]]:
+    """Trigger a job as the external cron does (the operator token and `scheduled_for`): the HTTP
+    status and the run (`status` ok, failed or skipped)."""
+    answer = await http.post(
+        f"/v1/internal/jobs/{name}",
+        json={"scheduled_for": at.isoformat()},
+        headers={"Authorization": f"Bearer {JOBS_TOKEN}"},
+    )
+    return answer.status_code, answer.json()
+
+
+async def sweep_outbox(http: httpx2.AsyncClient, at: datetime) -> int:
+    """The after-commit relays finish, then `outbox_sweep` runs until nothing is due, as the
+    every-few-minutes cron would (consumers that publish need a second pass). Returns how many
+    messages the sweeps sent."""
+    await outbox.drain()
+    sent = 0
+    for _ in range(10):
+        status, body = await post_job(http, "outbox_sweep", at)
+        assert status == 200 and body["status"] == "ok", body
+        summary = body["summary"]
+        sent += summary["sent"]
+        if summary["sent"] == 0 and summary["failed"] == 0:
+            break
+    return sent
 
 
 # --- Google's sign-in keys and FCM ---------------------------------------------------------------
@@ -265,15 +327,10 @@ class App:
     async def trigger(self, name: str, at: datetime) -> dict[str, Any]:
         """Trigger a job as the external cron does (the operator token and `scheduled_for`);
         returns the run (`status` ok, failed or skipped)."""
-        answer = await self.http.post(
-            f"/v1/internal/jobs/{name}",
-            json={"scheduled_for": at.isoformat()},
-            headers={"Authorization": f"Bearer {JOBS_TOKEN}"},
-        )
-        body = answer.json()
+        code, body = await post_job(self.http, name, at)
         status = body.get("status", body.get("code", "?"))
         self.jobs.append(JobLog(at, name, status, body.get("summary") or body.get("run_id")))
-        assert answer.status_code == 200, f"{name} at {at}: {answer.text}"
+        assert code == 200, f"{name} at {at}: {body}"
         return body
 
     async def job(self, name: str, at: datetime) -> dict[str, Any]:

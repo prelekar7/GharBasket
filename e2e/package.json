@@ -1,0 +1,14 @@
+{
+  "name": "@gharbasket/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser end-to-end tests of the two apps on the real backend (Playwright); the backend suite is e2e/backend",
+  "type": "module",
+  "scripts": {
+    "web": "playwright test -c web/playwright.config.js",
+    "web:ui": "playwright test -c web/playwright.config.js --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

@@ -532,6 +532,24 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 - **Inspection** sets the grade and today's IST date as `inspected_on`, audit-logged (`partners.kitchen_inspected`) with the note.
 - **Capacity.** `GET` shows her own values (a paused kitchen counts as 0 only in the assignment rounds). `PUT` is accepted from today to today + 13, and is naturally idempotent (no Idempotency-Key). `assigned_portions` sums her live (offered, accepted, preparing, ready) assignments.
 
+**As built (assignment rounds, part 2).**
+- **A round** (`POST …/tiffin-assignments/run`, the 21:30 job) works per meal that has free locked tiffins; the answer's `run_id` is the first meal's run, `run_ids` lists one per meal, and with nothing to do `run_id` is null. Orders nobody could take are tried again by every later round (and published again with that run).
+- **Inputs.** An order's portions are its lines' steps, its skills the tags of its products that are skill codes (`catalog.api.line_products` now carries `tags`), its point `community.api.society_points` (the same facade as M7's route plans; a society without a boundary gives `no_location`). A kitchen without a location is left out. Rolling earnings are 0 until `billing.api.partner_rolling_earnings` exists (M5 §3.5); each order taken in the round still raises them. `paise_per_portion` is ₹60 until the rate card (§3.6) exists. `preferred_partner_id` waits for M4 §3.5, so the preference step has no preferences yet.
+- **Round 1's deadline** is 22:30 IST the evening before, or 30 minutes after the offer when the round runs later than 22:00. The jobs use `scheduled_for` as "now".
+- **Greedy reasons.** When no kitchen fits, the reason is the furthest rule any kitchen passed: `no_skills`, `below_rating_floor`, `out_of_reach`, then `no_room` (also when no kitchen has room for the meal).
+
+**As built (offers, part 3).**
+- **`GET /v1/assignments`** answers 422 `request.invalid` for a date outside a week back to tomorrow. Orders keep their rows after a release (`status: released`, not counted in `dishes`). `accepted_at` is the answer's time once accepted; `pickup_qr` appears once an order is past `assigned`.
+- **Accept** does not call `orders.api.set_kitchen` yet: M4 has no such move (ADR-0026 §3 follow-up), so the order does not show its cook until it does.
+- **The 15-minute job** takes T as tomorrow from noon IST and today before; it always expires overdue offers (`respond_by` ≤ `scheduled_for`) and runs a round only before T 00:00.
+
+**As built (cooking, manual assignment, the board and refunds, part 4).**
+- **Ready** also needs T 00:00 when start was skipped (409 `partners.assignment_not_accepted`); an empty or foreign `order_ids` is 422 `partners.order_not_in_assignment`. The checklist is stored as all five true. `late` is set when the last order is ready after `ready_by`.
+- **Manual assignment** takes orders of one meal (orders of another meal, taken or not free are listed in 409 `partners.order_not_assignable`); after the meal's `ready_by` minus 2 hours it is 409 `partners.assignment_closed`. The kitchen must be active or paused at that hub (else 404 `partners.kitchen_not_found`). Its round is the day's latest run round (1 without one); it is audit-logged as `partners.manual_assignment`.
+- **The board** needs `partners:read` (hub manager, franchise owner, admin). Counts are orders: `assigned` is held by any assignment, `accepted` and `preparing` by the assignment's status, `ready` and `picked_up` by the order's row. An unassigned order's `reason` is the latest run's, else `pending`.
+- **Refunds.** `refund_unassigned_tiffins` calls `orders.api.transition(…, "refunded", actor="system", payload={"reason": "no_kitchen"})` per order in a savepoint; M4 has no `locked → refunded` move for tiffins yet (ADR-0027 follow-up), so today it is refused and counted as `refused` in the run's summary.
+- **Suspension** of a kitchen cancels her offered and accepted assignments from today and releases their orders (`reason: cancelled`); `set_kitchen(order, None)` waits for M4.
+
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
 KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": null,   null for now (§11)

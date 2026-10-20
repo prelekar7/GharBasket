@@ -106,6 +106,11 @@ async def database(config: Config):
         await engine.dispose()
 
 
+async def rows(config: Config, sql: str, **params: Any) -> list[Any]:
+    async with database(config) as session:
+        return list((await session.execute(text(sql), params)).all())
+
+
 async def scalar(config: Config, sql: str, **params: Any) -> Any:
     async with database(config) as session:
         return (await session.execute(text(sql), params)).scalar()
@@ -432,6 +437,38 @@ def test_customers_edit_approve_skip_and_unskip_their_boxes(
     step(loop, when, go())
 
 
+def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 00:30 to 03:33 IST, the nightly and Monday jobs of M5, M9, M10, M8, M1: each runs
+    clean on the world the day has built (the Kindness lots, referrals, thresholds, vendor scores,
+    deletions and drift it has to find nothing, or little, to do for)."""
+    monday = day.t - timedelta(days=1)
+    summaries: dict[str, Any] = {}
+
+    async def go() -> None:
+        for name, hour, minute in (
+            ("expire_kindness_points", 0, 30),
+            ("recompute_unlock_thresholds", 2, 10),
+            ("expire_referrals", 3, 10),
+            ("compute_vendor_scores", 3, 33),
+            ("purge_deleted_users", 3, 33),
+            ("monitor_drift", 3, 33),
+        ):
+            summaries[name] = await app.job(name, ist(monday, hour, minute))
+        await app.sweep(ist(monday, 3, 40))
+
+    step(loop, ist(monday, 0, 0), go())
+    # Nothing in the world is old enough to expire, owed, deleted or scored: each finds no work.
+    assert summaries["expire_kindness_points"]["points"] == 0, summaries
+    assert summaries["expire_referrals"]["voided"] == 0, summaries
+    assert summaries["recompute_unlock_thresholds"]["went_live"] == 0, summaries
+    assert summaries["compute_vendor_scores"]["vendors"] == 0, summaries  # no purchase orders yet
+    purge = summaries["purge_deleted_users"]
+    assert (purge["purged"], purge["blocked"], purge["overdue"], purge["failed"]) == (0, {}, [], {})
+    assert summaries["monitor_drift"]["drifted"] == 0, summaries
+
+
 def test_reminders_go_to_unapproved_boxes_that_will_not_auto_approve(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
@@ -547,6 +584,37 @@ def test_cut_off_locks_the_paid_and_fails_the_short_then_refuses_late_edits(
     }, seen["cycles"]
 
 
+def test_after_the_cut_off_procurement_is_planned_and_money_jobs_run_clean(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 21:10 to 21:20: the hub's procurement plan from the locked orders, and the
+    every-few-minutes and hourly money jobs (no Razorpay here: nothing to send or compare)."""
+    monday = day.t - timedelta(days=1)
+    out: dict[str, Any] = {}
+
+    async def go() -> dict[str, Any]:
+        out["build"] = await app.job("build_procurement_plan", ist(monday, 21, 10))
+        out["refunds"] = await app.job("send_refunds", ist(monday, 21, 10))
+        out["reconcile"] = await app.job("reconcile_payments", ist(monday, 21, 17))
+        out["proposals"] = await app.job("expire_proposals", ist(monday, 21, 20))
+        await app.sweep(ist(monday, 21, 20))
+        plan = await app.http.get(
+            f"/v1/hubs/{SEED_HUB_ID}/procurement-plans",
+            params={"date": day.t.isoformat()},
+            headers=await app.sign_in(VIKRAM),
+        )
+        assert plan.status_code == 200, plan.text
+        return plan.json()
+
+    plan = step(loop, ist(monday, 21, 10), go())
+    assert (out["build"]["hubs"], out["build"]["built"]) == (1, 1), out
+    assert plan["lines"], plan  # the locked boxes need buying
+    assert out["refunds"]["sent"] == out["refunds"]["found"] == 0, out  # no refund to send
+    # Razorpay is not configured here, so the reconciliation has nothing to compare and says so.
+    assert out["reconcile"] == {"status": "skipped", "checked": 0, "healed": 0, "opened": 0}, out
+    assert out["proposals"]["expired"] == 0, out
+
+
 def test_in_the_grace_period_a_top_up_pays_a_short_one_does_not_and_a_skip_cancels(
     app: App, day: Day, loop: Runner
 ) -> None:
@@ -583,6 +651,27 @@ def test_in_the_grace_period_a_top_up_pays_a_short_one_does_not_and_a_skip_cance
     assert step(loop, ist(day.t - timedelta(days=1), 21, 30), late()) == ("locked", "locked")
 
 
+def test_the_evening_runs_the_tiffin_round_and_the_pickup_sweep(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 21:30, 22:00 and 22:30: the tiffin assignment round and its offer timeout (the
+    day books no tiffin, so there is nothing to assign or expire) and the day's missed donation
+    pickups."""
+    monday = day.t - timedelta(days=1)
+    out: dict[str, Any] = {}
+
+    async def go() -> None:
+        out["assign"] = await app.job("assign_kitchens", ist(monday, 21, 30))
+        out["timeout"] = await app.job("assignment_acceptance_timeout", ist(monday, 22, 0))
+        out["pickups"] = await app.job("sweep_missed_pickups", ist(monday, 22, 30))
+        await app.sweep(ist(monday, 22, 30))
+
+    step(loop, ist(monday, 21, 30), go())
+    assert out["assign"]["runs"] == out["assign"]["offers"] == out["assign"]["unassigned"] == 0, out
+    assert out["timeout"]["expired"] == 0, out  # no tiffin offers in the day, so none to expire
+    assert out["pickups"]["rolled"] == out["pickups"]["cancelled"] == 0, out
+
+
 def test_grace_expiry_cancels_what_is_still_unpaid(app: App, day: Day, loop: Runner) -> None:
     """Monday T-1 23:00."""
     when = ist(day.t - timedelta(days=1), 23, 0)
@@ -601,10 +690,53 @@ def test_grace_expiry_cancels_what_is_still_unpaid(app: App, day: Day, loop: Run
     assert (order, cycle) == ("cancelled", "cancelled")
 
 
+def test_after_the_grace_the_plan_is_refreshed_and_the_routes_are_solved(
+    app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 23:05 and 23:15: tomorrow's procurement plan is rebuilt after the grace expired,
+    then each hub's box routes are solved (no ML service: M7's fallback solver)."""
+    monday = day.t - timedelta(days=1)
+    out: dict[str, Any] = {}
+
+    async def go() -> list[dict[str, Any]]:
+        vikram = await app.sign_in(VIKRAM)
+        # The hub has no vehicle until its manager registers one: a solve needs a cargo van.
+        van = await app.http.post(
+            f"/v1/hubs/{SEED_HUB_ID}/vehicles",
+            json={"label": "EV-1", "kind": "cargo_3w"},
+            headers={**vikram, **key()},
+        )
+        assert van.status_code == 201, van.text
+        out["refresh"] = await app.job("refresh_procurement_plan", ist(monday, 23, 5))
+        out["routes"] = await app.job("solve_routes", ist(monday, 23, 15))
+        await app.sweep(ist(monday, 23, 20))
+        plans = await app.http.get(
+            f"/v1/hubs/{SEED_HUB_ID}/route-plans",
+            params={"date": day.t.isoformat(), "kind": "box"},
+            headers=vikram,
+        )
+        assert plans.status_code == 200, plans.text
+        return plans.json()["items"]
+
+    plans = step(loop, ist(monday, 23, 5), go())
+    assert (out["refresh"]["hubs"], out["refresh"]["rebuilt"]) == (1, 1), out
+    assert out["routes"]["failed"] == 0 and out["routes"]["plans"] == 1, out
+    # No ML service in the day (E2E_ML=1 has one): M7's fallback solved and published the plan.
+    [plan] = plans
+    assert plan["status"] == "published" and plan["summary"]["problems"] == [], plan
+    sources = ("ml", "ml_fallback") if app.config.ml_url else ("fallback_nearest",)
+    assert plan["source"] in sources, plan
+    paid = {day.homes[r].order_id for r in ("editor", "unskipper", "auto", "grace_payer")}
+    assert plan["summary"]["orders"] == len(paid), plan
+
+
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
-    """Tuesday T 04:03 to 04:33 IST: the daily platform, identity and notification jobs."""
+    """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
+    jobs."""
+    out: dict[str, Any] = {}
 
     async def go() -> None:
+        out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
             ("expire_data_exports", 4, 23),
@@ -613,6 +745,7 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
             await app.job(name, ist(day.t, hour, minute))
 
     step(loop, ist(day.t, 4, 0), go())
+    assert out["pings"] == {"deleted": 0, "partitions_dropped": 0}, out  # no rider sent a ping
 
 
 def test_packing_tasks_are_built_for_every_paid_box(
@@ -664,6 +797,46 @@ def test_the_morning_sends_what_quiet_hours_held(
     assert not [k for k, n in pushes.items() if n > 1], "a message was pushed twice to a device"
     devices = set(app.devices.values())
     assert {p["token"] for p in app.outside.pushes} <= devices
+
+
+async def logistics_untouched(config: Config, day: Day) -> None:
+    """The published route is as the 23:15 solve left it, and no rider has sent a ping."""
+    states = await rows(
+        config, "SELECT status FROM logistics.routes WHERE delivery_date = :d", d=day.t
+    )
+    assert states and {status for (status,) in states} == {"published"}, states
+    assert await scalar(config, "SELECT count(*) FROM logistics.gps_pings") == 0
+
+
+def test_the_morning_moves_the_riders_pings_and_finds_none(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 07:02: `persist_gps_pings` (every minute) with nothing in the stream. No route has
+    started, so the published route stays as it is."""
+    when = ist(day.t, 7, 2)
+    summary = step(loop, when, app.job("persist_gps_pings", when))
+    assert summary == {"read": 0, "inserted": 0}, summary
+    loop.run(logistics_untouched(config, day))
+
+
+def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop: Runner) -> None:
+    """Tuesday T 09:30: the lunch slot's manual assignment closes and unassigned tiffins are
+    refunded (the day books no tiffin, so there is nothing to refund)."""
+    when = ist(day.t, 9, 30)
+    summary = step(loop, when, app.job("refund_unassigned_tiffins", when))
+    assert summary["refunded"] == summary["refused"] == 0, summary
+
+
+def test_the_logistics_evening_closes_the_routes_with_nothing_to_do(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 16:00: `close_routes`. The day's published route never started (the simulated day
+    has no rider), so it closes nothing and leaves the route as it is."""
+    when = ist(day.t, 16, 0)
+    closed = step(loop, when, app.job("close_routes", when))
+    assert closed["closed"] == 0, closed
+    step(loop, when, app.sweep(when))
+    loop.run(logistics_untouched(config, day))
 
 
 def test_every_event_of_the_day_that_m11_maps_became_a_message(
