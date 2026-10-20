@@ -12,8 +12,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.logistics.attempts import latest
-from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop
+from gharbasket.modules.logistics.attempts import latest, orphaned
+from gharbasket.modules.logistics.models import Delivery, Route, RouteStop, booked
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
     DeliveryCard,
@@ -92,7 +92,7 @@ async def delivery_card(
         delivery_code=attempt.delivery_code if showing_code and attempt else None,
         proof=proof,
         redelivery=None
-        if attempt is None or attempt.attempt != 2
+        if attempt is None or not (attempt.attempt == 2 or attempt.hub_ride)
         else Redelivery(date=attempt.delivery_date, window=window),
     )
 
@@ -136,28 +136,16 @@ async def left_behind(session: AsyncSession, hub_id: uuid.UUID, day: date) -> li
 
 
 async def orphans(session: AsyncSession, hub_id: uuid.UUID, day: date) -> list[uuid.UUID]:
-    """Redeliveries booked on or before `day` that are still waiting although their day's plan is
-    published or the day has passed: no van will take them without the hub (M3 review)."""
+    """Redeliveries and left-behind rides booked on or before `day` that are still waiting
+    although no van will take them (`attempts.orphaned`): the hub must rebook or refund them."""
     rows = await session.execute(
-        select(Delivery.order_id, Delivery.delivery_date)
+        select(Delivery)
         .where(
             Delivery.hub_id == hub_id,
-            Delivery.attempt == 2,
+            booked(),
             Delivery.status == "scheduled",
             Delivery.delivery_date <= day,
         )
         .order_by(Delivery.order_id)
     )
-    out = []
-    for order_id, booked in rows.all():
-        planned = await session.scalar(
-            select(RoutePlan.id).where(
-                RoutePlan.hub_id == hub_id,
-                RoutePlan.delivery_date == booked,
-                RoutePlan.kind == "box",
-                RoutePlan.status == "published",
-            )
-        )
-        if planned is not None or booked < day:
-            out.append(order_id)
-    return out
+    return [d.order_id for d in rows.scalars() if await orphaned(session, d, day)]

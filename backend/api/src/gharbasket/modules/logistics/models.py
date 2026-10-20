@@ -17,6 +17,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    ColumnElement,
     Date,
     DateTime,
     Float,
@@ -29,6 +30,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    or_,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -308,6 +310,8 @@ class GpsPing(Base):
     __tablename__ = "gps_pings"
     __table_args__ = (
         Index("ix_gps_pings_at", "at", postgresql_using="brin"),
+        # A route's newest ping: live tracking and the handover's distance read it
+        Index("ix_gps_pings_route_at", "route_id", text("at DESC")),
         {"schema": SCHEMA, "postgresql_partition_by": "RANGE (at)"},
     )
 
@@ -360,6 +364,8 @@ class Delivery(Base):
         ),
         UniqueConstraint("order_id", "attempt"),
         Index("ix_deliveries_hub_date", "hub_id", "delivery_date", "status"),
+        # The evening jobs: delivery_date <= day and status in (…), for every hub at once
+        Index("ix_deliveries_date_status", "delivery_date", "status"),
         {"schema": SCHEMA},
     )
 
@@ -379,9 +385,13 @@ class Delivery(Base):
     hold_until: Mapped[time | None] = mapped_column(Time)  # IST
     proof: Mapped[str | None] = mapped_column(String(8))
     photo_key: Mapped[str | None] = mapped_column(String(200))
-    # Attempt 2 of a bag the captain kept overnight (held, not collected): the van carries
-    # nothing for it, but her society needs the stop (§3.4).
+    # The attempt ended at the society with the bag in the captain's hands (held and not collected,
+    # refused, wrong address, never scanned…), so its redelivery comes from her, not from the van:
+    # the van carries nothing for it, but her society needs the stop (§3.4).
     kept_by_captain: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # Attempt 1 booked again for a later day because the hub left the bag behind: it rides like a
+    # redelivery, but it is no customer miss, so a real miss on it still gets the free redelivery.
+    hub_ride: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     delivery_code: Mapped[str] = mapped_column(String(8))
     code_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     by_actor: Mapped[str | None] = mapped_column(String(8))
@@ -390,3 +400,9 @@ class Delivery(Base):
     note: Mapped[str | None] = mapped_column(String(300))
     client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+def booked() -> ColumnElement[bool]:
+    """An attempt booked for a later day: the free redelivery (attempt 2) or the ride of a bag the
+    hub's route left behind (`hub_ride`, attempt 1 booked again)."""
+    return or_(Delivery.attempt == 2, Delivery.hub_ride.is_(True))

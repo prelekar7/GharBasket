@@ -834,13 +834,26 @@ def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_d
     """Tuesday T 16:00, 20:30 and 20:45: `close_routes`, `hold_expiry` and `schedule_redeliveries`.
     The day's published route never started (the simulated day has no rider), so each runs clean,
     touches nothing and writes no delivery."""
+    date = day.t.isoformat()
     closed = step(loop, ist(day.t, 16, 0), app.job("close_routes", ist(day.t, 16, 0)))
-    assert closed["closed"] == 0, closed
+    assert closed == {"date": date, "closed": 0, "returned_to_hub": 0}, closed
     expired = step(loop, ist(day.t, 20, 30), app.job("hold_expiry", ist(day.t, 20, 30)))
-    assert not [k for k, v in expired.items() if isinstance(v, int) and v], expired
+    assert expired == {
+        "date": date,
+        "not_home": 0,
+        "not_confirmed": 0,
+        "failed": 0,
+        "left_behind": 0,
+    }, expired
     when = ist(day.t, 20, 45)
     again = step(loop, when, app.job("schedule_redeliveries", when))
-    assert not [k for k, v in again.items() if isinstance(v, int) and v], again
+    assert again == {
+        "date": date,
+        "redelivery": 0,
+        "refunded": 0,
+        "triage": 0,
+        "failed": 0,
+    }, again
     step(loop, when, app.sweep(when))
     loop.run(logistics_untouched(config, day))
 

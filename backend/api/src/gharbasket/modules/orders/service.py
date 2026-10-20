@@ -351,9 +351,11 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
 
 
 async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = False) -> Order:
+    """The order; with `for_update`, locked and read again (`populate_existing`), so a move made
+    while we waited for the lock is seen and an object loaded earlier is not stale."""
     stmt = select(Order).where(Order.id == order_id)
     if for_update:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     order = (await session.execute(stmt)).scalar_one_or_none()
     if order is None:
         raise order_not_found()

@@ -45,7 +45,11 @@ _BOX: Table = {
         "redelivery": frozenset({"customer", "system", "hub"}),
         "refunded": frozenset({"customer", "system"}),
     },
-    "redelivery": {"dispatched": frozenset({"rider", "hub"})},
+    "redelivery": {
+        "dispatched": frozenset({"rider", "hub"}),
+        # A redelivery no route picks up: the hub refunds it or books it again (ADR-0028)
+        "refunded": frozenset({"system", "hub"}),
+    },
     "cancelled": {},
     "delivered": {},
     "refunded": {},

@@ -28,6 +28,7 @@ from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport, Deletion
 from gharbasket.modules.identity.partner_roles import sync_partner_role
 from gharbasket.modules.intel_gateway import api as intel_api
+from gharbasket.modules.logistics import api as logistics_api
 from gharbasket.modules.notifications import api as notifications_api
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.partners import api as partners_api
@@ -48,6 +49,7 @@ SECTIONS: dict[str, Callable[[AsyncSession, uuid.UUID], Awaitable[dict[str, Any]
     "notifications": notifications_api.export_for_user,
     "partners": partners_api.export_for_user,
     "community": community_api.export_for_user,
+    "logistics": logistics_api.export_for_user,
 }
 
 
@@ -178,6 +180,7 @@ ERASERS: list[tuple[str, Eraser]] = [
     ("intel_gateway", intel_api.delete_for_user),
     ("community", community_api.anonymise_for_user),
     ("hub_ops", hub_ops_api.anonymise_for_user),
+    ("logistics", logistics_api.anonymise_for_user),
     ("subscriptions", subscriptions_api.delete_for_user),
     ("orders", orders_api.anonymise_for_user),
     ("billing", billing_api.anonymise_for_user),

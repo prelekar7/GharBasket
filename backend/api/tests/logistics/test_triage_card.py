@@ -221,6 +221,14 @@ async def test_triage_redelivers_once_or_refunds_up_to_what_is_left(
         json={"outcome": "refund", "refund_paise": 1000, "note": "half"},
         headers={**manager, **key()},
     )
+    # `refunded` is final, so less than all that is left needs final: true; nothing moved before.
+    assert (part.status_code, part.json()["code"]) == (422, "logistics.partial_refund_not_final")
+    assert (await attempts(db_session, ramesh))[0].status == "triage"
+    part = await api.post(
+        f"/v1/deliveries/{ramesh}/resolve",
+        json={"outcome": "refund", "refund_paise": 1000, "final": True, "note": "half"},
+        headers={**manager, **key()},
+    )
     assert part.status_code == 200, part.text
     assert (part.json()["status"], (await attempts(db_session, ramesh))[0].refund_paise) == (
         "refunded",

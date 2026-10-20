@@ -8,7 +8,13 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.logistics.models import Delivery, RouteStop
+from gharbasket.modules.logistics.models import (
+    Delivery,
+    Route,
+    RoutePlan,
+    RouteStop,
+    booked,
+)
 from gharbasket.modules.logistics.schemas import DeliveryOut
 from gharbasket.modules.logistics.views import hhmm, now
 from gharbasket.modules.orders import api as orders_api
@@ -49,8 +55,8 @@ async def latest(
         .order_by(Delivery.attempt.desc())
         .limit(1)
     )
-    if for_update:
-        stmt = stmt.with_for_update()
+    if for_update:  # read again after the lock, so a move made while we waited is seen
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
@@ -67,6 +73,38 @@ async def set_status(
                 .values(status=status, at=now(), **values)
                 .execution_options(synchronize_session="fetch")
             )
+
+
+async def orphaned(session: AsyncSession, delivery: Delivery, today: date) -> bool:
+    """A redelivery or left-behind ride still `scheduled` that no van will take: its day has passed,
+    or its day's plan is published without a stop for its society and slot (it was solved first).
+    Only the hub can resolve it (M3 review)."""
+    if delivery.status != "scheduled" or not (delivery.attempt == 2 or delivery.hub_ride):
+        return False
+    if delivery.delivery_date < today:
+        return True
+    plan = await session.scalar(
+        select(RoutePlan.id).where(
+            RoutePlan.hub_id == delivery.hub_id,
+            RoutePlan.delivery_date == delivery.delivery_date,
+            RoutePlan.kind == "box",
+            RoutePlan.status == "published",
+        )
+    )
+    if plan is None:
+        return False
+    stop = await session.scalar(
+        select(RouteStop.id)
+        .join(Route, Route.id == RouteStop.route_id)
+        .where(
+            Route.plan_id == plan,
+            Route.status != "cancelled",
+            RouteStop.society_id == delivery.society_id,
+            RouteStop.slot_id == delivery.slot_id,
+        )
+        .limit(1)
+    )
+    return stop is None
 
 
 def delivery_out(row: Delivery) -> DeliveryOut:
@@ -93,7 +131,7 @@ async def redeliveries_for(
         .where(
             Delivery.hub_id == hub_id,
             Delivery.delivery_date == day,
-            Delivery.attempt == 2,
+            booked(),
             Delivery.status == status,
         )
         .order_by(Delivery.id)
@@ -102,11 +140,13 @@ async def redeliveries_for(
 
 
 async def riding(session: AsyncSession, stop_ids: list[uuid.UUID]) -> list[Delivery]:
-    """The redeliveries booked on these stops."""
+    """The live redeliveries booked on these stops (a refunded one rides no more)."""
     if not stop_ids:
         return []
     rows = await session.execute(
-        select(Delivery).where(Delivery.stop_id.in_(stop_ids), Delivery.attempt == 2)
+        select(Delivery).where(
+            Delivery.stop_id.in_(stop_ids), booked(), Delivery.status != "refunded"
+        )
     )
     return list(rows.scalars())
 
@@ -116,7 +156,7 @@ async def redeliveries_on(
 ) -> list[Delivery]:
     """A society's redeliveries (attempt 2) booked on `day`, one slot's when given."""
     stmt = select(Delivery).where(
-        Delivery.society_id == society_id, Delivery.delivery_date == day, Delivery.attempt == 2
+        Delivery.society_id == society_id, Delivery.delivery_date == day, booked()
     )
     if slot_id is not None:
         stmt = stmt.where(Delivery.slot_id == slot_id)
