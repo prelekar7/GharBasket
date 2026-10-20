@@ -28,8 +28,8 @@ def not_found() -> ProblemError:
     return ProblemError(404, "partners.partner_not_found", "No such partner.")
 
 
-async def get(session: AsyncSession, partner_id: uuid.UUID) -> Partner:
-    partner = await session.get(Partner, partner_id)
+async def get(session: AsyncSession, partner_id: uuid.UUID, *, for_update: bool = False) -> Partner:
+    partner = await session.get(Partner, partner_id, with_for_update=for_update)
     if partner is None:
         raise not_found()
     return partner
@@ -194,6 +194,23 @@ async def set_paused(session: AsyncSession, partner: Partner, *, paused: bool) -
     target = "paused" if paused else "active"
     if partner.status != target:
         partner.status = target
+        partner.version += 1
+        await session.flush()
+    return partner
+
+
+async def rename(session: AsyncSession, partner: Partner, display_name: str) -> Partner:
+    """Her own display name (2 to 40 characters, as on the application): the name customers see
+    on her card. Changing it to what it is changes nothing."""
+    name = " ".join(display_name.split())
+    if not 2 <= len(name) <= 40:
+        raise ProblemError(
+            422,
+            "partners.display_name_invalid",
+            "The name customers see must be 2 to 40 characters.",
+        )
+    if name != partner.display_name:
+        partner.display_name = name
         partner.version += 1
         await session.flush()
     return partner

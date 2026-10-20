@@ -28,7 +28,7 @@ from gharbasket.modules.community import api as community_api
 from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.intel_gateway.api import AssignRequest
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.partners import events, kitchens, matching
+from gharbasket.modules.partners import events, kitchens, matching, rates
 from gharbasket.modules.partners.models import (
     LIVE,
     SKILLS,
@@ -273,12 +273,15 @@ async def _meal_round(
     round_no = (last or 0) + 1
     unassigned = {t.order.id: "no_location" for t in items if t.point is None}
     orders = [
-        matching.Order(t.order.id, t.point[0], t.point[1], t.portions, t.skills)
+        matching.Order(
+            t.order.id, t.point[0], t.point[1], t.portions, t.skills, t.order.preferred_partner_id
+        )
         for t in items
         if t.point is not None
     ]
+    rate = await rates.rate_on(session, hub_id, "kitchen", day)
     available = await cooks(session, hub_id, day, meal)
-    matches, rest = matching.preferred_first(orders, available)
+    matches, rest = matching.preferred_first(orders, available, rate)
     plan = None
     if rest and available:
         request = AssignRequest.model_validate(
@@ -296,7 +299,7 @@ async def _meal_round(
                 "fairness_lambda": settings.partners_fairness_lambda,
                 "rating_floor": matching.RATING_FLOOR,
                 "max_km": matching.MAX_KM,
-                "paise_per_portion": matching.PAISE_PER_PORTION,
+                "paise_per_portion": rate,
                 "time_limit_s": TIME_LIMIT_S,
             }
         )
@@ -311,7 +314,7 @@ async def _meal_round(
         summary = plan.summary.model_dump(exclude={"earnings_paise"}) if plan.summary else {}
     else:
         source, model, status = "fallback", "greedy-m8", "fallback"
-        more, missed = matching.greedy(rest, available)
+        more, missed = matching.greedy(rest, available, rate)
         matches += more
         unassigned |= missed
         summary = matching.summary(matches, available)

@@ -83,6 +83,17 @@ class SuspendIn(BaseModel):
         return tidy
 
 
+class PartnerPatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str = Field(
+        max_length=100,
+        description="What customers see, 2 to 40 characters "
+        "(else 422 partners.display_name_invalid)",
+        examples=["Meena tai"],
+    )
+
+
 class ReinstateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -602,3 +613,37 @@ class TiffinBoardOut(BaseModel):
     meals: list[BoardMealOut]
     assignments: list[AssignmentOut]
     runs: list[BoardRunOut]
+
+
+# --- the rate card (§3.6) ------------------------------------------------------------------------
+
+RateBasis = Literal["tiffin_portion", "bag_delivered", "dispatched_order", "packed_order"]
+
+
+class RateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: PartnerKind
+    basis: RateBasis = Field(
+        description="One per kind: kitchen tiffin_portion, captain "
+        "bag_delivered, rider dispatched_order, packer packed_order"
+    )
+    amount_paise: int = Field(ge=0, le=1_000_000, examples=[600])
+    valid_from: date = Field(description="Today or later (IST)")
+
+
+class RateOut(RateIn):
+    pass
+
+
+class RatesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rates: list[RateIn] = Field(min_length=1, max_length=16)
+
+
+class RateCardOut(BaseModel):
+    hub_id: uuid.UUID
+    rates: list[RateOut] = Field(
+        description="The rate in force today for each kind, then rates scheduled for later"
+    )

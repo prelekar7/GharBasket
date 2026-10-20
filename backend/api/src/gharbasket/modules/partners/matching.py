@@ -14,7 +14,9 @@ from typing import Any
 RATING_FLOOR = 3.8
 UNRATED = 4.5  # kitchens with fewer than 5 ratings (owner, 2026-10-09)
 MAX_KM = 5.0
-PAISE_PER_PORTION = 6_000  # the kitchen tiffin_portion rate (§3.6) until the rate card exists
+PAISE_PER_PORTION = (
+    6_000  # the default kitchen tiffin_portion rate (§3.6); a hub's card replaces it
+)
 EARTH_KM = 6371.0
 # When no kitchen fits, the reason of the kitchen that got furthest down this list.
 REASONS = ("no_skills", "below_rating_floor", "out_of_reach", "no_room")
@@ -74,9 +76,9 @@ def why_not(cook: Cook, order: Order) -> str | None:
     return None
 
 
-def take(cook: Cook, order: Order) -> Match:
+def take(cook: Cook, order: Order, rate: int = PAISE_PER_PORTION) -> Match:
     cook.left -= order.portions
-    cook.earnings += order.portions * PAISE_PER_PORTION
+    cook.earnings += order.portions * rate
     return Match(order.id, cook.id, order.portions, round(distance(cook, order), 2))
 
 
@@ -85,20 +87,24 @@ def by_size(orders: list[Order]) -> list[Order]:
     return sorted(orders, key=lambda o: (-o.portions, str(o.id)))
 
 
-def preferred_first(orders: list[Order], cooks: list[Cook]) -> tuple[list[Match], list[Order]]:
+def preferred_first(
+    orders: list[Order], cooks: list[Cook], rate: int = PAISE_PER_PORTION
+) -> tuple[list[Match], list[Order]]:
     """Each order goes to its preferred kitchen while she can take it; the rest is returned."""
     by_id = {cook.id: cook for cook in cooks}
     matches, rest = [], []
     for order in by_size(orders):
         cook = by_id.get(order.preferred) if order.preferred else None
         if cook is not None and why_not(cook, order) is None:
-            matches.append(take(cook, order))
+            matches.append(take(cook, order, rate))
         else:
             rest.append(order)
     return matches, rest
 
 
-def greedy(orders: list[Order], cooks: list[Cook]) -> tuple[list[Match], dict[uuid.UUID, str]]:
+def greedy(
+    orders: list[Order], cooks: list[Cook], rate: int = PAISE_PER_PORTION
+) -> tuple[list[Match], dict[uuid.UUID, str]]:
     """M8's fallback: each order, largest first, to the eligible kitchen with the least
     (km, rolling earnings, partner id). Deterministic."""
     matches: list[Match] = []
@@ -107,7 +113,7 @@ def greedy(orders: list[Order], cooks: list[Cook]) -> tuple[list[Match], dict[uu
         fits = [cook for cook in cooks if why_not(cook, order) is None]
         if fits:
             best = min(fits, key=lambda c: (distance(c, order), c.earnings, str(c.id)))
-            matches.append(take(best, order))
+            matches.append(take(best, order, rate))
             continue
         reasons = {why_not(cook, order) or "no_room" for cook in cooks}
         unassigned[order.id] = max(reasons, key=REASONS.index) if reasons else "no_room"
