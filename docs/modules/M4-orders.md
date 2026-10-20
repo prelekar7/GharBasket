@@ -358,6 +358,21 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 | 422 `orders.invalid_order` | 422 `orders.menu_unknown` (not approved, other hub, past `order_by`), `orders.kind_unavailable`, `orders.qty_invalid` (portions) |
 | 201 `{ id, delivery_date, slot, kitchen_id }` | 201 `OrderOut` with `tiffin` |
 
+**As built (tiffin menus).**
+- `catalog.tiffin_menus` is M2's table (M2 §4); M2 reads it through `catalog.api.tiffin_menus(hub_id, first, last, meal)` (approved only) and `catalog.api.tiffin_menu(id)` (any status). M2 has no endpoints to write or approve menus yet (M2 lists only the `tiffin_menus:write` permission), so menus are written by seed or tests until that flow is specified.
+- `GET /v1/tiffin-menus`: `date` is optional (default: every date from tomorrow to tomorrow + 6) and must lie in that window (else 422 `orders.date_out_of_range`); `meal` filters. Menus past their `order_by` are left out. A caller without a household gets 422 `orders.hub_required`. The kitchen's `display_name` comes from `partners.api.profile_card` (empty when the partner record is missing).
+
+**As built (direct tiffin orders).**
+- `POST /v1/orders` answers 422 `orders.kind_unavailable` for any kind but `tiffin`; a missing, unknown, unapproved, other hub's or closed menu is 422 `orders.menu_unknown`; a caller without a household is 422 `orders.hub_required`; a hub without an active tiffin slot for the meal is 422 `orders.slot_invalid`. One tiffin per household, date and meal is checked under an advisory lock on the household.
+- The tiffin's line has `kind: "box"` (the order's main line; `OrderLine.kind` stays `box | addon`). Default portions are the household size, capped at 12.
+- Slots: `POST /v1/admin/slots` and `Slot` gain `meal` (required for `kind: tiffin`, absent for `box`, else 422 `orders.slot_invalid`). The migration sets the meal of existing tiffin slots from their start time (before 16:00: lunch).
+- `orders.tiffin_booked` is published. M3 consumes it (`subscriptions.service.mark_tiffin_meal`): the week whose Monday is within 6 days before the tiffin's date, while editable, gets that meal set to `tiffin` exactly as `PUT /v1/cycles/{id}/meals` does; a cancelled tiffin (`orders.cancelled`, `kind: tiffin`, its meal from `orders.api.slot_ref(…).meal`) sets it back to `planned` if the customer had not changed it since. Past the cut-off or over the Budget Lock the box stays as it is. M3's other order consumers act only on box orders.
+
+**As built (the kitchen, and the no-kitchen refund; facades for M8).**
+- `orders.api.set_kitchen(session, order_id, partner_id | None) -> Order` records the kitchen on a tiffin (`orders.orders.kitchen_partner_id`) and clears it with `None`; any other kind is 409 `orders.not_editable`; a change bumps `version`, the same kitchen again changes nothing. `OrderOut` gains `"kitchen": { "partner_id" } | null` (ADR-0026 §3).
+- `orders_for_delivery` returns each order's `preferred_partner_id` on the `Order` it carries (`summary.order.preferred_partner_id`), with its lines and `slot_id`.
+- The tiffin move `locked → refunded` (actor `system`) is in the state table (ADR-0027 §1). **Every** move to `refunded` now refunds through `billing.api.refund_to_wallet`: `payload.refund_paise` (default: the paid total less the order's issue credits), keyed `refund:<order>:<payload.reason>` (default reason `undelivered`); the order event's payload records `reason` and `refund_paise`. `billing.wallet_limit` is raised as is and nothing moves.
+
 ### 3.6 Issue triage contract (drafted 2026-10-09, frozen on approval)
 This is the console's queue for issues that stay `open` (§3.2), resolved through the existing `orders.api.resolve_issue`. M4 serves the endpoints because it owns the issues; the page sits in the console's Hub section. No console page or mock exists yet. Permission `order_issues:resolve` (§7).
 
@@ -451,7 +466,7 @@ M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/captur
 
 ## 11. Open questions and decisions
 - **Decided (S2 contract):** tiffin orders use their own slots (`kind: tiffin`); boxes never share them.
-- **Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.
+- ~~**Decided (S2 contract):** no delivery fee in S2 (`fees_paise` stays 0); the policy for non-unlocked societies is decided with M9 unlock thresholds in S9.~~ **Superseded (owner, 2026-10-09; built 2026-10-10):** a box order for a society with no `live_at` pays the hub's `pre_live_box_fee_paise` (M6, default ₹30) as `fees_paise`, set by `create_from_cycle` from `orders.api.box_fee(session, hub_id, society_id)` and dropped to 0 at the lock if the society went live meanwhile (never raised). `total_paise = subtotal_paise + fees_paise − discount_paise` is what the cut-off debits; shortage refunds and issue credits never return the fee. Add-on and tiffin orders pay none. The rules are M9 §3.6 and its M4 follow-up in §11.
 - Direct orders (`POST /v1/orders`) and the SSE stream arrive in P3 with tiffins and live tracking.
 - **Decided by the owner (2026-10-09):**
   - ~~Leftovers (§3.5): add-on-only orders outside a box (e.g. a week the household skipped): refuse them, or let an add-on-only order un-skip the week?~~ Decided: add-on-only orders are refused (`orders.kind_unavailable`); M4 does not depend on M3's delivery days.

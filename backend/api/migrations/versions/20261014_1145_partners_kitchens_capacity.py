@@ -1,7 +1,7 @@
 """partners: kitchens and their capacity overrides per date and meal (M8 §3.4, §4)
 
 Revision ID: af74586fec9d
-Revises: 98790006ab63
+Revises: ce599e5ada4c
 Create Date: 2026-10-14 11:45:59.644713+00:00
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "af74586fec9d"
-down_revision: str | Sequence[str] | None = "98790006ab63"
+down_revision: str | Sequence[str] | None = "ce599e5ada4c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

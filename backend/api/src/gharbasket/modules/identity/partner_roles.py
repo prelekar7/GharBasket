@@ -5,7 +5,8 @@ M8 §3.3; ADR-0026 §4).
 `partners.suspended` marks it `suspended` (it leaves the access token at the next refresh) and
 `partners.reinstated` marks it `verified` again. Captains get nothing here: their role follows
 M9's appointments. Each event is handled by reading the partner's current state through
-`partners.api`, so a redelivered or late event can never undo a newer change.
+`partners.api`, so a redelivered or late event can never undo a newer change. The consumer is
+registered in `identity/jobs.py`, where the loader finds every consumer.
 """
 
 import uuid

@@ -11,18 +11,23 @@ from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 pytestmark = [pytest.mark.anyio, pytest.mark.services, pytest.mark.usefixtures("societies")]
 
 SAI_DARSHAN = uuid.UUID("0199a000-0000-7000-8000-00000000b006")  # seed: no boundary yet
+GREEN_VALLEY = uuid.UUID("0199a000-0000-7000-8000-00000000b002")  # seed: unlocking
 
 
 async def test_get_society_gives_what_an_address_needs(db_session: AsyncSession) -> None:
     society = await api.get_society(db_session, SEED_SOCIETY_ID)
 
+    assert society is not None and society.live_at is not None  # live: set when it went live
     assert society == api.SocietyRef(
         id=SEED_SOCIETY_ID,
         hub_id=SEED_HUB_ID,
         status="live",
         tower_ids=frozenset({"a", "b", "c"}),
         name="Sunrise Towers",
+        live_at=society.live_at,
     )
+    unlocking = await api.get_society(db_session, GREEN_VALLEY)
+    assert unlocking is not None and (unlocking.status, unlocking.live_at) == ("unlocking", None)
     assert await api.get_society(db_session, uuid.uuid4()) is None
 
 

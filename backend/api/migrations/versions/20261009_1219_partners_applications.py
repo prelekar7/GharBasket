@@ -1,7 +1,7 @@
 """partners: applications to become a partner, one open application per person (M8 §3.1, §4)
 
 Revision ID: 931fd98ea0ff
-Revises: 232e527f6a85
+Revises: e317a4257a02
 Create Date: 2026-10-09 12:19:29.735794+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "931fd98ea0ff"
-down_revision: str | Sequence[str] | None = "232e527f6a85"
+down_revision: str | Sequence[str] | None = "e317a4257a02"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

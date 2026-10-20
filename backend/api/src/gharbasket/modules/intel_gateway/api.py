@@ -7,15 +7,18 @@ slow, failing or refuses the token, a rule-based answer is returned instead, mar
 
 import uuid
 from collections.abc import Callable
-from datetime import date
+from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 import httpx2
 import structlog
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.intel_gateway import fallback, service
 from gharbasket.modules.intel_gateway.fallback import HardRule, next_recipe, rule_breaks
+from gharbasket.modules.intel_gateway.models import FeatureSnapshot, ModelMetric, Prediction
 from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     AssignRequest,
     KitchenAssignment,
@@ -24,6 +27,10 @@ from gharbasket.modules.intel_gateway.schemas import (  # re-exported
     PantryQuantities,
     PantryRequest,
     PlanRequest,
+    RankCandidate,
+    RankedOut,
+    RankRequest,
+    RankResponse,
     RoutePlan,
     RouteRequest,
     WeekPlan,
@@ -43,22 +50,34 @@ ASSIGN_MARGIN_S = 5.0  # over the solver's time limit: candidates, transfer, a c
 __all__ = [
     "AssignRequest",
     "HardRule",
+    "HubDrift",
     "KitchenAssignment",
+    "MetricRow",
+    "ModelHealth",
     "PantryItem",
     "PantryObservation",
     "PantryQuantities",
     "PantryRequest",
     "PlanRequest",
+    "PredictionCount",
+    "RankCandidate",
+    "RankRequest",
+    "RankResponse",
+    "RankedOut",
     "RoutePlan",
     "RouteRequest",
     "WeekPlan",
     "assign_kitchens",
+    "delete_for_user",
     "latest_metrics",
     "latest_prediction",
+    "model_health",
     "next_recipe",
+    "pantry_priors",
     "pantry_quantities",
     "plan_week",
     "price_spikes",
+    "rank_basket",
     "record_metrics",
     "route_timeout_s",
     "rule_breaks",
@@ -103,6 +122,13 @@ async def plan_week(
     return plan
 
 
+async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
+    """The twin's learned priors for a household-size cohort (`small`, `medium`, `large`):
+    {product_id: (prior mean in base units a week per adult equivalent, prior_weeks)}, the
+    promoted registry version's; empty until one is promoted, so M3 keeps the rule table."""
+    return await service.pantry_priors(session, cohort)
+
+
 async def pantry_quantities(
     http: httpx2.AsyncClient,
     settings: Settings,
@@ -136,6 +162,161 @@ async def pantry_quantities(
             model_name=answer.model,
         )
     return answer
+
+
+@dataclass(frozen=True)
+class MetricRow:
+    metric: str
+    value: float
+    split: str
+    data_source: str
+    version: str
+    computed_at: datetime
+    hub_id: str | None = None  # a row about one hub (`details.hub_id`)
+
+
+@dataclass(frozen=True)
+class HubDrift:
+    """monitor_drift's live rows of one hub and data source over the window."""
+
+    hub_id: str
+    data_source: str
+    drift: bool  # any live `drift` row of this hub and source in the window says 1
+    drifted_days: int
+    scored_days: int
+    for_date: str | None  # the newest scored delivery day
+    wape: float | None  # its realised WAPE
+    backtest_wape: float | None  # the same hub and source's backtest it was compared with
+
+
+@dataclass(frozen=True)
+class ModelHealth:
+    model_name: str
+    metrics: tuple[MetricRow, ...]
+    drift: bool  # any hub drifted in the window (`hubs`)
+    hubs: tuple[HubDrift, ...] = ()
+
+
+@dataclass(frozen=True)
+class PredictionCount:
+    kind: str
+    source: str  # ml | fallback
+    count: int
+
+
+def _detail(row: ModelMetric, key: str) -> Any:
+    return (row.details or {}).get(key)
+
+
+def _hub_drift(rows: list[ModelMetric]) -> list[HubDrift]:
+    """Group a model's live per-hub rows (newest first) by hub and data source."""
+    groups: dict[tuple[str, str], list[ModelMetric]] = {}
+    for row in rows:
+        groups.setdefault((service.hub_of(row) or "", row.data_source), []).append(row)
+    out = []
+    for (hub, source), part in sorted(groups.items()):
+        drifts = [r for r in part if r.metric == "drift"]
+        wapes = [r for r in part if r.metric == "wape"]
+        newest = wapes[0] if wapes else None
+        out.append(
+            HubDrift(
+                hub_id=hub,
+                data_source=source,
+                drift=any(r.value >= 1 for r in drifts),
+                drifted_days=len({_detail(r, "for_date") for r in drifts if r.value >= 1}),
+                scored_days=len({_detail(r, "for_date") for r in wapes}),
+                for_date=None if newest is None else _detail(newest, "for_date"),
+                wape=None if newest is None else newest.value,
+                backtest_wape=None if newest is None else _detail(newest, "backtest_wape"),
+            )
+        )
+    return out
+
+
+async def model_health(
+    session: AsyncSession, *, since: datetime
+) -> tuple[list[ModelHealth], list[PredictionCount]]:
+    """What the console's AI health table shows (M12): every model's newest value per
+    (metric, split, data source, hub) from `model_metrics`; per hub and data source, the live
+    rows of `monitor_drift` since `since` (the model drifts when any hub does); and how often
+    each kind of prediction came from the ML service or the fallback since `since`."""
+    models = []
+    for name in await service.model_names(session):
+        rows = await service.latest_metrics(session, name)
+        hubs = _hub_drift(await service.live_hub_metrics(session, name, since))
+        models.append(
+            ModelHealth(
+                name,
+                tuple(
+                    MetricRow(
+                        m.metric,
+                        m.value,
+                        m.split,
+                        m.data_source,
+                        m.version,
+                        m.computed_at,
+                        service.hub_of(m),
+                    )
+                    for m in rows
+                ),
+                any(h.drift for h in hubs),
+                tuple(hubs),
+            )
+        )
+    counts = [
+        PredictionCount(kind, source, count)
+        for kind, source, count in await service.prediction_counts(session, since)
+    ]
+    return models, counts
+
+
+async def rank_basket(
+    http: httpx2.AsyncClient,
+    settings: Settings,
+    request: RankRequest,
+    *,
+    session: AsyncSession | None = None,
+    household_id: uuid.UUID | None = None,
+    week_monday: date | None = None,
+) -> RankResponse:
+    """Scores for a household's candidate products (M10 §3.7): the learned ranker on the ML
+    service, else frequency then popularity. With `session`, `household_id` and `week_monday`
+    the answer is kept in `intel.predictions` (kind `basket_rank`); the caller commits."""
+    ranked = await _call(
+        http,
+        settings,
+        "/basket/rank",
+        request.model_dump(mode="json"),
+        parse=RankResponse.model_validate,
+        fallback_to=lambda: fallback.rank_basket(request),
+        call="rank_basket",
+    )
+    if session is not None and household_id is not None and week_monday is not None:
+        await service.record_prediction(
+            session,
+            kind="basket_rank",
+            subject_type="household",
+            subject_id=household_id,
+            for_date=week_monday,
+            source=ranked.source,
+            payload=ranked.model_dump(mode="json", exclude={"source", "model"}),
+            model_name=ranked.model,
+        )
+    return ranked
+
+
+async def hub_forecast(
+    session: AsyncSession, hub_id: uuid.UUID, for_date: date
+) -> dict[str, Any] | None:
+    """The latest demand forecast stored for a hub and delivery day (`for_date` is the delivery
+    day, any weekday; the forecast job's lines: `items[{product_id, for_date, committed,
+    uncommitted_q50, uncommitted_qtau, order_qty, model}]` and `data_source`); None when the job
+    has not run for that day. M6 builds its procurement plan from it (M6 §6) on
+    `intel.forecast_ready`."""
+    kept = await service.latest_prediction(
+        session, kind="forecast", subject_id=hub_id, for_date=for_date
+    )
+    return None if kept is None else {**kept.payload, "model": kept.model_name}
 
 
 async def assign_kitchens(
@@ -275,3 +456,19 @@ SOLVER_SHARE_OF_TIMEOUT = 0.5
 def _solver_budget(settings: Settings, request: PlanRequest) -> float:
     """The request's `time_limit_s`, capped so the ML call ends inside `ml_timeout_s`."""
     return max(0.1, min(request.time_limit_s, SOLVER_SHARE_OF_TIMEOUT * settings.ml_timeout_s))
+
+
+async def delete_for_user(
+    session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
+) -> dict[str, int]:
+    """M1's purge (M1 §3.5, order 3): predictions and feature snapshots about the household.
+    Model metrics are aggregates and stay."""
+    if household_id is None:
+        return {"predictions": 0, "feature_snapshots": 0}
+    counts = {}
+    for model in (Prediction, FeatureSnapshot):
+        gone = await session.execute(
+            delete(model).where(model.subject_type == "household", model.subject_id == household_id)
+        )
+        counts[model.__tablename__] = gone.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+    return counts

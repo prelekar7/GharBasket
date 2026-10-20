@@ -27,7 +27,7 @@ def _problem(description: str) -> dict[str, Any]:
     return {"description": description, "content": {"application/problem+json": {}}}
 
 
-def _covers(permit: Permit, hub_id: uuid.UUID | None) -> bool:
+def covers(permit: Permit, hub_id: uuid.UUID | None) -> bool:
     """A society without a hub is only an admin's."""
     if hub_id is None:
         return permit.is_global
@@ -36,7 +36,7 @@ def _covers(permit: Permit, hub_id: uuid.UUID | None) -> bool:
 
 async def _society(session: DbSession, permit: Permit, society_id: uuid.UUID) -> Society:
     society = await session.get(Society, society_id)
-    if society is None or not _covers(permit, society.hub_id):
+    if society is None or not covers(permit, society.hub_id):
         raise captains.society_not_found()
     return society
 
@@ -141,7 +141,7 @@ async def end_captain(
     idem: Idempotent,
 ) -> CaptainOut:
     captain = await session.get(Captain, captain_id)
-    if captain is None or not _covers(permit, captain.hub_id):
+    if captain is None or not covers(permit, captain.hub_id):
         raise captains.captain_not_found()
     await captains.end(
         session, captain, reason=body.reason, note=body.note, by_user_id=permit.principal.user_id
