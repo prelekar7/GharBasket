@@ -52,7 +52,9 @@ see `src/gharbasket/platform/settings.py`. Every endpoint lives under `/v1`. Err
 ## Seed data
 `just seed` (`tools/seed.py`) writes synthetic people, societies and households through the module
 services, marked `data_source='synthetic'` (ADR-0008). It is local-only and safe to run again. Later
-module PRs add their rows (catalog) to the same command. Sign in as anyone below with `dev_phone`:
+module PRs add their rows (catalog) to the same command. For the catalog, `just seed` only adds
+rows that are missing and never overwrites a product or recipe edited in the console (M2 §3.3);
+`just seed --refresh` re-applies the seed files to the rows nobody has edited. Sign in as anyone below with `dev_phone`:
 
 | Phone | Name | Roles (scope) |
 |---|---|---|
@@ -67,6 +69,7 @@ module PRs add their rows (catalog) to the same command. Sign in as anyone below
 | +919800001009 | Sanjay Mehta | franchise_owner (Kharghar hub) |
 | +919800001010 | Asha Fernandes | ngo_coordinator |
 | +919800001011 | Neha Iyer | admin |
+| +919800001013 | Rekha Joshi | catalog_editor (recipes: names, fasting and diabetic flags) |
 
 Everyone is also a customer. The hub, society and NGO ids are fixed in `tools/seed.py`. Until M6
 creates hubs (and P5 creates NGOs), those scoped roles point at ids that don't exist yet.

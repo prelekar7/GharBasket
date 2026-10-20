@@ -1,0 +1,321 @@
+{
+  "status": "PLACEHOLDER: to be written by Rhythm Thakur and Manish Raje in English, Hindi and Marathi and reviewed by the owner (M8 §3.2, owner 2026-10-09). Only titles and summaries are translated here; questions fall back to English.",
+  "modules": [
+    {
+      "code": "app_basics",
+      "version": 1,
+      "for_kinds": ["kitchen", "captain", "rider", "packer"],
+      "minutes": 5,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "Using the GharBasket app",
+          "summary": "Switch to your partner role, read your tasks and ask the hub for help.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "Where do you switch between customer and partner mode?",
+              "options": ["The role switcher", "The wallet", "The cart"]
+            },
+            {
+              "id": "q2",
+              "text": "Who do you call when something goes wrong with a task?",
+              "options": ["A customer", "Your hub manager", "Nobody"]
+            },
+            {
+              "id": "q3",
+              "text": "Can you share a customer's phone number with others?",
+              "options": ["Yes", "Only with family", "Never"]
+            },
+            {
+              "id": "q4",
+              "text": "When is your week's earnings view updated?",
+              "options": ["As each task is completed", "Once a year", "Never"]
+            },
+            {
+              "id": "q5",
+              "text": "What should you do if the app shows an error?",
+              "options": ["Delete the app", "Try again, then tell the hub", "Ignore every task"]
+            }
+          ]
+        },
+        "hi": {
+          "title": "GharBasket ऐप का उपयोग",
+          "summary": "पार्टनर भूमिका चुनें, अपने काम देखें और हब से मदद लें।"
+        },
+        "mr": {
+          "title": "GharBasket ॲप वापरणे",
+          "summary": "पार्टनर भूमिका निवडा, तुमची कामे पाहा आणि हबकडून मदत घ्या."
+        }
+      },
+      "answers": { "q1": 0, "q2": 1, "q3": 2, "q4": 0, "q5": 1 }
+    },
+    {
+      "code": "hygiene",
+      "version": 1,
+      "for_kinds": ["kitchen", "packer"],
+      "minutes": 8,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "Kitchen hygiene",
+          "summary": "Clean hands, covered hair, clean surfaces and fresh food, every day.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "When must you wash your hands?",
+              "options": [
+                "Only at the end of the day",
+                "Before touching food and after every break",
+                "Never with soap"
+              ]
+            },
+            {
+              "id": "q2",
+              "text": "What covers your hair while you cook or pack?",
+              "options": ["A hair cover", "Nothing", "A cap from the street"]
+            },
+            {
+              "id": "q3",
+              "text": "Can you use yesterday's cooked food in today's tiffin?",
+              "options": ["Yes", "Only if it smells fine", "No, cook fresh today"]
+            },
+            {
+              "id": "q4",
+              "text": "How should raw and cooked food be kept?",
+              "options": ["Together", "Apart, covered", "On the floor"]
+            },
+            {
+              "id": "q5",
+              "text": "You have a fever. What do you do?",
+              "options": [
+                "Cook anyway",
+                "Tell the hub and do not handle food",
+                "Ask a child to cook"
+              ]
+            }
+          ]
+        },
+        "hi": {
+          "title": "रसोई की स्वच्छता",
+          "summary": "साफ़ हाथ, ढके बाल, साफ़ सतह और ताज़ा खाना, हर दिन।"
+        },
+        "mr": {
+          "title": "स्वयंपाकघरातील स्वच्छता",
+          "summary": "स्वच्छ हात, झाकलेले केस, स्वच्छ जागा आणि ताजे अन्न, दररोज."
+        }
+      },
+      "answers": { "q1": 1, "q2": 0, "q3": 2, "q4": 1, "q5": 1 }
+    },
+    {
+      "code": "kitchen_ops",
+      "version": 1,
+      "for_kinds": ["kitchen"],
+      "minutes": 8,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "Running your tiffin kitchen",
+          "summary": "Set your capacity, answer offers by 22:30, cook, mark ready and hand over.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "By when must you accept or decline tomorrow's offer?",
+              "options": ["22:30 the night before", "Noon tomorrow", "Any time"]
+            },
+            {
+              "id": "q2",
+              "text": "What do you set so you only get as many portions as you can cook?",
+              "options": ["Your capacity", "Your rating", "Your wallet"]
+            },
+            {
+              "id": "q3",
+              "text": "When can you mark a tiffin ready?",
+              "options": ["Before cooking", "When the hygiene checklist is complete", "Never"]
+            },
+            {
+              "id": "q4",
+              "text": "What is written on each box?",
+              "options": ["The customer's flat", "Its short code", "Your phone number"]
+            },
+            {
+              "id": "q5",
+              "text": "How does the rider collect your tiffins?",
+              "options": ["Scanning your pickup QR", "Calling the customer", "Guessing"]
+            }
+          ]
+        },
+        "hi": {
+          "title": "टिफ़िन रसोई चलाना",
+          "summary": "क्षमता तय करें, 22:30 तक ऑफ़र का जवाब दें, खाना बनाएँ, तैयार करें और सौंपें।"
+        },
+        "mr": {
+          "title": "टिफिन स्वयंपाकघर चालवणे",
+          "summary": "क्षमता ठरवा, 22:30 पर्यंत ऑफरला उत्तर द्या, स्वयंपाक करा, तयार करा आणि सोपवा."
+        }
+      },
+      "answers": { "q1": 0, "q2": 0, "q3": 1, "q4": 1, "q5": 0 }
+    },
+    {
+      "code": "captain_handover",
+      "version": 1,
+      "for_kinds": ["captain"],
+      "minutes": 6,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "The society handover",
+          "summary": "Receive the bags at the gate, check them, and give each family its bag.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "What do you check when the rider hands over the bags?",
+              "options": ["The bag count", "The rider's wallet", "Nothing"]
+            },
+            {
+              "id": "q2",
+              "text": "A bag is missing. What do you do?",
+              "options": ["Report it in the app", "Take one from another family", "Stay silent"]
+            },
+            {
+              "id": "q3",
+              "text": "When do you mark a bag delivered?",
+              "options": ["When the family has it", "When the rider arrives", "The next day"]
+            },
+            {
+              "id": "q4",
+              "text": "Where do you keep bags waiting for pickup?",
+              "options": ["In the sun", "Clean, shaded and safe", "On the road"]
+            },
+            {
+              "id": "q5",
+              "text": "Can you share a family's order with neighbours?",
+              "options": ["Yes", "Never", "Only on weekends"]
+            }
+          ]
+        },
+        "hi": {
+          "title": "सोसाइटी में हैंडओवर",
+          "summary": "गेट पर बैग लें, जाँचें और हर परिवार को उसका बैग दें।"
+        },
+        "mr": {
+          "title": "सोसायटीतील हस्तांतरण",
+          "summary": "गेटवर पिशव्या घ्या, तपासा आणि प्रत्येक कुटुंबाला त्याची पिशवी द्या."
+        }
+      },
+      "answers": { "q1": 0, "q2": 0, "q3": 0, "q4": 1, "q5": 1 }
+    },
+    {
+      "code": "rider_safety",
+      "version": 1,
+      "for_kinds": ["rider"],
+      "minutes": 6,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "Riding safely",
+          "summary": "Helmet on, follow the route, no phone while riding, scan at every stop.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "What do you wear on every ride?",
+              "options": ["A helmet", "Headphones", "Nothing extra"]
+            },
+            {
+              "id": "q2",
+              "text": "Can you use your phone while riding?",
+              "options": ["Yes", "Only for calls", "No, stop safely first"]
+            },
+            {
+              "id": "q3",
+              "text": "What do you do at each society gate?",
+              "options": [
+                "Hand over to the captain in the app",
+                "Leave the bags outside",
+                "Skip it if late"
+              ]
+            },
+            {
+              "id": "q4",
+              "text": "Your vehicle breaks down. What do you do?",
+              "options": ["Tell the hub at once", "Go home", "Ask a customer for a lift"]
+            },
+            {
+              "id": "q5",
+              "text": "Which route do you follow?",
+              "options": ["The one in the app", "Any shortcut", "The longest"]
+            }
+          ]
+        },
+        "hi": {
+          "title": "सुरक्षित सवारी",
+          "summary": "हेलमेट पहनें, रूट पर चलें, चलाते समय फ़ोन नहीं, हर स्टॉप पर स्कैन करें।"
+        },
+        "mr": {
+          "title": "सुरक्षित प्रवास",
+          "summary": "हेल्मेट घाला, मार्गाने जा, चालवताना फोन नको, प्रत्येक थांब्यावर स्कॅन करा."
+        }
+      },
+      "answers": { "q1": 0, "q2": 2, "q3": 0, "q4": 0, "q5": 0 }
+    },
+    {
+      "code": "packing",
+      "version": 1,
+      "for_kinds": ["packer"],
+      "minutes": 6,
+      "pass_score": 0.8,
+      "video_url": null,
+      "texts": {
+        "en": {
+          "title": "Packing a family's bag",
+          "summary": "Pick by the list, weigh loose items, seal the bag and label it.",
+          "questions": [
+            {
+              "id": "q1",
+              "text": "How do you know what goes into a bag?",
+              "options": ["The pick list in the app", "Memory", "The customer's call"]
+            },
+            {
+              "id": "q2",
+              "text": "An item is out of stock. What do you do?",
+              "options": ["Mark it short in the app", "Put in anything", "Leave the bag open"]
+            },
+            {
+              "id": "q3",
+              "text": "Where do heavy items go?",
+              "options": ["At the bottom", "On top of eggs", "Outside the bag"]
+            },
+            {
+              "id": "q4",
+              "text": "What is on the label?",
+              "options": ["The bag's code", "The customer's phone", "Nothing"]
+            },
+            {
+              "id": "q5",
+              "text": "When is a bag packed?",
+              "options": [
+                "When every line is picked and it is sealed",
+                "When half full",
+                "Before picking"
+              ]
+            }
+          ]
+        },
+        "hi": {
+          "title": "परिवार का बैग पैक करना",
+          "summary": "सूची से चुनें, खुला सामान तौलें, बैग सील करें और लेबल लगाएँ।"
+        },
+        "mr": {
+          "title": "कुटुंबाची पिशवी भरणे",
+          "summary": "यादीनुसार निवडा, सुटे सामान वजन करा, पिशवी बंद करा आणि लेबल लावा."
+        }
+      },
+      "answers": { "q1": 0, "q2": 0, "q3": 0, "q4": 0, "q5": 0 }
+    }
+  ]
+}

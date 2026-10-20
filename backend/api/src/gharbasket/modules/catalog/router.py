@@ -1,5 +1,5 @@
 """HTTP endpoints of M2 Catalog & Pricing: products, search, prices, substitutes (spec §3.1),
-recipes and festivals (§3.2).
+recipes and festivals (§3.2). The console's editor (§3.3) is in admin_router.py.
 
 Prices are for the caller's hub: `hub_id` if given, else the hub of their household (M1), else none.
 """
@@ -12,7 +12,10 @@ from fastapi import APIRouter, Query, Response, status
 
 from gharbasket.modules.catalog import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.catalog import pricing, recipes, service
+from gharbasket.modules.catalog.admin_router import router as admin_router
+from gharbasket.modules.catalog.calendar_prices_router import router as calendar_prices_router
 from gharbasket.modules.catalog.pricing import HubPrice
+from gharbasket.modules.catalog.recipe_admin_router import router as recipe_admin_router
 from gharbasket.modules.catalog.schemas import (
     CategoryRef,
     Cuisine,
@@ -51,6 +54,9 @@ from gharbasket.platform.permissions import Permit, require
 from gharbasket.platform.tokens import AccessClaims
 
 router = APIRouter(tags=["catalog"])
+router.include_router(admin_router)  # the console's editor (§3.3)
+router.include_router(recipe_admin_router)
+router.include_router(calendar_prices_router)
 
 # Products change rarely; the PWA's service worker caches them per language (spec §3.1).
 CATALOG_CACHE = "private, max-age=300"

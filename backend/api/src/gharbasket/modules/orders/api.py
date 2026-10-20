@@ -18,7 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import issues, service
-from gharbasket.modules.orders.events import CANCELLED, DELIVERED, LOCKED, PAYMENT_FAILED
+from gharbasket.modules.orders.events import (
+    CANCELLED,
+    DELIVERED,
+    LOCKED,
+    PAYMENT_FAILED,
+    TIFFIN_BOOKED,
+)
 from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     STATUSES,
@@ -47,6 +53,7 @@ __all__ = [
     "NOT_SOLD",
     "PAYMENT_FAILED",
     "SOLD",
+    "TIFFIN_BOOKED",
     "ApprovedCycle",
     "CycleLine",
     "Order",
@@ -63,6 +70,7 @@ __all__ = [
     "export_for_user",
     "get",
     "grace_until_for",
+    "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
     "mark_shortage",
@@ -70,6 +78,7 @@ __all__ = [
     "orders_for_delivery",
     "refundable_paise",
     "resolve_issue",
+    "set_kitchen",
     "slot_ref",
     "sold_lines",
     "summaries",
@@ -79,6 +88,16 @@ __all__ = [
 
 async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = False) -> Order:
     return await service.get(session, order_id, for_update=for_update)
+
+
+async def has_delivered_box(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether the household has had a box delivered (M9: the referral claim window closes)."""
+    found = await session.execute(
+        select(Order.id)
+        .where(Order.household_id == household_id, Order.kind == "box", Order.status == "delivered")
+        .limit(1)
+    )
+    return found.first() is not None
 
 
 async def cancel_from_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
@@ -102,11 +121,14 @@ async def transition(
     """Move an order along its kind's state machine (ADR-0026 §2, §3): `actor` is the kind of
     actor (`system`, `hub`, `packer`, `rider`, `captain`, `kitchen`, `customer`) and
     `actor_user_id` the person, recorded on the timeline row but never shown to customers.
-    A move to `refunded` pays `payload.refund_paise` (default: all that is refundable) back to
-    the wallet with `payload.reason` (ADR-0027 §5).
     M4 checks only the state machine (409 `orders.illegal_transition`); the caller has already
     checked that this person may act on this order (packer of its hub, rider of its route,
-    active captain of its society, kitchen of its assignment)."""
+    active captain of its society, kitchen of its assignment).
+
+    A move to `refunded` returns money to the owner's wallet through `billing.api`:
+    `payload.refund_paise` (0 up to `refundable_paise`, the paid total less everything already
+    paid back; default all of it), keyed by order and `payload.reason` (default `undelivered`;
+    `no_kitchen` for a locked tiffin no kitchen took, ADR-0027), so a replay never pays twice."""
     order = await service.get(session, order_id, for_update=True)
     return await service.transition(
         session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
@@ -125,6 +147,16 @@ async def summaries(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[O
 async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
     """What a refund of the order may still pay back (M7's triage bound)."""
     return await service.refundable_paise(session, await service.get(session, order_id))
+
+
+async def set_kitchen(
+    session: AsyncSession, order_id: uuid.UUID, partner_id: uuid.UUID | None
+) -> Order:
+    """Record the kitchen partner that cooks a tiffin (M8 on accept), or clear it with None (M8
+    on a cancellation after acceptance), ADR-0026 §3; the order shows it as `kitchen`. Tiffins
+    only (else `orders.not_editable`); the same kitchen again changes nothing."""
+    order = await service.get(session, order_id, for_update=True)
+    return await service.set_kitchen(session, order, partner_id)
 
 
 async def mark_shortage(
@@ -154,6 +186,7 @@ class SlotRef:
     start: time
     end: time
     active: bool
+    meal: str | None = None  # lunch or dinner for a tiffin slot (§3.5)
 
 
 # Demand that happened (M10 §3.6): every status that has passed `locked`, whether or not the
@@ -196,7 +229,14 @@ async def slot_ref(session: AsyncSession, slot_id: uuid.UUID) -> SlotRef | None:
     except Exception:
         return None
     return SlotRef(
-        slot.id, slot.hub_id, slot.label, slot.kind, slot.start_time, slot.end_time, slot.active
+        slot.id,
+        slot.hub_id,
+        slot.label,
+        slot.kind,
+        slot.start_time,
+        slot.end_time,
+        slot.active,
+        slot.meal,
     )
 
 

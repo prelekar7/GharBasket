@@ -26,6 +26,7 @@ from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity import deletion, events, service
 from gharbasket.modules.identity.exports import KEEP, MAX_ATTEMPTS
 from gharbasket.modules.identity.models import DataExport, Deletion
+from gharbasket.modules.identity.partner_roles import sync_partner_role
 from gharbasket.modules.intel_gateway import api as intel_api
 from gharbasket.modules.notifications import api as notifications_api
 from gharbasket.modules.orders import api as orders_api
@@ -158,6 +159,10 @@ async def on_captain_ended(session: AsyncSession, event: OutboxEvent) -> None:
 
 subscribe(community_api.CAPTAIN_ASSIGNED, on_captain_assigned)
 subscribe(community_api.CAPTAIN_ENDED, on_captain_ended)
+
+# Hub roles of kitchens, riders and packers follow M8 (partner_roles.py; ADR-0026 §4)
+for _event in (partners_api.VERIFIED, partners_api.SUSPENDED, partners_api.REINSTATED):
+    subscribe(_event, sync_partner_role)
 
 
 # --- the purge of deleted accounts (spec §3.5) --------------------------------------------------
