@@ -1,6 +1,6 @@
 # ADR-0028 — M7 order moves: a hub manager tapping for a rider, and a redelivery no route picked up
 
-- **Status:** Proposed (20 October 2026, for the owner to approve)
+- **Status:** Accepted (2026-10-20, by the owner, Prathamesh)
 - **Date:** 2026-10-20
 - **Decision ID:** D28
 - **Amends:** [ADR-0027](0027-operations-contract-amendments.md) §5 (the order moves M7 needs); ADR-0026 §2 and ADR-0027 are otherwise unchanged
@@ -34,7 +34,7 @@ Two details of the M7 build (PRs #321–#330) were first written into ADR-0027 i
 - (+) The rider's pay does not depend on who tapped; every orphan redelivery ends in a booked van or a refund.
 - (−) M4's per-kind state machine gains one move (box and add-on only), with a test per actor; M4 §3.7 and the table in M4 list it.
 - (−) The field event, not the order timeline, shows that a manager tapped for a rider.
-- **Not changed:** the owner's decision of 9 October 2026 on a box missed twice (ADR-0027 §2). M7 refunds the perishable lines minus the ₹20 fee and does not refund the non-perishables, which ride on the household's next delivery. M4's `carry_over` and M6's kept items do not exist yet; until they do M7 only records the lines (`logistics.carry_over_pending`, and the `resolve` field event).
+- **Not changed:** the owner's decision of 9 October 2026 on a box missed twice (ADR-0027 §2). M7 refunds the perishable lines minus the ₹20 fee and does not refund the non-perishables, which ride on the household's next delivery. M4's `carry_over` and M6's kept items do not exist yet; until they do M7 only records the lines (`logistics.carry_over_pending`, and the `resolve` field event). The carry-over of the non-perishables will be built next as an M4 follow-up, contract first (M4 `carry_over` spec and M6 kept items), before MS-B.
 
 ## Related
 [ADR-0026](0026-operations-contract.md) · [ADR-0027](0027-operations-contract-amendments.md) · [M4 spec](../modules/M4-orders.md) · [M7 spec](../modules/M7-logistics.md) · [M8 spec](../modules/M8-partners.md)

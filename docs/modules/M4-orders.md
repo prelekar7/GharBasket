@@ -145,7 +145,7 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 | dispatched → delivered / undelivered | — | rider, captain, hub |
 | undelivered → redelivery | customer, hub | — |
 | undelivered → refunded | customer, system | system (at once; a lunch is never redelivered) |
-| redelivery → refunded | system, hub (a redelivery no route picked up; [ADR-0028](../adr/0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md), proposed) | — |
+| redelivery → refunded | system, hub (a redelivery no route picked up; [ADR-0028](../adr/0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md), accepted) | — |
 
 Tiffins therefore never reach `at_society` or `redelivery`, and boxes and add-ons never take `dispatched → delivered`. The tiffin statuses read as handbook 06 §6.3: `approved` = scheduled, `locked` = locked (the kitchen assignment is M8 data), `picking` = preparing, `packed` = ready, `dispatched` = picked up; the apps label them by kind.
 
@@ -414,7 +414,7 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 - `mark_shortage` refuses a substitute for a household whose M1 `shortage_preference` is `refund`: 422 `orders.substitute_invalid` with `reason: "refund_preferred"` (M1 §3.4).
 - **Fulfilment events gain `actor` and `actor_user_id`** (internal only, never shown to customers), so that M8 can attribute earnings without reading M4's tables (M8 §3.6, M5 §3.5). This is in addition to `kind` (ADR-0026 §3).
 - `orders_for_delivery` returns, for tiffins, the tiffin lines, `slot_id` and `preferred_partner_id` (M8 §3.4).
-- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `redelivery → refunded` (`system`, `hub`: ADR-0028, proposed); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10).
+- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `redelivery → refunded` (`system`, `hub`: ADR-0028); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10).
 
 ## 4. Tables owned
 | Table | Key columns |
