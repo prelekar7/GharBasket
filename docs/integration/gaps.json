@@ -1,0 +1,627 @@
+{
+  "_help": [
+    "Hand-maintained classification of the frontend calls that openapi.json does not have (scripts/contract-gaps.mjs reads it).",
+    "Key: \"METHOD /v1/path\" with every variable part as {} (the scan prints the keys; run `node scripts/contract-gaps.mjs --check`).",
+    "Value: { app: mobile | console | mobile+console, class, owner, pr?, milestone?, fix?, note? }.",
+    "class: pending-pr (an open or stacked PR builds it) | fix-frontend (the frontend changes) | fix-backend (the backend lacks it and no spec says when: a frontend proposal or an unspecified view; spec it, build it or drop it) | later (a spec exists, a milestone builds it) | drop (mocked by decision, no real endpoint).",
+    "owner: yash (frontend) | prathamesh (backend). Milestones: MS-A 13 Dec 2026, MS-B 24 Jan, MS-C 21 Feb, MS-D 7 Mar (handbook 14); a module's sprint is in its spec header.",
+    "Delete an entry when its fix lands (--check reports a stale entry). extra_fixes lists mismatches the scan cannot see."
+  ],
+  "entries": {
+    "PATCH /v1/cycles/{}/meals": {
+      "app": "mobile",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too.",
+      "note": "M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow."
+    },
+    "PATCH /v1/admin/festivals/{}": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F3: PATCH (and DELETE) /v1/admin/festivals/{day}/{code}/{region}, not a single id; the run's days become one call each.",
+      "note": "M2 §3.3."
+    },
+    "POST /v1/admin/reconciliation/{}/credit": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F4: POST /v1/admin/reconciliation/{id}/resolve with { note } (moves no money; the wallet credit is not an action).",
+      "note": "M5 §3.4. Built on main."
+    },
+    "POST /v1/admin/reconciliation/{}/investigate": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F4: same resolve call; the spec has no 'investigating' state.",
+      "note": "M5 §3.4."
+    },
+    "POST /v1/admin/reconciliation/check": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted.",
+      "note": "No endpoint in M5 §3.4."
+    },
+    "GET /v1/hubs/{}/tiffin-menus": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "F5: GET /v1/tiffin-menus?date= (the hub comes from the caller's role). Built on main (#317).",
+      "note": "M4 §3.5."
+    },
+    "GET /v1/tiffin-offers": {
+      "app": "mobile",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317).",
+      "note": "The cycle does not carry offers."
+    },
+    "GET /v1/orders/{}/tiffin": {
+      "app": "mobile",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook.",
+      "note": "M8 §3.4 table 'Mock today'."
+    },
+    "GET /v1/orders/{}/rating": {
+      "app": "mobile",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack.",
+      "note": "M8 §3.5."
+    },
+    "POST /v1/orders/{}/rating": {
+      "app": "mobile",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack.",
+      "note": "M8 §3.5."
+    },
+    "POST /v1/hubs/{}/cutoff/run": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Remove 'Run cut-off now' from the cut-off page: M4 replaced it with the 21:00 job (cutoff_lock), which is operator-only.",
+      "note": "M4 spec endpoint table, row POST /v1/internal/jobs/cutoff_lock."
+    },
+    "GET /v1/admin/hubs": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "The spec has POST only. List with GET /v1/hubs and read each with GET /v1/hubs/{id}; show what those carry.",
+      "note": "M6 §3.1. If address, people and slots are needed in one list, that is a new backend ask."
+    },
+    "GET /v1/public/societies": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Drop the public society list from the landing page; a society page is GET /v1/public/societies/{slug}.",
+      "note": "M12 §3.7: 'Not in v1'."
+    },
+    "GET /v1/public/cooks/{}": {
+      "app": "console",
+      "class": "fix-frontend",
+      "owner": "yash",
+      "fix": "Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public.",
+      "note": "M12 §3.7: public cook profiles are M8's card."
+    },
+    "GET /v1/routes/{}/live": {
+      "app": "mobile+console",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#324",
+      "milestone": "MS-B",
+      "note": "SSE."
+    },
+    "GET /v1/captains/me/today": {
+      "app": "mobile",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#326",
+      "milestone": "MS-B",
+      "note": "The captain's day."
+    },
+    "GET /v1/stops/{}/deliveries": {
+      "app": "mobile",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#326",
+      "milestone": "MS-B"
+    },
+    "GET /v1/deliveries/{}": {
+      "app": "mobile",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#329",
+      "milestone": "MS-B",
+      "note": "The customer's delivery card."
+    },
+    "GET /v1/hubs/{}/deliveries": {
+      "app": "console",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#329",
+      "milestone": "MS-B",
+      "note": "The hub's exceptions board."
+    },
+    "POST /v1/deliveries/{}/resolve": {
+      "app": "console",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "#329",
+      "milestone": "MS-B"
+    },
+    "GET /v1/earnings": {
+      "app": "mobile",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "M8 stack (earnings, M8 §3.6)",
+      "milestone": "MS-B",
+      "note": "Reads M5's partner week; ships with M8 in S6."
+    },
+    "GET /v1/partners/{}/card": {
+      "app": "mobile+console",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "M8 stack (know your cook, M8 §3.5)",
+      "milestone": "MS-B"
+    },
+    "GET /v1/hubs/{}/partner-rates": {
+      "app": "console",
+      "class": "pending-pr",
+      "owner": "prathamesh",
+      "pr": "M8 stack (rate cards, M8 §3.6)",
+      "milestone": "MS-B",
+      "note": "Behind orNotShipped today."
+    },
+    "GET /v1/earnings/certificate": {
+      "app": "mobile",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "after MS-B",
+      "note": "M8 §3.7 is an outline, 'refined after MS-B'."
+    },
+    "GET /v1/admin/payouts": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M5 §3.5, ships with M8 in S6."
+    },
+    "POST /v1/admin/payouts/{}/retry": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M5 §3.5."
+    },
+    "GET /v1/hubs/{}/waste-logs": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5 (S4)."
+    },
+    "POST /v1/hubs/{}/waste-logs": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5."
+    },
+    "GET /v1/hubs/{}/waste-summary": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5."
+    },
+    "GET /v1/hubs/{}/surplus-offers": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5."
+    },
+    "POST /v1/hubs/{}/surplus/run": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5, same work as the 12:30 job."
+    },
+    "POST /v1/surplus-offers/{}/settle": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-B",
+      "note": "M6 §3.5."
+    },
+    "POST /v1/admin/societies": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-A",
+      "note": "M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}."
+    },
+    "GET /v1/impact": {
+      "app": "mobile",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.7 (?scope=me)."
+    },
+    "GET /v1/ngos": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5."
+    },
+    "POST /v1/admin/ngos": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5. The body differs (kind, hub_ids, accepts); see M9's 'Mock today' table."
+    },
+    "GET /v1/ngo-handoffs": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5."
+    },
+    "GET /v1/ngo-handoffs/ready": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5 (replaces open_batches)."
+    },
+    "POST /v1/ngo-handoffs": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5. The body is { ngo_id, hub_id, kind, donation_ids|offer_ids|meals, photo_keys, people_reached }."
+    },
+    "POST /v1/ngo-handoffs/{}/confirm": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5."
+    },
+    "GET /v1/ngo/offers": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5."
+    },
+    "POST /v1/ngo/offers/{}/claim": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M9 §3.5."
+    },
+    "GET /v1/public/societies/{}": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
+    },
+    "GET /v1/analytics/hubs/{}/today": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.3 (S9). F6: wrap the call in orNotShipped; the hub manager's home page crashes against the real API."
+    },
+    "GET /v1/analytics/kpis": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.3."
+    },
+    "GET /v1/analytics/societies": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.3."
+    },
+    "GET /v1/analytics/partner-earnings": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.5."
+    },
+    "GET /v1/analytics/cohorts": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.5."
+    },
+    "GET /v1/analytics/unit-economics": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.4."
+    },
+    "GET /v1/analytics/pnl": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.4."
+    },
+    "GET /v1/analytics/hubs/{}/assumptions": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.4."
+    },
+    "PUT /v1/analytics/hubs/{}/assumptions": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.4, needs If-Match."
+    },
+    "GET /v1/analytics/impact": {
+      "app": "console",
+      "class": "later",
+      "owner": "prathamesh",
+      "milestone": "MS-D",
+      "note": "M12 §3.6 (JSON and CSV)."
+    },
+    "GET /v1/hubs/{}/cutoff": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "milestone": "MS-A",
+      "fix": "A cheap read: the hub's next cut-off, locked and awaiting counts. F6: wrap in orNotShipped meanwhile.",
+      "note": "Not in a module spec (M4 has the cutoff_lock job only). With delivery-dates the console would follow the backend's clock."
+    },
+    "GET /v1/hubs/{}/delivery-dates": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "milestone": "MS-A",
+      "fix": "A cheap read: the hub's next delivery dates from its societies' delivery days.",
+      "note": "Not in a module spec."
+    },
+    "GET /v1/hubs/{}/delivery-days": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec; the societies' own GET /v1/societies/{id}/delivery-days and PUT /v1/admin/societies/{id}/delivery-days exist. The page marks it @proposal."
+    },
+    "GET /v1/hubs/{}/cycles": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec: a hub-level view of the weekly cycles (M3 serves only the customer's own)."
+    },
+    "GET /v1/hubs/{}/fairness": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec; the page says so. M8 reads PARTNERS_FAIRNESS_LAMBDA and exposes no read; the Gini itself comes from M12."
+    },
+    "PUT /v1/hubs/{}/fairness-weight": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec; the weight is an env setting in M8 §3.4."
+    },
+    "GET /v1/hubs/{}/settings": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Franchise settings; not in a module spec."
+    },
+    "PATCH /v1/hubs/{}/settings": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Franchise settings; not in a module spec."
+    },
+    "GET /v1/hubs/{}/staff": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "POST /v1/hubs/{}/staff-invitations": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "GET /v1/admin/plans": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Admin list; M3 serves only GET /v1/plans."
+    },
+    "POST /v1/admin/plans": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "PATCH /v1/admin/plans/{}": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "GET /v1/admin/refunds": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Admin list; M5 §3.3 serves the customer's own refunds only."
+    },
+    "POST /v1/admin/refunds/{}/{}": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "approve, reject, reopen; not in a module spec. Order issues are resolved with M4's order-issue endpoints."
+    },
+    "GET /v1/admin/societies": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Admin list that says which hub a society is on; M9 serves GET /v1/societies (search) only."
+    },
+    "GET /v1/admin/society-requests": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "M9 has POST /v1/society-requests (the customer) and no review."
+    },
+    "PATCH /v1/admin/society-requests/{}": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "POST /v1/admin/society-requests/{}/accept": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "POST /v1/admin/society-requests/{}/duplicate": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Not in a module spec."
+    },
+    "GET /v1/admin/users": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "User lookup and staff list; M1 has POST /v1/admin/user-roles only."
+    },
+    "DELETE /v1/admin/user-roles/{}": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "Revoking a staff role; M1 specs the grant only."
+    },
+    "POST /v1/tiffin-menus/{}/approve": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "M4 §3.5: M2 has no endpoints to write or approve menus 'until that flow is specified'. The page marks the paths @proposal."
+    },
+    "POST /v1/tiffin-menus/{}/send-back": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "As approve."
+    },
+    "POST /v1/tiffin-menus/{}/reopen": {
+      "app": "console",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "As approve."
+    },
+    "GET /v1/hubs/{}/shortages": {
+      "app": "mobile",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "A mock-only proposal ('Items short today and the bags they fall on'); M6 has POST /v1/packing-tasks/{id}/shortage but no hub-level read."
+    },
+    "GET /v1/budget-lock/preferences": {
+      "app": "mobile",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "A proposal { when_over: swap|trim|ask }; M3 describes only 'swap to cheaper'. The app hides the question while it 404s."
+    },
+    "PUT /v1/budget-lock/preferences": {
+      "app": "mobile",
+      "class": "fix-backend",
+      "owner": "prathamesh",
+      "note": "As GET."
+    },
+    "POST /v1/mandates": {
+      "app": "mobile",
+      "class": "drop",
+      "owner": "yash",
+      "note": "UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Hide the Autopay choice behind a flag."
+    },
+    "GET /v1/mandates/current": {
+      "app": "mobile",
+      "class": "drop",
+      "owner": "yash",
+      "note": "As POST /v1/mandates (M5 §3.7)."
+    },
+    "DELETE /v1/mandates/{}": {
+      "app": "mobile",
+      "class": "drop",
+      "owner": "yash",
+      "note": "As POST /v1/mandates (M5 §3.7)."
+    },
+    "GET /v1/intel/experiments": {
+      "app": "console",
+      "class": "drop",
+      "owner": "yash",
+      "note": "Experiments are cut (M12 header, owner 2026-10-09); the page stays on its mock."
+    },
+    "POST /v1/intel/experiments/{}/promote": {
+      "app": "console",
+      "class": "drop",
+      "owner": "yash",
+      "note": "As above."
+    },
+    "POST /v1/intel/experiments/{}/rollback": {
+      "app": "console",
+      "class": "drop",
+      "owner": "yash",
+      "note": "As above."
+    }
+  },
+  "extra_fixes": [
+    {
+      "id": "F2",
+      "app": "mobile",
+      "where": "src/mocks/handlers.js, kitchen.js, community.js",
+      "fix": "Mock role grants use slug scope_ids; use the seed UUIDs (hub 0199a000-0000-7000-8000-00000000a001, Sunrise Towers ...b001) so the same code runs on both.",
+      "owner": "yash"
+    },
+    {
+      "id": "F6",
+      "app": "console",
+      "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(hub)/cutoff/page.jsx",
+      "fix": "Wrap GET /v1/analytics/hubs/{id}/today and GET /v1/hubs/{id}/cutoff in orNotShipped, with a not-available view. The hub manager's home crashes against the real API today.",
+      "owner": "yash"
+    },
+    {
+      "id": "F7",
+      "app": "console",
+      "where": "lib/session.js (STAFF_ROLES, ROLES, ConsoleRole), lib/nav.js",
+      "fix": "Add the catalog_editor role (seed person Rekha Joshi, +91 98000 01013): its home, nav sections (catalog and prices) and the sign-in button.",
+      "owner": "yash"
+    },
+    {
+      "id": "F8",
+      "app": "console",
+      "where": "lib/hub.js, mocks/README.md",
+      "fix": "GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
+      "owner": "yash"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ for role in ("hub_manager", "admin"):
         "kyc_files:read",
     )
 # A kitchen partner's own kitchen and capacity (§3.4); the service checks "own".
-PERMISSIONS.allow("kitchen_partner", "kitchens:write")
+PERMISSIONS.allow("kitchen_partner", "kitchens:write", "assignments:read", "assignments:write")
 for role in ("hub_manager", "admin"):
-    PERMISSIONS.allow(role, "kitchens:inspect")
+    # Kitchen inspections, and running an assignment round or assigning by hand (§3.4).
+    PERMISSIONS.allow(role, "kitchens:inspect", "assignments:manage")
