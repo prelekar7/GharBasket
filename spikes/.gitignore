@@ -1,0 +1,8 @@
+# Throwaway spike apps: generated native projects, installs and local config stay local.
+*/android/
+*/node_modules/
+*/dist/
+*/.env
+*/.env.*
+!*/.env.example
+google-services.json

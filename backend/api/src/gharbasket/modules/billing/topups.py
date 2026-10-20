@@ -65,7 +65,8 @@ async def create_topup(
         session, "wallet", "user", user_id, kind="liability", lock=True
     )
     held = await wallet.held_paise(session, user_id)
-    room = wallet.CAP_PAISE - await service.balance(session, account) - held
+    in_flight = await wallet.in_flight_paise(session, user_id)  # refunds to source, spec §3.3
+    room = wallet.CAP_PAISE - await service.balance(session, account) - held - in_flight
     if amount_paise > room:
         raise _limit("billing.wallet_limit", "The wallet can hold at most ₹10,000.", room)
     month = wallet.MONTHLY_TOPUP_PAISE - await wallet.topped_up_this_month(session, account) - held

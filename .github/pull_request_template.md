@@ -12,5 +12,6 @@ Module: <!-- e.g. M1 identity, M0 platform, mobile, console -->
 - [ ] Tests added or updated; CI is green
 - [ ] No secrets, `.env` files, keystores or real personal data
 - [ ] API change? `openapi.json` and `frontend/packages/api-client` regenerated, and both owners reviewed
+- [ ] ML/AI change? Claude Opus reviewed and tested it (handbook §11.3); findings fixed or accepted below
 - [ ] Database change? one Alembic migration, named `YYYYMMDD_HHMM_<module>_<desc>`, downgrade works
 - [ ] Docs or the handbook chapter updated if behaviour changed

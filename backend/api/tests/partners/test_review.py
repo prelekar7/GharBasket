@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.identity import partner_roles  # noqa: F401 (registers the consumers)
 from gharbasket.modules.identity.models import UserRole
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service
