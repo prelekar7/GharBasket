@@ -481,16 +481,22 @@ def _ensure_open(assignment: Assignment, at: datetime) -> None:
         raise ProblemError(409, "partners.assignment_closed", "This offer is closed.")
 
 
-async def _event(
+async def event(
     session: AsyncSession,
     assignment: Assignment,
     action: str,
     user_id: uuid.UUID | None,
+    client_at: datetime | None = None,
     **payload: object,
 ) -> None:
+    """Record what happened (an offline tap keeps its `client_at`) and bump the version."""
     session.add(
         AssignmentEvent(
-            assignment_id=assignment.id, action=action, user_id=user_id, payload=payload
+            assignment_id=assignment.id,
+            action=action,
+            user_id=user_id,
+            payload=payload,
+            client_at=client_at,
         )
     )
     assignment.version += 1
@@ -504,7 +510,7 @@ async def accept(
     order does not show its cook until it is."""
     _ensure_open(assignment, at)
     assignment.status, assignment.responded_at = "accepted", at
-    await _event(session, assignment, "accepted", user_id)
+    await event(session, assignment, "accepted", user_id)
 
 
 async def decline(
@@ -517,7 +523,7 @@ async def decline(
 ) -> None:
     _ensure_open(assignment, at)
     assignment.status, assignment.responded_at, assignment.decline_reason = "declined", at, reason
-    await _event(session, assignment, "declined", user_id, reason=reason, note=note)
+    await event(session, assignment, "declined", user_id, reason=reason, note=note)
     await release(session, assignment, "declined")
 
 
@@ -562,6 +568,6 @@ async def expire_overdue(session: AsyncSession, at: datetime) -> int:
     )
     for assignment in overdue:
         assignment.status = "expired"
-        await _event(session, assignment, "expired", None)
+        await event(session, assignment, "expired", None)
         await release(session, assignment, "expired")
     return len(overdue)

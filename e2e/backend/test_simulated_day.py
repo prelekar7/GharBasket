@@ -797,6 +797,14 @@ def test_the_morning_sends_what_quiet_hours_held(
     assert {p["token"] for p in app.outside.pushes} <= devices
 
 
+def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop: Runner) -> None:
+    """Tuesday T 09:30: the lunch slot's manual assignment closes and unassigned tiffins are
+    refunded (the day books no tiffin, so there is nothing to refund)."""
+    when = ist(day.t, 9, 30)
+    summary = step(loop, when, app.job("refund_unassigned_tiffins", when))
+    assert summary["refunded"] == summary["refused"] == 0, summary
+
+
 def test_every_event_of_the_day_that_m11_maps_became_a_message(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
