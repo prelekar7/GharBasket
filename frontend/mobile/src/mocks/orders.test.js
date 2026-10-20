@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockFetch } from "./index.js";
+import { tiffinMenuId } from "./orders.js";
 import { DOOR_MS, deliveryStage, restartTrip, TODAY_BOX_ID, TRIP_MS } from "./tracking.js";
 
 /** @param {string} method @param {string} path @param {object} [body] @param {Record<string, string>} [headers] */
@@ -166,13 +167,9 @@ describe("the delivery day (HcOrders, HcTracking)", () => {
 });
 
 describe("tiffin orders", () => {
-  const body = {
-    kind: "tiffin",
-    delivery_date: "2026-10-08",
-    slot: "lunch",
-    kitchen_id: "kit-lata",
-    qty: 2,
-  };
+  // A menu of GET /v1/tiffin-menus: the id fixes the date (and the meal and the cook).
+  const menu = (/** @type {string} */ date) => tiffinMenuId(date);
+  const body = { kind: "tiffin", menu_id: menu("2026-10-08"), portions: 2 };
 
   it("names the cook and dish under its own proposed endpoint", async () => {
     const list = (await (await get("/v1/orders?from=2026-10-07&to=2026-10-07")).json()).items;
@@ -188,7 +185,7 @@ describe("tiffin orders", () => {
   });
 
   it("comes with the box: cooked while the van drives, delivered with it", async () => {
-    await post("/v1/orders", { ...body, delivery_date: "2026-10-06" }, "t-1");
+    await post("/v1/orders", { ...body, menu_id: menu("2026-10-06") }, "t-1");
     const statusOf = async () =>
       (await (await get("/v1/orders?from=2026-10-06&to=2026-10-06")).json()).items.find(
         (/** @type {{ kind: string }} */ o) => o.kind === "tiffin",
@@ -204,11 +201,36 @@ describe("tiffin orders", () => {
     const a = await (await post("/v1/orders", body, "t-2")).json();
     const again = await (await post("/v1/orders", body, "t-2")).json();
     expect(a.id).toMatch(UUID);
+    expect(a).toMatchObject({
+      kind: "tiffin",
+      status: "approved",
+      delivery_date: "2026-10-08",
+      total_paise: 22000,
+      tiffin: { menu_id: menu("2026-10-08"), meal: "lunch" },
+    });
+    expect(a.tiffin.dishes[0]).toMatchObject({ name: "Chapati" });
     expect(again.id).toBe(a.id);
     const ids = (await (await get("/v1/orders")).json()).items.map(
       (/** @type {{ id: string }} */ o) => o.id,
     );
     expect(ids).toContain(a.id);
+  });
+
+  it("refuses what the API refuses: a second tiffin for the meal, an unknown menu, bad portions", async () => {
+    await post("/v1/orders", body, "t-3");
+    const twice = await post("/v1/orders", body, "t-4");
+    expect(twice.status).toBe(409);
+    expect(await twice.json()).toMatchObject({ code: "orders.tiffin_already_booked" });
+    const unknown = await post("/v1/orders", { ...body, menu_id: "kit-lata" }, "t-5");
+    expect([unknown.status, (await unknown.json()).code]).toEqual([422, "orders.menu_unknown"]);
+    const many = await post(
+      "/v1/orders",
+      { ...body, menu_id: menu("2026-10-09"), portions: 13 },
+      "t-6",
+    );
+    expect(many.status).toBe(422);
+    const box = await post("/v1/orders", { ...body, kind: "box" }, "t-7");
+    expect((await box.json()).code).toBe("orders.kind_unavailable");
   });
 });
 
