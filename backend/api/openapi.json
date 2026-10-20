@@ -7653,6 +7653,56 @@
         "title": "LinesPatch",
         "type": "object"
       },
+      "LocationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "pings": {
+            "description": "Oldest first",
+            "items": {
+              "$ref": "#/components/schemas/PingIn"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Pings",
+            "type": "array"
+          },
+          "route_id": {
+            "format": "uuid",
+            "title": "Route Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "route_id",
+          "pings"
+        ],
+        "title": "LocationIn",
+        "type": "object"
+      },
+      "LocationOut": {
+        "properties": {
+          "accepted": {
+            "examples": [
+              4
+            ],
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "dropped": {
+            "examples": [
+              1
+            ],
+            "title": "Dropped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted",
+          "dropped"
+        ],
+        "title": "LocationOut",
+        "type": "object"
+      },
       "LogEntry": {
         "properties": {
           "body": {
@@ -11209,6 +11259,88 @@
           "name"
         ],
         "title": "PickedUpBy",
+        "type": "object"
+      },
+      "PingIn": {
+        "additionalProperties": false,
+        "description": "One position. A ping that is too old, ahead of the clock, outside India, less accurate\nthan 200 m or under 5 s after the previous one is dropped (counted, never an error).",
+        "properties": {
+          "accuracy_m": {
+            "examples": [
+              12
+            ],
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Accuracy M",
+            "type": "integer"
+          },
+          "at": {
+            "description": "With a time zone",
+            "examples": [
+              "2026-12-29T01:41:15Z"
+            ],
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maximum": 359.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              90
+            ],
+            "title": "Heading"
+          },
+          "lat": {
+            "examples": [
+              19.0331
+            ],
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "examples": [
+              73.0298
+            ],
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng",
+            "type": "number"
+          },
+          "speed_mps": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              6.1
+            ],
+            "title": "Speed Mps"
+          }
+        },
+        "required": [
+          "at",
+          "lat",
+          "lng",
+          "accuracy_m"
+        ],
+        "title": "PingIn",
         "type": "object"
       },
       "PlanBuildIn": {
@@ -44287,6 +44419,122 @@
         "summary": "Use a neighbour's referral code (Idempotency-Key required)",
         "tags": [
           "community"
+        ]
+      }
+    },
+    "/v1/riders/me/location": {
+      "post": {
+        "description": "No Idempotency-Key: pings are deduplicated. A ping too old (10 min), ahead of the clock (1 min), outside India, less accurate than 200 m or under 5 s after the previous one is dropped and counted. 12 requests a minute per rider.",
+        "operationId": "post_location_v1_riders_me_location_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.no_active_route"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.location_rate_limited (Retry-After)"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Send a batch of 1 to 20 GPS pings for the caller's started route",
+        "tags": [
+          "logistics"
         ]
       }
     },

@@ -13,6 +13,7 @@ The team shares one Neon database, so it is protected:
 
 import asyncio
 import os
+import re
 from collections.abc import Collection, Mapping
 from importlib import import_module
 from pathlib import Path
@@ -64,11 +65,15 @@ def _refuse_remote_downgrade(
         raise SystemExit("Refusing to downgrade a shared database; write a new migration instead.")
 
 
+PARTITION = re.compile(r"gps_pings_\d{6}")
+
+
 def _include_name(name: str | None, type_: str, parent_names: object) -> bool:
     # Only our schemas: never PostGIS's tiger/topology tables or anything else in public.
     if type_ == "schema":
         return name in SCHEMAS
-    return True
+    # The month partitions of a partitioned table are made at run time, not by migrations.
+    return not (type_ == "table" and name is not None and PARTITION.fullmatch(name))
 
 
 def _configure(connection: Connection) -> None:

@@ -2776,6 +2776,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/riders/me/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a batch of 1 to 20 GPS pings for the caller's started route
+         * @description No Idempotency-Key: pings are deduplicated. A ping too old (10 min), ahead of the clock (1 min), outside India, less accurate than 200 m or under 5 s after the previous one is dropped and counted. 12 requests a minute per rider.
+         */
+        post: operations["post_location_v1_riders_me_location_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/riders/me/routes": {
         parameters: {
             query?: never;
@@ -6554,6 +6574,32 @@ export interface components {
              */
             ops: (components["schemas"]["LineRemoveOp"] | components["schemas"]["LineAddOp"] | components["schemas"]["LineQtyOp"] | components["schemas"]["LineSubstituteOp"])[];
         };
+        /** LocationIn */
+        LocationIn: {
+            /**
+             * Pings
+             * @description Oldest first
+             */
+            pings: components["schemas"]["PingIn"][];
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+        };
+        /** LocationOut */
+        LocationOut: {
+            /**
+             * Accepted
+             * @example 4
+             */
+            accepted: number;
+            /**
+             * Dropped
+             * @example 1
+             */
+            dropped: number;
+        };
         /** LogEntry */
         LogEntry: {
             /** Body */
@@ -8018,6 +8064,45 @@ export interface components {
         PickedUpBy: {
             /** Name */
             name: string | null;
+        };
+        /**
+         * PingIn
+         * @description One position. A ping that is too old, ahead of the clock, outside India, less accurate
+         *     than 200 m or under 5 s after the previous one is dropped (counted, never an error).
+         */
+        PingIn: {
+            /**
+             * Accuracy M
+             * @example 12
+             */
+            accuracy_m: number;
+            /**
+             * At
+             * Format: date-time
+             * @description With a time zone
+             * @example 2026-12-29T01:41:15Z
+             */
+            at: string;
+            /**
+             * Heading
+             * @example 90
+             */
+            heading?: number | null;
+            /**
+             * Lat
+             * @example 19.0331
+             */
+            lat: number;
+            /**
+             * Lng
+             * @example 73.0298
+             */
+            lng: number;
+            /**
+             * Speed Mps
+             * @example 6.1
+             */
+            speed_mps?: number | null;
         };
         /** PlanBuildIn */
         PlanBuildIn: {
@@ -25043,6 +25128,86 @@ export interface operations {
             };
             /** @description community.household_required, community.referral_self, request.idempotency_mismatch, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    post_location_v1_riders_me_location_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.no_active_route */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.location_rate_limited (Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

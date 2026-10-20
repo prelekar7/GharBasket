@@ -11,6 +11,7 @@ import uuid
 from datetime import date, datetime, time
 from typing import Any
 
+from geoalchemy2 import Geography
 from sqlalchemy import (
     ARRAY,
     Boolean,
@@ -259,3 +260,23 @@ class FieldEvent(Base):
     payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class GpsPing(Base):
+    """One accepted position of a rider on an in-progress route (spec §3.3), kept 90 days.
+    Partitioned by month on `at` (the partitions are made as pings arrive, `tracking.py`); a
+    replayed ping inserts nothing (the key is the rider and the time)."""
+
+    __tablename__ = "gps_pings"
+    __table_args__ = (
+        Index("ix_gps_pings_at", "at", postgresql_using="brin"),
+        {"schema": SCHEMA, "postgresql_partition_by": "RANGE (at)"},
+    )
+
+    rider_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    route_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # no FK: a partitioned log
+    location: Mapped[Any] = mapped_column(Geography("POINT", srid=4326, spatial_index=False))
+    accuracy_m: Mapped[int] = mapped_column(SmallInteger)
+    speed_mps: Mapped[float | None] = mapped_column(Float)
+    heading: Mapped[int | None] = mapped_column(SmallInteger)
