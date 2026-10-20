@@ -63,6 +63,7 @@ __all__ = [
     "export_for_user",
     "get",
     "grace_until_for",
+    "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
     "mark_shortage",
@@ -78,6 +79,16 @@ __all__ = [
 
 async def get(session: AsyncSession, order_id: uuid.UUID, *, for_update: bool = False) -> Order:
     return await service.get(session, order_id, for_update=for_update)
+
+
+async def has_delivered_box(session: AsyncSession, household_id: uuid.UUID) -> bool:
+    """Whether the household has had a box delivered (M9: the referral claim window closes)."""
+    found = await session.execute(
+        select(Order.id)
+        .where(Order.household_id == household_id, Order.kind == "box", Order.status == "delivered")
+        .limit(1)
+    )
+    return found.first() is not None
 
 
 async def cancel_from_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:

@@ -22,8 +22,10 @@ from gharbasket_sim.catalog import SEED_FILES
 from gharbasket_training.eval import assignment_sweep
 from gharbasket_training.eval.pantry_baseline import PantryRun
 from gharbasket_training.eval.planner_ab import (
+    FROM_WEEK,
     METRICS,
     PAIRED,
+    V2,
     PlannerRun,
     against_target,
     paired,
@@ -83,6 +85,7 @@ def build(
 ) -> dict[str, Any]:
     summary = summarise(planner_runs)
     diffs = paired(planner_runs)
+    later = paired(planner_runs, later=True, arms=(V2,))
     sweep_runs = sweep_runs or []
     sweep = assignment_sweep.summarise(sweep_runs)
     weeks = max((len(r.cold_start) for r in pantry_runs), default=0)
@@ -92,6 +95,13 @@ def build(
     twin_mean = [estimate([r.twin_running_mean[k] for r in pantry_runs]) for k in range(weeks)]
     twin = [estimate([r.twin[k] for r in pantry_runs]) for k in range(weeks)]
     coverage = [estimate([r.twin_coverage[k] for r in pantry_runs]) for k in range(weeks)]
+    # Reference only (no target): the twin from priors learned on another seed's households.
+    with_learned = [r for r in pantry_runs if r.twin_learned]
+    learned = (
+        [estimate([r.twin_learned[k] for r in with_learned]) for k in range(weeks)]
+        if with_learned and len(with_learned) == len(pantry_runs)
+        else []
+    )
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": commit(),
@@ -113,7 +123,18 @@ def build(
             }
             for arm, vs in diffs.items()
         },
-        "planner_targets": against_target(summary, diffs),
+        # v2 → v1 → metric over the weeks from FROM_WEEK on (v2 plans as v1 before them).
+        "planner_paired_later": {
+            "from_week": FROM_WEEK,
+            "pairs": {
+                arm: {
+                    base: {m: e.as_dict() for m, e in metrics.items()}
+                    for base, metrics in vs.items()
+                }
+                for arm, vs in later.items()
+            },
+        },
+        "planner_targets": against_target(summary, diffs, later),
         "pantry": {
             "metric": "quantity MAE as a share of weekly quantity (sum |error| / sum actual per "
             "household item, zero weeks kept; mean over items)",
@@ -125,6 +146,9 @@ def build(
                 "running_mean_mae": [e.as_dict() for e in twin_mean],
                 "twin_mae": [e.as_dict() for e in twin],
                 "twin_coverage_80": [e.as_dict() for e in coverage],
+                # Reference arm, no target: priors learned on another seed (`learned_from`).
+                "twin_learned_mae": [e.as_dict() for e in learned],
+                "learned_from": {r.seed: r.learned_from for r in with_learned},
             },
             # M-A's MAE target, on the twin: after four observed weeks (predicting the fifth); no
             # verdict when the run is shorter. Until it holds, PANTRY_TWIN_ENABLED stays off and
@@ -262,6 +286,24 @@ def metrics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                     },
                 }
             )
+    for k, e in enumerate(scope.get("twin_learned_mae", []), start=1):
+        rows.append(
+            {
+                "model_name": "pantry_twin_learned_priors",
+                "version": report["commit"],
+                "metric": f"mae_pct_week_{k}",
+                "value": e["mean"],
+                "split": "holdout",
+                "data_source": "synthetic",
+                "details": {
+                    **details,
+                    "reference_only": True,
+                    "learned_from": scope.get("learned_from", {}),
+                    "ci95": e["ci95"],
+                    "per_seed": {str(r["seed"]): r["twin_learned"][k - 1] for r in runs["pantry"]},
+                },
+            }
+        )
     for k, e in enumerate(report["pantry"]["cold_start_mae"], start=1):
         rows.append(
             {
@@ -327,8 +369,25 @@ def to_html(report: dict[str, Any]) -> str:
             for m in PAIRED
         ],
     )
+    later = report.get("planner_paired_later", {})
+    later_pairs = [(arm, base) for arm, vs in later.get("pairs", {}).items() for base in vs]
+    later_table = (
+        _table(
+            f"RQ2 — planner v2 against v1 over weeks ≥ {later['from_week']} (week 0 is the first; "
+            "before them v2 has no liking yet and plans exactly as v1): the per-seed paired "
+            "difference, mean ± 95 % t-CI",
+            ["metric", *(f"{arm} - {base}" for arm, base in later_pairs)],
+            [
+                [m, *(_cell(later["pairs"][arm][base][m]) for arm, base in later_pairs)]
+                for m in PAIRED
+            ],
+        )
+        if later_pairs
+        else ""
+    )
     targets = _table(
-        "M-C hypotheses (CP-SAT; the primary metric, acceptance, first)",
+        "M-C hypotheses (CP-SAT; the primary metric, acceptance, first), then planner v2 "
+        "against v1",
         ["hypothesis", "value", "rule", "holds"],
         [
             [
@@ -355,14 +414,37 @@ def to_html(report: dict[str, Any]) -> str:
         ],
     )
     scope = report["pantry"]["twin_scope"]
+    learned = scope.get("twin_learned_mae") or []
     twin = _table(
         "RQ1 — the pantry twin's scope: next week's daily use of milk and curd (MAE as a share; "
-        "coverage of the 80 % interval)",
-        ["observed weeks", "rule table", "running mean", "pantry twin v0", "80 % coverage"],
+        "coverage of the 80 % interval)"
+        + (
+            "; reference arm, no target: the twin from cohort priors learned on another seed's "
+            "households (seed → learned on: "
+            + ", ".join(f"{a} → {b}" for a, b in scope.get("learned_from", {}).items())
+            + ")"
+            if learned
+            else ""
+        ),
         [
-            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—"],
+            "observed weeks",
+            "rule table",
+            "running mean",
+            "pantry twin v0",
+            "80 % coverage",
+            *(["twin, learned priors (reference)"] if learned else []),
+        ],
+        [
+            ["0", _cell(scope["rule_table_mae"]), "—", "—", "—", *(["—"] if learned else [])],
             *(
-                [str(k), _cell(scope["rule_table_mae"]), _cell(e), _cell(t), _cell(c)]
+                [
+                    str(k),
+                    _cell(scope["rule_table_mae"]),
+                    _cell(e),
+                    _cell(t),
+                    _cell(c),
+                    *([_cell(learned[k - 1])] if learned else []),
+                ]
                 for k, (e, t, c) in enumerate(
                     zip(
                         scope["running_mean_mae"],
@@ -410,7 +492,7 @@ def to_html(report: dict[str, Any]) -> str:
         f"<title>GharBasket evaluation {html.escape(report['commit'])}</title>"
         f"<style>{style}</style></head><body><h1>Evaluation report</h1>"
         f'<p class="note">{intro}</p><p class="note">{source}</p>'
-        f"{ab}{paired_table}{targets}{pantry}{twin}"
+        f"{ab}{paired_table}{later_table}{targets}{pantry}{twin}"
         f'<p class="note">M-A target (the twin\'s MAE ≤ 15 % after 4 weeks): {value} → {verdict}. '
         "The twin drafts boxes (PANTRY_TWIN_ENABLED) only once it holds. For reference, the "
         f"running mean's MAE after 4 weeks is {reference}, and it takes {weeks} to beat the rule "

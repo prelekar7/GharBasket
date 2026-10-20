@@ -25,7 +25,7 @@
 
 Until there is a paid worker (the pilot), long ML jobs run in GitHub Actions (`backend/training`, D25) or offline, never inside an API request (D21, [ADR-0021](../adr/0021-jobs-without-a-broker.md)). The serving service (`backend/ml`, a Hugging Face Space) is stateless and installs only solvers and inference libraries.
 
-Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean) and are logged to a **local MLflow** (Docker Compose). The registry of record is simpler: models go to `s3://gb-mlflow/models/<name>/<version>/` on R2 with a `latest.json` pointer per model; promotion is a manual `just promote` in v1 and the Space polls the pointer every 10 minutes (ADR-0025). Where the figures below say "MLflow registry", read "the R2 pointer".
+Experiments happen in **marimo** notebooks (stored as `.py`, so git diffs are clean) and are logged to a **local MLflow** (Docker Compose). The registry of record is simpler: models go to `s3://gb-mlflow/models/<name>/<version>/` on R2 with a `latest.json` pointer per model; promotion is a manual `just promote <model> <version>` in v1 (`backend/training/jobs/promote.py`) and nothing else moves the pointer: the weekly jobs only upload candidate versions (`<version>-<data_source>`) with their out-of-sample metrics. `promote` reads the registry the jobs write (`models/` in `gb-mlflow`, or `--out` with the same layout), refuses a version that is not there, and is a champion/challenger gate: a candidate that does not beat its baseline out of sample (the ranker: NDCG@10 above both baselines; the pantry priors: MAE below the rule table's) is refused unless `--force`, which the pointer records next to `previous`. Rolling back is the same command with the older version. Serving follows the pointer: the Space polls it every 10 minutes (ADR-0025); for the pantry priors, which M3 reads from `intel.pantry_priors`, `promote` first pushes the version's priors to the API (replacing the stored ones) and moves the pointer only once they are taken. Where the figures below say "MLflow registry", read "the R2 pointer".
 
 ---
 
@@ -132,7 +132,7 @@ sequenceDiagram
 - **Cold start:** a new household starts at its cohort prior. We measure how many weeks until error drops below a threshold.
 - **Metrics:** quantity MAE (kg), calibration of 80% intervals, "ran out / wasted" rate. Baseline: a family-size rule table.
 - **Fallback:** rule table (family size → kg/week per category).
-- **Status (7 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` with Negative Binomial predictive intervals (SciPy) and the same closed form in the gateway's fallback. v0 covers the perishable daily-use items only (milk, curd) and learns their daily-use share (delivered minus the week's recipe need); staples stay on the rule table until v1 models stock. M3 drafts from it only with `PANTRY_TWIN_ENABLED` on, which stays off until the eval target holds; the eval harness scores it on that scope next to the rule table and a running mean, with 80 % interval coverage (`just eval`). The NumPyro cohort refit is v1 (P4).
+- **Status (7 Oct 2026, v0):** the conjugate update serves at `POST /pantry/quantities` with Negative Binomial predictive intervals (SciPy) and the same closed form in the gateway's fallback. v0 covers the perishable daily-use items only (milk, curd) and learns their daily-use share (delivered minus the week's recipe need); staples stay on the rule table until v1 models stock. M3 drafts from it only with `PANTRY_TWIN_ENABLED` on, which stays off until the eval target holds; the eval harness scores it on that scope next to the rule table and a running mean, with 80 % interval coverage (`just eval`). **v1 (8 Oct 2026):** the weekly NumPyro refit of the cohort priors (`refit_pantry`) learns from exactly what the twin observes (the daily-use share of milk and curd and the taps, through M3's own `daily_use_history`), per adult equivalent (M3 scales by the household) and per data source, with an out-of-sample card against the rule table; its priors reach M3 only through `just promote pantry_priors` (M10 §3.3 v1). On the simulator they do not beat the rule prior (the eval's reference arm), because the simulator draws daily use around the rule table itself; the pilot's data decides.
 
 ### M-B Next-basket candidate ranker
 - **Candidates:** TIFU-KNN personal and neighbour repeat items ∪ meal-plan ingredients ∪ seasonal/festival items.
@@ -240,6 +240,7 @@ sequenceDiagram
 | M-F routing | on-time ≥ 95 %; ₹/order ≥ 10 % below nearest neighbour | ≤ 10 s per wave |
 | M-G kitchen assignment | Gini ≤ 0.25 at ≤ +5 % cost vs greedy | rating floor kept |
 | M13 assistant | intent accuracy ≥ 90 %; slot F1 ≥ 0.85; ≤ $0.01 per turn | no unauthorised action on injection fixtures |
+| M-C planner v2 (liking from M-B) | acceptance ≥ v1's on the same seeds (hypothesis, 5 Oct 2026) | hard rules 100 %, perishables no worse than v1 + 1 |
 | Monitoring | alert when WAPE worsens by > 10 points against the last report | — |
 
 Every experiment runs on at least 5 simulator seeds and reports mean ± 95 % CI; synthetic and pilot results are always separate tables.
