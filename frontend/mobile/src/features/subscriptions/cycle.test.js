@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { priceSwaps, swappedFromPaise } from "./cycle.js";
-import { isEditable } from "./queries.js";
+import en from "@/locales/en-IN.json";
+import hi from "@/locales/hi-IN.json";
+import mr from "@/locales/mr-IN.json";
+import { PILL, priceSwaps, swappedFromPaise } from "./cycle.js";
+import { hasBoxOrder, isEditable } from "./queries.js";
 
 const step = { qty: 1, unit: /** @type {const} */ ("piece"), label: "1 pc" };
 /** @param {Partial<import("./queries.js").BoxLine>} l @returns {import("./queries.js").BoxLine} */
@@ -74,5 +77,24 @@ describe("when a cycle can be edited", () => {
     ]))
       expect(isEditable({ status })).toBe(false);
     expect(isEditable(null)).toBe(false);
+  });
+});
+
+describe("when a cycle has a box order to look up", () => {
+  it("is so once approved, locked or payment_failed (wallet short at the cut-off)", () => {
+    for (const status of /** @type {const} */ (["approved", "locked", "payment_failed"]))
+      expect(hasBoxOrder({ status })).toBe(true);
+    for (const status of /** @type {const} */ ([
+      "draft",
+      "awaiting_approval",
+      "skipped",
+      "cancelled",
+    ]))
+      expect(hasBoxOrder({ status })).toBe(false);
+  });
+
+  it("has a lead line and a pill for payment_failed in every language", () => {
+    expect(PILL.payment_failed).toBe("issue");
+    for (const lang of [en, hi, mr]) expect(lang.week.lead.payment_failed).toBeTruthy();
   });
 });

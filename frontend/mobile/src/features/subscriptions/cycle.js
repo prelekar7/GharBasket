@@ -35,6 +35,7 @@ export const PILL = {
   skipped: "planned",
   locked: "out",
   cancelled: "issue",
+  payment_failed: "issue",
 };
 
 /** What a line's swap or replacement cost before, for the up/saves chip. @param {import("./queries.js").BoxLine} l */
