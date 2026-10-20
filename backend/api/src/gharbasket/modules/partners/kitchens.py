@@ -16,15 +16,17 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.partners import kyc
 from gharbasket.modules.partners.models import (
+    LIVE,
     MEALS,
     SKILLS,
     Application,
+    Assignment,
     Kitchen,
     KitchenCapacity,
     Partner,
@@ -293,5 +295,14 @@ async def set_capacity(
 async def assigned_portions(
     session: AsyncSession, partner_id: uuid.UUID, first: date, last: date
 ) -> dict[tuple[date, str], int]:
-    """Portions in her live offers per (date, meal); none until assignments exist (§3.4)."""
-    return {}
+    """Portions in her live (offered, accepted, preparing, ready) assignments per date and meal."""
+    rows = await session.execute(
+        select(Assignment.on_date, Assignment.meal, func.sum(Assignment.portions))
+        .where(
+            Assignment.partner_id == partner_id,
+            Assignment.on_date.between(first, last),
+            Assignment.status.in_(LIVE),
+        )
+        .group_by(Assignment.on_date, Assignment.meal)
+    )
+    return {(day, meal): int(portions) for day, meal, portions in rows.all()}

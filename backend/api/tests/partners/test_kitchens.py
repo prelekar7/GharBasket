@@ -11,7 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.partners import kitchens, service
-from gharbasket.modules.partners.models import Application, Kitchen, KycDocument, Partner
+from gharbasket.modules.partners.models import (
+    Application,
+    Assignment,
+    Kitchen,
+    KycDocument,
+    Partner,
+)
 from gharbasket.platform.models import AuditEntry
 from gharbasket.tools.seed import SEED_HUB_ID
 
@@ -304,3 +310,34 @@ async def test_capacity_is_the_weekday_default_unless_set_and_closes_at_21_the_d
     after = await api.get("/v1/kitchen-capacity?from=2027-01-15&to=2027-01-16", headers=lata)
     assert [i["locked"] for i in after.json()["items"]] == [True, True, False, False]
     assert kitchens.locks_at(FRIDAY) == THURSDAY + timedelta(hours=11)
+
+
+async def test_assigned_portions_count_her_live_assignments_only(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession, clock: list[datetime]
+) -> None:
+    api = clients()
+    lata, _ = await as_user(api, google, LATA)
+    partner_id = await lata_kitchen(db_session)
+    for status, portions in (("offered", 5), ("accepted", 2), ("declined", 3), ("expired", 4)):
+        db_session.add(
+            Assignment(
+                partner_id=partner_id,
+                hub_id=SEED_HUB_ID,
+                on_date=FRIDAY,
+                meal="lunch",
+                slot_id=uuid.uuid4(),
+                round=1,
+                source="fallback",
+                status=status,
+                portions=portions,
+                respond_by=THURSDAY,
+            )
+        )
+    await db_session.commit()
+
+    read = await api.get("/v1/kitchen-capacity?from=2027-01-15&to=2027-01-15", headers=lata)
+
+    assert [(i["meal"], i["assigned_portions"]) for i in read.json()["items"]] == [
+        ("lunch", 7),
+        ("dinner", 0),
+    ]
