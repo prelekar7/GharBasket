@@ -619,16 +619,15 @@ async def transition(
     order.version += 1
     if to_status == "locked":
         order.locked_at = now()
-    session.add(
-        OrderEvent(
-            order_id=order.id,
-            from_status=from_status,
-            to_status=to_status,
-            actor=actor,
-            actor_user_id=actor_user_id,
-            payload=payload,
-        )
+    move = OrderEvent(
+        order_id=order.id,
+        from_status=from_status,
+        to_status=to_status,
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload=payload,
     )
+    session.add(move)
     await session.flush()
     event_type = state.EVENTS.get(to_status)
     if event_type is not None:
@@ -643,6 +642,9 @@ async def transition(
             **(payload or {}),
             "kind": order.kind,  # box | addon | tiffin, for consumers that care (ADR-0026 §3)
             "actor": actor,  # the kind only; never the person's id
+            # The timeline row of this very move, so a consumer reads the right one when the
+            # same status is reached twice (a free redelivery dispatches a box again).
+            "order_event_id": str(move.id),
         }
         if to_status == "locked":
             body["lines"] = [

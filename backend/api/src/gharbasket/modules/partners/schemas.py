@@ -6,7 +6,7 @@ No shape here ever carries a KYC number in clear (only masked), an address or a 
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -688,3 +688,49 @@ class TiffinRatingOut(BaseModel):
     score: int
     comment: str | None
     created_at: datetime
+
+
+# --- earnings (§3.6) -----------------------------------------------------------------------------
+
+
+class EarningsKindOut(BaseModel):
+    kind: PartnerKind
+    basis: RateBasis
+    units: int
+    amount_paise: int
+
+
+class EarningsDayOut(BaseModel):
+    date: date
+    amount_paise: int
+
+
+class EarningRefOut(BaseModel):
+    type: Literal["order"]
+    id: uuid.UUID
+
+
+class EarningOut(BaseModel):
+    id: uuid.UUID
+    kind: PartnerKind
+    basis: RateBasis
+    units: int
+    amount_paise: int
+    ref: EarningRefOut
+    at: datetime = Field(description="When the work was done")
+
+
+class EarningsWeekOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    week: str = Field(examples=["2027-W02"], description="ISO week, Monday to Sunday, IST")
+    from_: date = Field(alias="from")
+    to: date
+    total_paise: int
+    by_kind: list[EarningsKindOut]
+    days: list[EarningsDayOut] = Field(description="Seven entries, zeros included")
+    entries: list[EarningOut] = Field(description="Newest first")
+    payouts: list[dict[str, Any]] = Field(
+        description="M5's payouts of the week; none until payouts exist (§3.7)"
+    )
+    generated_at: datetime

@@ -19,6 +19,7 @@ from gharbasket.modules.partners import permissions as _permissions  # noqa: F40
 from gharbasket.modules.partners.application_router import router as application_router
 from gharbasket.modules.partners.assignment_router import router as assignment_router
 from gharbasket.modules.partners.cooking_router import router as cooking_router
+from gharbasket.modules.partners.earnings_router import router as earnings_router
 from gharbasket.modules.partners.kitchen_router import router as kitchen_router
 from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
@@ -53,6 +54,7 @@ router.include_router(assignment_router)
 router.include_router(cooking_router)
 router.include_router(rate_router)
 router.include_router(rating_router)
+router.include_router(earnings_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]

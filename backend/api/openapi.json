@@ -4029,6 +4029,218 @@
         "title": "DrivesOut",
         "type": "object"
       },
+      "EarningOut": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "at": {
+            "description": "When the work was done",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "basis": {
+            "enum": [
+              "tiffin_portion",
+              "bag_delivered",
+              "dispatched_order",
+              "packed_order"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/EarningRefOut"
+          },
+          "units": {
+            "title": "Units",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "basis",
+          "units",
+          "amount_paise",
+          "ref",
+          "at"
+        ],
+        "title": "EarningOut",
+        "type": "object"
+      },
+      "EarningRefOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "order",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "EarningRefOut",
+        "type": "object"
+      },
+      "EarningsDayOut": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "amount_paise"
+        ],
+        "title": "EarningsDayOut",
+        "type": "object"
+      },
+      "EarningsKindOut": {
+        "properties": {
+          "amount_paise": {
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "basis": {
+            "enum": [
+              "tiffin_portion",
+              "bag_delivered",
+              "dispatched_order",
+              "packed_order"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "units": {
+            "title": "Units",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "basis",
+          "units",
+          "amount_paise"
+        ],
+        "title": "EarningsKindOut",
+        "type": "object"
+      },
+      "EarningsWeekOut": {
+        "properties": {
+          "by_kind": {
+            "items": {
+              "$ref": "#/components/schemas/EarningsKindOut"
+            },
+            "title": "By Kind",
+            "type": "array"
+          },
+          "days": {
+            "description": "Seven entries, zeros included",
+            "items": {
+              "$ref": "#/components/schemas/EarningsDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "entries": {
+            "description": "Newest first",
+            "items": {
+              "$ref": "#/components/schemas/EarningOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "payouts": {
+            "description": "M5's payouts of the week; none until payouts exist (§3.7)",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Payouts",
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "total_paise": {
+            "title": "Total Paise",
+            "type": "integer"
+          },
+          "week": {
+            "description": "ISO week, Monday to Sunday, IST",
+            "examples": [
+              "2027-W02"
+            ],
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week",
+          "from",
+          "to",
+          "total_paise",
+          "by_kind",
+          "days",
+          "entries",
+          "payouts",
+          "generated_at"
+        ],
+        "title": "EarningsWeekOut",
+        "type": "object"
+      },
       "Entry": {
         "properties": {
           "amount_paise": {
@@ -33062,6 +33274,102 @@
         "summary": "Donation drives: running and upcoming ones (customers), every state (hub staff)",
         "tags": [
           "community"
+        ]
+      }
+    },
+    "/v1/earnings": {
+      "get": {
+        "operationId": "my_earnings_v1_earnings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "week",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2027-W02"
+              ],
+              "title": "Week"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EarningsWeekOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.week_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "What you earned in a week, by day and kind, from the ledger (every kind you are)",
+        "tags": [
+          "partners",
+          "partners"
         ]
       }
     },
