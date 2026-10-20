@@ -227,7 +227,7 @@ GET /v1/routes/{id}/live         text/event-stream; Cache-Control: no-store; X-A
 ```
 - **Who sees what.** The route's rider and the hub's hub managers: every stop and every position. A **captain**: her own stop only (`stops` holds one entry, plus `"stops_before": 2`) and the position until her stop is handed over. A **customer**: only while an order of their household is on this route and its stop is not yet handed over; one entry with the stop's `eta_now` and `stops_before`, never other societies; positions rounded to 4 decimals (about 11 m) and at most every 15 s. Anyone else → 403 `auth.forbidden`; a customer whose stop is done gets `end` (`handed_over`) and the stream closes.
 - The first event is always `snapshot`, so a reconnect needs no `Last-Event-ID`. A stream closes after 30 minutes with `end` (`reconnect`); at most 3 open streams per user (429 `logistics.too_many_streams`). The app reads the stream with a fetch-based SSE reader because `EventSource` cannot send `Authorization`; the console's browser sends cookies.
-- Positions come from the Valkey channel; when Valkey is down the stream polls the latest persisted ping every 15 s. A position older than 2 minutes is sent with its `age_s` so the app can show "last seen".
+- Positions come from the Valkey channel; when Valkey is down the stream polls the latest persisted ping every 15 s. *As built:* the stream reads the route's latest position (`gb:loc:<route_id>`) every 5 s instead of subscribing to `gb:live`, which is still published to; the events are the same. A position older than 2 minutes is sent with its `age_s` so the app can show "last seen".
 
 ### 3.4 Handover, door proof, undelivered, hold and redelivery (frozen for S5)
 The captain screens (Today, Handover, Flat checklist, Exceptions), the rider's rider-mode stop and the console's exceptions board build against this. Same review rule as §3.1.
@@ -240,6 +240,7 @@ CaptainDay : { "date", "society": { "id", "name" },
   "flats": [ CaptainFlat ],                          by tower, then flat
   "counts": { "on_the_way": 0, "with_you": 9, "held": 1, "delivered": 4, "undelivered": 0 } }
 CaptainFlat : { "order_id", "flat_label": "B-402",   tower label + flat (identity.api.delivery_labels);
+                // as built: M6's bag-label format, "<tower label>, <flat>" (e.g. "B wing, 402")
                 "kind": "box" | "addon" | "tiffin",  no name, no phone
                 "bags": 1, "redelivery": false,
                 "status": "on_the_way" | "with_you" | "held" | "delivered" | "undelivered",
@@ -380,6 +381,8 @@ GET /v1/deliveries/{order_id}     the order's household (any member) or hub staf
 | 409 | `logistics.plan_not_publishable` | Publishing a plan that is not `solved` |
 | 409 | `logistics.routes_started` | Re-solving or publishing over a plan whose route has started |
 | 409 | `logistics.route_not_today` · `logistics.rider_busy` · `logistics.bags_not_packed` | Start rules (§3.3) |
+| 409 | `logistics.route_not_published` · `logistics.routes_started` | Starting a route whose plan is not published, or one already in progress (as built) |
+| 404 | `logistics.vehicle_not_found` | `PATCH /v1/routes/{id}` with an unknown vehicle or one of another hub (as built) |
 | 409 | `logistics.route_not_started` · `logistics.route_closed` · `logistics.stops_open` | Route state (§3.3) |
 | 409 | `logistics.no_active_route` | Location without an in-progress route |
 | 409 | `logistics.count_mismatch` · `logistics.already_handed_over` | Handover (§3.4) |

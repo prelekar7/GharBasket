@@ -9,3 +9,8 @@ ROUTE_PUBLISHED = "logistics.route_published"
 ROUTE_CANCELLED = "logistics.route_cancelled"
 # plan_id, hub_id, delivery_date, kind, problems — M11 tells the hub's managers
 PLAN_NEEDS_REVIEW = "logistics.plan_needs_review"
+# stop_id, route_id, hub_id, society_id, captain_user_id, at — M11 tells the captain
+STOP_ARRIVED = "logistics.stop_arrived"
+# route_id, hub_id, delivery_date, rider_user_id, vehicle_id, stops_done, stops_skipped, km,
+# started_at, completed_at — M12
+ROUTE_COMPLETED = "logistics.route_completed"
