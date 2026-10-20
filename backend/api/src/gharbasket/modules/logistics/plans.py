@@ -13,7 +13,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import httpx2
 import structlog
-from sqlalchemy import case, func, select, text, update
+from sqlalchemy import ColumnElement, case, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -181,7 +181,14 @@ async def has_job_plan(session: AsyncSession, hub_id: uuid.UUID, day: date, kind
     return found is not None
 
 
-async def _route_published(session: AsyncSession, plan: RoutePlan, route: Route) -> None:
+async def route_published(
+    session: AsyncSession,
+    plan: RoutePlan,
+    route: Route,
+    previous_rider_user_id: uuid.UUID | None = None,
+) -> None:
+    """`logistics.route_published` for a published route; again with the previous rider when a
+    hub manager changes the rider (§3.3)."""
     stops = list(
         (
             await session.execute(
@@ -205,7 +212,9 @@ async def _route_published(session: AsyncSession, plan: RoutePlan, route: Route)
             "trip": route.trip,
             "vehicle_id": str(route.vehicle_id),
             "rider_user_id": None if route.rider_user_id is None else str(route.rider_user_id),
-            "previous_rider_user_id": None,
+            "previous_rider_user_id": None
+            if previous_rider_user_id is None
+            else str(previous_rider_user_id),
             "depart": route.depart_time.strftime("%H:%M"),
             "stops": [
                 {
@@ -335,7 +344,7 @@ async def publish(
     ).scalars()
     for route in routes:
         route.status, route.version = "published", route.version + 1
-        await _route_published(session, plan, route)
+        await route_published(session, plan, route)
     await session.flush()
     return plan
 
@@ -370,6 +379,11 @@ class RouteRow:
 
 
 async def routes_of(session: AsyncSession, plan_id: uuid.UUID) -> list[RouteRow]:
+    return await route_rows(session, Route.plan_id == plan_id)
+
+
+async def route_rows(session: AsyncSession, *where: ColumnElement[bool]) -> list[RouteRow]:
+    """Routes with their vehicle and stop totals, by departure, vehicle label and trip."""
     done = case((RouteStop.status.in_(("handed_over", "skipped")), 1), else_=0)
     rows = await session.execute(
         select(
@@ -382,7 +396,7 @@ async def routes_of(session: AsyncSession, plan_id: uuid.UUID) -> list[RouteRow]
         )
         .join(Vehicle, Vehicle.id == Route.vehicle_id)
         .outerjoin(RouteStop, RouteStop.route_id == Route.id)
-        .where(Route.plan_id == plan_id)
+        .where(*where)
         .group_by(Route.id, Vehicle.id)
         .order_by(Route.depart_time, func.lower(Vehicle.label), Route.trip)
     )

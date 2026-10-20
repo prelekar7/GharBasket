@@ -174,6 +174,8 @@ class Route(Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     empties_returned: Mapped[int | None] = mapped_column(SmallInteger)
+    # Orders of its stops still locked or picking when it started with leave_behind (§3.3).
+    left_behind: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(Uuid), server_default="{}")
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
 
 

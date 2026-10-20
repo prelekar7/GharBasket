@@ -2,7 +2,8 @@
 plans the whole seed world with its captains, locked orders and vehicles."""
 
 import uuid
-from datetime import date, time
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
 
 import httpx2
 import pytest
@@ -14,9 +15,10 @@ from gharbasket.modules.billing.wallet import credit_topup
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.identity.models import User
-from gharbasket.modules.logistics.models import Vehicle
+from gharbasket.modules.logistics.models import Route, RouteStop, Vehicle
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders import service as order_service
+from gharbasket.platform.jobs import run_job
 from gharbasket.platform.outbox import relay
 from gharbasket.tools.seed import (
     SEED_HUB_ID,
@@ -27,6 +29,8 @@ from gharbasket.tools.seed import (
     seed_partners,
     seed_societies,
 )
+
+from ..conftest import make_settings
 
 # Shared with the identity tests (pytest finds fixtures imported into a conftest).
 from ..identity.conftest import bearer, clients, google, sign_in  # noqa: F401
@@ -149,3 +153,44 @@ async def vehicle(
     db.add(van)
     await db.commit()
     return van
+
+
+# --- a published day, for rider execution and the handover ------------------------------------
+
+SOLVED_AT = datetime(2026, 10, 12, 17, 45, tzinfo=UTC)  # Mon 12 Oct, 23:15 IST
+DAY = date(2026, 10, 13)
+MORNING = datetime(2026, 10, 13, 1, 0, tzinfo=UTC)  # Tue 13 Oct, 06:30 IST
+
+
+@dataclass(frozen=True)
+class Day:
+    route_id: uuid.UUID
+    stop_ids: list[uuid.UUID]  # by seq
+    orders: dict[str, uuid.UUID]  # phone -> order
+    vehicle_id: uuid.UUID
+
+
+async def published_day(db: AsyncSession, *, rider: str | None = ARJUN) -> Day:
+    """Priya, Meena (Sunrise Towers) and Ramesh (Krishna Kunj) at 07:00, Sunita (Green Valley, no
+    captain) at 09:00, on one van (EV-1) planned by M7's fallback and published by the 23:15 job;
+    the orders are locked."""
+    early, late = await slot(db, time(7)), await slot(db, time(9))
+    orders = {p: await locked_order(db, p, early, DAY) for p in (PRIYA, MEENA, RAMESH)}
+    orders[SUNITA] = await locked_order(db, SUNITA, late, DAY)
+    await vehicle(db, "EV-1", rider=None if rider is None else await user_id(db, rider))
+    run = await run_job(
+        db, "solve_routes", settings=make_settings(), scheduled_for=SOLVED_AT, http=None
+    )
+    assert run.status == "ok" and run.summary and run.summary["published"] == 1, run.summary
+    route = await db.scalar(select(Route).where(Route.delivery_date == DAY))
+    assert route is not None and route.status == "published"
+    stops = await db.execute(
+        select(RouteStop.id).where(RouteStop.route_id == route.id).order_by(RouteStop.seq)
+    )
+    return Day(route.id, list(stops.scalars()), orders, route.vehicle_id)
+
+
+async def pack(db: AsyncSession, *order_ids: uuid.UUID) -> None:
+    for order_id in order_ids:
+        await orders_api.transition(db, order_id, "packed", actor="hub")
+    await db.commit()
