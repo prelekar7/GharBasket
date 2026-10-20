@@ -7,6 +7,7 @@ import { HttpResponse, http } from "msw";
 import { chargeBox } from "./billing.js";
 import { PRODUCTS } from "./catalog.js";
 import { bookedTiffins, TIFFIN_OFFER } from "./orders.js";
+import { HUB_ID, SOCIETY_ID } from "./packer.js";
 
 const STATE_KEY = "gb-mock-cycle"; // status and version survive reloads, like a server's
 const NO_CYCLE_KEY = "gb-mock-no-cycle"; // "1": a new household, before the first generation
@@ -559,8 +560,8 @@ function failedOrder() {
     status: "payment_failed",
     cycle_id: c.id,
     household_id: c.household_id,
-    hub_id: uid("hub-kharghar"),
-    society_id: uid("society-sunrise-towers"),
+    hub_id: HUB_ID,
+    society_id: SOCIETY_ID,
     delivery_date: c.delivery_date,
     slot: c.slot,
     cutoff_at: c.cutoff_at,
