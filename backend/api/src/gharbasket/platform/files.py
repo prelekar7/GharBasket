@@ -62,6 +62,8 @@ PURPOSES = {
     "order_issue_photo": Purpose(_IMAGES, 5 * MB),
     "donation_photo": Purpose(_IMAGES, 5 * MB),
     "kyc_document": Purpose(("image/jpeg", "image/png", "application/pdf"), 10 * MB),
+    "delivery_photo": Purpose(("image/jpeg", "image/webp"), 5 * MB),  # M7 proof
+    "handoff_photo": Purpose(_IMAGES, 5 * MB),  # M9 NGO hand-off
 }  # data_export is written by the server (M1), never presigned
 
 
@@ -305,7 +307,10 @@ def _problem(description: str) -> dict[str, Any]:
 
 class PresignIn(BaseModel):
     purpose: str = Field(
-        max_length=40, description="order_issue_photo, donation_photo or kyc_document"
+        max_length=40,
+        description=(
+            "order_issue_photo, donation_photo, kyc_document, delivery_photo or handoff_photo"
+        ),
     )
     content_type: str = Field(max_length=100, examples=["image/jpeg"])
     size_bytes: int = Field(description="The exact size of the file to upload", examples=[834221])

@@ -1,7 +1,8 @@
 """HTTP endpoints of M8 Partner Network: the partner core (spec §3.3).
 
 A partner's own records (`/partners/me`, pause and resume), and hub staff's list, profile, suspend
-and reinstate. Applications, training, kitchens, ratings and earnings arrive in S6.
+and reinstate. Applications and training (§3.1, §3.2) are in `application_router`; kitchens,
+ratings and earnings arrive later in S6.
 """
 
 import uuid
@@ -9,9 +10,12 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Response
 
+from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.partners import applications, service
 from gharbasket.modules.partners import permissions as _permissions  # noqa: F401 (registers rules)
-from gharbasket.modules.partners import service
+from gharbasket.modules.partners.application_router import router as application_router
+from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
 from gharbasket.modules.partners.schemas import (
     PartnerKind,
@@ -21,6 +25,7 @@ from gharbasket.modules.partners.schemas import (
     PartnerStatus,
     RatingOut,
     ReinstateIn,
+    SocietyRef,
     SuspendIn,
     SuspensionOut,
 )
@@ -31,6 +36,8 @@ from gharbasket.platform.pagination import Cursor, Limit, Page
 from gharbasket.platform.permissions import Permit, require
 
 router = APIRouter(tags=["partners"])
+router.include_router(application_router)
+router.include_router(kyc_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]
@@ -72,8 +79,19 @@ def _out(partner: Partner, *, staff: bool = False) -> dict[str, Any]:
     }
 
 
+async def _society(session: DbSession, society_id: uuid.UUID | None) -> SocietyRef | None:
+    """A captain's requested society (from her application); seeded partners have none."""
+    if society_id is None:
+        return None
+    found = await community_api.get_society(session, society_id)
+    return SocietyRef(id=society_id, name=found.name if found else "")
+
+
 async def _staff_views(session: DbSession, partners: list[Partner]) -> list[PartnerStaffOut]:
     contacts = await identity_api.user_contacts(session, [p.user_id for p in partners])
+    societies = await applications.requested_societies(
+        session, [p.application_id for p in partners if p.application_id is not None]
+    )
     views = []
     for partner in partners:
         contact = contacts.get(partner.user_id)
@@ -83,8 +101,9 @@ async def _staff_views(session: DbSession, partners: list[Partner]) -> list[Part
                 name=contact.name if contact else None,
                 phone_e164=contact.phone_e164 if contact else None,
                 application_id=partner.application_id,
-                # The requested society comes from the application (S6); seeded partners have none.
-                requested_society=None,
+                requested_society=await _society(session, societies.get(partner.application_id))
+                if partner.application_id is not None
+                else None,
             )
         )
     return views

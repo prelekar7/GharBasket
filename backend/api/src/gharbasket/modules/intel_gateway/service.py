@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +18,7 @@ from gharbasket.modules.intel_gateway.models import (
     Experiment,
     FeatureSnapshot,
     ModelMetric,
+    PantryPrior,
     Prediction,
     PriceIndex,
 )
@@ -345,6 +346,43 @@ async def save_price_index(
         )
         kept += 1
     return kept
+
+
+async def save_pantry_priors(
+    session: AsyncSession, rows: list[dict[str, Any]], ids: dict[str, uuid.UUID], version: str
+) -> int:
+    """Replace every stored prior with one version's (`just promote pantry_priors` sends the
+    promoted version, a rollback the older one), so no (cohort, product) of another version
+    lingers; unknown slugs are skipped."""
+    await session.execute(delete(PantryPrior))
+    kept = 0
+    for row in rows:
+        product_id = ids.get(row["product"])
+        if product_id is None:
+            continue
+        session.add(
+            PantryPrior(
+                cohort=row["cohort"],
+                product_id=product_id,
+                prior_mean_per_ae=row["prior_mean_per_ae"],
+                prior_weeks=row["prior_weeks"],
+                version=version,
+            )
+        )
+        kept += 1
+    await session.flush()
+    return kept
+
+
+async def pantry_priors(session: AsyncSession, cohort: str) -> dict[uuid.UUID, tuple[float, float]]:
+    """{product_id: (prior_mean_per_ae, prior_weeks)} of the promoted version for a cohort;
+    empty until a version was promoted."""
+    rows = await session.execute(
+        select(
+            PantryPrior.product_id, PantryPrior.prior_mean_per_ae, PantryPrior.prior_weeks
+        ).where(PantryPrior.cohort == cohort)
+    )
+    return {pid: (mean, weeks) for pid, mean, weeks in rows.all()}
 
 
 async def price_spikes(

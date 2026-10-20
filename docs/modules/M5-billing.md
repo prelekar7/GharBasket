@@ -201,7 +201,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 
 **Which top-ups take the money back.**
 - **Newest first.** The amount is split over the user's `paid` Razorpay top-ups, newest first. Each top-up can take back at most its amount minus what earlier parts already took (failed parts don't count).
-- **Within Razorpay's refund window.** Only top-ups captured within `RAZORPAY_REFUND_WINDOW_DAYS` qualify (180 assumed; check Razorpay's current limit when this is built).
+- **Within Razorpay's refund window.** Only top-ups captured within `RAZORPAY_REFUND_WINDOW_DAYS` qualify (default 180, Razorpay's six months; measured from the top-up's order, which is never later than its capture).
 - **One part per top-up**, and one Razorpay refund per part.
 - **`refundable_paise`** is the smaller of the balance and the sum of what the qualifying top-ups can still take.
 - **Dev top-ups** (`provider: dev`) are refundable in dev and test, and the job settles their parts at once (`rfnd_dev_…`).
@@ -213,6 +213,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 | Request, per part | `refund_to_source` (`rts:<part id>`) | wallet:U | razorpay_clearing |
 | `refund.failed` for a part | `refund_to_source_failed` (`rts_failed:<part id>`) | razorpay_clearing | wallet:U |
 | Deletion: balance no top-up can take | `unclaimed` (`unclaimed:<user id>`) | wallet:U | `unclaimed_balances` (platform liability, new) |
+| Deletion: a failed part no other top-up can take | `unclaimed` (`unclaimed:<part id>`) | wallet:U | `unclaimed_balances` |
 
 - **Holding the cap.** A part counts against the cap while it is `pending` or `sent`, as unpaid top-ups do (`topup_room_paise` = cap − balance − unpaid top-ups − parts in flight). A failed part can therefore always go back into the wallet without passing ₹10,000.
 - **On a deleting account,** a failed part is moved once to the next top-up that can take it, and otherwise to `unclaimed`. The customer can still claim it through support, and the money stays a liability, never revenue.
@@ -227,7 +228,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 **Webhook** (the existing endpoint and dedupe, §3.1):
 - `refund.processed` sets the part to `processed`.
 - `refund.failed` sets it to `failed` and posts the `refund_to_source_failed` entry.
-- When every part is final, the refund is `processed` (all parts processed), `failed` (none processed) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, amount_paise, processed_paise, status }` goes to M11 (category money, link `/wallet`).
+- When every part is final, the refund is `processed` (all its money went back, a moved part included), `failed` (none of it) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, amount_paise, processed_paise, status }` goes to M11 (category money, link `/wallet`).
 - New outcomes: `refund_processed`, `refund_failed`, `unknown_refund`. Refund events for the late over-cap refunds of §3.1 answer `already_settled`.
 
 **Rules**
@@ -250,12 +251,12 @@ US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The
 
 **`reconcile_payments`** runs hourly at :17 (GitHub Actions; the advisory lock and `scheduled_for` follow M0).
 - **Window.** It covers Razorpay payments and refunds created in the 72 hours before `scheduled_for`, plus every item still open. Razorpay's lists are paged: `GET /v1/payments?from&to&count=100&skip`, and refunds per payment.
-- **Read-only towards Razorpay.**
+- **Read-only towards Razorpay.** Everything is read (the two lists, then single payments for top-ups credited in the window or named by open items, and a payment's refunds for parts `sent` but not listed) before anything is written: when Razorpay is unavailable the run is `failed` and changes nothing.
 - **Dev top-ups are skipped.** Without Razorpay keys the run is `skipped`.
 
 | Check (`kind`) | What it compares | What the job does |
 |---|---|---|
-| `captured_not_credited` | A captured payment for one of our top-up orders, whose top-up is not `paid` (a lost webhook) | **Heals**: runs the same settle path as the webhook (idempotent by `topup:<payment id>`); item `healed` |
+| `captured_not_credited` | A captured payment for one of our top-up orders, whose top-up is not `paid` (a lost webhook) | **Heals**: runs the same settle path as the webhook (idempotent by `topup:<payment id>`); item `healed`. A payment that no longer fits under the cap would need a refund, which this job never sends: its item stays open for an admin. A second captured payment on an already paid order also opens this kind |
 | `credited_not_captured` | A `topup` entry whose payment is not captured at Razorpay | Opens an item (critical) |
 | `amount_mismatch` | Payment amount or currency ≠ the top-up's | Opens an item (the webhook already refused it) |
 | `unknown_payment` | A captured payment whose order is not ours | Opens an item |
@@ -272,7 +273,7 @@ ReconItem : { "id", "kind", "status": "open" | "healed" | "resolved",
 GET  /v1/admin/reconciliation?status=open&kind=&cursor=&limit=     admin (reconciliation:read)
   200 { "items": [ReconItem], "next_cursor", "last_run": { "scheduled_for", "status", "checked",
         "healed", "opened" } }
-POST /v1/admin/reconciliation/{id}/resolve     admin; { "note": "…" } (1 to 500) → 200 ReconItem
+POST /v1/admin/reconciliation/{id}/resolve     admin (reconciliation:resolve); { "note": "…" } (1 to 500) → 200 ReconItem
   409 "billing.recon_not_open" · 404 "billing.recon_not_found"
 ```
 
@@ -369,6 +370,8 @@ POST /v1/kindness/donations    customer; Idempotency-Key required
 - **Not in money views.** Points never appear in `WalletOut`, wallet entries or statements (§3.2), and the ₹10,000 cap does not apply to them.
 - **Redeeming is donating a meal** (owner, 2026-10-09). The only way to use points is "a meal for a child", given through M9's partners: no cash value, no rupees off a box, no wallet credit. **`goal.points`** is the points one donated meal takes (`KINDNESS_GOAL`, 500), so it is what the customer needs for the next donated meal; the app shows `points` against it and enables "Donate a meal" once `points ≥ goal.points`. `POST /v1/kindness/donations` posts one `points_donated` entry (kindness:U → kindness_expense, PTS, key `points_donation:<user id>:<Idempotency-Key>`) for `meals × goal.points`, taken from the lots oldest first like expiry, and publishes `billing.points_donated { entry_id, user_id, meals, points, code }`; M9 consumes it to count the meals towards its NGO partners' hand-offs and the impact counters (M9 follow-up, §10). No INR account is ever touched.
 - **Expiry stays at 365 days** (owner, 2026-10-09).
+- **As built (S9, the credit side, for M9's referrals).** `credit_points` (`billing/kindness.py`), the `billing.points_lots` table, the platform account `kindness_expense` (KINDNESS_PTS), the entry kinds `points_earned`, `points_expired` and `points_donated`, and `billing.points_credited`. The journal entry's `ref_type` is `donation` or `referral` (`referral` is added beside §4.1's list for M9 §3.3), and `details` keeps the `source_type`. A repeated credit returns the posted entry and publishes nothing; the same source with another amount is 409 `billing.entry_conflict`. The lots are in M5's data export (`kindness_points`).
+- **As built (S9, the rest).** `GET /v1/kindness/balance` counts only lots that have not expired, so a lot past `expires_at` stops counting at once, before `expire_kindness_points` takes it back at 00:30; `goal` is always set (`KINDNESS_GOAL`, default 500). `GET /v1/kindness/entries` gives `points_earned` and `points_expired` the lot's source as `ref` (`donation` or `referral`) and `points_donated` no `ref`. `POST /v1/kindness/donations` checks the points of unexpired lots only; a client key that would make the ledger key longer than 160 characters is hashed (`points_donation:<user id>:sha256:<hex>`). `expire_kindness_points` uses its scheduled time, not the clock, and posts nothing twice for a lot. The consumer of `community.donation_verified` (subscribed by name; `billing/jobs.py`) credits the points once per donation; a payload without a donation id, a user id or positive whole points, or the same donation with other points, is logged and skipped, never raised. Permissions `kindness:read` and `kindness:donate` (customer). Owner's 365-day expiry kept; nothing about Kindness points moves money.
 
 | Mock today (`mocks/billing.js`) | Contract |
 |---|---|
@@ -395,8 +398,8 @@ If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate 
 | `billing.payouts` | id, partner_id, week (ISO, e.g. 2027-W03), period_from, period_to, amount_paise, status (held, pending, processing, processed, failed), hold_reason, provider (simulated, razorpay_route), provider_ref, entry_id, attempts, created_at, processed_at; unique (partner_id, week) |
 | `billing.points_lots` | id, user_id, points, remaining, earned_at, expires_at, source_type, source_id, entry_id; unique (source_type, source_id) |
 | `billing.refunds` | id, user_id, amount_paise, reason (customer, account_deleted), status, idempotency_key, created_at, settled_at (§3.3) |
-| `billing.refund_parts` | id, refund_id, payment_id → payments, amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, last_error, entry_id, failed_entry_id, sent_at, settled_at |
-| `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, finished_at (§3.4) |
+| `billing.refund_parts` | id, refund_id, payment_id → payments, replaces_part_id (a deleting account's failed part moved once), amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, next_attempt_at, last_error, entry_id, failed_entry_id, sent_at, settled_at |
+| `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, error, finished_at (§3.4) |
 | `billing.reconciliation_items` | id, run_id, kind, status (open, healed, resolved), razorpay_ref, topup_id, refund_part_id, user_id, expected_paise, actual_paise, first_seen_at, last_seen_at, resolved_by, resolution_note, resolved_at; one open item per (kind, razorpay_ref) |
 
 ### 4.1 Ledger rules (handbook 05 §5.7)
@@ -428,7 +431,7 @@ Scheduled jobs run as internal job endpoints (`POST /v1/internal/jobs/<name>`) c
 |---|---|
 | `wallet:read/write` | customer (own) |
 | `statements:read` | customer (own wallet, §3.2); partner (own earnings, with M8); franchise_owner (hub aggregates, later) |
-| `reconciliation:read` | admin |
+| `reconciliation:read` · `reconciliation:resolve` | admin |
 | `refunds:write` | customer (own wallet, §3.3) |
 | `payouts:read` | partner (own), hub_manager (hub), admin |
 | `payouts:write` | admin (retry) |

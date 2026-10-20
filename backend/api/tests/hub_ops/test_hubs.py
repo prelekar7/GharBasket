@@ -247,8 +247,12 @@ async def test_seeding_the_hub_again_changes_nothing(db_session: AsyncSession) -
     assert again == [("kharghar", False)]
     await db_session.refresh(hub)
     assert hub.version == 1
-    vendors = list((await db_session.execute(select(Vendor))).scalars())
-    assert [(v.name, v.is_default) for v in vendors] == [("Shinde Traders", True)]
+    vendors = list((await db_session.execute(select(Vendor).order_by(Vendor.name))).scalars())
+    assert [(v.name, v.kind, v.is_default) for v in vendors] == [
+        ("Kharghar Kisan FPO", "fpo", False),
+        ("Patil Wholesale", "wholesaler", False),
+        ("Shinde Traders", "apmc_trader", True),
+    ]
     assert len(await events(db_session, "hub_ops.hub_created", str(SEED_HUB_ID))) == 1
     assert await events(db_session, "hub_ops.hub_updated", str(SEED_HUB_ID)) == []
 
