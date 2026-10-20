@@ -540,7 +540,7 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 
 **As built (offers, part 3).**
 - **`GET /v1/assignments`** answers 422 `request.invalid` for a date outside a week back to tomorrow. Orders keep their rows after a release (`status: released`, not counted in `dishes`). `accepted_at` is the answer's time once accepted; `pickup_qr` appears once an order is past `assigned`.
-- **Accept** does not call `orders.api.set_kitchen` yet: M4 has no such move (ADR-0026 §3 follow-up), so the order does not show its cook until it does.
+- **Accept** calls `orders.api.set_kitchen(order, partner)` for each order the offer holds (a manual assignment does so when it is made), so the order shows its cook.
 - **The 15-minute job** takes T as tomorrow from noon IST and today before; it always expires overdue offers (`respond_by` ≤ `scheduled_for`) and runs a round only before T 00:00.
 
 **As built (cooking, manual assignment, the board and refunds, part 4).**
@@ -548,9 +548,14 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 - **Manual assignment** takes orders of one meal (orders of another meal, taken or not free are listed in 409 `partners.order_not_assignable`); after the meal's `ready_by` minus 2 hours it is 409 `partners.assignment_closed`. The kitchen must be active or paused at that hub (else 404 `partners.kitchen_not_found`). Its round is the day's latest run round (1 without one); it is audit-logged as `partners.manual_assignment`.
 - **The board** needs `partners:read` (hub manager, franchise owner, admin). Counts are orders: `assigned` is held by any assignment, `accepted` and `preparing` by the assignment's status, `ready` and `picked_up` by the order's row. An unassigned order's `reason` is the latest run's, else `pending`.
 - **Refunds.** `refund_unassigned_tiffins` calls `orders.api.transition(…, "refunded", actor="system", payload={"reason": "no_kitchen"})` per order in a savepoint (M4's `locked → refunded` move for tiffins, ADR-0027, pays the whole paid total to the wallet, once); a move M4 refuses is counted as `refused` in the run's summary.
-- **Suspension** of a kitchen cancels her offered and accepted assignments from today and releases their orders (`reason: cancelled`); `set_kitchen(order, None)` waits for M4.
+- **Suspension** of a kitchen cancels her offered and accepted assignments from today and releases their orders (`reason: cancelled`); `set_kitchen(order, None)` clears her from orders of an accepted assignment (a declined or expired offer never set it).
 
 **As built (partner display name, S6 (a)).** `PATCH /v1/partners/{id}` takes `{ "display_name" }` (2 to 40 characters after trimming, else 422 `partners.display_name_invalid`) from the partner herself and needs `If-Match` with `Partner.version` (412 `request.version_mismatch`, 428 `request.precondition_required`); the answer carries the new `ETag`. Hub staff cannot edit it (404, as for any record that is not hers). The partner row is locked for the check and the write. `Partner.version` is the ETag of her own edits only: a new rating changes `rating_avg` and `rating_count` without bumping it, so a pending rename never fails because someone rated her kitchen. The same name is what `PATCH /v1/kitchens/me` changes.
+
+**As built (fulfilment events, pickups and leaving, part 5).**
+- **Consumers** (`partners.fulfilment`): a tiffin's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` move its row in the assignment to `picked_up`, `delivered` or `failed`. A row only moves forward, so a redelivered event changes nothing; an order in no assignment (a hub's own move) is ignored. When every order the assignment still holds is `delivered` or `failed`, a live assignment becomes `completed` and `partners.assignment_completed` is published (`portions_delivered` counts delivered portions, `orders_failed` failed orders).
+- **Facade for M7.** `partners.api.tiffin_pickups(hub, date, meal)` lists the kitchens whose assignment is accepted, preparing or ready, by `ready_by`, with the orders not yet picked up. `pickup(code, hub)` answers the orders `ready` at the kitchen whose `GB1A:` code it is; a malformed, unknown, other hub's or empty-of-ready-orders code is 404 `partners.pickup_invalid` (the spec does not give the status).
+- **Leaving.** `identity.deletion_requested` makes every partner record of the user that has not left `left` (audit `partners.left`), cancels a kitchen's offered and accepted assignments from today as a suspension does, publishes `partners.suspended` with `reason_code: "left"` and sets `delete_after` 30 days on her KYC files. Running it again changes nothing.
 
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```

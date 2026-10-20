@@ -417,6 +417,8 @@ async def create(
         )
     session.add(AssignmentEvent(assignment_id=assignment.id, action=status, user_id=by_user_id))
     await session.flush()
+    if status == "accepted":  # a manual assignment: the kitchen already agreed
+        await show_kitchen(session, assignment)
     await publish(
         session,
         events.ASSIGNMENT_CREATED,
@@ -509,11 +511,22 @@ async def event(
 async def accept(
     session: AsyncSession, assignment: Assignment, user_id: uuid.UUID, at: datetime
 ) -> None:
-    """Accept the whole offer. M4's `set_kitchen` (ADR-0026 §3) is not built yet, so the
-    order does not show its cook until it is."""
+    """Accept the whole offer: each order shows its cook (M4's `set_kitchen`, ADR-0026 §3)."""
     _ensure_open(assignment, at)
     assignment.status, assignment.responded_at = "accepted", at
+    await show_kitchen(session, assignment)
     await event(session, assignment, "accepted", user_id)
+
+
+async def show_kitchen(session: AsyncSession, assignment: Assignment) -> None:
+    """Record the kitchen on the orders the assignment holds, so customers see "Cooked by …"."""
+    rows = await session.execute(
+        select(AssignmentOrder.order_id)
+        .where(AssignmentOrder.assignment_id == assignment.id, AssignmentOrder.status != "released")
+        .order_by(AssignmentOrder.order_id)
+    )
+    for order_id in rows.scalars():
+        await orders_api.set_kitchen(session, order_id, assignment.partner_id)
 
 
 async def decline(
@@ -530,8 +543,11 @@ async def decline(
     await release(session, assignment, "declined")
 
 
-async def release(session: AsyncSession, assignment: Assignment, reason: str) -> list[uuid.UUID]:
-    """Let go of the assignment's orders that are not ready yet, for the next round."""
+async def release(
+    session: AsyncSession, assignment: Assignment, reason: str, *, clear_kitchen: bool = False
+) -> list[uuid.UUID]:
+    """Let go of the assignment's orders that are not ready yet, for the next round. After an
+    acceptance (`clear_kitchen`) the orders stop showing her as their cook."""
     released = await session.execute(
         update(AssignmentOrder)
         .where(AssignmentOrder.assignment_id == assignment.id, AssignmentOrder.status == "assigned")
@@ -539,6 +555,9 @@ async def release(session: AsyncSession, assignment: Assignment, reason: str) ->
         .returning(AssignmentOrder.order_id)
     )
     order_ids = sorted(released.scalars(), key=str)
+    if clear_kitchen:
+        for order_id in order_ids:
+            await orders_api.set_kitchen(session, order_id, None)
     await publish(
         session,
         events.ASSIGNMENT_RELEASED,

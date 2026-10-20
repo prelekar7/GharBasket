@@ -7,14 +7,25 @@ never the clock, and stands in for "now" in the rounds' reply deadlines.
   starts after T 00:00.
 - `refund_unassigned_tiffins` (T 09:30 IST for lunch, ready_by minus 2 hours for a dinner slot):
   locked tiffins of T that no assignment holds are refunded in full through M4.
+
+Consumers (§5): M4's `orders.dispatched`, `orders.delivered` and `orders.delivery_failed` of tiffins
+move the assignment's orders along and complete it; `identity.deletion_requested` makes her
+partner records `left`.
 """
 
+import uuid
 from datetime import date, time, timedelta
 from typing import Any
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.partners import assignments, cooking
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.orders import api as orders_api
+from gharbasket.modules.partners import assignments, cooking, fulfilment, service
 from gharbasket.platform.jobs import JobContext, job
+from gharbasket.platform.models import OutboxEvent
+from gharbasket.platform.outbox import subscribe
 
 NOON = time(12, 0)  # a run in the evening works for tomorrow, one after midnight for today
 
@@ -61,3 +72,17 @@ async def refund_unassigned_tiffins(ctx: JobContext) -> dict[str, Any]:
         done, failed = await cooking.refund_unassigned(ctx.session, hub_id, day, ctx.scheduled_for)
         refunded, refused = refunded + done, refused + failed
     return {"delivery_date": day.isoformat(), "refunded": refunded, "refused": refused}
+
+
+async def on_deletion_requested(session: AsyncSession, event: OutboxEvent) -> None:
+    """M1 §3.5: the request, not the purge 30 days later, because she can no longer sign in."""
+    try:
+        user_id = uuid.UUID(str(event.payload["user_id"]))
+    except (KeyError, ValueError):
+        return
+    await service.leave_for_user(session, user_id)
+
+
+for _event in (orders_api.DISPATCHED, orders_api.DELIVERED, orders_api.DELIVERY_FAILED):
+    subscribe(_event, fulfilment.on_order_event)
+subscribe(identity_api.DELETION_REQUESTED, on_deletion_requested)

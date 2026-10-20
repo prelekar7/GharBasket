@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
-from gharbasket.modules.partners import assignments, kitchens
+from gharbasket.modules.partners import assignments, kitchens, pickups
 from gharbasket.modules.partners.models import Assignment, AssignmentOrder, Partner
 from gharbasket.modules.partners.schemas import (
     AssignedPartnerOut,
@@ -139,7 +139,7 @@ async def views(session: DbSession, items: list[Assignment], lang: Language) -> 
                 orders=orders,
                 respond_by=assignment.respond_by,
                 ready_by=hhmm(assignments.ready_by(slot.start)) if slot else "",
-                pickup_qr=f"GB1A:{assignment.id.hex}"
+                pickup_qr=pickups.pickup_qr(assignment.id)
                 if any(o.status != "assigned" and o.status != "released" for o in orders)
                 else None,
                 checklist=assignment.checklist,
