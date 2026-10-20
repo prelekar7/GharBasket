@@ -1619,6 +1619,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/kitchen-capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your capacity per date and meal: from today, up to 14 days (default 7) */
+        get: operations["my_capacity_v1_kitchen_capacity_get"];
+        /** Set your capacity for one date and meal (0 = none) until 21:00 the day before */
+        put: operations["set_capacity_v1_kitchen_capacity_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kitchens/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your kitchen (kitchen partner) */
+        get: operations["my_kitchen_v1_kitchens_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit your kitchen: name, area, address, pin, skills, weekly portions (If-Match) */
+        patch: operations["edit_kitchen_v1_kitchens_me_patch"];
+        trace?: never;
+    };
+    "/v1/kitchens/{partner_id}/inspection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a kitchen inspection's hygiene grade (hub staff, admin; audit-logged) */
+        post: operations["inspect_kitchen_v1_kitchens__partner_id__inspection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/kyc-documents": {
         parameters: {
             query?: never;
@@ -3588,6 +3641,64 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CapacitiesOut */
+        CapacitiesOut: {
+            /** Items */
+            items: components["schemas"]["CapacityOut"][];
+        };
+        /** CapacityIn */
+        CapacityIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Max Portions
+             * @description 0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins
+             * @example 12
+             */
+            max_portions: number;
+            /**
+             * Meal
+             * @description lunch or dinner
+             * @example lunch
+             */
+            meal: string;
+        };
+        /** CapacityOut */
+        CapacityOut: {
+            /**
+             * Assigned Portions
+             * @description In offered, accepted, preparing, ready offers
+             */
+            assigned_portions: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Locked
+             * @description From 21:00 IST the day before
+             */
+            locked: boolean;
+            /**
+             * Max Portions
+             * @example 12
+             */
+            max_portions: number;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "default" | "set";
+        };
         /** CaptainCard */
         CaptainCard: {
             /**
@@ -5073,6 +5184,19 @@ export interface components {
             /** Items */
             items: components["schemas"]["HubSummary"][];
         };
+        /** HygieneOut */
+        HygieneOut: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Inspected On
+             * Format: date
+             */
+            inspected_on: string;
+        };
         /** InboxOut */
         InboxOut: {
             /** Items */
@@ -5138,6 +5262,19 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** InspectionIn */
+        InspectionIn: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Note
+             * @description Staff-only; audit log
+             */
+            note?: string | null;
         };
         /** InventoryItem */
         InventoryItem: {
@@ -5638,6 +5775,81 @@ export interface components {
              * @example 500
              */
             points: number;
+        };
+        /**
+         * KitchenOut
+         * @description A kitchen as she and hub staff see it: `address` and `location` are private.
+         */
+        KitchenOut: {
+            /**
+             * Address
+             * @description Private: the kitchen, hub staff, the rider
+             */
+            address: string | null;
+            /**
+             * Area
+             * @description Public (the card)
+             * @example Sector 20, Kharghar
+             */
+            area: string | null;
+            default_portions: components["schemas"]["WeekPortions"];
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /**
+             * Fssai Reg No
+             * @example 11521999000123
+             */
+            fssai_reg_no: string | null;
+            /** Fssai Valid Until */
+            fssai_valid_until: string | null;
+            hygiene: components["schemas"]["HygieneOut"] | null;
+            /** @description Private; null until set (no offers before) */
+            location: components["schemas"]["LatLng"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Skills
+             * @example [
+             *       "veg",
+             *       "jain"
+             *     ]
+             */
+            skills: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "suspended" | "left";
+            /** Version */
+            version: number;
+        };
+        /** KitchenPatchIn */
+        KitchenPatchIn: {
+            /** Address */
+            address?: string | null;
+            /** Area */
+            area?: string | null;
+            /**
+             * Default Portions
+             * @description lunch and dinner, Monday … Sunday, 0 to 100 each (else 422 partners.capacity_invalid)
+             */
+            default_portions?: {
+                [key: string]: number[];
+            } | null;
+            /** Display Name */
+            display_name?: string | null;
+            location?: components["schemas"]["LatLng"] | null;
+            /**
+             * Skills
+             * @description From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)
+             */
+            skills?: string[] | null;
         };
         /** KitchenRef */
         KitchenRef: {
@@ -11101,6 +11313,37 @@ export interface components {
              * @description What the event did (for Razorpay's dashboard and logs)
              */
             outcome: string;
+        };
+        /** WeekPortions */
+        WeekPortions: {
+            /**
+             * Dinner
+             * @description Monday … Sunday, 0 to 100 each
+             * @example [
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0
+             *     ]
+             */
+            dinner: number[];
+            /**
+             * Lunch
+             * @description Monday … Sunday, 0 to 100 each
+             * @example [
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10
+             *     ]
+             */
+            lunch: number[];
         };
         /** WhatsAppAck */
         WhatsAppAck: {
@@ -18982,6 +19225,369 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_capacity_v1_kitchen_capacity_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacitiesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_capacity_v1_kitchen_capacity_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_kitchen_v1_kitchens_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_kitchen_v1_kitchens_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KitchenPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.skills_invalid, partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required: send If-Match */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    inspect_kitchen_v1_kitchens__partner_id__inspection_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

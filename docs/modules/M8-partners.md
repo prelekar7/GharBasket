@@ -525,6 +525,13 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 | 409 | `partners.order_not_assignable` | Manual assignment of orders that are not free locked tiffins of the hub and date |
 | 409 | `orders.illegal_transition` | The order is not in the status the step needs (from M4) |
 
+**As built (kitchens and capacity, S6 build order (c), part 1).**
+- **The kitchen** (`partners.kitchens`) is made when a kitchen partner is verified (the review's last step), with the FSSAI number and validity of her current `fssai` document and the hygiene grade given at approval (`inspected_on` is the approval's IST date). Area, address and location start null (M1 has no `household_location` yet); a kitchen without a location is offered nothing. Weekly defaults start at 0.
+- **Access.** The own endpoints need the `kitchen_partner` role of her hub (`kitchens:write`), so a suspended kitchen (role suspended by M1) gets 403. No kitchen record: 404 `partners.kitchen_not_found`.
+- **PATCH.** `display_name` changes the partner record's name. `default_portions` must have both meals with 7 values of 0 to 100, else 422 `partners.capacity_invalid`. Skills are de-duplicated and kept in the list's order. `location: null` clears the pin.
+- **Inspection** sets the grade and today's IST date as `inspected_on`, audit-logged (`partners.kitchen_inspected`) with the note.
+- **Capacity.** `GET` shows her own values (a paused kitchen counts as 0 only in the assignment rounds). `PUT` is accepted from today to today + 13, and is naturally idempotent (no Idempotency-Key). `assigned_portions` is 0 until assignments ship.
+
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
 KitchenCard : { "partner_id", "display_name": "Sunita tai", "photo_url": null,   null for now (§11)

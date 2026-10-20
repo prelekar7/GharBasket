@@ -4,7 +4,8 @@
 the application to `training`, or verifies it at once when the training is already passed.
 `resubmit` sends listed documents back; `reject` ends it (also allowed in `training`). Whichever
 comes last, the approval or the last required training pass, verifies the person in the same
-transaction: the partner record, `partner_id`, `verified_at` and `partners.verified`.
+transaction: the partner record (and a kitchen's kitchen, §3.4), `partner_id`, `verified_at` and
+`partners.verified`.
 """
 
 import uuid
@@ -12,7 +13,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.partners import events, kyc, service, training
+from gharbasket.modules.partners import events, kitchens, kyc, service, training
 from gharbasket.modules.partners.models import REQUIRED_DOCUMENTS, REQUIRED_TRAININGS, Application
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
@@ -48,6 +49,8 @@ async def verify_if_complete(session: AsyncSession, application: Application) ->
         requested_society_id=application.scope_id if application.scope_type == "society" else None,
         data_source=application.data_source,
     )
+    if application.kind == "kitchen":
+        await kitchens.create_for(session, partner, application)
     application.status = "verified"
     application.partner_id = partner.id
     application.verified_at = partner.verified_at

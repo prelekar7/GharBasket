@@ -2,18 +2,20 @@
 
 The partner core (spec §3.3, build order (a)): one `partners` row per verified person and kind.
 Applications, KYC documents and training (§3.1, §3.2): `applications`, `kyc_documents`,
-`training_modules` and `training_attempts`. Kitchens, assignments, ratings and the rate card
-follow in S6 (spec §4).
+`training_modules` and `training_attempts`. Kitchens and their capacity (§3.4): `kitchens` and
+`kitchen_capacity`. Assignments, ratings and the rate card follow in S6 (spec §4).
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from geoalchemy2 import Geography, WKBElement, WKTElement
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -28,7 +30,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, column_property, mapped_column
 
 from gharbasket.platform.db import Base
 
@@ -60,6 +62,12 @@ REQUIRED_TRAININGS: dict[str, tuple[str, ...]] = {
     "rider": ("app_basics", "rider_safety"),
     "packer": ("app_basics", "hygiene", "packing"),
 }
+
+
+# A kitchen's menu skills (§3.4): what a tiffin product's skill tags may ask for.
+SKILLS = ("veg", "jain", "no_onion_garlic", "diabetic", "egg", "nonveg")
+MEALS = ("lunch", "dinner")
+HYGIENE_GRADES = ("A", "B", "C")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -273,3 +281,63 @@ class KycDocument(Base):
         ForeignKey(f"{SCHEMA}.kyc_documents.id")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Kitchen(Base):
+    """A kitchen partner's kitchen (§3.4), made when she is verified. `address` and `location` are
+    private (the kitchen, hub staff, the rider at pickup); `area` is on the public card."""
+
+    __tablename__ = "kitchens"
+    __table_args__ = (
+        CheckConstraint(
+            f"hygiene_grade IS NULL OR {_one_of('hygiene_grade', HYGIENE_GRADES)}",
+            name="hygiene_grade",
+        ),
+        CheckConstraint(
+            f"skills::text[] <@ ARRAY[{', '.join(repr(s) for s in SKILLS)}]::text[]", "skills"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    partner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.partners.id"), primary_key=True
+    )
+    area: Mapped[str | None] = mapped_column(String(80))
+    address: Mapped[str | None] = mapped_column(String(300))
+    # Null until she sets it: a kitchen without a location is offered nothing.
+    location: Mapped[WKBElement | WKTElement | None] = mapped_column(
+        Geography("POINT", srid=4326, spatial_index=False)
+    )
+    fssai_reg_no: Mapped[str | None] = mapped_column(String(14))
+    fssai_valid_until: Mapped[date | None] = mapped_column(Date)
+    skills: Mapped[list[str]] = mapped_column(ARRAY(String(16)), server_default=text("'{}'"))
+    # {"lunch": [Mon … Sun], "dinner": [...]}, 0 to 100 each; new kitchens start at 0.
+    default_portions: Mapped[dict[str, list[int]]] = mapped_column(JSONB)
+    hygiene_grade: Mapped[str | None] = mapped_column(String(1))
+    inspected_on: Mapped[date | None] = mapped_column(Date)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+
+    lat: Mapped[float | None] = column_property(func.ST_Y(func.geometry(location)))
+    lng: Mapped[float | None] = column_property(func.ST_X(func.geometry(location)))
+
+
+class KitchenCapacity(Base):
+    """A kitchen's own capacity for one date and meal (§3.4); only `set` overrides are stored,
+    else the weekday's default applies."""
+
+    __tablename__ = "kitchen_capacity"
+    __table_args__ = (
+        CheckConstraint(_one_of("meal", MEALS), name="meal"),
+        CheckConstraint("max_portions BETWEEN 0 AND 100", name="max_portions"),
+        {"schema": SCHEMA},
+    )
+
+    partner_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.kitchens.partner_id"), primary_key=True
+    )
+    on_date: Mapped[date] = mapped_column("date", Date, primary_key=True)
+    meal: Mapped[str] = mapped_column(String(8), primary_key=True)
+    max_portions: Mapped[int] = mapped_column(SmallInteger)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
