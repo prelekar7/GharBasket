@@ -6299,6 +6299,20 @@
         "title": "KindnessGoal",
         "type": "object"
       },
+      "KitchenRef": {
+        "properties": {
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_id"
+        ],
+        "title": "KitchenRef",
+        "type": "object"
+      },
       "KycCheckOut": {
         "properties": {
           "at": {
@@ -8353,6 +8367,17 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "kitchen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitchenRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is GET /v1/partners/{partner_id}/card"
           },
           "lines": {
             "items": {

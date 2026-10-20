@@ -368,6 +368,11 @@ POST /v1/orders                       customer; Idempotency-Key required (one pe
 - Slots: `POST /v1/admin/slots` and `Slot` gain `meal` (required for `kind: tiffin`, absent for `box`, else 422 `orders.slot_invalid`). The migration sets the meal of existing tiffin slots from their start time (before 16:00: lunch).
 - `orders.tiffin_booked` is published; M3's consumer that sets the meal to `tiffin` (and back on `orders.cancelled` with `kind: tiffin`) is an M3 follow-up, not in this PR.
 
+**As built (the kitchen, and the no-kitchen refund; facades for M8).**
+- `orders.api.set_kitchen(session, order_id, partner_id | None) -> Order` records the kitchen on a tiffin (`orders.orders.kitchen_partner_id`) and clears it with `None`; any other kind is 409 `orders.not_editable`; a change bumps `version`, the same kitchen again changes nothing. `OrderOut` gains `"kitchen": { "partner_id" } | null` (ADR-0026 §3).
+- `orders_for_delivery` returns each order's `preferred_partner_id` on the `Order` it carries (`summary.order.preferred_partner_id`), with its lines and `slot_id`.
+- The tiffin move `locked → refunded` (actor `system`) is in the state table (ADR-0027 §1). **Every** move to `refunded` now refunds through `billing.api.refund_to_wallet`: `payload.refund_paise` (default: the paid total less the order's issue credits), keyed `refund:<order>:<payload.reason>` (default reason `undelivered`); the order event's payload records `reason` and `refund_paise`. `billing.wallet_limit` is raised as is and nothing moves.
+
 ### 3.6 Issue triage contract (drafted 2026-10-09, frozen on approval)
 This is the console's queue for issues that stay `open` (§3.2), resolved through the existing `orders.api.resolve_issue`. M4 serves the endpoints because it owns the issues; the page sits in the console's Hub section. No console page or mock exists yet. Permission `order_issues:resolve` (§7).
 

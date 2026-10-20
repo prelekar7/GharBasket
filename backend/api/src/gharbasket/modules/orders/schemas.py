@@ -150,6 +150,10 @@ class OrderSummaryOut(BaseModel):
     locked_at: datetime | None
 
 
+class KitchenRef(BaseModel):
+    partner_id: uuid.UUID
+
+
 class TiffinOut(BaseModel):
     menu_id: uuid.UUID
     meal: Literal["lunch", "dinner"]
@@ -161,6 +165,11 @@ class OrderOut(OrderSummaryOut):
     timeline: list[TimelineEntry]
     tiffin: TiffinOut | None = Field(
         default=None, description="Tiffin orders (§3.5): the booked menu; null otherwise"
+    )
+    kitchen: KitchenRef | None = Field(
+        default=None,
+        description="The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is "
+        "GET /v1/partners/{partner_id}/card",
     )
 
 

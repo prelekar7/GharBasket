@@ -30,6 +30,7 @@ from gharbasket.modules.orders.schemas import (
     IssueStatus,
     IssueTriage,
     IssueTriageDetail,
+    KitchenRef,
     OrderEventsOut,
     OrderLineOut,
     OrderOut,
@@ -190,7 +191,14 @@ async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
                 meal=menu.meal,  # pyright: ignore[reportArgumentType]
                 dishes=[DishOut(recipe_id=r, name=localised(n, lang)) for r, n in menu.dishes],
             )
-    return OrderOut(**summary.model_dump(), lines=out_lines, timeline=timeline, tiffin=tiffin)
+    kitchen = (
+        None
+        if order.kitchen_partner_id is None
+        else KitchenRef(partner_id=order.kitchen_partner_id)
+    )
+    return OrderOut(
+        **summary.model_dump(), lines=out_lines, timeline=timeline, tiffin=tiffin, kitchen=kitchen
+    )
 
 
 # --- slots --------------------------------------------------------------------------------------

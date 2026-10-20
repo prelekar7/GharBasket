@@ -5639,6 +5639,14 @@ export interface components {
              */
             points: number;
         };
+        /** KitchenRef */
+        KitchenRef: {
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
         /** KycCheckOut */
         KycCheckOut: {
             /**
@@ -6524,6 +6532,8 @@ export interface components {
              * @enum {string}
              */
             kind: "box" | "tiffin" | "addon";
+            /** @description The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is GET /v1/partners/{partner_id}/card */
+            kitchen?: components["schemas"]["KitchenRef"] | null;
             /** Lines */
             lines: components["schemas"]["OrderLineOut"][];
             /** Locked At */
