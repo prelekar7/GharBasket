@@ -11,9 +11,12 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import packing, procurement, scores, service
+from gharbasket.modules.hub_ops import kept, packing, procurement, scores, service
+from gharbasket.modules.hub_ops.models import KeptItem
+from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
@@ -70,4 +73,19 @@ async def on_forecast_ready(session: AsyncSession, event: OutboxEvent) -> None:
         await procurement.build(session, hub_id, date.fromisoformat(day), existing_only=True)
 
 
+async def on_carry_over_expired(session: AsyncSession, event: OutboxEvent) -> None:
+    """`orders.carry_over_expired { lines: [ { carry_id, … } ] }` (M4's 14 days, M4 §3.8): those
+    carry rows were refunded, so their items still `kept` go into returned lots for the next
+    12:30 run (§3.5). Items packed or lost already are left alone, so a replay changes nothing."""
+    carry_ids = [uuid.UUID(line["carry_id"]) for line in event.payload["lines"]]
+    items = await session.scalars(
+        select(KeptItem)
+        .where(KeptItem.carry_id.in_(carry_ids), KeptItem.status == "kept")
+        .order_by(KeptItem.id)
+        .with_for_update()
+    )
+    await kept.release(session, list(items))
+
+
 subscribe("intel.forecast_ready", on_forecast_ready)
+subscribe(orders_api.CARRY_OVER_EXPIRED, on_carry_over_expired)

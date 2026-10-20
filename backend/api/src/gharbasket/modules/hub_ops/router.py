@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.hub_ops import (
+    kept,
     packing,
     procurement,
     purchasing,
@@ -45,6 +46,10 @@ from gharbasket.modules.hub_ops.schemas import (
     HubsOut,
     HubSummary,
     InventoryOut,
+    KeptItemOut,
+    KeptItemsOut,
+    KeptStatus,
+    LostIn,
     LotDetailOut,
     LotOut,
     PackingSummary,
@@ -57,6 +62,8 @@ from gharbasket.modules.hub_ops.schemas import (
     PurchaseOrderOut,
     PurchaseOrdersOut,
     ReceiptIn,
+    ReturnedBagIn,
+    ReturnedBagOut,
     ShortageIn,
     StartIn,
     TaskStatus,
@@ -986,3 +993,77 @@ async def release_packing(
     task = await packing.get_task(session, task_id, permit, for_update=True)
     await packing.release(session, task, packing.actor(permit, task.hub_id))
     return await _answer(session, idem, task, lang)
+
+
+# --- kept items and returned bags (§3.5) --------------------------------------------------------
+
+
+@router.post(
+    "/hubs/{hub_id}/returned-bags",
+    summary="Unpack a bag back after a second miss: kept items and returned lots (Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.bag_unknown"),
+        409: _problem("hub_ops.bag_not_returned"),
+        422: _problem("request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def scan_returned_bag(
+    hub_id: uuid.UUID,
+    body: ReturnedBagIn,
+    permit: CanPack,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> ReturnedBagOut:
+    permit.ensure(hub_id)
+    out = await kept.scan(session, hub_id, body.bag_qr, permit.principal.user_id, lang)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/kept-items",
+    summary="The hub's kept items by society and flat",
+    responses=SIGNED_IN,
+)
+async def list_kept_items(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    item_status: Annotated[KeptStatus | None, Query(alias="status")] = None,
+) -> KeptItemsOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    return KeptItemsOut(items=await kept.list_items(session, hub_id, item_status, lang))
+
+
+@router.post(
+    "/hubs/{hub_id}/kept-items/{item_id}/lost",
+    summary="A kept item is lost: M4 refunds it, no fee (audited; Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.kept_item_not_found"),
+        409: _problem("hub_ops.kept_item_settled, orders.carry_not_refundable"),
+        422: _problem("billing.wallet_limit, request.idempotency_mismatch, request.invalid"),
+    },
+)
+async def lose_kept_item(
+    hub_id: uuid.UUID,
+    item_id: uuid.UUID,
+    body: LostIn,
+    permit: CanManageInventory,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> KeptItemOut:
+    permit.ensure(hub_id)
+    item = await kept.get_item(session, hub_id, item_id, for_update=True)
+    await kept.lose(session, item, body.note, permit.principal.user_id)
+    [out] = await kept.items_out(session, [item], lang)
+    await idem.save(200, out)
+    await session.commit()
+    return out
