@@ -228,3 +228,74 @@ async def test_the_ml_service_answers_the_twin(
         and kept[0].source == "ml"
         and kept[0].model_name == ("pantry-gamma-poisson-v0")
     )
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_learned_cohort_priors_replace_the_rule_table_in_the_twin(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """v1 (M10 §3.3): once the refit job stored priors for the household's cohort, the twin
+    starts from them instead of the family-size table and says so in the line's params."""
+    from gharbasket.modules.identity import api as identity_api
+    from gharbasket.modules.subscriptions import rules
+    from gharbasket.modules.subscriptions.rules import Member
+
+    api = clients(pantry_twin_enabled=True)  # the twin is off by default (PR #112)
+    priya, user_id = await as_user(api, google, PRIYA)
+    await subscribe(api, priya)
+    await generate(api, GENERATE_AT)
+    first = (await api.get("/v1/cycles/current", headers=priya)).json()
+    milk = next(line for line in first["lines"] if line["slug"] == "milk")
+    approved = await api.post(
+        f"/v1/cycles/{first['id']}/approve",
+        headers={**priya, "Idempotency-Key": str(uuid.uuid4()), "If-Match": '"1"'},
+    )
+    assert approved.status_code == 200, approved.text
+    await subscriptions_api.mark_locked(db_session, uuid.UUID(first["id"]), uuid.uuid4())
+
+    household = await identity_api.household_for_user(db_session, user_id)
+    assert household is not None
+    profile = await identity_api.household_plan_profile(db_session, household.id)
+    assert profile is not None
+    equivalents = rules.adult_equivalents([Member(m) for m in profile.member_age_bands])
+    cohort = rules.cohort_of(equivalents)
+    # A prior far above what the box carried, with a heavy weight: the mean must move up. The
+    # stored prior is per adult equivalent; M3 multiplies it by the household's equivalents.
+    huge = milk["qty"] * 500.0 * 3 / equivalents
+    stored = await api.post(
+        "/v1/internal/intel/pantry-priors",
+        json={
+            "version": "2026-10-05",
+            "items": [
+                {
+                    "cohort": cohort,
+                    "product": "milk",
+                    "prior_mean_per_ae": huge,
+                    "prior_weeks": 20.0,
+                }
+            ],
+        },
+    )
+    assert stored.status_code == 200 and stored.json()["accepted"] == 1
+
+    with time_machine.travel(datetime(2026, 10, 17, 12, 30, tzinfo=NOW.tzinfo), tick=False):
+        await generate(api, "2026-10-17T12:30:00Z")
+    second = next(
+        c
+        for c in (await db_session.execute(select(service.WeeklyCycle))).scalars()
+        if c.delivery_date == date(2026, 10, 20)
+    )
+    lines = {line.product_id: line for line in await service.lines_of(db_session, second.id)}
+    milk_line = lines[uuid.UUID(milk["product_id"])]
+    curd_line = next(
+        line
+        for line in lines.values()
+        if line.reason_code == "pantry_low" and line is not milk_line
+    )
+    assert milk_line.reason_params is not None and curd_line.reason_params is not None
+    assert (
+        milk_line.reason_params["prior"] == "learned" and curd_line.reason_params["prior"] == "rule"
+    )
+    # (20 weeks x 3 boxes + one week's share) / 21 weeks >= 2.85 boxes: only when the prior
+    # was scaled back up by the household's equivalents.
+    assert milk_line.reason_params["mean"] >= milk["qty"] * 500.0 * 2.85
