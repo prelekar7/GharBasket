@@ -15,12 +15,17 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.main import create_app
+from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import DbSession, create_engine, get_session, is_local_database
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings
 from gharbasket.platform.valkey import create_valkey
 
+from .commit_guard import CommitGuard
+
 API_DIR = Path(__file__).resolve().parents[1]
+# As the app and every tool do: tests relay the outbox without always building an app first.
+load_modules()
 # Local Docker defaults (`just up`); CI sets the same variables.
 LOCAL_TEST_DATABASE_URL = (
     "postgresql+asyncpg://gharbasket:gharbasket@localhost:5432/gharbasket_test"
@@ -34,6 +39,8 @@ DEPLOYED_SECRETS: dict[str, object] = {
     "jwt_signing_key": "test-deployed-jwt-signing-key-0123456789",
     "refresh_token_pepper": "test-deployed-refresh-pepper-0123456789",
     "firebase_project_id": "gharbasket-test",
+    "kyc_encryption_key": "test-deployed-kyc-encryption-key-0123456789",
+    "kyc_hash_pepper": "test-deployed-kyc-hash-pepper-0123456789",
 }
 
 
@@ -161,20 +168,22 @@ async def db_session(database_url: str) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-async def api(db_session: AsyncSession) -> AsyncIterator[httpx2.AsyncClient]:
+async def commit_guard(db_session: AsyncSession) -> AsyncIterator[CommitGuard]:
+    """Fails the test if a request wrote through the session and returned without committing.
+
+    Install it with `app.dependency_overrides[get_session] = commit_guard.override()`.
+    """
+    guard = CommitGuard(db_session)
+    yield guard
+    guard.check()
+
+
+@pytest.fixture
+async def api(commit_guard: CommitGuard) -> AsyncIterator[httpx2.AsyncClient]:
     """Async client for the app, with every request using the test's rolled-back session."""
     app = create_app(make_settings())
     add_test_routes(app)
-
-    async def session_override() -> AsyncIterator[AsyncSession]:
-        # Like the real dependency: a request that fails leaves nothing behind.
-        try:
-            yield db_session
-        except Exception:
-            await db_session.rollback()
-            raise
-
-    app.dependency_overrides[get_session] = session_override
+    app.dependency_overrides[get_session] = commit_guard.override()
     transport = httpx2.ASGITransport(app=app)
     async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client

@@ -7,6 +7,7 @@ Safe by default: without APP_ENV the app runs as "prod" (docs hidden, dev conven
 and connection strings and tokens are SecretStr so they never show up in a repr or a log line.
 """
 
+import json
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Self
 
@@ -30,6 +31,8 @@ CommaSeparated = Annotated[list[str], NoDecode, BeforeValidator(_split_comma)]
 # secrets. Deployed environments refuse to start without their own keys.
 _DEV_SIGNING_KEY = "gharbasket-dev-only-jwt-signing-key-never-deployed"
 _DEV_REFRESH_PEPPER = "gharbasket-dev-only-refresh-token-pepper-never-deployed"
+_DEV_KYC_KEY = "gharbasket-dev-only-kyc-encryption-key-never-deployed"
+_DEV_KYC_PEPPER = "gharbasket-dev-only-kyc-hash-pepper-never-deployed"
 MIN_SECRET_BYTES = 32
 LogLevel = Annotated[Literal["DEBUG", "INFO", "WARNING", "ERROR"], BeforeValidator(_upper)]
 
@@ -84,6 +87,27 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
+    # solver call (the service gives up after its own ASSISTANT_TURN_TIMEOUT_S, 25 s, first).
+    # Tokens (uncached in + out) a user may spend a day.
+    assistant_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    assistant_daily_tokens: int = Field(default=60_000, gt=0)
+    # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
+    # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
+    ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)
+    # The pantry twin (M10 §3.3) drafts the perishable daily-use quantities only when this is on
+    # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
+    # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
+    pantry_twin_enabled: bool = False
+    # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
+    public_web_url: str = "https://gharbasket.in"
+    # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
+    # §3.3, owner 2026-10-09): half a donated meal each.
+    referral_points_referrer: int = Field(default=250, ge=0, le=5000)
+    referral_points_referee: int = Field(default=250, ge=0, le=5000)
+    # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
+    # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
+    real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
@@ -93,9 +117,38 @@ class Settings(DatabaseSettings):
     razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
+    # Refund to source (M5 §3.3): only top-ups captured this recently can take money back.
+    razorpay_refund_window_days: int = Field(default=180, ge=1, le=365)
+    # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
+    kindness_goal: int = Field(default=500, ge=1, le=100_000)
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
+    # Private uploads (M0 §3.1): SeaweedFS locally, Cloudflare R2 on staging, over the S3 API.
+    # Unset: POST /v1/files/presign answers 503 platform.storage_unavailable.
+    s3_endpoint_url: str | None = None
+    # The host the apps PUT to and read from; default S3_ENDPOINT_URL. The Android emulator
+    # reaches the laptop as http://10.0.2.2:8333.
+    s3_public_endpoint_url: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: SecretStr | None = None
+    s3_region: str = "auto"
+    s3_bucket_private: str = "gb-private"
+    # Firebase Cloud Messaging (M11 pushes): the service account key file's JSON, as one value.
+    # Unset: pushes are skipped (the inbox still gets every message).
+    fcm_service_account: SecretStr | None = None
+    # WhatsApp Cloud API (M11): off unless all four are set; until then WhatsApp is skipped. The
+    # webhook needs the app secret (signatures) and the verify token (Meta's handshake).
+    whatsapp_token: SecretStr | None = None
+    whatsapp_phone_number_id: str | None = Field(default=None, pattern=r"^[0-9]{5,30}$")
+    whatsapp_app_secret: SecretStr | None = None
+    whatsapp_verify_token: SecretStr | None = None
+    # KYC numbers (M8 §3.1, handbook 13 §13.5) are stored as pgp_sym_encrypt(number, key), the key
+    # named by KYC_KEY_VERSION for rotation, and as HMAC-SHA256(pepper, number) for duplicate
+    # checks. Required on staging and prod; local runs use dev-only values.
+    kyc_encryption_key: SecretStr | None = None
+    kyc_key_version: int = Field(default=1, ge=1, le=32767)
+    kyc_hash_pepper: SecretStr | None = None
 
     @model_validator(mode="after")
     def _deployed_environments_need_their_secrets(self) -> Self:
@@ -105,13 +158,19 @@ class Settings(DatabaseSettings):
                 "JWT_SIGNING_KEY": self.jwt_signing_key,
                 "REFRESH_TOKEN_PEPPER": self.refresh_token_pepper,
                 "FIREBASE_PROJECT_ID": self.firebase_project_id,
+                "KYC_ENCRYPTION_KEY": self.kyc_encryption_key,
+                "KYC_HASH_PEPPER": self.kyc_hash_pepper,
             }
             missing = [name for name, value in required.items() if value is None]
             if missing:
                 raise ValueError(f"{', '.join(missing)} required when APP_ENV={self.app_env}")
+        if self.fcm_service_account is not None:
+            _ = self.fcm_credentials  # a broken key fails at start, not at the first push
         for name, secret in (
             ("JWT_SIGNING_KEY", self.jwt_signing_key),
             ("REFRESH_TOKEN_PEPPER", self.refresh_token_pepper),
+            ("KYC_ENCRYPTION_KEY", self.kyc_encryption_key),
+            ("KYC_HASH_PEPPER", self.kyc_hash_pepper),
             *((f"JWT_RETIRED_KEYS ({kid})", key) for kid, key in self._retired_pairs()),
         ):
             if secret is not None and len(secret.get_secret_value().encode()) < MIN_SECRET_BYTES:
@@ -147,6 +206,17 @@ class Settings(DatabaseSettings):
         return (pepper.get_secret_value() if pepper else _DEV_REFRESH_PEPPER).encode()
 
     @property
+    def kyc_key(self) -> str:
+        """The pgcrypto key for KYC numbers; send it only as a bind parameter."""
+        key = self.kyc_encryption_key
+        return key.get_secret_value() if key else _DEV_KYC_KEY
+
+    @property
+    def kyc_pepper(self) -> bytes:
+        pepper = self.kyc_hash_pepper
+        return (pepper.get_secret_value() if pepper else _DEV_KYC_PEPPER).encode()
+
+    @property
     def is_local(self) -> bool:
         """A developer machine or the test suite, never a deployed environment."""
         return self.app_env in ("dev", "test")
@@ -165,6 +235,37 @@ class Settings(DatabaseSettings):
     @property
     def razorpay_enabled(self) -> bool:
         return self.razorpay_key_id is not None and self.razorpay_key_secret is not None
+
+    @property
+    def fcm_enabled(self) -> bool:
+        return self.fcm_service_account is not None
+
+    @property
+    def whatsapp_enabled(self) -> bool:
+        return None not in (
+            self.whatsapp_token,
+            self.whatsapp_phone_number_id,
+            self.whatsapp_app_secret,
+            self.whatsapp_verify_token,
+        )
+
+    @property
+    def fcm_credentials(self) -> dict[str, Any]:
+        """The service account: client_email, private_key, token_uri and project_id."""
+        if self.fcm_service_account is None:
+            raise ValueError("FCM_SERVICE_ACCOUNT is not set")
+        try:
+            account = json.loads(self.fcm_service_account.get_secret_value())
+        except ValueError:
+            raise ValueError("FCM_SERVICE_ACCOUNT must be the key file's JSON") from None
+        needed = ("client_email", "private_key", "token_uri", "project_id")
+        if not isinstance(account, dict) or any(k not in account for k in needed):
+            raise ValueError(f"FCM_SERVICE_ACCOUNT needs {', '.join(needed)}")
+        return account
+
+    @property
+    def storage_enabled(self) -> bool:
+        return bool(self.s3_endpoint_url and self.s3_access_key and self.s3_secret_key)
 
     @property
     def docs_enabled(self) -> bool:

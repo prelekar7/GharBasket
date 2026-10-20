@@ -38,12 +38,32 @@ services:
         sync: false
       - key: FIREBASE_PROJECT_ID
         sync: false
+      # KYC numbers (M8): the pgcrypto key and the duplicate-check pepper, from Infisical.
+      - key: KYC_ENCRYPTION_KEY
+        sync: false
+      - key: KYC_HASH_PEPPER
+        sync: false
       # Razorpay test mode (M5 top-ups): from Infisical `staging`. Without them, top-ups answer 503.
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      # The ML service on its Hugging Face Space (ADR-0025); unset: the rule fallbacks answer.
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ML_SERVICE_TOKEN
+        sync: false
+      # Private uploads (M0 §3.1) on Cloudflare R2: from Infisical `staging`. Without them,
+      # POST /v1/files/presign answers 503 and sweep_uploads fails.
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY
+        sync: false
+      - key: S3_SECRET_KEY
+        sync: false
+      - key: S3_BUCKET_PRIVATE # gitleaks:allow (a bucket name, not a secret)
         sync: false
       # The Vercel URLs of the PWA and console, comma-separated (empty until they are deployed).
       - key: WEB_ORIGINS

@@ -179,6 +179,9 @@ async def test_relay_delivers_to_consumers_and_retries_failures_with_backoff(
 
         not_yet = await relay(db_session)  # still backing off
         assert (not_yet.sent, not_yet.failed) == (0, 0)
+        # Due a moment ago, in a transaction that began earlier still: due means by the wall
+        # clock, not by the transaction's start (this was flaky on a slow machine).
+        await db_session.execute(text("SELECT pg_sleep(1.2)"))
         event.available_at = datetime.now(UTC) - timedelta(seconds=1)
         await db_session.flush()
         retried = await relay(db_session)

@@ -3,16 +3,20 @@ from collections import Counter
 from datetime import date
 from typing import Any
 
+import pytest
 from gharbasket_ml import planner as cpsat
 from gharbasket_ml.schemas import PlanRequest
-from gharbasket_sim import config
+from gharbasket_sim import config, weeks
 from gharbasket_sim.catalog import Catalog
 from gharbasket_sim.households import SimHousehold, sample
 from gharbasket_sim.weeks import (
+    PLANNERS,
     Planned,
     cached,
     cpsat_planner,
     fasting_days,
+    greedy_planner,
+    random_planner,
     rules_planner,
     simulate,
 )
@@ -74,6 +78,51 @@ def test_a_jain_household_in_navratri_eats_by_its_rules(catalog: Catalog) -> Non
     banned = {"root", "onion_garlic"}
     eaten = {c["product"] for c in rows.consumption}
     assert not any(catalog.products[p].tags & banned for p in eaten)
+
+
+def planned_week(h: SimHousehold, catalog: Catalog, monday: date, planner: Any) -> Any:
+    request = {
+        "household": h.rules,
+        "fasting_days": fasting_days(h, monday, catalog.festivals),
+        "recipes": catalog.recipes,
+        "time_limit_s": 2.0,
+    }
+    return cpsat.Week.of(PlanRequest.model_validate(request)), planner(request)
+
+
+@pytest.mark.parametrize("name", sorted(PLANNERS))
+def test_every_planner_keeps_every_hard_rule_in_a_navratri_week(
+    catalog: Catalog, name: str
+) -> None:
+    """`cpsat.check` (allowed dishes, windows, a fasting dish each fasting day, the budget) finds
+    nothing in any planner's week, for households that fast all through Navratri."""
+    every = households(catalog)
+    sampled = every[:: max(1, len(every) // 10)]
+    plan = cached(PLANNERS[name])
+    for h in sampled:
+        fasting = dataclasses.replace(h, fasts=("navratri", "tuesdays"))
+        week, planned = planned_week(fasting, catalog, NAVRATRI_WEEK, plan)
+        assert planned.meals, (name, h.key)
+        assert len(week.fasting) == 7
+        assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == [], (name, h.key)
+
+
+def test_the_baselines_keep_a_tight_budget_without_relaxing_it(catalog: Catalog) -> None:
+    h = pick(catalog, diet="veg", jain=False)
+    week, free = planned_week(h, catalog, NAVRATRI_WEEK, greedy_planner)
+    cheapest = cpsat.cost(week, free.meals)  # pyright: ignore[reportArgumentType]
+    tight = dataclasses.replace(h, rules={**h.rules, "weekly_budget_paise": int(cheapest * 1.1)})
+
+    for planner in (greedy_planner, random_planner):
+        week, planned = planned_week(tight, catalog, NAVRATRI_WEEK, planner)
+        assert "budget" not in planned.relaxed
+        assert cpsat.cost(week, planned.meals) <= cheapest * 1.1  # pyright: ignore[reportArgumentType]
+        assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == []
+
+    broke = dataclasses.replace(h, rules={**h.rules, "weekly_budget_paise": 100})
+    week, planned = planned_week(broke, catalog, NAVRATRI_WEEK, random_planner)
+    assert "budget" in planned.relaxed  # recorded, as the CP-SAT model records it
+    assert cpsat.check(week, planned.meals, frozenset(planned.relaxed)) == []
 
 
 def test_the_same_seed_gives_the_same_weeks(catalog: Catalog) -> None:
@@ -142,3 +191,49 @@ def test_identical_requests_are_planned_once() -> None:
     plan({"household": {"size": 3}, "recipes": []})
 
     assert first is second and len(calls) == 2
+
+
+def test_observed_liking_needs_two_weeks_and_feeds_only_the_v2_planner() -> None:
+    meals = [
+        {"household": "h1", "week": 0, "planned": "dal-rice", "action": "accept"},
+        {"household": "h1", "week": 0, "planned": "poha", "action": "edit"},
+        {"household": "h1", "week": 0, "planned": None, "action": "tiffin"},
+    ]
+    assert weeks.observed_preference(meals, "h1") == {}
+    meals += [
+        {"household": "h1", "week": 1, "planned": "dal-rice", "action": "accept"},
+        {"household": "h1", "week": 1, "planned": "poha", "action": "accept"},
+        {"household": "h2", "week": 1, "planned": "poha", "action": "edit"},
+    ]
+    assert weeks.observed_preference(meals, "h1") == {"dal-rice": 1.0, "poha": 0.5}
+    request = {"recipes": [{"slug": "poha", "preference": 0.5}, {"slug": "dal-rice"}]}
+    assert weeks.without_preference(request) == {
+        "recipes": [{"slug": "poha"}, {"slug": "dal-rice"}]
+    }
+    assert set(weeks.PLANNERS) >= {"cpsat", "cpsat_v2", "rules", "greedy", "random"}
+
+
+def test_planners_that_ignore_liking_share_a_plan_and_their_rng_with_v1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    liked = {"household": {"size": 2}, "recipes": [{"slug": "poha", "preference": 0.9}]}
+    plain = {"household": {"size": 2}, "recipes": [{"slug": "poha"}]}
+    seen: list[dict[str, Any]] = []
+
+    def counting(request: dict[str, Any]) -> Planned:
+        seen.append(request)
+        return Planned("optimal", (), {}, "count")
+
+    plan = cached(counting)
+    assert plan(liked) is plan(plain) and seen == [plain]  # the liking is not even passed on
+
+    # A planner that reads the liking (v2) keeps the two requests apart.
+    seen.clear()
+    monkeypatch.setattr(weeks, "LIKING", frozenset({counting}))
+    v2 = cached(counting)
+    assert v2(liked) is not v2(plain) and seen == [liked, plain]
+
+    assert weeks.cpsat_v2_planner in weeks.PLANNERS.values()
+    monkeypatch.undo()
+    assert weeks.cpsat_v2_planner in weeks.LIKING and len(weeks.LIKING) == 1
+    assert not {cpsat_planner, rules_planner, greedy_planner, random_planner} & weeks.LIKING

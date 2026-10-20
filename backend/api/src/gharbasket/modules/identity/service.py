@@ -130,21 +130,54 @@ async def start_session(
     *,
     platform: str,
     push_token: str | None = None,
+    auth_time: datetime | None = None,
     now: datetime | None = None,
 ) -> IssuedTokens:
-    """Sign a device in: a new session with its first refresh token and an access token."""
+    """Sign a device in: a new session with its first refresh token and an access token.
+    `auth_time` is when the OTP was entered (default: now, as for the dev login)."""
     at = _now(now)
     login = LoginSession(
         user_id=user.id,
         platform=platform,
         push_token=push_token,
         created_at=at,
+        auth_time=auth_time or at,
         last_seen_at=at,
         expires_at=at + SESSION_LIFETIME,
     )
     session.add(login)
     await session.flush()
+    if push_token is not None:
+        await _release_token(session, user.id, push_token, keep=login.id)
     return await _issue(session, settings, user=user, login=login, parent_id=None, now=at)
+
+
+async def _release_token(
+    session: AsyncSession, user_id: uuid.UUID, token: str, *, keep: uuid.UUID
+) -> None:
+    """A phone has one FCM token: after a reinstall it belongs to the new session only."""
+    await session.execute(
+        update(LoginSession)
+        .where(
+            LoginSession.user_id == user_id,
+            LoginSession.push_token == token,
+            LoginSession.id != keep,
+        )
+        .values(push_token=None)
+    )
+
+
+async def set_push_token(
+    session: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID, token: str | None
+) -> None:
+    """Set or clear the FCM token of the calling device (M11 §3.1)."""
+    await session.execute(
+        update(LoginSession)
+        .where(LoginSession.id == session_id, LoginSession.user_id == user_id)
+        .values(push_token=token)
+    )
+    if token is not None:
+        await _release_token(session, user_id, token, keep=session_id)
 
 
 async def rotate(
@@ -334,3 +367,72 @@ async def grant_role(
         },
     )
     return grant
+
+
+async def grant_system_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> None:
+    """Grant a role that follows from another module's event (the captain role from M9's
+    appointment): no person grants it, so the audit entry has no actor. Granting a verified role
+    again changes nothing; a user who no longer exists gets nothing."""
+    if await session.get(User, user_id) is None:
+        return
+    existing = await _role(session, user_id, role, scope_id)
+    if existing is not None and existing.status == "verified":
+        return
+    grant = existing or UserRole(
+        user_id=user_id, role=role, scope_type=ROLE_SCOPE[role], scope_id=scope_id
+    )
+    before = {"status": existing.status} if existing is not None else None
+    grant.status = "verified"
+    grant.verified_at = datetime.now(UTC)
+    session.add(grant)
+    await session.flush()
+    await audit.record(
+        session,
+        actor_user_id=None,
+        action="roles.granted",
+        entity_type="user",
+        entity_id=str(user_id),
+        before=before,
+        after={"role": role, "scope_id": str(scope_id) if scope_id else None},
+    )
+
+
+async def revoke_system_role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> None:
+    """Remove a role granted by `grant_system_role` (the row is deleted: user_roles has no revoked
+    status; the audit log keeps the history). Nothing to remove changes nothing."""
+    existing = await _role(session, user_id, role, scope_id)
+    if existing is None:
+        return
+    before = {
+        "role": role,
+        "scope_id": str(scope_id) if scope_id else None,
+        "status": existing.status,
+    }
+    await session.delete(existing)
+    await session.flush()
+    await audit.record(
+        session,
+        actor_user_id=None,
+        action="roles.revoked",
+        entity_type="user",
+        entity_id=str(user_id),
+        before=before,
+    )
+
+
+async def _role(
+    session: AsyncSession, user_id: uuid.UUID, role: str, scope_id: uuid.UUID | None
+) -> UserRole | None:
+    return (
+        await session.execute(
+            select(UserRole).where(
+                UserRole.user_id == user_id,
+                UserRole.role == role,
+                UserRole.scope_id.is_(None) if scope_id is None else UserRole.scope_id == scope_id,
+            )
+        )
+    ).scalar_one_or_none()

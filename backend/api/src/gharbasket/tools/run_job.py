@@ -13,7 +13,9 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import create_engine, is_local_database
+from gharbasket.platform.files import create_store
 from gharbasket.platform.jobs import JOBS, run_job
 from gharbasket.platform.settings import DatabaseSettings, Settings
 
@@ -21,11 +23,18 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
 async def run(database_url: str, name: str, scheduled_for: datetime | None) -> int:
+    load_modules()
     settings = Settings(_env_file=REPO_ROOT / ".env", app_env="dev")  # pyright: ignore[reportCallIssue]
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
-            result = await run_job(session, name, settings=settings, scheduled_for=scheduled_for)
+            result = await run_job(
+                session,
+                name,
+                settings=settings,
+                scheduled_for=scheduled_for,
+                storage=create_store(settings),
+            )
     finally:
         await engine.dispose()
     print(json.dumps({"status": result.status, "summary": result.summary, "error": result.error}))
@@ -33,6 +42,7 @@ async def run(database_url: str, name: str, scheduled_for: datetime | None) -> i
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    load_modules()  # every module's jobs (and the consumers `outbox_sweep` hands events to)
     parser = argparse.ArgumentParser(description="Run a scheduled job on the local database.")
     parser.add_argument("name", help="one of: " + ", ".join(sorted(JOBS)))
     parser.add_argument("--scheduled-for", type=datetime.fromisoformat, default=None)

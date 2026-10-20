@@ -5,6 +5,8 @@ import hashlib
 import hmac
 import json
 import time
+from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -27,22 +29,28 @@ async def _refused(google: FakeGoogle, token: str, code: str = "auth.invalid_tok
 async def test_a_valid_phone_sign_in_token_is_accepted() -> None:
     google = FakeGoogle()
 
-    identity = await google.verifier().verify(google.id_token())
+    identity = await google.verifier().verify(google.id_token(auth_time=1_791_000_000))
 
-    assert identity == FirebaseIdentity(uid="firebase-uid-1", phone_e164="+919800000001")
+    assert identity == FirebaseIdentity(
+        uid="firebase-uid-1",
+        phone_e164="+919800000001",
+        auth_time=datetime.fromtimestamp(1_791_000_000, UTC),  # when the OTP was entered
+    )
 
 
 @pytest.mark.parametrize(
     "claims",
+    # Functions of the time the test runs, not of when pytest collected it: on a slow machine
+    # "ten minutes from now" taken at collection can be in the past when the test runs.
     [
-        {"aud": "someone-elses-project"},
-        {"iss": "https://securetoken.google.com/someone-elses-project"},
-        {"exp": int(time.time()) - 120},
-        {"iat": int(time.time()) + 600},
-        {"auth_time": int(time.time()) + 600},
-        {"auth_time": None},
-        {"sub": ""},
-        {"phone_number": None},
+        lambda now: {"aud": "someone-elses-project"},
+        lambda now: {"iss": "https://securetoken.google.com/someone-elses-project"},
+        lambda now: {"exp": now - 120},
+        lambda now: {"iat": now + 600},
+        lambda now: {"auth_time": now + 600},
+        lambda now: {"auth_time": None},
+        lambda now: {"sub": ""},
+        lambda now: {"phone_number": None},
     ],
     ids=[
         "audience",
@@ -55,10 +63,12 @@ async def test_a_valid_phone_sign_in_token_is_accepted() -> None:
         "not-phone-sign-in",
     ],
 )
-async def test_tokens_breaking_firebase_rules_are_refused(claims: dict[str, Any]) -> None:
+async def test_tokens_breaking_firebase_rules_are_refused(
+    claims: Callable[[int], dict[str, Any]],
+) -> None:
     google = FakeGoogle()
 
-    await _refused(google, google.id_token(**claims))
+    await _refused(google, google.id_token(**claims(int(time.time()))))
 
 
 async def test_only_rs256_signed_by_a_google_key_is_accepted() -> None:

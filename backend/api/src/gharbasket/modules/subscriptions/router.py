@@ -1,11 +1,12 @@
-"""HTTP endpoints of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery days
-and reading cycles. Edits, approve, skip, feedback and the Budget Lock follow in part 2."""
+"""HTTP endpoints of M3 Plans & Subscriptions (spec §3.1): plans, the subscription, delivery days,
+the weekly cycle (read, edit, swap a meal (§3.2), approve, skip, un-skip (§3.3)), pantry feedback
+and the Budget Lock."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
@@ -16,7 +17,9 @@ from gharbasket.modules.subscriptions import permissions as _permissions  # noqa
 from gharbasket.modules.subscriptions import planning, service
 from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription, WeeklyCycle
 from gharbasket.modules.subscriptions.schemas import (
+    BudgetLockIn,
     BudgetLockOut,
+    CaptainOut,
     CycleLineOut,
     CycleOut,
     CycleStep,
@@ -24,9 +27,14 @@ from gharbasket.modules.subscriptions.schemas import (
     DeliveryDayOut,
     DeliveryDaysIn,
     DeliveryDaysOut,
+    FeedbackIn,
+    FeedbackOut,
     HighlightOut,
+    LinesPatch,
     MealOut,
     MealPlanOut,
+    MealSet,
+    PaymentDueOut,
     PlanOut,
     PlansOut,
     ReplacedOut,
@@ -39,7 +47,7 @@ from gharbasket.modules.subscriptions.service import IST_DATE
 from gharbasket.platform import audit
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.etag import set_etag
+from gharbasket.platform.etag import IfMatch, set_etag
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.locale import Lang, Language, localised
 from gharbasket.platform.permissions import Permit, require
@@ -48,8 +56,10 @@ from gharbasket.platform.settings import Settings, get_settings
 router = APIRouter(tags=["subscriptions"])
 
 CanRead = Annotated[Permit, require("cycles:read")]
+CanWrite = Annotated[Permit, require("cycles:write")]
 CanSubscribe = Annotated[Permit, require("subscriptions:write")]
 CanSetDays = Annotated[Permit, require("delivery_days:write")]
+MonthParam = Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -93,6 +103,28 @@ async def _slot(session: DbSession, slot_id: uuid.UUID) -> SlotRefOut:
     return SlotRefOut(id=slot.id, label=slot.label, start=slot.start, end=slot.end)
 
 
+async def _captain(session: DbSession, society_id: uuid.UUID) -> CaptainOut | None:
+    card = await community_api.captain_card(session, society_id)
+    return (
+        None
+        if card is None
+        else CaptainOut(display_name=card.display_name, photo_url=card.photo_url)
+    )
+
+
+async def _budget_out(session: DbSession, household_id: uuid.UUID, on) -> BudgetLockOut | None:
+    budget = await service.budget_lock_for(session, household_id, on)
+    if budget is None:
+        return None
+    spent = await service.spent_in_month(session, household_id, on)
+    return BudgetLockOut(
+        month=on.strftime("%Y-%m"),
+        budget_paise=budget.budget_paise,
+        spent_paise=spent,
+        remaining_paise=max(0, budget.budget_paise - spent),
+    )
+
+
 async def _cycle_out(
     session: DbSession,
     cycle: WeeklyCycle | None,
@@ -110,7 +142,7 @@ async def _cycle_out(
         replaced_id = getattr(line, "replaces_product_id", None)
         if replaced_id is not None:
             product_ids.append(replaced_id)
-    products = await catalog_api.line_products(session, product_ids)
+    products = await catalog_api.line_products(session, product_ids, hub_id=household.hub_id)
     recipe_names = {r.id: r for r in (await catalog_api.plan_catalog(session, None)).recipes}
     out_lines = []
     for line in lines:
@@ -139,7 +171,7 @@ async def _cycle_out(
                     product_id=replaced.id,
                     slug=replaced.slug,
                     name=localised(replaced.names, lang),
-                    unit_price_paise=0,
+                    unit_price_paise=replaced.price_paise or 0,
                 ),
             )
         )
@@ -157,23 +189,16 @@ async def _cycle_out(
                     name=localised(recipe.names, lang) if recipe else None,
                     tiffin=bool(meal.get("tiffin")),
                     sides=list(meal.get("sides", [])),
+                    source=meal.get("source", "plan"),
                 )
             )
         days.append(DayOut(date=day["date"], meals=meals))
     highlights = cycle.highlights if cycle is not None else (preview.highlights if preview else [])
     on = cycle.delivery_date if cycle is not None else delivery_date
     assert on is not None
-    budget = await service.budget_lock_for(session, household.id, on)
-    budget_out = None
-    if budget is not None:
-        spent = await service.spent_in_month(session, household.id, on)
-        budget_out = BudgetLockOut(
-            month=on.strftime("%Y-%m"),
-            budget_paise=budget.budget_paise,
-            spent_paise=spent,
-            remaining_paise=max(0, budget.budget_paise - spent),
-        )
+    budget_out = await _budget_out(session, household.id, on)
     total = sum(line.qty * line.unit_price_paise for line in lines)
+    due = await service.payment_due(session, cycle) if cycle is not None else None
     return CycleOut(
         id=cycle.id if cycle else None,
         household_id=household.id,
@@ -188,10 +213,19 @@ async def _cycle_out(
         total_paise=total,
         highlights=[HighlightOut(code=h["code"], params=h.get("params", {})) for h in highlights],
         budget_lock=budget_out,
-        captain=None,
+        captain=await _captain(session, household.society_id),
         order_id=cycle.order_id if cycle else None,
         generated_at=cycle.generated_at if cycle else None,
         approved_at=cycle.approved_at if cycle else None,
+        payment_due=None
+        if due is None
+        else PaymentDueOut(
+            order_id=due.order_id,
+            total_paise=due.total_paise,
+            wallet_paise=due.wallet_paise,
+            shortfall_paise=due.shortfall_paise,
+            due_at=due.due_at,
+        ),
     )
 
 
@@ -372,8 +406,16 @@ async def preview_cycle(
     )
     catalog = await catalog_api.plan_catalog(session, household.hub_id)
     async with service.http_client(getattr(request.app.state, "http", None)) as http:
+        # No ranker and the rule table for daily use: one ML call at most while the customer waits.
         draft, source, _ = await service.draft(
-            session, http, settings, profile, catalog, delivery_date, record_for=None
+            session,
+            http,
+            settings,
+            profile,
+            catalog,
+            delivery_date,
+            record_for=None,
+            preview=True,
         )
     response.headers["Cache-Control"] = "no-store"
     return await _cycle_out(
@@ -406,5 +448,264 @@ async def get_cycle(
     )
 
 
-def _now() -> datetime:
-    return datetime.now(UTC)
+async def _owned_cycle(
+    session: DbSession, permit: Permit, cycle_id: uuid.UUID
+) -> tuple[identity_api.HouseholdRef, WeeklyCycle]:
+    household = await _household(session, permit)
+    cycle = await service.get_cycle(session, household.id, cycle_id)
+    return household, cycle
+
+
+async def _answer(
+    session: DbSession,
+    cycle: WeeklyCycle,
+    *,
+    household: identity_api.HouseholdRef,
+    lang: Language,
+    response: Response,
+) -> CycleOut:
+    response.headers["Cache-Control"] = "no-store"
+    set_etag(response, cycle.version)
+    return await _cycle_out(
+        session, cycle, await service.lines_of(session, cycle.id), household=household, lang=lang
+    )
+
+
+@router.patch(
+    "/cycles/{cycle_id}/lines",
+    summary="Remove, add, change or substitute lines before the cut-off (If-Match)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
+        412: _problem("subscriptions.version_conflict"),
+        422: _problem(
+            "subscriptions.product_unknown, subscriptions.substitute_unknown, "
+            "subscriptions.qty_invalid, subscriptions.budget_exceeded (over_paise)"
+        ),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def patch_lines(
+    cycle_id: uuid.UUID,
+    body: LinesPatch,
+    permit: CanWrite,
+    session: DbSession,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    ops = [
+        service.Op(
+            op.op,
+            op.product_id,
+            qty=getattr(op, "qty", None),
+            substitute_id=getattr(op, "substitute_id", None),
+        )
+        for op in body.ops
+    ]
+    await service.edit_lines(session, cycle, ops, expected_version=expected)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await session.commit()
+    return out
+
+
+@router.put(
+    "/cycles/{cycle_id}/meals",
+    summary="Set one meal (next dish, a recipe, tiffin, no-cook, or the plan's) and redraw its "
+    "lines before the cut-off (If-Match)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
+        412: _problem("subscriptions.version_conflict"),
+        422: _problem(
+            "subscriptions.meal_unknown, subscriptions.recipe_unknown, "
+            "subscriptions.recipe_not_allowed (rules), subscriptions.no_alternative, "
+            "subscriptions.budget_exceeded (over_paise)"
+        ),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def set_meal(
+    cycle_id: uuid.UUID,
+    body: MealSet,
+    permit: CanWrite,
+    session: DbSession,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.set_meal(
+        session,
+        cycle,
+        on=body.date,
+        slot=body.slot,
+        choice=body.set,
+        recipe_id=body.recipe_id,
+        expected_version=expected,
+    )
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/cycles/{cycle_id}/approve",
+    summary="Approve the week: an order with these lines and prices (Idempotency-Key, If-Match)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable, orders.slot_full"),
+        412: _problem("subscriptions.version_conflict"),
+        422: _problem("subscriptions.qty_invalid: the box is empty"),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def approve_cycle(
+    cycle_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.approve(session, cycle, expected_version=expected)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/cycles/{cycle_id}/skip",
+    summary="Skip the week before the cut-off (a payment_failed week until its grace ends); its "
+    "order is cancelled (Idempotency-Key)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem("subscriptions.cutoff_passed, subscriptions.not_editable"),
+    },
+)
+async def skip_cycle(
+    cycle_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.skip(session, cycle)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/cycles/{cycle_id}/unskip",
+    summary="Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)",
+    description="The week returns with the lines it had (awaiting_approval, or draft if the "
+    "box-ready notice never went out); approving it again creates a new order.",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        409: _problem(
+            "subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused "
+            "(resume the subscription first)"
+        ),
+        412: _problem("subscriptions.version_conflict"),
+        428: _problem("request.precondition_required"),
+    },
+)
+async def unskip_cycle(
+    cycle_id: uuid.UUID,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+    expected: IfMatch,
+    lang: Lang,
+    response: Response,
+) -> CycleOut:
+    household, cycle = await _owned_cycle(session, permit, cycle_id)
+    await service.unskip(session, cycle, expected_version=expected)
+    out = await _answer(session, cycle, household=household, lang=lang, response=response)
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/cycles/{cycle_id}/feedback",
+    status_code=status.HTTP_201_CREATED,
+    summary="Ran out, wasted or just right per item, 14 days from delivery (Idempotency-Key)",
+    responses={
+        404: _problem("subscriptions.no_cycle"),
+        422: _problem("subscriptions.feedback_window_closed, subscriptions.product_unknown"),
+    },
+)
+async def give_feedback(
+    cycle_id: uuid.UUID,
+    body: FeedbackIn,
+    permit: CanWrite,
+    session: DbSession,
+    idem: Idempotent,
+) -> FeedbackOut:
+    _, cycle = await _owned_cycle(session, permit, cycle_id)
+    recorded = await service.record_feedback(
+        session, cycle, {item.product_id: item.signal for item in body.items}, today=IST_DATE()
+    )
+    out = FeedbackOut(recorded=recorded)
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
+# --- Budget Lock --------------------------------------------------------------------------------
+
+
+def _month(value: str | None) -> datetime:
+    if value is None:
+        return datetime.combine(IST_DATE().replace(day=1), datetime.min.time())
+    return datetime.strptime(value, "%Y-%m")
+
+
+@router.get(
+    "/budget-lock",
+    summary="The month's Budget Lock with what the approved boxes spent",
+    responses={404: _problem("subscriptions.no_budget_lock")},
+)
+async def get_budget_lock(
+    permit: CanRead, session: DbSession, month: MonthParam = None
+) -> BudgetLockOut:
+    household = await _household(session, permit)
+    out = await _budget_out(session, household.id, _month(month).date())
+    if out is None:
+        raise service.not_found("subscriptions.no_budget_lock", "No Budget Lock for that month.")
+    return out
+
+
+@router.put(
+    "/budget-lock",
+    summary="Set the month's Budget Lock (≥ ₹500, this month or next); null switches it off (204)",
+    responses={
+        204: {"description": "Switched off"},
+        404: _problem("subscriptions.not_found"),
+        422: _problem("subscriptions.budget_invalid"),
+    },
+)
+async def put_budget_lock(
+    body: BudgetLockIn, permit: CanWrite, session: DbSession, idem: Idempotent
+) -> BudgetLockOut:
+    household = await _household(session, permit)
+    month = _month(body.month).date()
+    lock = await service.set_budget_lock(session, household.id, month, body.budget_paise)
+    if lock is None:
+        await idem.save(204, None)
+        await session.commit()
+        return Response(status_code=status.HTTP_204_NO_CONTENT)  # pyright: ignore[reportReturnType]
+    out = await _budget_out(session, household.id, month)
+    assert out is not None
+    await idem.save(200, out)
+    await session.commit()
+    return out

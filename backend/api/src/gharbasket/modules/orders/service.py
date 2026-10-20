@@ -15,9 +15,19 @@ from sqlalchemy import func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
-from gharbasket.modules.orders import state
-from gharbasket.modules.orders.models import Order, OrderEvent, OrderLine, Slot, SlotBooking
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.orders import fees, state
+from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
+from gharbasket.modules.orders.models import (
+    Order,
+    OrderEvent,
+    OrderIssue,
+    OrderLine,
+    Slot,
+    SlotBooking,
+)
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
@@ -32,6 +42,15 @@ MAX_ADDON_QTY = 20
 def cutoff_for(delivery_date: date) -> datetime:
     """21:00 IST on the day before delivery, as a UTC instant."""
     return datetime.combine(delivery_date - timedelta(days=1), CUTOFF_TIME, IST).astimezone(UTC)
+
+
+# A box the cut-off could not debit may still be paid for this long (T-1 23:00 IST).
+PAYMENT_GRACE = timedelta(hours=2)
+
+
+def grace_until_for(delivery_date: date) -> datetime:
+    """When a `payment_failed` box stops being payable: two hours after its cut-off."""
+    return cutoff_for(delivery_date) + PAYMENT_GRACE
 
 
 def now() -> datetime:
@@ -101,11 +120,22 @@ async def create_slot(
     start: time,
     end: time,
     capacity: int,
+    meal: str | None = None,
 ) -> Slot:
     if end <= start:
         raise ProblemError(422, "orders.slot_invalid", "The slot must end after it starts.")
+    if (kind == "tiffin") != (meal is not None):
+        raise ProblemError(
+            422, "orders.slot_invalid", "A tiffin slot names its meal; a box slot has none."
+        )
     slot = Slot(
-        hub_id=hub_id, label=label, kind=kind, start_time=start, end_time=end, capacity=capacity
+        hub_id=hub_id,
+        label=label,
+        kind=kind,
+        start_time=start,
+        end_time=end,
+        capacity=capacity,
+        meal=meal,
     )
     try:
         async with session.begin_nested():
@@ -167,24 +197,37 @@ class ApprovedCycle:
     slot_id: uuid.UUID
     lines: tuple[CycleLine, ...]
     data_source: str = "real"
+    version: int = 1  # the cycle's version; an edit after approval hands the box over again
 
 
 def _totals(order: Order, lines: list[OrderLine]) -> None:
     order.subtotal_paise = sum(line.total_paise for line in lines)
+    _total(order)
+
+
+def _total(order: Order) -> None:
     order.total_paise = max(0, order.subtotal_paise + order.fees_paise - order.discount_paise)
 
 
-async def by_cycle(session: AsyncSession, cycle_id: uuid.UUID) -> Order | None:
-    return (
-        await session.execute(select(Order).where(Order.cycle_id == cycle_id))
-    ).scalar_one_or_none()
+def food_paid(order: Order) -> int:
+    """The paid total without the delivery fee: what shortage and issue refunds may return."""
+    return order.total_paise - order.fees_paise
 
 
-async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Order:
-    """An `approved` box order with the cycle's lines and frozen prices; once per cycle."""
-    existing = await by_cycle(session, cycle.cycle_id)
-    if existing is not None:
-        return existing
+async def by_cycle(
+    session: AsyncSession, cycle_id: uuid.UUID, *, for_update: bool = False
+) -> Order | None:
+    """The cycle's order that is not cancelled (at most one: a partial unique index). A skip
+    cancels the order, so an un-skipped week approved again gets a new one (M3 §3.3)."""
+    stmt = select(Order).where(Order.cycle_id == cycle_id, Order.status != "cancelled")
+    if for_update:  # wait for a `pay` or a top-up in flight, then read what it left
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def _box_products(
+    session: AsyncSession, cycle: ApprovedCycle
+) -> dict[uuid.UUID, catalog_api.LineProduct]:
     if not cycle.lines:
         raise ValueError("a box needs at least one line")
     products = await catalog_api.line_products(session, [line.product_id for line in cycle.lines])
@@ -196,6 +239,78 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
             "A line names an unknown product.",
             extra={"product_ids": unknown},
         )
+    return products
+
+
+def _box_lines(
+    order: Order, cycle: ApprovedCycle, products: dict[uuid.UUID, catalog_api.LineProduct]
+) -> list[OrderLine]:
+    return [
+        OrderLine(
+            order_id=order.id,
+            product_id=line.product_id,
+            kind="box",
+            qty=line.qty,
+            step_qty=products[line.product_id].step_qty,
+            step_unit=products[line.product_id].step_unit,
+            unit_price_paise=line.unit_price_paise,
+            reason_code=line.reason_code,
+            reason_params=line.reason_params,
+        )
+        for line in cycle.lines
+    ]
+
+
+async def _replace_box_lines(session: AsyncSession, order: Order, cycle: ApprovedCycle) -> None:
+    """Swap the box lines for the cycle's; the same lines again (a redelivered event) change
+    nothing."""
+    current = await lines_of(session, order.id)
+    wanted = {
+        (line.product_id, line.qty, line.unit_price_paise, line.reason_code) for line in cycle.lines
+    }
+    if {
+        (line.product_id, line.qty, line.unit_price_paise, line.reason_code)
+        for line in current
+        if line.kind == "box"
+    } == wanted:
+        return
+    products = await _box_products(session, cycle)
+    kept = []
+    for line in current:
+        if line.kind == "box":
+            await session.delete(line)
+        else:
+            kept.append(line)
+    await session.flush()
+    lines = _box_lines(order, cycle, products)
+    session.add_all(lines)
+    _totals(order, [*lines, *kept])
+    order.version += 1
+    session.add(
+        OrderEvent(
+            order_id=order.id,
+            from_status="approved",
+            to_status="approved",
+            actor="customer",
+            payload={"cycle_version": cycle.version},
+        )
+    )
+    await session.flush()
+
+
+async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Order:
+    """An `approved` box order with the cycle's lines and frozen prices; once per cycle.
+
+    Called again for the same cycle (an edit after approval) while the order is still
+    `approved`, it replaces the box lines and totals; add-ons are kept (M4 §3.1).
+    """
+    existing = await by_cycle(session, cycle.cycle_id)
+    if existing is not None:
+        if existing.status == "approved":
+            await _replace_box_lines(session, existing, cycle)
+        return existing
+    products = await _box_products(session, cycle)
+    fee = await fees.box_fee(session, cycle.hub_id, cycle.society_id)  # frozen, as line prices
     order = Order(
         household_id=cycle.household_id,
         hub_id=cycle.hub_id,
@@ -207,7 +322,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         cutoff_at=cutoff_for(cycle.delivery_date),
         status="approved",
         subtotal_paise=0,
-        fees_paise=0,
+        fees_paise=fee,
         discount_paise=0,
         total_paise=0,
         data_source=cycle.data_source,
@@ -216,20 +331,7 @@ async def create_from_cycle(session: AsyncSession, cycle: ApprovedCycle) -> Orde
         async with session.begin_nested():  # all or nothing: a full slot leaves no order behind
             session.add(order)
             await session.flush()
-            lines = [
-                OrderLine(
-                    order_id=order.id,
-                    product_id=line.product_id,
-                    kind="box",
-                    qty=line.qty,
-                    step_qty=products[line.product_id].step_qty,
-                    step_unit=products[line.product_id].step_unit,
-                    unit_price_paise=line.unit_price_paise,
-                    reason_code=line.reason_code,
-                    reason_params=line.reason_params,
-                )
-                for line in cycle.lines
-            ]
+            lines = _box_lines(order, cycle, products)
             session.add_all(lines)
             _totals(order, lines)
             await book_slot(session, cycle.slot_id, cycle.delivery_date, order.id)
@@ -267,11 +369,30 @@ async def lines_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderLine
     return list(rows.scalars())
 
 
-async def timeline_of(session: AsyncSession, order_id: uuid.UUID) -> list[OrderEvent]:
-    rows = await session.execute(
-        select(OrderEvent).where(OrderEvent.order_id == order_id).order_by(OrderEvent.id)
-    )
+async def timeline_of(
+    session: AsyncSession, order_id: uuid.UUID, *, after: uuid.UUID | None = None
+) -> list[OrderEvent]:
+    """The order's timeline rows, oldest first (ids are uuidv7); only those after `after`."""
+    query = select(OrderEvent).where(OrderEvent.order_id == order_id)
+    if after is not None:
+        query = query.where(OrderEvent.id > after)
+    rows = await session.execute(query.order_by(OrderEvent.id))
     return list(rows.scalars())
+
+
+async def has_event(session: AsyncSession, order_id: uuid.UUID, event_id: uuid.UUID) -> bool:
+    found = await session.scalar(
+        select(OrderEvent.id).where(OrderEvent.order_id == order_id, OrderEvent.id == event_id)
+    )
+    return found is not None
+
+
+async def status_of(session: AsyncSession, order_id: uuid.UUID) -> tuple[str, int]:
+    """The order's status and version, read fresh (the live timeline polls this)."""
+    row = (
+        await session.execute(select(Order.status, Order.version).where(Order.id == order_id))
+    ).one()
+    return row.status, row.version
 
 
 async def list_orders(
@@ -394,7 +515,14 @@ async def set_addons(
     return lines
 
 
-async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str) -> Order:
+async def cancel(
+    session: AsyncSession,
+    order: Order,
+    *,
+    actor: str,
+    reason: str,
+    actor_user_id: uuid.UUID | None = None,
+) -> Order:
     """Before the cut-off, while approved: cancelled, booking freed, event published."""
     if order.status in ("cancelled",):
         return order
@@ -402,7 +530,14 @@ async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str
         raise ProblemError(409, "orders.already_locked", "This order is already locked.")
     if order.status == "approved" and actor == "customer" and now() >= order.cutoff_at:
         raise cutoff_passed()
-    await transition(session, order, "cancelled", actor=actor, payload={"reason": reason})
+    await transition(
+        session,
+        order,
+        "cancelled",
+        actor=actor,
+        actor_user_id=actor_user_id,
+        payload={"reason": reason},
+    )
     booking = (
         await session.execute(select(SlotBooking).where(SlotBooking.order_id == order.id))
     ).scalar_one_or_none()
@@ -412,16 +547,71 @@ async def cancel(session: AsyncSession, order: Order, *, actor: str, reason: str
     return order
 
 
+# --- paying: the cut-off, a top-up in the grace period, and `pay` (§3.1, §3.4) -------------------
+
+
+async def debit_and_lock(session: AsyncSession, order: Order, *, actor: str) -> Order:
+    """Debit the household owner's wallet for the order and lock it.
+
+    The debit is M5's `box:<order id>` entry, the same for the cut-off, a top-up's retry and
+    `pay`, so the order is never charged twice. `billing.insufficient_balance` is raised with
+    nothing debited (the debit runs in a savepoint). A box whose society went live since it was
+    approved drops its delivery fee first (M9 §3.6).
+    """
+    owner = await identity_api.owner_of_household(session, order.household_id)
+    if owner is None:
+        raise ValueError(f"order {order.id} has no household owner")
+    if order.fees_paise > 0 and await fees.society_live(session, order.society_id):
+        order.fees_paise = 0  # went live after approval: free from this lock; never raised here
+        _total(order)
+        order.version += 1
+    if order.total_paise > 0:
+        async with session.begin_nested():
+            await billing_api.debit_for_order(
+                session, owner, order.id, order.total_paise, order.delivery_date
+            )
+    return await transition(session, order, "locked", actor=actor)
+
+
+async def pay(session: AsyncSession, order: Order) -> Order:
+    """The customer pays a `payment_failed` box from the wallet before its grace ends (§3.4).
+
+    The caller holds the order's row lock, so `pay` and the top-up consumer run one after the
+    other; whichever comes second finds the order locked, and a locked order answers as is.
+    """
+    if order.status == "locked":
+        return order
+    if order.status != "payment_failed":
+        raise ProblemError(
+            409,
+            "orders.not_payable",
+            f"A {order.status.replace('_', ' ')} order has nothing to pay.",
+            extra={"status": order.status},
+        )
+    if now() >= order.cutoff_at + PAYMENT_GRACE:
+        raise ProblemError(
+            409,
+            "orders.payment_grace_over",
+            "The time to pay for this box has passed; it will be cancelled.",
+        )
+    return await debit_and_lock(session, order, actor="customer")
+
+
 async def transition(
     session: AsyncSession,
     order: Order,
     to_status: str,
     *,
     actor: str,
+    actor_user_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
 ) -> Order:
-    """Move an order along the state machine, write the timeline row and publish the event."""
-    state.check(order.status, to_status, actor)
+    """Move an order along its kind's state machine, write the timeline row (with the actor kind
+    and, for a person, their user id) and publish the event, which carries `kind` and `actor`.
+    Only the state machine is checked: the caller has checked that this person may act."""
+    state.check(order.kind, order.status, to_status, actor)
+    if to_status == "refunded":
+        payload = await _refund(session, order, payload or {})
     from_status = order.status
     order.status = to_status
     order.version += 1
@@ -433,6 +623,7 @@ async def transition(
             from_status=from_status,
             to_status=to_status,
             actor=actor,
+            actor_user_id=actor_user_id,
             payload=payload,
         )
     )
@@ -448,6 +639,8 @@ async def transition(
             "slot_id": str(order.slot_id),
             "total_paise": order.total_paise,
             **(payload or {}),
+            "kind": order.kind,  # box | addon | tiffin, for consumers that care (ADR-0026 §3)
+            "actor": actor,  # the kind only; never the person's id
         }
         if to_status == "locked":
             body["lines"] = [
@@ -463,6 +656,44 @@ async def transition(
     return order
 
 
+async def paid_left(session: AsyncSession, order: Order) -> int:
+    """What a refund may still return: the paid total (net of shortage refunds) less the
+    order's issue credits."""
+    credited = await session.scalar(
+        select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
+            OrderIssue.order_id == order.id, OrderIssue.status == "credited"
+        )
+    )
+    return max(0, order.total_paise - int(credited or 0))
+
+
+async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> dict[str, Any]:
+    """Money back on a move to `refunded` (ADR-0027): `payload.refund_paise` (default what is
+    left of the paid total) to the owner's wallet, keyed by order and `payload.reason` (default
+    `undelivered`), in the caller's transaction. `billing.wallet_limit` is raised as is."""
+    reason = str(payload.get("reason") or "undelivered")
+    amount = payload.get("refund_paise")
+    amount = await paid_left(session, order) if amount is None else int(amount)
+    if amount > 0:
+        owner = await identity_api.owner_of_household(session, order.household_id)
+        if owner is None:
+            raise ValueError(f"order {order.id} has no household owner")
+        async with session.begin_nested():  # a refused refund leaves no move behind
+            await billing_api.refund_to_wallet(session, owner, order.id, amount, reason=reason)
+    return {**payload, "reason": reason, "refund_paise": amount}
+
+
+async def set_kitchen(session: AsyncSession, order: Order, partner_id: uuid.UUID | None) -> Order:
+    """Record the kitchen that cooks a tiffin, or clear it (M8, ADR-0026 §3)."""
+    if order.kind != "tiffin":
+        raise ProblemError(409, "orders.not_editable", "Only a tiffin has a kitchen.")
+    if order.kitchen_partner_id != partner_id:
+        order.kitchen_partner_id = partner_id
+        order.version += 1
+        await session.flush()
+    return order
+
+
 @dataclass(frozen=True)
 class OrderSummary:
     order: Order
@@ -474,21 +705,22 @@ async def orders_for_delivery(
     hub_id: uuid.UUID,
     delivery_date: date,
     statuses: tuple[str, ...] = ("locked",),
+    kinds: tuple[str, ...] | None = None,
 ) -> list[OrderSummary]:
-    """What M6 packs and M7 routes on a day, with lines."""
-    orders = list(
-        (
-            await session.execute(
-                select(Order)
-                .where(
-                    Order.hub_id == hub_id,
-                    Order.delivery_date == delivery_date,
-                    Order.status.in_(statuses),
-                )
-                .order_by(Order.society_id, Order.id)
-            )
-        ).scalars()
+    """What M6 packs and M7 routes on a day, with lines; `kinds` narrows it (say to tiffins),
+    all kinds by default."""
+    query = (
+        select(Order)
+        .where(
+            Order.hub_id == hub_id,
+            Order.delivery_date == delivery_date,
+            Order.status.in_(statuses),
+        )
+        .order_by(Order.society_id, Order.id)
     )
+    if kinds is not None:
+        query = query.where(Order.kind.in_(kinds))
+    orders = list((await session.execute(query)).scalars())
     if not orders:
         return []
     rows = await session.execute(
@@ -500,6 +732,32 @@ async def orders_for_delivery(
     return [OrderSummary(o, by_order[o.id]) for o in orders]
 
 
+# Packing may record a shortage while the paid order is still at the hub.
+PACKING = frozenset({"locked", "picking", "packed"})
+
+
+def _substitute_invalid(reason: str) -> ProblemError:
+    return ProblemError(
+        422,
+        "orders.substitute_invalid",
+        "This product cannot replace the line.",
+        extra={"reason": reason},
+    )
+
+
+async def _shortage_refund(
+    session: AsyncSession, order: Order, product_id: uuid.UUID, amount_paise: int
+) -> None:
+    """Money back for a short line, once per line by M5's key `refund:<order>:short_<hex>`."""
+    owner = await identity_api.owner_of_household(session, order.household_id)
+    if owner is None:
+        raise ValueError(f"order {order.id} has no household owner")
+    async with session.begin_nested():  # a refused refund leaves nothing behind
+        await billing_api.refund_to_wallet(
+            session, owner, order.id, amount_paise, reason=f"short_{product_id.hex}"
+        )
+
+
 async def mark_shortage(
     session: AsyncSession,
     order: Order,
@@ -507,33 +765,102 @@ async def mark_shortage(
     shortage_qty: int,
     substitute_product_id: uuid.UUID | None,
 ) -> OrderLine:
-    """Packing found fewer steps than ordered (M6): record it on the line; money moves via M5."""
-    line = next(
-        (line for line in await lines_of(session, order.id) if line.product_id == product_id), None
+    """Packing found fewer steps than ordered (M6, ADR-0026 §6), on a row-locked order that is
+    still at the hub (`locked`, `picking`, `packed`; else `orders.not_editable`).
+
+    A partial shortage is refunded (shortage_qty x the line's paid unit price), never partly
+    substituted. A whole-line shortage may instead be replaced by one substitute from the
+    catalog's list (`catalog.api.substitute_ids`) that is not already on the order and costs no
+    more per step at the hub today: the line takes the substitute's product, step and price and
+    keeps its qty, `substituted_from` names the original, and the difference is refunded.
+    Anything else is `orders.substitute_invalid` (with `reason`), so the bag matches the record;
+    a household that chose "never substitute, refund" (M1 §3.4) gets `refund_preferred`.
+
+    The refund goes through `billing.api.refund_to_wallet(reason=f"short_{product_id.hex}")` in
+    the caller's transaction, and the order's totals follow its lines (a line counts
+    qty - shortage_qty steps), so they show what was paid net of refunds. A line takes one
+    shortage: the same call again returns the line and moves no money (M5's key backs this up);
+    a different one is `orders.shortage_recorded`. If the wallet cap refuses the refund,
+    `billing.wallet_limit` is raised as is (as `resolve_issue` does) and nothing is recorded:
+    a shortage is never kept without its refund.
+    """
+    lines = await lines_of(session, order.id)
+    line = next((ln for ln in lines if ln.product_id == product_id), None) or next(
+        (ln for ln in lines if ln.substituted_from == product_id), None
     )
     if line is None:
         raise order_not_found()
-    if not 0 <= shortage_qty <= line.qty:
-        raise ProblemError(422, "orders.qty_invalid", "Shortage cannot exceed the quantity.")
-    line.shortage_qty = shortage_qty
-    if substitute_product_id is not None:
-        products = await catalog_api.line_products(session, [substitute_product_id])
-        if substitute_product_id not in products:
+    if not 1 <= shortage_qty <= line.qty:
+        raise ProblemError(
+            422, "orders.qty_invalid", "A shortage is from 1 step to the line's quantity."
+        )
+    if line.shortage_qty or line.substituted_from is not None:
+        same = (
+            line.substituted_from == product_id
+            and substitute_product_id == line.product_id
+            and shortage_qty == line.qty
+        ) or (substitute_product_id is None and shortage_qty == line.shortage_qty)
+        if not same:
+            raise ProblemError(
+                409, "orders.shortage_recorded", "A shortage is already recorded for this line."
+            )
+        return line
+    if order.status not in PACKING:
+        raise ProblemError(
+            409, "orders.not_editable", "Shortages are recorded while the order is being packed."
+        )
+
+    substitute: catalog_api.LineProduct | None = None
+    if substitute_product_id is None:
+        refund = shortage_qty * line.unit_price_paise
+    else:
+        # A second check behind M6's packing screen (M1 §3.4), read now, not when the task was
+        # built: a household that chose "never substitute, refund" is never substituted.
+        preference = await identity_api.shortage_preferences(session, [order.household_id])
+        if preference[order.household_id] == "refund":
+            raise _substitute_invalid("refund_preferred")
+        found = await catalog_api.line_products(
+            session, [substitute_product_id], hub_id=order.hub_id
+        )
+        substitute = found.get(substitute_product_id)
+        if substitute is None:
             raise ProblemError(422, "orders.product_unknown", "Unknown substitute.")
+        if shortage_qty != line.qty:
+            raise _substitute_invalid("partial")
+        if any(substitute.id in (ln.product_id, ln.substituted_from) for ln in lines):
+            raise _substitute_invalid("on_order")
+        if substitute.id not in await catalog_api.substitute_ids(session, product_id, order.hub_id):
+            raise _substitute_invalid("not_a_substitute")
+        if substitute.price_paise is None:
+            raise _substitute_invalid("no_price")
+        if substitute.price_paise > line.unit_price_paise:
+            raise _substitute_invalid("pricier")
+        refund = line.qty * (line.unit_price_paise - substitute.price_paise)
+    if refund > 0:
+        await _shortage_refund(session, order, product_id, refund)
+
+    if substitute is None:
+        line.shortage_qty = shortage_qty
+    else:
         line.substituted_from = line.product_id
+        line.product_id = substitute.id
+        line.step_qty, line.step_unit = substitute.step_qty, substitute.step_unit
+        line.unit_price_paise = substitute.price_paise or 0
+        line.reason_code = line.reason_params = None  # the planner's reason was the original's
+    _totals(order, lines)
     order.version += 1
     await session.flush()
     await publish(
         session,
-        "orders.shortage_substituted",
+        SHORTAGE_SUBSTITUTED,
         {
             "order_id": str(order.id),
+            "household_id": str(order.household_id),  # who M11 tells
             "product_id": str(product_id),
             "shortage_qty": shortage_qty,
-            "substitute_product_id": None
-            if substitute_product_id is None
-            else str(substitute_product_id),
-            "refund_paise": shortage_qty * line.unit_price_paise,
+            "substitute_product_id": None if substitute is None else str(substitute.id),
+            "refund_paise": refund,
+            "total_paise": order.total_paise,
         },
     )
     return line

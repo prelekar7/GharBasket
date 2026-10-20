@@ -38,6 +38,387 @@ export interface paths {
         patch: operations["update_address_v1_addresses__address_id__patch"];
         trace?: never;
     };
+    "/v1/admin/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's donations, oldest first: the verification queue (5-minute photo links) */
+        get: operations["hub_donations_v1_admin_donations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a drive (hub manager: their hub or a society in it; admin: any; Idempotency-Key required) */
+        post: operations["create_drive_v1_admin_drives_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/drives/{drive_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change or cancel a drive (If-Match: its version; a running drive only extends) */
+        patch: operations["patch_drive_v1_admin_drives__drive_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/festivals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Festival days for the console's calendar, by date (at most 366 days) */
+        get: operations["list_admin_festivals_v1_admin_festivals_get"];
+        put?: never;
+        /** Add a festival day (admin; Idempotency-Key; source manual; audit-logged) */
+        post: operations["create_festival_v1_admin_festivals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/festivals/{day}/{code}/{region}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a festival day after today (admin; audit-logged) */
+        delete: operations["delete_festival_v1_admin_festivals__day___code___region__delete"];
+        options?: never;
+        head?: never;
+        /** Edit a festival day's names, rules or verified flag (admin; last write wins) */
+        patch: operations["edit_festival_v1_admin_festivals__day___code___region__patch"];
+        trace?: never;
+    };
+    "/v1/admin/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a hub (admin; Idempotency-Key required; audit-logged) */
+        post: operations["create_hub_v1_admin_hubs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/hubs/{hub_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a hub (admin; If-Match: the hub's version; audit-logged) */
+        patch: operations["patch_hub_v1_admin_hubs__hub_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/notification-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notification templates: the active versions, or every version */
+        get: operations["list_templates_v1_admin_notification_templates_get"];
+        /** Save a template in all three locales as a new active version */
+        put: operations["put_templates_v1_admin_notification_templates_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notification-templates/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Render a template in all three locales with sample values (nothing is saved) */
+        post: operations["preview_templates_v1_admin_notification_templates_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Delivery log: a person's messages with their delivery attempts */
+        get: operations["delivery_log_v1_admin_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The triage queue of a hub (all hubs for admins), oldest first */
+        get: operations["triage_queue_v1_admin_order_issues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One issue with 5-minute photo links and the customer's contact (audit-logged) */
+        get: operations["triage_detail_v1_admin_order_issues__issue_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/order-issues/{issue_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged) */
+        post: operations["resolve_issue_v1_admin_order_issues__issue_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/point-rates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a point rate (admin; applies to donations verified from now on; audit-logged) */
+        put: operations["put_point_rate_v1_admin_point_rates__code__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every product for the console, active or not, alphabetical */
+        get: operations["list_admin_products_v1_admin_products_get"];
+        put?: never;
+        /** Add a product (admin; Idempotency-Key; audit-logged) */
+        post: operations["create_product_v1_admin_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One product for the console (ETag: its version) */
+        get: operations["get_admin_product_v1_admin_products__product_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a product, or deactivate or reactivate it (admin; If-Match; audit-logged) */
+        patch: operations["edit_product_v1_admin_products__product_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/products/{product_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who changed a product and what, newest first (from the audit log) */
+        get: operations["product_history_v1_admin_products__product_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every recipe for the console, active or not, alphabetical (without steps) */
+        get: operations["list_admin_recipes_v1_admin_recipes_get"];
+        put?: never;
+        /** Add a recipe (admin; Idempotency-Key; audit-logged) */
+        post: operations["create_recipe_v1_admin_recipes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/recipes/{recipe_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One recipe for the console (ETag: its version) */
+        get: operations["get_admin_recipe_v1_admin_recipes__recipe_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a recipe, or deactivate or reactivate it (admin; a catalog editor changes only the names and the fasting and diabetic flags; If-Match; audit-logged) */
+        patch: operations["edit_recipe_v1_admin_recipes__recipe_id__patch"];
+        trace?: never;
+    };
+    "/v1/admin/recipes/{recipe_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who changed a recipe and what, newest first (from the audit log) */
+        get: operations["recipe_history_v1_admin_recipes__recipe_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin: mismatches between Razorpay and our records, newest first, and the last run */
+        get: operations["list_reconciliation_v1_admin_reconciliation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/reconciliation/{item_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin: close an open item with a note (audit-logged); it moves no money */
+        post: operations["resolve_reconciliation_v1_admin_reconciliation__item_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/slots": {
         parameters: {
             query?: never;
@@ -72,6 +453,23 @@ export interface paths {
         patch: operations["patch_slot_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/v1/admin/societies/{society_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Pin or set a society's unlock threshold, or set its status (hub manager, admin) */
+        patch: operations["update_society_unlock_v1_admin_societies__society_id__patch"];
+        trace?: never;
+    };
     "/v1/admin/societies/{society_id}/delivery-days": {
         parameters: {
             query?: never;
@@ -100,6 +498,91 @@ export interface paths {
         put?: never;
         /** Admin: give a user a staff role (Idempotency-Key required; audit-logged) */
         post: operations["grant_role_v1_admin_user_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/ai-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
+        get: operations["ai_health_v1_analytics_ai_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/confirm/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm a proposal: the change is made through the owning module (Idempotency-Key) */
+        post: operations["confirm_proposal_v1_assistant_confirm__proposal_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Say something to Ghar Saathi; the reply may carry proposal cards to confirm */
+        post: operations["post_message_v1_assistant_messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a proposal; nothing changes */
+        post: operations["reject_proposal_v1_assistant_proposals__proposal_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assistant/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A conversation's history and its proposal cards */
+        get: operations["get_session_v1_assistant_sessions__session_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -168,6 +651,58 @@ export interface paths {
         put?: never;
         /** Exchange a refresh token for new tokens (the old refresh token stops working) */
         post: operations["refresh_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/budget-lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The month's Budget Lock with what the approved boxes spent */
+        get: operations["get_budget_lock_v1_budget_lock_get"];
+        /** Set the month's Budget Lock (≥ ₹500, this month or next); null switches it off (204) */
+        put: operations["put_budget_lock_v1_budget_lock_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/captains/{captain_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a captain's appointment now (Idempotency-Key required) */
+        post: operations["end_captain_v1_captains__captain_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Product categories, in their display order */
+        get: operations["list_categories_v1_categories_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -243,6 +778,197 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cycles/{cycle_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve the week: an order with these lines and prices (Idempotency-Key, If-Match) */
+        post: operations["approve_cycle_v1_cycles__cycle_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ran out, wasted or just right per item, 14 days from delivery (Idempotency-Key) */
+        post: operations["give_feedback_v1_cycles__cycle_id__feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Remove, add, change or substitute lines before the cut-off (If-Match) */
+        patch: operations["patch_lines_v1_cycles__cycle_id__lines_patch"];
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/meals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one meal (next dish, a recipe, tiffin, no-cook, or the plan's) and redraw its lines before the cut-off (If-Match) */
+        put: operations["set_meal_v1_cycles__cycle_id__meals_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip the week before the cut-off (a payment_failed week until its grace ends); its order is cancelled (Idempotency-Key) */
+        post: operations["skip_cycle_v1_cycles__cycle_id__skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/cycles/{cycle_id}/unskip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bring a skipped week back to approval before the cut-off (Idempotency-Key, If-Match)
+         * @description The week returns with the lines it had (awaiting_approval, or draft if the box-ready notice never went out); approving it again creates a new order.
+         */
+        post: operations["unskip_cycle_v1_cycles__cycle_id__unskip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My household's donations, newest first, and the next two pickup dates */
+        get: operations["my_donations_v1_donations_get"];
+        put?: never;
+        /** Schedule a donation pickup on one of the next pickup dates (Idempotency-Key) */
+        post: operations["schedule_donation_v1_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a donation still waiting for pickup (Idempotency-Key) */
+        post: operations["cancel_donation_v1_donations__donation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a picked-up donation; its items go to a recycler (Idempotency-Key) */
+        post: operations["reject_donation_v1_donations__donation_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/donations/{donation_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record what the hub counted; points are computed and sent to M5 (Idempotency-Key) */
+        post: operations["verify_donation_v1_donations__donation_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/drives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Donation drives: running and upcoming ones (customers), every state (hub staff) */
+        get: operations["list_drives_v1_drives_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/festivals": {
         parameters: {
             query?: never;
@@ -252,6 +978,40 @@ export interface paths {
         };
         /** Festival and fasting days in a date range (at most 92 days) */
         get: operations["list_festivals_v1_festivals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A presigned PUT URL for one private upload (M0 §3.1) */
+        post: operations["presign_v1_files_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/goods-receipts/{receipt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A goods receipt with its lines and lots */
+        get: operations["get_goods_receipt_v1_goods_receipts__receipt_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -367,7 +1127,110 @@ export interface paths {
         patch: operations["update_member_v1_households__household_id__members__member_id__patch"];
         trace?: never;
     };
-    "/v1/hubs/{hub_id}/price-lists": {
+    "/v1/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hubs the caller works in (admin: every hub), by name */
+        get: operations["list_hubs_v1_hubs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub with its location, service area and day timings (ETag = version) */
+        get: operations["get_hub_v1_hubs__hub_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/goods-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's goods receipts of an IST day, newest first */
+        get: operations["list_goods_receipts_v1_hubs__hub_id__goods_receipts_get"];
+        put?: never;
+        /** Record goods received at the dock, against a sent purchase order or ad hoc */
+        post: operations["create_goods_receipt_v1_hubs__hub_id__goods_receipts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's stock by product: lots with stock, first expiry first */
+        get: operations["get_inventory_v1_hubs__hub_id__inventory_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tasks by status and bags and crates per society for a date */
+        get: operations["packing_summary_v1_hubs__hub_id__packing_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's packing queue for a date, by seq */
+        get: operations["list_packing_tasks_v1_hubs__hub_id__packing_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/build": {
         parameters: {
             query?: never;
             header?: never;
@@ -376,8 +1239,278 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** Build the date's packing tasks now (the 05:00 job's work; Idempotency-Key) */
+        post: operations["build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/packing-tasks/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim the next task: the caller's own in picking, else the first queued one */
+        post: operations["next_packing_task_v1_hubs__hub_id__packing_tasks_next_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/partner-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's review queue, oldest submitted first (hub staff, admin) */
+        get: operations["review_queue_v1_hubs__hub_id__partner_applications_get"];
+        put?: never;
+        /** Create a rider or packer application for a person without a household (hub staff, admin; Idempotency-Key required; audit-logged) */
+        post: operations["create_for_person_v1_hubs__hub_id__partner_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/partners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's partners by name (hub staff, admin) */
+        get: operations["hub_partners_v1_hubs__hub_id__partners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/price-lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's price lists, newest first (default: the last 30 days and every future one) */
+        get: operations["list_price_lists_v1_hubs__hub_id__price_lists_get"];
+        put?: never;
         /** Publish a hub's prices from a date (hub manager of that hub; audit-logged) */
         post: operations["publish_price_list_v1_hubs__hub_id__price_lists_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/price-lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One price list with its items (ETag: its version) */
+        get: operations["get_price_list_v1_hubs__hub_id__price_lists__list_id__get"];
+        /** Replace every item of today's or a future price list (If-Match; audit-logged) */
+        put: operations["replace_price_list_v1_hubs__hub_id__price_lists__list_id__put"];
+        post?: never;
+        /** Delete a price list that starts after today (audit-logged) */
+        delete: operations["delete_price_list_v1_hubs__hub_id__price_lists__list_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/procurement-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's procurement plan for a delivery date (ETag = version) */
+        get: operations["get_hub_plan_v1_hubs__hub_id__procurement_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/procurement-plans/build": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Build or rebuild the hub's plan for a date now (the 21:10 job's work) */
+        post: operations["build_plan_v1_hubs__hub_id__procurement_plans_build_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's purchase orders for a delivery date, by vendor name */
+        get: operations["list_purchase_orders_v1_hubs__hub_id__purchase_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/route-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's route plans for a date, newest first (without routes) */
+        get: operations["list_plans_v1_hubs__hub_id__route_plans_get"];
+        put?: never;
+        /**
+         * Solve (or re-solve) a hub's routes for today or tomorrow (Idempotency-Key required)
+         * @description Answers at once with the queued plan; the solve runs in the background (the ML solver, or M7's fallback when it is down). Poll GET /v1/route-plans/{id}. A manual plan is never published automatically.
+         */
+        post: operations["solve_plan_v1_hubs__hub_id__route_plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vehicles, by label */
+        get: operations["list_vehicles_v1_hubs__hub_id__vehicles_get"];
+        put?: never;
+        /** Add a vehicle to a hub (Idempotency-Key required) */
+        post: operations["create_vehicle_v1_hubs__hub_id__vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/vendors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A hub's vendors, by name */
+        get: operations["list_vendors_v1_hubs__hub_id__vendors_get"];
+        put?: never;
+        /** Add a vendor to a hub (Idempotency-Key required) */
+        post: operations["create_vendor_v1_hubs__hub_id__vendors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/feature-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store point-in-time features as of a cut-off (the snapshot job; operator token) */
+        post: operations["put_feature_snapshots_v1_internal_intel_feature_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/forecasts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store a hub's demand forecast and order quantities (the forecast job; operator token)
+         * @description One `intel.predictions` row per delivery day (kind `forecast`, subject the hub, `for_date`
+         *     the delivery day) with every product's lines in the payload, and `intel.forecast_ready`;
+         *     M6 reads it through `intel_gateway.api.hub_forecast`.
+         */
+        post: operations["put_forecasts_v1_internal_intel_forecasts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/model-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store an evaluation run's metrics (the eval harness, training jobs; operator token) */
+        post: operations["put_model_metrics_v1_internal_intel_model_metrics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/internal/intel/pantry-priors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the pantry twin's cohort priors with a promoted version's (`just promote pantry_priors`; operator token) */
+        post: operations["put_pantry_priors_v1_internal_intel_pantry_priors_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -435,6 +1568,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/kindness/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points, the next expiry dates and the next meal's goal */
+        get: operations["get_kindness_balance_v1_kindness_balance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/donations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give Kindness points as donated meals (a meal for a child); the only way to use them */
+        post: operations["donate_meals_v1_kindness_donations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kindness/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Kindness points history, newest first */
+        get: operations["list_kindness_entries_v1_kindness_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kyc-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a KYC document for your open application (Idempotency-Key required) */
+        post: operations["upload_document_v1_kyc_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kyc-documents/{document_id}/file-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 5-minute links to a document's files (hub staff of its hub, admin; audit-logged) */
+        post: operations["file_links_v1_kyc_documents__document_id__file_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lots/{lot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A lot with its stock moves */
+        get: operations["get_lot_v1_lots__lot_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/lots/{lot_id}/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a lot's stock after a physical count (a count move; audited) */
+        post: operations["count_lot_v1_lots__lot_id__count_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me": {
         parameters: {
             query?: never;
@@ -446,11 +1698,30 @@ export interface paths {
         get: operations["me_v1_me_get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete my account after a 30-day grace (signs out every device; spec §3.5) */
+        delete: operations["delete_me_v1_me_delete"];
         options?: never;
         head?: never;
         /** Change name, language or senior mode (only the fields sent) */
         patch: operations["update_me_v1_me_patch"];
+        trace?: never;
+    };
+    "/v1/me/data-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your latest data export, with a fresh 5-minute download link while it is ready */
+        get: operations["my_export_v1_me_data_export_get"];
+        put?: never;
+        /** Ask for a copy of your data (one per IST day; asking again answers that export) */
+        post: operations["ask_for_export_v1_me_data_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/me/devices": {
@@ -487,6 +1758,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/push-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set or clear this device's FCM token for push notifications (M11 §3.1) */
+        put: operations["put_push_token_v1_me_push_token_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/roles": {
         parameters: {
             query?: never;
@@ -504,6 +1792,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's inbox, newest first, in the request language */
+        get: operations["list_notifications_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Push and WhatsApp per category, and quiet hours */
+        get: operations["get_preferences_v1_notifications_preferences_get"];
+        /** Save push and WhatsApp per category, and optionally quiet hours */
+        put: operations["put_preferences_v1_notifications_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark the whole inbox read */
+        post: operations["read_all_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one message read (the first read time is kept) */
+        post: operations["read_one_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/orders": {
         parameters: {
             query?: never;
@@ -514,7 +1871,11 @@ export interface paths {
         /** Orders of the caller's household, or of a hub for its staff (newest delivery first) */
         get: operations["list_orders_v1_orders_get"];
         put?: never;
-        post?: never;
+        /**
+         * Book a kitchen's tiffin for one meal (Idempotency-Key); paid at the cut-off
+         * @description Only `kind: tiffin` (§3.5): add-ons ride on the box. The menu fixes the date, meal, price and the preferred cook; the server picks the hub's tiffin slot for the meal.
+         */
+        post: operations["book_tiffin_v1_orders_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -572,6 +1933,353 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/orders/{order_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The order's live timeline: JSON for polling clients, or a Server-Sent Events stream
+         * @description `Accept: text/event-stream` streams `snapshot`, then `status` per new timeline row, `: ping` every 20 s and `end` at a final status (delivered, cancelled, refunded); it closes after 15 minutes. Reconnect with `Last-Event-ID` (a timeline row id) for the rows after it, without a new snapshot. Any other Accept answers JSON, oldest first.
+         */
+        get: operations["order_events_v1_orders__order_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Problems reported on an order, newest first (the owner, or hub staff) */
+        get: operations["list_issues_v1_orders__order_id__issues_get"];
+        put?: never;
+        /** Report a problem with a delivery (Idempotency-Key); auto-credit or triage */
+        post: operations["report_issue_v1_orders__order_id__issues_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/orders/{order_id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay a payment_failed box from the wallet before its grace ends (Idempotency-Key)
+         * @description The same debit as the cut-off (one per order, never twice), then `locked`. An order that is already locked (a top-up paid it) answers as it is.
+         */
+        post: operations["pay_order_v1_orders__order_id__pay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A packing task with its lines */
+        get: operations["get_packing_task_v1_packing_tasks__task_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pack the bag (the order moves picking → packed; Idempotency-Key) */
+        post: operations["complete_packing_v1_packing_tasks__task_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the steps picked for a line (absolute; Idempotency-Key) */
+        post: operations["pick_line_v1_packing_tasks__task_id__pick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Free a started task so another packer can take it (hub manager; Idempotency-Key) */
+        post: operations["release_packing_v1_packing_tasks__task_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/shortage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund short steps, or substitute the whole line (Idempotency-Key) */
+        post: operations["record_shortage_v1_packing_tasks__task_id__shortage_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packing-tasks/{task_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start a task (the order moves locked → picking; Idempotency-Key) */
+        post: operations["start_packing_v1_packing_tasks__task_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply to become a partner (Idempotency-Key required) */
+        post: operations["apply_v1_partner_applications_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your open application, else your latest */
+        get: operations["my_application_v1_partner_applications_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An application: the applicant's own, or the review view for hub staff of its hub */
+        get: operations["get_application_v1_partner_applications__application_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/{application_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve, ask for documents again, or reject (hub staff of its hub, admin; Idempotency-Key required; audit-logged) */
+        post: operations["decide_v1_partner_applications__application_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partner-applications/{application_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw your application before verification (Idempotency-Key required) */
+        post: operations["withdraw_v1_partner_applications__application_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your partner records, one per kind */
+        get: operations["my_partners_v1_partners_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A partner's profile (hub staff of her hub, admin) */
+        get: operations["get_partner_v1_partners__partner_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a break: no new offers (kitchens, riders, packers; Idempotency-Key required) */
+        post: operations["pause_partner_v1_partners__partner_id__pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}/reinstate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make a suspended partner active again (Idempotency-Key required; audit-logged) */
+        post: operations["reinstate_partner_v1_partners__partner_id__reinstate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Come back from a break (Idempotency-Key required) */
+        post: operations["resume_partner_v1_partners__partner_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/partners/{partner_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend a partner at once (Idempotency-Key required; audit-logged) */
+        post: operations["suspend_partner_v1_partners__partner_id__suspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/payments/webhook/razorpay": {
         parameters: {
             query?: never;
@@ -606,6 +2314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/point-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kindness points per kg or per piece, by item category */
+        get: operations["point_rates_v1_point_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/prices": {
         parameters: {
             query?: never;
@@ -617,6 +2342,57 @@ export interface paths {
         get: operations["get_prices_v1_prices_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/procurement-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A procurement plan with its lines (ETag = version) */
+        get: operations["get_plan_v1_procurement_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/procurement-plans/{plan_id}/lines/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change a plan line (If-Match: the plan's version; a reason for a quantity; audited) */
+        patch: operations["patch_plan_line_v1_procurement_plans__plan_id__lines__product_id__patch"];
+        trace?: never;
+    };
+    "/v1/procurement-plans/{plan_id}/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** (Re)generate the plan's draft purchase orders, one per vendor */
+        post: operations["generate_purchase_orders_v1_procurement_plans__plan_id__purchase_orders_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -674,6 +2450,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/purchase-orders/{po_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A purchase order with its share text and WhatsApp link (ETag = version) */
+        get: operations["get_purchase_order_v1_purchase_orders__po_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders/{po_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a draft, or a sent purchase order with nothing received */
+        post: operations["cancel_purchase_order_v1_purchase_orders__po_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/purchase-orders/{po_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a draft as sent now (gives its number; nothing is sent automatically) */
+        post: operations["send_purchase_order_v1_purchase_orders__po_id__send_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ready": {
         parameters: {
             query?: never;
@@ -719,6 +2546,61 @@ export interface paths {
         get: operations["get_recipe_v1_recipes__recipe_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My referral code and link, what referrals earn, and the neighbours who joined */
+        get: operations["my_referrals_v1_referrals_get"];
+        put?: never;
+        /** Use a neighbour's referral code (Idempotency-Key required) */
+        post: operations["claim_referral_v1_referrals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/route-plans/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A route plan with its routes (poll it after a solve) */
+        get: operations["get_plan_v1_route_plans__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/route-plans/{plan_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish a solved plan (Idempotency-Key required)
+         * @description The routes become published; the date's previously published plan is superseded and its routes cancelled, unless one of them has started. A plan with problems needs accept_problems (audited); one that leaves a stop off every route never publishes.
+         */
+        post: operations["publish_plan_v1_route_plans__plan_id__publish_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -793,6 +2675,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/societies/{society_id}/captains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A society's captain appointments, newest first (hub manager, admin) */
+        get: operations["society_captains_v1_societies__society_id__captains_get"];
+        put?: never;
+        /** Appoint a verified captain who lives here (Idempotency-Key required) */
+        post: operations["appoint_captain_v1_societies__society_id__captains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/societies/{society_id}/delivery-days": {
         parameters: {
             query?: never;
@@ -844,6 +2744,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's wallet for one month (IST), from the ledger, with running balances */
+        get: operations["get_statement_v1_statements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/subscriptions": {
         parameters: {
             query?: never;
@@ -877,6 +2794,94 @@ export interface paths {
         head?: never;
         /** Pause or resume, or set auto-approve */
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
+        trace?: never;
+    };
+    "/v1/tiffin-menus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Approved tiffin menus of your hub, tomorrow to a week ahead, still open to book */
+        get: operations["tiffin_menus_v1_tiffin_menus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trainings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The training modules you need, in the order to take them */
+        get: operations["trainings_v1_trainings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trainings/{code}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a module's quiz answers; scored on the server (Idempotency-Key required) */
+        post: operations["complete_training_v1_trainings__code__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change or deactivate a vehicle (If-Match: the vehicle's version)
+         * @description Vehicles are deactivated, never deleted. A change applies to the next solve, never to a route already published. A vehicle of a hub outside the caller's roles answers 404 logistics.vehicle_not_found, as if it did not exist (as M6's vendors do).
+         */
+        patch: operations["patch_vehicle_v1_vehicles__vehicle_id__patch"];
+        trace?: never;
+    };
+    "/v1/vendors/{vendor_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change or deactivate a vendor (If-Match: the vendor's version) */
+        patch: operations["patch_vendor_v1_vendors__vendor_id__patch"];
         trace?: never;
     };
     "/v1/wallet": {
@@ -913,6 +2918,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/wallet/refund-to-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send unused wallet money back to the payments it came from (a job sends it) */
+        post: operations["refund_to_source_v1_wallet_refund_to_source_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's refunds to source, newest first */
+        get: operations["list_refunds_v1_wallet_refunds_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/refunds/{refund_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A refund to source and its parts */
+        get: operations["get_refund_v1_wallet_refunds__refund_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/wallet/topups": {
         parameters: {
             query?: never;
@@ -941,6 +2997,24 @@ export interface paths {
         get: operations["get_topup_v1_wallet_topups__topup_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/webhooks/whatsapp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Meta's webhook handshake (verify token); not for the apps */
+        get: operations["whatsapp_handshake_v1_webhooks_whatsapp_get"];
+        put?: never;
+        /** WhatsApp's webhook (signed by Meta): delivery receipts; not for the apps */
+        post: operations["whatsapp_webhook_v1_webhooks_whatsapp_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1027,6 +3101,459 @@ export interface components {
             /** Tower Id */
             tower_id?: string | null;
         };
+        /** AdminFestival */
+        AdminFestival: {
+            /** Code */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            names: components["schemas"]["Names"];
+            /** Region */
+            region: string;
+            rules: components["schemas"]["FestivalRules"];
+            /**
+             * Source
+             * @description manual: added in the console
+             * @enum {string}
+             */
+            source: "panchang" | "manual";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** Verified */
+            verified: boolean;
+        };
+        /** AdminFestivals */
+        AdminFestivals: {
+            /** Items */
+            items: components["schemas"]["AdminFestival"][];
+        };
+        /** AdminProduct */
+        AdminProduct: {
+            /** Active */
+            active: boolean;
+            category: components["schemas"]["CategoryRef"];
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad";
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            nutrition: components["schemas"]["Nutrition"] | null;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
+            /** Synonyms */
+            synonyms: components["schemas"]["SynonymIn"][];
+            /** Tags */
+            tags: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Who last edited it in the console */
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Used By Recipes
+             * @description Active recipes with this product as an ingredient
+             */
+            used_by_recipes: number;
+            /** Version */
+            version: number;
+        };
+        /** AdminRecipe */
+        AdminRecipe: {
+            /** Active */
+            active: boolean;
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /**
+             * Diet
+             * @enum {string}
+             */
+            diet: "veg" | "egg";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ingredients */
+            ingredients: components["schemas"]["IngredientOut"][];
+            /**
+             * Is Side
+             * @description Eaten with a main (chapati, rice); never planned alone
+             */
+            is_side: boolean;
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            reviews: components["schemas"]["Reviews"];
+            rules: components["schemas"]["RecipeRules"];
+            /** Servings */
+            servings: number;
+            /**
+             * Sides
+             * @description Slugs of side recipes this one is eaten with
+             */
+            sides: string[];
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /**
+             * Slug
+             * @example sabudana-khichdi
+             */
+            slug: string;
+            /**
+             * Steps
+             * @description Left out (null) in the list
+             */
+            steps: components["schemas"]["RecipeStep"][] | null;
+            /** Tags */
+            tags: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Who last edited it in the console */
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** Version */
+            version: number;
+        };
+        /** AiHealthOut */
+        AiHealthOut: {
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Models */
+            models: components["schemas"]["ModelHealthOut"][];
+            /**
+             * Predictions
+             * @description How often each kind of prediction came from the ML service or the fallback
+             */
+            predictions: components["schemas"]["PredictionCountOut"][];
+            /** Window Days */
+            window_days: number;
+        };
+        /** ApplicantOut */
+        ApplicantOut: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * ApplicationDetailOut
+         * @description The applicant's own application with its current documents.
+         */
+        ApplicationDetailOut: {
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /** Documents */
+            documents: components["schemas"]["KycDocumentOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /** ApplicationIn */
+        ApplicationIn: {
+            /**
+             * Display Name
+             * @description What customers will see, 2 to 40 characters; default your M1 name
+             * @example Meena tai
+             */
+            display_name?: string | null;
+            /**
+             * Kind
+             * @description kitchen, captain, rider or packer (else 422 partners.kind_invalid)
+             * @example captain
+             */
+            kind: string;
+            /**
+             * Scope Id
+             * @description Optional: a captain's own society, anyone else's household hub
+             */
+            scope_id?: string | null;
+        };
+        /** ApplicationOut */
+        ApplicationOut: {
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * ApplicationReviewOut
+         * @description An application as hub staff of its hub (and admins) see it.
+         */
+        ApplicationReviewOut: {
+            applicant: components["schemas"]["ApplicantOut"];
+            /** Decided At */
+            decided_at: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Documents
+             * @description The current documents
+             */
+            documents: components["schemas"]["KycDocumentOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Next Step
+             * @description null once verified, rejected or withdrawn
+             */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Partner Id
+             * @description Set at verification
+             */
+            partner_id: string | null;
+            /**
+             * Reason
+             * @description Why it was rejected or sent back
+             */
+            reason: string | null;
+            requirements: components["schemas"]["Requirements"];
+            /**
+             * Scope Id
+             * Format: uuid
+             */
+            scope_id: string;
+            /**
+             * Scope Type
+             * @description society: the captain's own society; hub: everyone else
+             * @enum {string}
+             */
+            scope_type: "society" | "hub";
+            /** @description Captain applications */
+            society: components["schemas"]["ApplicationSocietyOut"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+            /**
+             * Submitted At
+             * Format: date-time
+             */
+            submitted_at: string;
+            /** Verified At */
+            verified_at: string | null;
+            /** Version */
+            version: number;
+        };
+        /** ApplicationSocietyOut */
+        ApplicationSocietyOut: {
+            /**
+             * Has Active Captain
+             * @description Whether the society already has an active captain (M9)
+             */
+            has_active_captain: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string | null;
+        };
+        /** ApplicationStepOut */
+        ApplicationStepOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Next Step */
+            next_step: ("documents" | "review" | "training") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+        };
+        /** BudgetLockIn */
+        BudgetLockIn: {
+            /**
+             * Budget Paise
+             * @description At least ₹500 (else 422 subscriptions.budget_invalid); null switches it off
+             */
+            budget_paise?: number | null;
+            /**
+             * Month
+             * @example 2026-10
+             */
+            month: string;
+        };
         /** BudgetLockOut */
         BudgetLockOut: {
             /** Budget Paise */
@@ -1041,6 +3568,26 @@ export interface components {
             /** Spent Paise */
             spent_paise: number;
         };
+        /** BuildIn */
+        BuildIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** BuildOut */
+        BuildOut: {
+            /** Created */
+            created: number;
+            /** Existing */
+            existing: number;
+        };
+        /** CancelIn */
+        CancelIn: {
+            /** Reason */
+            reason: string;
+        };
         /** CaptainCard */
         CaptainCard: {
             /**
@@ -1051,12 +3598,69 @@ export interface components {
             /** Photo Url */
             photo_url: string | null;
         };
-        /** CaptainOut */
-        CaptainOut: {
-            /** Flat */
-            flat: string;
+        /** CaptainEndIn */
+        CaptainEndIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "stepped_down" | "hub_decision";
+        };
+        /** CaptainIn */
+        CaptainIn: {
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Replace
+             * @description End the current captain (replaced) and appoint this one
+             * @default false
+             */
+            replace: boolean;
+        };
+        /** CaptainsOut */
+        CaptainsOut: {
+            /** Items */
+            items: components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"][];
+        };
+        /** Categories */
+        Categories: {
+            /** Items */
+            items: components["schemas"]["CategoryOut"][];
+        };
+        /** CategoryOut */
+        CategoryOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Name */
             name: string;
+            names: components["schemas"]["Names"];
+            /** Parent Id */
+            parent_id: string | null;
+            /**
+             * Slug
+             * @example leafy-greens
+             */
+            slug: string;
+        };
+        /** CategoryPreference */
+        CategoryPreference: {
+            /**
+             * Category
+             * @example weekly_box
+             */
+            category: string;
+            /** Push */
+            push: boolean;
+            /** Whatsapp */
+            whatsapp: boolean;
         };
         /** CategoryRef */
         CategoryRef: {
@@ -1076,6 +3680,22 @@ export interface components {
              */
             slug: string;
         };
+        /** CompleteIn */
+        CompleteIn: {
+            /** Bags */
+            bags?: number | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /** Crate No */
+            crate_no?: number | null;
+        };
+        /** ConfirmOut */
+        ConfirmOut: {
+            proposal: components["schemas"]["ProposalOut"];
+        };
         /** ConsentIn */
         ConsentIn: {
             /** Granted */
@@ -1084,7 +3704,7 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /**
              * Version
              * @example v1
@@ -1101,11 +3721,22 @@ export interface components {
              * Purpose
              * @enum {string}
              */
-            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised";
+            purpose: "service_delivery" | "personalisation" | "health_personalisation" | "marketing" | "research_anonymised" | "whatsapp";
             /** Revoked At */
             revoked_at: string | null;
             /** Version */
             version: string;
+        };
+        /** CountIn */
+        CountIn: {
+            /**
+             * Qty On Hand
+             * @description Absolute
+             * @example 10
+             */
+            qty_on_hand: number;
+            /** Reason */
+            reason: string;
         };
         /** CycleLineOut */
         CycleLineOut: {
@@ -1143,7 +3774,7 @@ export interface components {
             /** Approved At */
             approved_at: string | null;
             budget_lock: components["schemas"]["BudgetLockOut"] | null;
-            captain: components["schemas"]["CaptainOut"] | null;
+            captain: components["schemas"]["gharbasket__modules__subscriptions__schemas__CaptainOut"] | null;
             /**
              * Cutoff At
              * Format: date-time
@@ -1173,12 +3804,14 @@ export interface components {
             meal_plan: components["schemas"]["MealPlanOut"];
             /** Order Id */
             order_id: string | null;
+            /** @description Only while the week is payment_failed */
+            payment_due: components["schemas"]["PaymentDueOut"] | null;
             slot: components["schemas"]["SlotRefOut"];
             /**
              * Status
              * @enum {string}
              */
-            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "preview";
+            status: "draft" | "awaiting_approval" | "approved" | "skipped" | "cancelled" | "locked" | "payment_failed" | "preview";
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -1201,6 +3834,59 @@ export interface components {
              */
             unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
         };
+        /** DataExportDownload */
+        DataExportDownload: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Size Bytes
+             * @example 48211
+             */
+            size_bytes: number;
+            /**
+             * Url
+             * @description A signed GET link, valid 5 minutes; GET again for a fresh one
+             */
+            url: string;
+        };
+        /**
+         * DataExportOut
+         * @description A copy of your data: one JSON file, built within a day and kept 7 days.
+         */
+        DataExportOut: {
+            /** @description Only while ready */
+            download: components["schemas"]["DataExportDownload"] | null;
+            /**
+             * Expires At
+             * @description When the file is deleted (7 days after ready)
+             */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Ready Within Hours
+             * @example 24
+             */
+            ready_within_hours: number;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "building" | "ready" | "failed" | "expired";
+        };
         /** DayOut */
         DayOut: {
             /**
@@ -1210,6 +3896,54 @@ export interface components {
             date: string;
             /** Meals */
             meals: components["schemas"]["MealOut"][];
+        };
+        /** DecisionIn */
+        DecisionIn: {
+            /**
+             * Document Ids
+             * @description resubmit: the documents to redo
+             */
+            document_ids?: string[];
+            /**
+             * Hygiene Grade
+             * @description Approving a kitchen: required (from its photos)
+             */
+            hygiene_grade?: ("A" | "B" | "C") | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "approve" | "resubmit" | "reject";
+            /**
+             * Reason
+             * @description Required for resubmit and reject; shown to the applicant
+             */
+            reason?: string | null;
+        };
+        /**
+         * DeletionOut
+         * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+         *     in again before then.
+         */
+        DeletionOut: {
+            /**
+             * Purge On
+             * Format: date
+             * @description IST date, 30 days after the request
+             */
+            purge_on: string;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "scheduled";
+            /** @description The wallet balance on its way back to the original payment source */
+            wallet_refund: components["schemas"]["WalletRefundOut"] | null;
         };
         /** DeliveryDayIn */
         DeliveryDayIn: {
@@ -1239,6 +3973,36 @@ export interface components {
         DeliveryDaysOut: {
             /** Items */
             items: components["schemas"]["DeliveryDayOut"][];
+        };
+        /** DeliveryLogOut */
+        DeliveryLogOut: {
+            /** Items */
+            items: components["schemas"]["LogEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Channel
+             * @example push
+             */
+            channel: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Next Attempt At */
+            next_attempt_at: string | null;
+            /** Provider Ref */
+            provider_ref: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @description queued, held, sent, delivered, read, failed or skipped
+             */
+            status: string;
         };
         /** DeviceIn */
         DeviceIn: {
@@ -1278,6 +4042,294 @@ export interface components {
              */
             signed_in_at: string;
         };
+        /** DishOut */
+        DishOut: {
+            /**
+             * Name
+             * @description In Accept-Language
+             * @example Varan bhaat
+             */
+            name: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             */
+            recipe_id: string;
+        };
+        /** DocumentRequirement */
+        DocumentRequirement: {
+            /**
+             * Doc Type
+             * @example pan
+             */
+            doc_type: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Reason
+             * @description Why the hub asked for it again
+             */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "missing" | "submitted" | "accepted" | "rejected";
+        };
+        /** DonationLine */
+        DonationLine: {
+            /** Code */
+            code: string;
+            /**
+             * Counted
+             * @description Set by the hub at verification
+             */
+            counted: number | null;
+            /** Points */
+            points: number | null;
+            /**
+             * Qty
+             * @description As declared
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** DonationLineIn */
+        DonationLineIn: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Qty
+             * @description In the rate's unit: whole pieces, or kg in 0.5 steps
+             * @example 3
+             */
+            qty: number | string;
+        };
+        /** DonationNgo */
+        DonationNgo: {
+            /** Name */
+            name: string;
+        };
+        /** DonationsOut */
+        DonationsOut: {
+            /** Items */
+            items: components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Pickup Dates
+             * @description The next two dates this household can choose
+             */
+            pickup_dates: string[];
+        };
+        /** DriveIn */
+        DriveIn: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            description?: components["schemas"]["Texts"] | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items?: number | null;
+            /**
+             * Hub Id
+             * @description Only for a hub drive
+             */
+            hub_id?: string | null;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number | string;
+            name: components["schemas"]["Label"];
+            /**
+             * Ngo Id
+             * @description Accepted once NGOs exist (§3.5)
+             */
+            ngo_id?: null;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /**
+             * Society Id
+             * @description Only for a society drive
+             */
+            society_id?: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** DriveNgo */
+        DriveNgo: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** DriveOut */
+        DriveOut: {
+            /**
+             * Code
+             * @example diwali-2026
+             */
+            code: string;
+            /**
+             * Codes
+             * @description What it multiplies
+             * @example [
+             *       "clothes",
+             *       "toys"
+             *     ]
+             */
+            codes: string[];
+            /** Description */
+            description: string | null;
+            /**
+             * Ends On
+             * Format: date
+             * @description IST, inclusive
+             */
+            ends_on: string;
+            /** Goal Items */
+            goal_items: number | null;
+            /**
+             * Hub Id
+             * @description Also set for a society drive (its hub)
+             */
+            hub_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Multiplier
+             * @example 2
+             */
+            multiplier: number;
+            /**
+             * Name
+             * @description In the request language
+             * @example Diwali drive
+             */
+            name: string;
+            /** @description Who receives the items; null until NGOs (§3.5) */
+            ngo: components["schemas"]["DriveNgo"] | null;
+            progress: components["schemas"]["DriveProgress"];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "platform" | "hub" | "society";
+            /** Society Id */
+            society_id: string | null;
+            /**
+             * Starts On
+             * Format: date
+             * @description IST, inclusive
+             */
+            starts_on: string;
+            /**
+             * State
+             * @description From the dates in IST, except cancelled
+             * @enum {string}
+             */
+            state: "upcoming" | "running" | "ended" | "cancelled";
+            /**
+             * Version
+             * @description Send it back in If-Match to change the drive
+             */
+            version: number;
+        };
+        /**
+         * DrivePatch
+         * @description Any field below, or `state: cancelled`. Scope, hub and society stay as created.
+         */
+        DrivePatch: {
+            /** Codes */
+            codes?: string[] | null;
+            description?: components["schemas"]["Texts"] | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Goal Items */
+            goal_items?: number | null;
+            /** Multiplier */
+            multiplier?: number | string | null;
+            name?: components["schemas"]["Label"] | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /**
+             * State
+             * @description Donations already scheduled keep the multiplier
+             */
+            state?: "cancelled" | null;
+        };
+        /**
+         * DriveProgress
+         * @description Items (pieces, and kilograms counted as one item per kg); no households, no names. Null
+         *     for customers while fewer than 5 households took part (k = 5, §3.7).
+         */
+        DriveProgress: {
+            /**
+             * Pledged
+             * @description In scheduled and picked-up donations
+             * @example 40
+             */
+            pledged: number | null;
+            /**
+             * Verified
+             * @description Counted by the hub
+             * @example 31
+             */
+            verified: number | null;
+        };
+        /** DriveRef */
+        DriveRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Multiplier */
+            multiplier: number;
+            /** Name */
+            name: string;
+        };
+        /** DrivesOut */
+        DrivesOut: {
+            /** Items */
+            items: components["schemas"]["DriveOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Entry */
         Entry: {
             /**
@@ -1301,9 +4353,9 @@ export interface components {
              * @description Show a generic label for a kind the app doesn't know
              * @enum {string}
              */
-            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment";
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
             /** Ref */
-            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"]) | null;
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
         };
         /**
          * ExchangeIn
@@ -1323,6 +4375,12 @@ export interface components {
             device: components["schemas"]["DeviceIn"];
             /** Firebase Id Token */
             firebase_id_token?: string | null;
+            /**
+             * Keep Account
+             * @description For an account whose deletion is scheduled: true (after the app asked "Keep my account?") signs in and cancels the deletion; false gets 409 identity.deletion_pending (spec §3.5)
+             * @default false
+             */
+            keep_account: boolean;
         };
         /** ExchangeOut */
         ExchangeOut: {
@@ -1333,6 +4391,12 @@ export interface components {
             access_expires_in: number;
             /** Access Token */
             access_token: string | null;
+            /**
+             * Deletion Cancelled
+             * @description True when this sign-in cancelled a scheduled deletion
+             * @default false
+             */
+            deletion_cancelled: boolean;
             /** Is New User */
             is_new_user: boolean;
             /** Refresh Token */
@@ -1353,6 +4417,87 @@ export interface components {
              * @default false
              */
             no_onion_garlic_on_fast_days: boolean;
+        };
+        /** FeatureSnapshotIn */
+        FeatureSnapshotIn: {
+            /** Features */
+            features: {
+                [key: string]: unknown;
+            };
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "household" | "hub" | "society" | "order" | "partner" | "product";
+        };
+        /** FeatureSnapshotsIn */
+        FeatureSnapshotsIn: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items: components["schemas"]["FeatureSnapshotIn"][];
+        };
+        /** FeatureSnapshotsOut */
+        FeatureSnapshotsOut: {
+            /** Accepted */
+            accepted: number;
+        };
+        /** FeedbackIn */
+        FeedbackIn: {
+            /** Items */
+            items: components["schemas"]["FeedbackItem"][];
+        };
+        /** FeedbackItem */
+        FeedbackItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Signal
+             * @enum {string}
+             */
+            signal: "ran_out" | "wasted" | "just_right";
+        };
+        /** FeedbackOut */
+        FeedbackOut: {
+            /** Recorded */
+            recorded: number;
+        };
+        /** FestivalIn */
+        FestivalIn: {
+            /**
+             * Code
+             * @example navratri
+             */
+            code: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            names: components["schemas"]["NamesIn"];
+            /**
+             * Region
+             * @example all
+             * @example maharashtra
+             */
+            region: string;
+            rules: components["schemas"]["FestivalRulesIn"];
+            /**
+             * Verified
+             * @default false
+             */
+            verified: boolean;
         };
         /** FestivalOut */
         FestivalOut: {
@@ -1380,8 +4525,25 @@ export interface components {
              */
             verified: boolean;
         };
+        /**
+         * FestivalPatch
+         * @description Only the fields sent change; last write wins (no If-Match).
+         */
+        FestivalPatch: {
+            names?: components["schemas"]["NamesIn"] | null;
+            rules?: components["schemas"]["FestivalRulesIn"] | null;
+            /** Verified */
+            verified?: boolean | null;
+        };
         /** FestivalRules */
         FestivalRules: {
+            /** Fasting */
+            fasting: boolean;
+            /** No Onion Garlic */
+            no_onion_garlic: boolean;
+        };
+        /** FestivalRulesIn */
+        FestivalRulesIn: {
             /** Fasting */
             fasting: boolean;
             /** No Onion Garlic */
@@ -1391,6 +4553,161 @@ export interface components {
         Festivals: {
             /** Items */
             items: components["schemas"]["FestivalOut"][];
+        };
+        /** FieldChange */
+        FieldChange: {
+            /** From */
+            from: unknown;
+            /** To */
+            to: unknown;
+        };
+        /** FileLinkOut */
+        FileLinkOut: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Url */
+            url: string;
+        };
+        /** FileLinksOut */
+        FileLinksOut: {
+            /** Files */
+            files: components["schemas"]["FileLinkOut"][];
+        };
+        /** ForecastItemIn */
+        ForecastItemIn: {
+            /** Committed */
+            committed: number;
+            /**
+             * For Date
+             * Format: date
+             */
+            for_date: string;
+            /** Model */
+            model: string;
+            /** Order Qty */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Uncommitted Q50 */
+            uncommitted_q50: number;
+            /** Uncommitted Qtau */
+            uncommitted_qtau: number;
+        };
+        /** ForecastsIn */
+        ForecastsIn: {
+            /**
+             * Data Source
+             * @description Whose orders the forecast was trained on; sources are never pooled
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** Items */
+            items: components["schemas"]["ForecastItemIn"][];
+            /** Model */
+            model: string;
+        };
+        /** ForecastsOut */
+        ForecastsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Delivery Dates */
+            delivery_dates: string[];
+        };
+        /** GeneratedPurchaseOrders */
+        GeneratedPurchaseOrders: {
+            /** Purchase Orders */
+            purchase_orders: components["schemas"]["PurchaseOrderOut"][];
+        };
+        /**
+         * GeoPolygon
+         * @description GeoJSON, WGS 84, `[lng, lat]`; one closed ring (first point = last), 4 to 500 points, no
+         *     holes, not self-intersecting.
+         */
+        GeoPolygon: {
+            /**
+             * Coordinates
+             * @example [
+             *       [
+             *         [
+             *           73.02,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19
+             *         ],
+             *         [
+             *           73.13,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19.05
+             *         ],
+             *         [
+             *           73.02,
+             *           19
+             *         ]
+             *       ]
+             *     ]
+             */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
+        /** GoodsReceiptOut */
+        GoodsReceiptOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineOut"][];
+            /** @description Its status after this receipt */
+            purchase_order: components["schemas"]["LinePurchaseOrder"] | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            received_by: components["schemas"]["gharbasket__modules__hub_ops__schemas__UserRef"];
+            /** Total Paise */
+            total_paise: number;
+            /** Unpriced Lines */
+            unpriced_lines: number;
+            vendor: components["schemas"]["Ref"];
+        };
+        /** GoodsReceiptsOut */
+        GoodsReceiptsOut: {
+            /** Items */
+            items: components["schemas"]["GoodsReceiptOut"][];
         };
         /** Health */
         Health: {
@@ -1415,6 +4732,32 @@ export interface components {
             /** Params */
             params: {
                 [key: string]: unknown;
+            };
+        };
+        /** History */
+        History: {
+            /**
+             * Items
+             * @description Newest first, at most 100
+             */
+            items: components["schemas"]["HistoryEntry"][];
+        };
+        /** HistoryEntry */
+        HistoryEntry: {
+            /**
+             * Action
+             * @example catalog.product_updated
+             */
+            action: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /** Changed */
+            changed: {
+                [key: string]: components["schemas"]["FieldChange"];
             };
         };
         /**
@@ -1445,6 +4788,13 @@ export interface components {
              * @description 0 = Monday … 6 = Sunday
              */
             no_cook_days?: number[];
+            /**
+             * Shortage Preference
+             * @description A short item: a similar one at the same price or cheaper, or never substitute and refund (§3.4)
+             * @default substitute
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
             /**
              * Society Id
              * Format: uuid
@@ -1493,6 +4843,11 @@ export interface components {
             members: components["schemas"]["MemberOut"][];
             /** No Cook Days */
             no_cook_days: number[];
+            /**
+             * Shortage Preference
+             * @enum {string}
+             */
+            shortage_preference: "substitute" | "refund";
             /** Size */
             size: number;
             /**
@@ -1524,10 +4879,235 @@ export interface components {
             diet?: ("veg" | "egg" | "nonveg") | null;
             /** No Cook Days */
             no_cook_days?: number[] | null;
+            /** Shortage Preference */
+            shortage_preference?: ("substitute" | "refund") | null;
             /** Weekday Cook Minutes */
             weekday_cook_minutes?: number | null;
             /** Weekend Cook Minutes */
             weekend_cook_minutes?: number | null;
+        };
+        /**
+         * HubApplicationIn
+         * @description A rider or packer application a hub manager creates for a person without a household.
+         */
+        HubApplicationIn: {
+            /**
+             * Display Name
+             * @description 2 to 40 characters
+             * @example Ravi
+             */
+            display_name: string;
+            /**
+             * Kind
+             * @description rider or packer
+             * @example rider
+             */
+            kind: string;
+            /**
+             * Phone E164
+             * @description A signed-up user's phone
+             * @example +919812345678
+             */
+            phone_e164: string;
+        };
+        /** HubDriftOut */
+        HubDriftOut: {
+            /**
+             * Backtest Wape
+             * @description The same hub and data source's backtest WAPE it was compared with
+             */
+            backtest_wape: number | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Drift
+             * @description A live WAPE of this hub and source in the window was more than 10 points worse than its own backtest
+             */
+            drift: boolean;
+            /** Drifted Days */
+            drifted_days: number;
+            /**
+             * For Date
+             * @description The newest scored delivery day
+             */
+            for_date: string | null;
+            /** Hub Id */
+            hub_id: string;
+            /** Scored Days */
+            scored_days: number;
+            /**
+             * Wape
+             * @description Its realised WAPE
+             */
+            wape: number | null;
+        };
+        /** HubIn */
+        HubIn: {
+            /** Address */
+            address: string;
+            location: components["schemas"]["LatLng"];
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Pre Live Box Fee Paise
+             * @default 3000
+             */
+            pre_live_box_fee_paise: number;
+            /**
+             * Procurement Buffer Pct
+             * @default 10
+             */
+            procurement_buffer_pct: number;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
+            /**
+             * Slug
+             * @description Never changes
+             * @example kharghar
+             */
+            slug: string;
+            /** @description Missing times: the defaults */
+            timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubOut */
+        HubOut: {
+            /** Address */
+            address: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            location: components["schemas"]["LatLng"];
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Pre Live Box Fee Paise
+             * @description Delivery fee per box while a society is not live (M9 §3.6)
+             * @example 3000
+             */
+            pre_live_box_fee_paise: number;
+            /**
+             * Procurement Buffer Pct
+             * @example 10
+             */
+            procurement_buffer_pct: number;
+            /** @description null until an admin draws it */
+            service_area: components["schemas"]["GeoPolygon"] | null;
+            /**
+             * Slug
+             * @example kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+            timings: components["schemas"]["Timings"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * HubPatch
+         * @description Only the fields sent change; `service_area: null` clears the area.
+         */
+        HubPatch: {
+            /** Address */
+            address?: string | null;
+            location?: components["schemas"]["LatLng"] | null;
+            /** Name */
+            name?: string | null;
+            /** Pre Live Box Fee Paise */
+            pre_live_box_fee_paise?: number | null;
+            /** Procurement Buffer Pct */
+            procurement_buffer_pct?: number | null;
+            service_area?: components["schemas"]["GeoPolygon"] | null;
+            /** Status */
+            status?: ("active" | "paused") | null;
+            timings?: components["schemas"]["TimingsPatch"] | null;
+        };
+        /** HubSummary */
+        HubSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Kharghar hub
+             */
+            name: string;
+            /**
+             * Slug
+             * @example kharghar
+             */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused";
+        };
+        /** HubsOut */
+        HubsOut: {
+            /** Items */
+            items: components["schemas"]["HubSummary"][];
+        };
+        /** InboxOut */
+        InboxOut: {
+            /** Items */
+            items: components["schemas"]["NotificationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * Unread
+             * @description Unread messages in the whole inbox, not only this page
+             */
+            unread: number;
+        };
+        /** IngredientIn */
+        IngredientIn: {
+            /**
+             * Optional
+             * @default false
+             */
+            optional: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @example 50
+             */
+            qty: number | string;
+            /**
+             * Unit
+             * @description Fits the product's step (catalog.unit_mismatch)
+             * @enum {string}
+             */
+            unit: "g" | "ml" | "piece" | "bunch";
         };
         /** IngredientOut */
         IngredientOut: {
@@ -1558,6 +5138,407 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** InventoryItem */
+        InventoryItem: {
+            /**
+             * Lots
+             * @description Lots with stock, by best_before
+             */
+            lots: components["schemas"]["LotOut"][];
+            /** Name */
+            name: string;
+            /**
+             * On Hand Qty
+             * @description Sum of the lots' qty_on_hand
+             */
+            on_hand_qty: number;
+            /**
+             * Packed Not Drawn Qty
+             * @description Packed, not yet drawn down at 12:30
+             */
+            packed_not_drawn_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** InventoryOut */
+        InventoryOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Items
+             * @description By shelf, then name
+             */
+            items: components["schemas"]["InventoryItem"][];
+        };
+        /** IssueContact */
+        IssueContact: {
+            /** Name */
+            name: string | null;
+            /** Phone E164 */
+            phone_e164: string;
+        };
+        /** IssueIn */
+        IssueIn: {
+            /**
+             * Items
+             * @description Required for missing, damaged, quality and wrong_item; lines of this order
+             */
+            items?: components["schemas"]["IssueItemIn"][] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /** Note */
+            note?: string | null;
+            /**
+             * Photo Keys
+             * @description Keys from POST /v1/files/presign (purpose order_issue_photo)
+             */
+            photo_keys?: string[];
+        };
+        /** IssueItemIn */
+        IssueItemIn: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps, at most what was delivered
+             * @example 1
+             */
+            qty: number;
+        };
+        /** IssueItemOut */
+        IssueItemOut: {
+            /** Amount Paise */
+            amount_paise: number;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit Price Paise
+             * @description The line's paid price per step
+             */
+            unit_price_paise: number;
+        };
+        /** IssueOut */
+        IssueOut: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Photo Count */
+            photo_count: number;
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssuePhoto */
+        IssuePhoto: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Url
+             * @description A 5-minute signed GET
+             */
+            url: string;
+        };
+        /** IssueResolution */
+        IssueResolution: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * @enum {string}
+             */
+            by: "auto" | "hub";
+            /** Note */
+            note: string | null;
+        };
+        /** IssueTriage */
+        IssueTriage: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssueTriageDetail */
+        IssueTriageDetail: {
+            /**
+             * Amount Paise
+             * @description The sum of qty times the line's paid unit price
+             * @example 4000
+             */
+            amount_paise: number;
+            /**
+             * Auto Credited 7D Paise
+             * @description The household's automatic credits in the last 7 days
+             */
+            auto_credited_7d_paise: number;
+            /**
+             * Callback Due At
+             * @description created_at + callback_within_minutes, while open
+             */
+            callback_due_at: string | null;
+            /**
+             * Callback Within Minutes
+             * @description While open: the hub calls back
+             */
+            callback_within_minutes: number | null;
+            /** @description The household owner, to call back */
+            contact: components["schemas"]["IssueContact"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Credit Paise
+             * @description 0 until credited
+             */
+            credit_paise: number;
+            /**
+             * Creditable Paise
+             * @description What is left of the order's paid total after shortage refunds and credits
+             */
+            creditable_paise: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["IssueItemOut"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "missing" | "damaged" | "quality" | "wrong_item" | "late" | "other";
+            /**
+             * Max Credit Paise
+             * @description What resolve would accept now: amount_paise, or the order total for late and other, capped by creditable_paise; 0 once resolved
+             */
+            max_credit_paise: number;
+            /** Note */
+            note: string | null;
+            /** Open Reason */
+            open_reason: ("photo_needed" | "over_auto_credit_limit" | "over_order_total" | "wallet_limit" | "triage") | null;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Total Paise
+             * @example 69000
+             */
+            order_total_paise: number;
+            /** Photo Count */
+            photo_count: number;
+            /**
+             * Photos
+             * @description Empty while storage is unavailable; photo_count says how many there are
+             */
+            photos: components["schemas"]["IssuePhoto"][];
+            resolution: components["schemas"]["IssueResolution"] | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "credited" | "rejected";
+        };
+        /** IssuesOut */
+        IssuesOut: {
+            /** Items */
+            items: components["schemas"]["IssueOut"][];
         };
         /** JobOut */
         JobOut: {
@@ -1608,6 +5589,204 @@ export interface components {
              */
             scheduled_for?: string | null;
         };
+        /** KindOut */
+        KindOut: {
+            /** Category */
+            category: string;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Placeholders
+             * @description What its templates may use
+             * @example [
+             *       "total"
+             *     ]
+             */
+            placeholders: string[];
+        };
+        /** KindnessBalanceOut */
+        KindnessBalanceOut: {
+            /**
+             * Expiring
+             * @description Soonest first, the next 3 dates within 90 days; [] if none
+             */
+            expiring: components["schemas"]["PointsExpiring"][];
+            /** @description What the next donated meal needs */
+            goal: components["schemas"]["KindnessGoal"] | null;
+            /**
+             * Points
+             * @description Points that can be donated now
+             * @example 340
+             */
+            points: number;
+        };
+        /** KindnessGoal */
+        KindnessGoal: {
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Points
+             * @description The points one donated meal takes
+             * @example 500
+             */
+            points: number;
+        };
+        /** KitchenRef */
+        KitchenRef: {
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
+        /** KycCheckOut */
+        KycCheckOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "format_ok" | "penny_drop_ok" | "penny_drop_failed" | "duplicate";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "failed";
+        };
+        /** KycDocumentIn */
+        KycDocumentIn: {
+            /**
+             * Account Holder
+             * @description bank only
+             */
+            account_holder?: string | null;
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            /**
+             * Doc Type
+             * @description id_proof, pan, bank, fssai, driving_licence or kitchen_photos; only the kind's required types
+             * @example pan
+             */
+            doc_type: string;
+            /**
+             * File Keys
+             * @description Keys from POST /v1/files/presign (kyc_document): kitchen_photos 2 to 4, others 0 to 2
+             */
+            file_keys?: string[];
+            /**
+             * Id Kind
+             * @description id_proof only: voter_id, passport or driving_licence; never Aadhaar
+             */
+            id_kind?: string | null;
+            /**
+             * Ifsc
+             * @example SBIN0001234
+             */
+            ifsc?: string | null;
+            /**
+             * Number
+             * @description Every type but kitchen_photos; bank: the account number. Upper-cased, spaces and hyphens removed
+             * @example ABCDE1234F
+             */
+            number?: string | null;
+            /**
+             * Valid Until
+             * @description fssai and driving_licence; must be in the future
+             */
+            valid_until?: string | null;
+            /**
+             * Vehicle No
+             * @description driving_licence only
+             * @example MH46AB1234
+             */
+            vehicle_no?: string | null;
+        };
+        /** KycDocumentOut */
+        KycDocumentOut: {
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            check: components["schemas"]["KycCheckOut"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Details
+             * @description ifsc, account_holder, valid_until, vehicle_no
+             */
+            details: {
+                [key: string]: string;
+            };
+            /** Doc Type */
+            doc_type: string;
+            /** File Count */
+            file_count: number;
+            /**
+             * Fssai Reg No
+             * @description fssai only, in full (public by law)
+             */
+            fssai_reg_no: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Id Kind */
+            id_kind: string | null;
+            /**
+             * Number Masked
+             * @description Only the last 4 characters
+             * @example XXXXXX234F
+             */
+            number_masked: string | null;
+            review: components["schemas"]["KycReviewOut"];
+        };
+        /** KycReviewOut */
+        KycReviewOut: {
+            /** At */
+            at: string | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "accepted" | "rejected";
+        };
+        /**
+         * Label
+         * @description A short name in each app language.
+         */
+        Label: {
+            /**
+             * En
+             * @example Diwali drive
+             */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
         /**
          * LatLng
          * @description A pin on the map, as every API shape carries it.
@@ -1623,6 +5802,264 @@ export interface components {
              * @example 73.07
              */
             lng: number;
+        };
+        /** LineAddOp */
+        LineAddOp: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "add";
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps
+             */
+            qty: number;
+        };
+        /** LinePurchaseOrder */
+        LinePurchaseOrder: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Number
+             * @example KHARGHAR-261215-02
+             */
+            number: string | null;
+            /** Status */
+            status: string;
+        };
+        /** LineQtyOp */
+        LineQtyOp: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "qty";
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps
+             */
+            qty: number;
+        };
+        /** LineRemoveOp */
+        LineRemoveOp: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "remove";
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** LineSubstituteOp */
+        LineSubstituteOp: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "substitute";
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Substitute Id
+             * Format: uuid
+             * @description From GET /v1/products/{id}/substitutes
+             */
+            substitute_id: string;
+        };
+        /** LinesPatch */
+        LinesPatch: {
+            /**
+             * Ops
+             * @description Applied in order
+             */
+            ops: (components["schemas"]["LineRemoveOp"] | components["schemas"]["LineAddOp"] | components["schemas"]["LineQtyOp"] | components["schemas"]["LineSubstituteOp"])[];
+        };
+        /** LogEntry */
+        LogEntry: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deliveries */
+            deliveries: components["schemas"]["DeliveryOut"][];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
+        };
+        /** LotDetailOut */
+        LotDetailOut: {
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Moves
+             * @description Oldest first
+             */
+            moves: components["schemas"]["StockMoveOut"][];
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty In */
+            qty_in: number;
+            /** Qty On Hand */
+            qty_on_hand: number;
+            /** Receipt Id */
+            receipt_id: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @description returned: a bag back (§3.5)
+             * @enum {string}
+             */
+            source: "receipt" | "returned";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
+        };
+        /** LotOut */
+        LotOut: {
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty In */
+            qty_in: number;
+            /** Qty On Hand */
+            qty_on_hand: number;
+            /** Receipt Id */
+            receipt_id: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Source
+             * @description returned: a bag back (§3.5)
+             * @enum {string}
+             */
+            source: "receipt" | "returned";
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
         };
         /** MeOut */
         MeOut: {
@@ -1670,6 +6107,12 @@ export interface components {
              * @enum {string}
              */
             slot: "breakfast" | "lunch" | "dinner";
+            /**
+             * Source
+             * @description customer: set with PUT .../meals
+             * @enum {string}
+             */
+            source: "plan" | "customer";
             /** Tiffin */
             tiffin: boolean;
         };
@@ -1682,6 +6125,32 @@ export interface components {
              * @enum {string}
              */
             source: "ml" | "fallback";
+        };
+        /** MealSet */
+        MealSet: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Recipe Id
+             * @description Only with set: recipe
+             */
+            recipe_id?: string | null;
+            /**
+             * Set
+             * @description next: the cheapest allowed dish not in the week; recipe: recipe_id; tiffin, no_cook: no ingredients; planned: back to the planner's dish
+             * @default next
+             * @enum {string}
+             */
+            set: "next" | "recipe" | "tiffin" | "no_cook" | "planned";
+            /**
+             * Slot
+             * @description Another value is 422 subscriptions.meal_unknown
+             * @enum {string}
+             */
+            slot: "breakfast" | "lunch" | "dinner";
         };
         /** MemberIn */
         MemberIn: {
@@ -1733,6 +6202,140 @@ export interface components {
             /** Sex */
             sex?: ("f" | "m" | "other") | null;
         };
+        /** MenuKitchenOut */
+        MenuKitchenOut: {
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Photo Url
+             * @description Null for now (M8 §3.5)
+             */
+            photo_url: string | null;
+        };
+        /** MessageIn */
+        MessageIn: {
+            /**
+             * Session Id
+             * @description Omit to start a session
+             */
+            session_id?: string | null;
+            /** Text */
+            text: string;
+        };
+        /** MessageOut */
+        MessageOut: {
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Tool Calls */
+            tool_calls: string[];
+        };
+        /** MetricOut */
+        MetricOut: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /**
+             * Hub Id
+             * @description Set when the row is about one hub
+             */
+            hub_id?: string | null;
+            /** Metric */
+            metric: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "train" | "holdout" | "backtest" | "live";
+            /** Value */
+            value: number;
+            /** Version */
+            version: string;
+        };
+        /** ModelHealthOut */
+        ModelHealthOut: {
+            /**
+             * Drift
+             * @description Any hub drifted in the window (see `hubs`)
+             */
+            drift: boolean;
+            /**
+             * Hubs
+             * @description monitor_drift per hub and data source over the window
+             */
+            hubs?: components["schemas"]["HubDriftOut"][];
+            /**
+             * Metrics
+             * @description The newest value per (metric, split, data source, hub)
+             */
+            metrics: components["schemas"]["MetricOut"][];
+            /** Model Name */
+            model_name: string;
+        };
+        /** ModelMetricIn */
+        ModelMetricIn: {
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "synthetic" | "pilot" | "live" | "mixed";
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /** Metric */
+            metric: string;
+            /** Model Name */
+            model_name: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "train" | "holdout" | "backtest" | "live";
+            /** Value */
+            value: number;
+            /** Version */
+            version: string;
+        };
+        /** ModelMetricsIn */
+        ModelMetricsIn: {
+            /** Items */
+            items: components["schemas"]["ModelMetricIn"][];
+        };
+        /** ModelMetricsOut */
+        ModelMetricsOut: {
+            /** Accepted */
+            accepted: number;
+        };
         /** Names */
         Names: {
             /** En */
@@ -1741,6 +6344,103 @@ export interface components {
             hi: string;
             /** Mr */
             mr: string;
+        };
+        /**
+         * NamesIn
+         * @description All three are required; a missing or blank one is 422 `catalog.names_incomplete`.
+         */
+        NamesIn: {
+            /** En */
+            en?: string | null;
+            /** Hi */
+            hi?: string | null;
+            /** Mr */
+            mr?: string | null;
+        };
+        /** NotificationOut */
+        NotificationOut: {
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @description weekly_box, delivery, money, kindness, offers or account
+             * @example delivery
+             */
+            category: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Event Type
+             * @example orders.at_society
+             */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Link
+             * @description An app route
+             * @example /orders
+             */
+            link: string | null;
+            /** Read At */
+            read_at: string | null;
+            /**
+             * Title
+             * @example Your box has reached your society
+             */
+            title: string;
+        };
+        /**
+         * Nutrition
+         * @description Per 100 g; `unit_g` is the weight of one piece or bunch.
+         */
+        Nutrition: {
+            /** Carb G */
+            carb_g: number;
+            /** Fat G */
+            fat_g: number;
+            /** Fibre G */
+            fibre_g: number;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ifct2017" | "nin_nvif" | "label" | "manual";
+            /** Unit G */
+            unit_g?: number | null;
+        };
+        /**
+         * OrderEventsOut
+         * @description The JSON form of `GET /v1/orders/{id}/events`, for clients that poll (§3.3).
+         */
+        OrderEventsOut: {
+            /**
+             * Eta
+             * @description null until M7 publishes route progress
+             */
+            eta?: null;
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["TimelineEvent"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+            /** Version */
+            version: number;
         };
         /** OrderLineOut */
         OrderLineOut: {
@@ -1777,11 +6477,14 @@ export interface components {
             slug: string;
             step: components["schemas"]["OrderStep"];
             substituted_from: components["schemas"]["ProductRef"] | null;
-            /** Total Paise */
+            /**
+             * Total Paise
+             * @description (qty - shortage_qty) x unit_price_paise
+             */
             total_paise: number;
             /**
              * Unit Price Paise
-             * @description Per step, frozen when the line was made
+             * @description Per step, frozen when the line was made; a packing substitute's price
              */
             unit_price_paise: number;
         };
@@ -1829,6 +6532,8 @@ export interface components {
              * @enum {string}
              */
             kind: "box" | "tiffin" | "addon";
+            /** @description The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is GET /v1/partners/{partner_id}/card */
+            kitchen?: components["schemas"]["KitchenRef"] | null;
             /** Lines */
             lines: components["schemas"]["OrderLineOut"][];
             /** Locked At */
@@ -1846,8 +6551,10 @@ export interface components {
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
             /** Subtotal Paise */
             subtotal_paise: number;
+            /** @description Tiffin orders (§3.5): the booked menu; null otherwise */
+            tiffin?: components["schemas"]["TiffinOut"] | null;
             /** Timeline */
-            timeline: components["schemas"]["TimelineEntry"][];
+            timeline: components["schemas"]["gharbasket__modules__orders__schemas__TimelineEntry"][];
             /** Total Paise */
             total_paise: number;
             /** Version */
@@ -1954,6 +6661,319 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Packer */
+        Packer: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** PackingLineOut */
+        PackingLineOut: {
+            /**
+             * Done
+             * @description picked_qty + short_qty = qty
+             */
+            done: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Picked Qty
+             * @description Steps in the bag (of the substitute, if any)
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             * @description The ordered product
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps ordered
+             */
+            qty: number;
+            /**
+             * Short Qty
+             * @description Steps refunded
+             */
+            short_qty: number;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+            substitute: components["schemas"]["PackingSubstitute"] | null;
+        };
+        /** PackingRoute */
+        PackingRoute: {
+            /**
+             * Route Id
+             * Format: uuid
+             */
+            route_id: string;
+            /**
+             * Stop Seq
+             * @example 3
+             */
+            stop_seq: number;
+        };
+        /** PackingSlot */
+        PackingSlot: {
+            /**
+             * End
+             * @example 09:00
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Label
+             * @example 7-9 am
+             */
+            label: string;
+            /**
+             * Start
+             * @description IST HH:MM
+             * @example 07:00
+             */
+            start: string;
+        };
+        /** PackingSociety */
+        PackingSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Name
+             * @example Sunrise Towers
+             */
+            name: string;
+        };
+        /** PackingStep */
+        PackingStep: {
+            /**
+             * Label
+             * @description In the requested language
+             * @example 250 g
+             */
+            label: string;
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @example g
+             */
+            unit: string;
+        };
+        /** PackingSubstitute */
+        PackingSubstitute: {
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["PackingStep"];
+        };
+        /** PackingSummary */
+        PackingSummary: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Packed */
+            packed: number;
+            /** Picking */
+            picking: number;
+            /** Queued */
+            queued: number;
+            /** Societies */
+            societies: components["schemas"]["SocietyLoad"][];
+        };
+        /** PackingTaskDetail */
+        PackingTaskDetail: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By catalog category, then name
+             */
+            lines: components["schemas"]["PackingLineOut"][];
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
+        /** PackingTaskOut */
+        PackingTaskOut: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+            /** Bags */
+            bags: number;
+            /**
+             * Crate No
+             * @description Crate within the society, set at complete
+             */
+            crate_no: number | null;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines Done */
+            lines_done: number;
+            /** Lines Total */
+            lines_total: number;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Order Kind
+             * @enum {string}
+             */
+            order_kind: "box" | "addon";
+            /** Packed At */
+            packed_at: string | null;
+            /** @description Who holds the task */
+            packer: components["schemas"]["Packer"] | null;
+            /** @description Set when M7 publishes routes */
+            route: components["schemas"]["PackingRoute"] | null;
+            /**
+             * Seq
+             * @description Position in the hub's queue for the date
+             */
+            seq: number;
+            slot: components["schemas"]["PackingSlot"] | null;
+            society: components["schemas"]["PackingSociety"];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "picking" | "packed";
+            /** Version */
+            version: number;
+        };
+        /** Page[AdminProduct] */
+        Page_AdminProduct_: {
+            /** Items */
+            items: components["schemas"]["AdminProduct"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[AdminRecipe] */
+        Page_AdminRecipe_: {
+            /** Items */
+            items: components["schemas"]["AdminRecipe"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[ApplicationReviewOut] */
+        Page_ApplicationReviewOut_: {
+            /** Items */
+            items: components["schemas"]["ApplicationReviewOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[Entry] */
         Page_Entry_: {
             /** Items */
@@ -1961,10 +6981,38 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[IssueTriage] */
+        Page_IssueTriage_: {
+            /** Items */
+            items: components["schemas"]["IssueTriage"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[OrderSummaryOut] */
         Page_OrderSummaryOut_: {
             /** Items */
             items: components["schemas"]["OrderSummaryOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PackingTaskOut] */
+        Page_PackingTaskOut_: {
+            /** Items */
+            items: components["schemas"]["PackingTaskOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PartnerStaffOut] */
+        Page_PartnerStaffOut_: {
+            /** Items */
+            items: components["schemas"]["PartnerStaffOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PointsEntry] */
+        Page_PointsEntry_: {
+            /** Items */
+            items: components["schemas"]["PointsEntry"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -1982,12 +7030,252 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[RefundOut] */
+        Page_RefundOut_: {
+            /** Items */
+            items: components["schemas"]["RefundOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[SocietySummary] */
         Page_SocietySummary_: {
             /** Items */
             items: components["schemas"]["SocietySummary"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** Page[StaffDonationOut] */
+        Page_StaffDonationOut_: {
+            /** Items */
+            items: components["schemas"]["StaffDonationOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** PantryPriorIn */
+        PantryPriorIn: {
+            /**
+             * Cohort
+             * @enum {string}
+             */
+            cohort: "small" | "medium" | "large";
+            /**
+             * Prior Mean Per Ae
+             * @description Base units a week per adult equivalent (M3 scales by the household)
+             */
+            prior_mean_per_ae: number;
+            /** Prior Weeks */
+            prior_weeks: number;
+            /**
+             * Product
+             * @description The product's slug
+             */
+            product: string;
+        };
+        /** PantryPriorsIn */
+        PantryPriorsIn: {
+            /** Items */
+            items: components["schemas"]["PantryPriorIn"][];
+            /** Version */
+            version: string;
+        };
+        /** PantryPriorsOut */
+        PantryPriorsOut: {
+            /** Accepted */
+            accepted: number;
+            /** Unknown Slugs */
+            unknown_slugs: string[];
+        };
+        /** PartnerOut */
+        PartnerOut: {
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Photo Url
+             * @description Always null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /** @description Kitchens with 5 ratings or more; else null */
+            rating: components["schemas"]["RatingOut"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "suspended" | "left";
+            suspension: components["schemas"]["SuspensionOut"] | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Verified At
+             * Format: date-time
+             */
+            verified_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * PartnerStaffOut
+         * @description A partner as hub staff of her hub (and admins) see her.
+         */
+        PartnerStaffOut: {
+            /**
+             * Application Id
+             * @description null for seeded partners
+             */
+            application_id: string | null;
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Name
+             * @description Her M1 name
+             */
+            name: string | null;
+            /**
+             * Phone E164
+             * @example +919812345678
+             */
+            phone_e164: string | null;
+            /**
+             * Photo Url
+             * @description Always null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /** @description Kitchens with 5 ratings or more; else null */
+            rating: components["schemas"]["RatingOut"] | null;
+            /** @description Captains: the society on her application; null without one */
+            requested_society: components["schemas"]["SocietyRef"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "suspended" | "left";
+            suspension: components["schemas"]["SuspensionOut"] | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Verified At
+             * Format: date-time
+             */
+            verified_at: string;
+            /** Version */
+            version: number;
+        };
+        /** PartnersOut */
+        PartnersOut: {
+            /** Items */
+            items: components["schemas"]["PartnerOut"][];
+        };
+        /**
+         * PaymentDueOut
+         * @description What a `payment_failed` week still needs (§3.3); paid with POST /v1/orders/{id}/pay.
+         */
+        PaymentDueOut: {
+            /**
+             * Due At
+             * Format: date-time
+             * @description The end of the grace period (T-1 23:00 IST), in UTC
+             */
+            due_at: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /**
+             * Shortfall Paise
+             * @description What a top-up must add: total minus wallet, >= 0
+             */
+            shortfall_paise: number;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Wallet Paise
+             * @description The wallet's balance now
+             */
+            wallet_paise: number;
+        };
+        /** PhotoUrl */
+        PhotoUrl: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Url */
+            url: string;
+        };
+        /** PickIn */
+        PickIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Picked Qty
+             * @description Absolute, not a delta: 0 to qty - short_qty
+             */
+            picked_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** PickedUpBy */
+        PickedUpBy: {
+            /** Name */
+            name: string | null;
+        };
+        /** PlanBuildIn */
+        PlanBuildIn: {
+            /**
+             * Date
+             * Format: date
+             * @description IST delivery date, today ... today + 2
+             */
+            date: string;
         };
         /** PlanOut */
         PlanOut: {
@@ -2003,10 +7291,303 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PlanSummary */
+        PlanSummary: {
+            /**
+             * Cost Paise
+             * @example 412000
+             */
+            cost_paise: number;
+            /**
+             * Km
+             * @example 61.2
+             */
+            km: number;
+            /**
+             * Late Min
+             * @example 0
+             */
+            late_min: number;
+            /**
+             * On Time
+             * @description Share of stops reached within the window
+             * @example 1
+             */
+            on_time: number;
+            /**
+             * Orders
+             * @example 212
+             */
+            orders: number;
+            /**
+             * Problems
+             * @description Empty, or the plan needs a hub manager's review before it is published
+             * @example [
+             *       "EV-2 trip 1: over capacity leaving the hub"
+             *     ]
+             */
+            problems: string[];
+            /**
+             * Routes
+             * @example 6
+             */
+            routes: number;
+            /**
+             * Stops
+             * @description Stops with orders, routed or not
+             * @example 18
+             */
+            stops: number;
+            /**
+             * Vehicles
+             * @description Vehicles used
+             * @example 4
+             */
+            vehicles: number;
+        };
+        /** PlanTotals */
+        PlanTotals: {
+            /** Lines */
+            lines: number;
+            /**
+             * Order Paise
+             * @description Priced lines only
+             */
+            order_paise: number;
+            /** Unpriced Lines */
+            unpriced_lines: number;
+        };
         /** PlansOut */
         PlansOut: {
             /** Items */
             items: components["schemas"]["PlanOut"][];
+        };
+        /**
+         * PointRateIn
+         * @description Applies to donations verified from now on.
+         */
+        PointRateIn: {
+            label: components["schemas"]["Label"];
+            /**
+             * Max Qty
+             * @description Whole pieces, or kg in 0.5 steps
+             */
+            max_qty: number | string;
+            /**
+             * Points
+             * @example 40
+             */
+            points: number;
+        };
+        /** PointRateOut */
+        PointRateOut: {
+            /**
+             * Code
+             * @example clothes
+             */
+            code: string;
+            /**
+             * Label
+             * @description In the request language
+             * @example Clothes
+             */
+            label: string;
+            /**
+             * Max Qty
+             * @description The most one donation may declare
+             * @example 15
+             */
+            max_qty: number;
+            /**
+             * Points
+             * @description Points per kg or per piece
+             * @example 40
+             */
+            points: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "each";
+        };
+        /** PointRatesOut */
+        PointRatesOut: {
+            /** Items */
+            items: components["schemas"]["PointRateOut"][];
+        };
+        /** PointsEntry */
+        PointsEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Expires On
+             * @description IST, for points_earned
+             */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "points_earned" | "points_expired" | "points_donated";
+            /**
+             * Points
+             * @description Into the balance +, out of it -
+             * @example 120
+             */
+            points: number;
+            /** @description What earned the points (earned and expired) */
+            ref: components["schemas"]["PointsRef"] | null;
+        };
+        /** PointsExpiring */
+        PointsExpiring: {
+            /**
+             * On
+             * Format: date
+             * @description The IST date these points expire at the end of
+             */
+            on: string;
+            /**
+             * Points
+             * @example 120
+             */
+            points: number;
+        };
+        /** PointsRef */
+        PointsRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "donation" | "referral";
+        };
+        /** PredictionCountOut */
+        PredictionCountOut: {
+            /** Count */
+            count: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+        };
+        /** PreferencesIn */
+        PreferencesIn: {
+            /**
+             * Categories
+             * @description Categories left out keep their value
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /** Quiet End */
+            quiet_end?: string | null;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM in 15-minute steps
+             */
+            quiet_start?: string | null;
+        };
+        /** PreferencesOut */
+        PreferencesOut: {
+            /**
+             * Categories
+             * @description All five, in the order weekly_box, delivery, money, kindness, offers
+             */
+            categories: components["schemas"]["CategoryPreference"][];
+            /**
+             * Quiet End
+             * @description IST, HH:MM
+             * @example 07:00
+             */
+            quiet_end: string;
+            /**
+             * Quiet Start
+             * @description IST, HH:MM
+             * @example 22:00
+             */
+            quiet_start: string;
+        };
+        /** PresignIn */
+        PresignIn: {
+            /**
+             * Content Type
+             * @example image/jpeg
+             */
+            content_type: string;
+            /**
+             * Purpose
+             * @description order_issue_photo, donation_photo, kyc_document, delivery_photo or handoff_photo
+             */
+            purpose: string;
+            /**
+             * Size Bytes
+             * @description The exact size of the file to upload
+             * @example 834221
+             */
+            size_bytes: number;
+        };
+        /** PresignOut */
+        PresignOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Headers
+             * @description Send exactly these headers on the PUT
+             */
+            headers: {
+                [key: string]: string;
+            };
+            /**
+             * Key
+             * @description Send only this to the module that uses the file
+             */
+            key: string;
+            /**
+             * Method
+             * @constant
+             */
+            method: "PUT";
+            /**
+             * Url
+             * @description PUT the bytes here before expires_at
+             */
+            url: string;
+        };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Items */
+            items: components["schemas"]["PreviewText"][];
+        };
+        /** PreviewText */
+        PreviewText: {
+            /** Body */
+            body: string;
+            /** Locale */
+            locale: string;
+            /**
+             * Params
+             * @description The body's values in order (WhatsApp's {{1}}, {{2}} …)
+             */
+            params: string[];
+            /** Title */
+            title: string;
         };
         /** Price */
         Price: {
@@ -2098,6 +7679,46 @@ export interface components {
              */
             valid_from: string;
         };
+        /** PriceListDetail */
+        PriceListDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Editable
+             * @description valid_from is today or later (India time)
+             */
+            editable: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["PriceListLine"][];
+            /** Items Count */
+            items_count: number;
+            published_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Version */
+            version: number;
+        };
         /** PriceListIn */
         PriceListIn: {
             /** Items */
@@ -2108,6 +7729,28 @@ export interface components {
              * @description Today or later, in Asia/Kolkata
              */
             valid_from: string;
+        };
+        /** PriceListItemsIn */
+        PriceListItemsIn: {
+            /** Items */
+            items: components["schemas"]["PriceItem"][];
+        };
+        /** PriceListLine */
+        PriceListLine: {
+            /** Mrp Paise */
+            mrp_paise: number | null;
+            /** Name */
+            name: string;
+            /** Price Paise */
+            price_paise: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
         };
         /** PriceListOut */
         PriceListOut: {
@@ -2128,6 +7771,52 @@ export interface components {
              * Format: date
              */
             valid_from: string;
+        };
+        /** PriceListSummary */
+        PriceListSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Editable
+             * @description valid_from is today or later (India time)
+             */
+            editable: boolean;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items Count */
+            items_count: number;
+            published_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Valid From
+             * Format: date
+             */
+            valid_from: string;
+            /** Version */
+            version: number;
+        };
+        /** PriceLists */
+        PriceLists: {
+            /**
+             * Items
+             * @description Newest first
+             */
+            items: components["schemas"]["PriceListSummary"][];
         };
         /**
          * Problem
@@ -2152,6 +7841,205 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** ProcurementLineOut */
+        ProcurementLineOut: {
+            /**
+             * Amount Paise
+             * @description order_qty x unit_cost_paise, rounded half up
+             */
+            amount_paise: number | null;
+            /**
+             * At Risk Qty
+             * @description payment_failed orders in the grace; shown, not bought
+             */
+            at_risk_qty: number;
+            /**
+             * Basis
+             * @description Which rule made buffer_qty
+             * @enum {string}
+             */
+            basis: "forecast" | "buffer";
+            /** Buffer Qty */
+            buffer_qty: number;
+            /**
+             * Committed Qty
+             * @description Paid demand for the date
+             * @example 42.5
+             */
+            committed_qty: number;
+            /** Edit Reason */
+            edit_reason: string | null;
+            /** Edited */
+            edited: boolean;
+            /** Forecast Q50 */
+            forecast_q50: number | null;
+            /** Forecast Qtau */
+            forecast_qtau: number | null;
+            /**
+             * Name
+             * @description In Accept-Language
+             */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * On Hand Qty
+             * @description Usable stock for the date (§3.4)
+             */
+            on_hand_qty: number;
+            /**
+             * Order Qty
+             * @description Suggested, or the hub manager's edit
+             */
+            order_qty: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** @description The line's PO (not cancelled) */
+            purchase_order: components["schemas"]["LinePurchaseOrder"] | null;
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Suggested Qty
+             * @description committed + buffer - on hand, rounded up
+             */
+            suggested_qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /**
+             * Unit Cost Paise
+             * @description Expected cost per operations unit
+             */
+            unit_cost_paise: number | null;
+            vendor: components["schemas"]["Ref"] | null;
+        };
+        /**
+         * ProcurementLinePatch
+         * @description Only the fields sent change. `order_qty: null` follows `suggested_qty` again; a `reason`
+         *     is required when `order_qty` changes.
+         */
+        ProcurementLinePatch: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Order Qty
+             * @example 50
+             */
+            order_qty?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Unit Cost Paise */
+            unit_cost_paise?: number | null;
+            /** Vendor Id */
+            vendor_id?: string | null;
+        };
+        /** ProcurementPlanOut */
+        ProcurementPlanOut: {
+            /** Buffer Pct */
+            buffer_pct: number;
+            /**
+             * Built At
+             * Format: date-time
+             */
+            built_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lines
+             * @description By shelf, then name
+             */
+            lines: components["schemas"]["ProcurementLineOut"][];
+            /** Model */
+            model: string | null;
+            /** Refreshed At */
+            refreshed_at: string | null;
+            /**
+             * Source
+             * @description ml when M10 had a forecast
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "ordered" | "closed";
+            totals: components["schemas"]["PlanTotals"];
+            /** Version */
+            version: number;
+        };
+        /** ProductIn */
+        ProductIn: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /**
+             * Kind
+             * @description veg, fruit, staple or salad (else catalog.kind_not_editable)
+             */
+            kind: string;
+            names: components["schemas"]["NamesIn"];
+            nutrition?: components["schemas"]["Nutrition"] | null;
+            /** Shelf Life H */
+            shelf_life_h?: number | null;
+            /**
+             * Slug
+             * @example bhindi
+             */
+            slug: string;
+            step: components["schemas"]["StepIn"];
+            /**
+             * Synonyms
+             * @default []
+             */
+            synonyms: components["schemas"]["SynonymIn"][];
+            /**
+             * Tags
+             * @description Codes from catalog.TAGS
+             * @default []
+             */
+            tags: string[];
+        };
+        /**
+         * ProductNutrition
+         * @description Per 100 g, from IFCT 2017 (ICMR-NIN); `unit_g` is the weight of one piece or bunch.
+         */
+        ProductNutrition: {
+            /** Carb G */
+            carb_g: number;
+            /** Fat G */
+            fat_g: number;
+            /** Fibre G */
+            fibre_g: number;
+            /** Kcal */
+            kcal: number;
+            /** Protein G */
+            protein_g: number;
+            /** Unit G */
+            unit_g?: number | null;
+        };
         /** ProductOut */
         ProductOut: {
             category: components["schemas"]["CategoryRef"];
@@ -2174,6 +8062,8 @@ export interface components {
              */
             name: string;
             names: components["schemas"]["Names"];
+            /** @description Per 100 g (IFCT 2017) */
+            nutrition?: components["schemas"]["ProductNutrition"] | null;
             /** @description For the caller's hub; null without one */
             price: components["schemas"]["Price"] | null;
             /** Shelf Life H */
@@ -2193,6 +8083,36 @@ export interface components {
              */
             tags: string[];
         };
+        /**
+         * ProductPatch
+         * @description Only the fields sent change. slug, kind and step never change (catalog.field_immutable).
+         */
+        ProductPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Category Id */
+            category_id?: string | null;
+            /**
+             * Kind
+             * @description Refused: catalog.field_immutable
+             */
+            kind?: string | null;
+            names?: components["schemas"]["NamesIn"] | null;
+            nutrition?: components["schemas"]["Nutrition"] | null;
+            /** Shelf Life H */
+            shelf_life_h?: number | null;
+            /**
+             * Slug
+             * @description Refused: catalog.field_immutable
+             */
+            slug?: string | null;
+            /** @description Refused: catalog.field_immutable */
+            step?: components["schemas"]["StepIn"] | null;
+            /** Synonyms */
+            synonyms?: components["schemas"]["SynonymIn"][] | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
         /** ProductRef */
         ProductRef: {
             /** Name */
@@ -2205,6 +8125,242 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /** ProductSaved */
+        ProductSaved: {
+            /** Active */
+            active: boolean;
+            category: components["schemas"]["CategoryRef"];
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Image Url */
+            image_url: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad";
+            /** Name */
+            name: string;
+            names: components["schemas"]["Names"];
+            nutrition: components["schemas"]["Nutrition"] | null;
+            /**
+             * Recipes Recomputed
+             * @description Slugs of recipes whose derived rules changed with the tags
+             * @default []
+             */
+            recipes_recomputed: string[];
+            /** Shelf Life H */
+            shelf_life_h: number | null;
+            /** Slug */
+            slug: string;
+            step: components["schemas"]["Step"];
+            /** Synonyms */
+            synonyms: components["schemas"]["SynonymIn"][];
+            /** Tags */
+            tags: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description Who last edited it in the console */
+            updated_by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+            /**
+             * Used By Recipes
+             * @description Active recipes with this product as an ingredient
+             */
+            used_by_recipes: number;
+            /** Version */
+            version: number;
+        };
+        /** ProposalOut */
+        ProposalOut: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "edit_box_line" | "skip_week";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "confirmed" | "rejected" | "expired";
+            /** Summary */
+            summary: string;
+        };
+        /** PublishIn */
+        PublishIn: {
+            /**
+             * Accept Problems
+             * @description Publish although summary.problems is not empty (audited)
+             * @default false
+             */
+            accept_problems: boolean;
+        };
+        /** PurchaseOrderLineOut */
+        PurchaseOrderLineOut: {
+            /** Accepted Qty */
+            accepted_qty: number;
+            /** Amount Paise */
+            amount_paise: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /**
+             * Received Qty
+             * @description Sum of the receipts (§3.4)
+             */
+            received_qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+        };
+        /** PurchaseOrderOut */
+        PurchaseOrderOut: {
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Closed At */
+            closed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Lines */
+            lines: components["schemas"]["PurchaseOrderLineOut"][];
+            /**
+             * Number
+             * @description Given when sent: hub slug, YYMMDD, a number per day
+             */
+            number: string | null;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Share Text
+             * @description Plain text for WhatsApp or print
+             */
+            share_text: string;
+            /**
+             * Stale
+             * @description A draft whose plan changed after it was generated
+             */
+            stale: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sent" | "partly_received" | "received" | "cancelled";
+            /** Total Paise */
+            total_paise: number;
+            /** Unpriced Lines */
+            unpriced_lines: number;
+            vendor: components["schemas"]["PurchaseOrderVendor"];
+            /** Version */
+            version: number;
+            /**
+             * Whatsapp Url
+             * @description When the vendor has a phone and WhatsApp
+             */
+            whatsapp_url: string | null;
+        };
+        /** PurchaseOrderVendor */
+        PurchaseOrderVendor: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Whatsapp */
+            whatsapp: boolean;
+        };
+        /** PurchaseOrdersOut */
+        PurchaseOrdersOut: {
+            /** Items */
+            items: components["schemas"]["PurchaseOrderOut"][];
+        };
+        /** PushTokenIn */
+        PushTokenIn: {
+            /**
+             * Push Token
+             * @description The FCM registration token of this device; null when notifications are off
+             */
+            push_token: string | null;
+        };
+        /** RatingOut */
+        RatingOut: {
+            /**
+             * Average
+             * @example 4.6
+             */
+            average: number;
+            /**
+             * Count
+             * @example 23
+             */
+            count: number;
+        };
         /** Ready */
         Ready: {
             /** Checks */
@@ -2216,6 +8372,166 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** ReceiptIn */
+        ReceiptIn: {
+            /** Lines */
+            lines: components["schemas"]["ReceiptLineIn"][];
+            /**
+             * Purchase Order Id
+             * @description null: an ad hoc purchase
+             */
+            purchase_order_id: string | null;
+            /**
+             * Received At
+             * @description Default now; at most 24 h back
+             */
+            received_at?: string | null;
+            /**
+             * Vendor Id
+             * @description Required without a purchase order; with one, the PO's
+             */
+            vendor_id?: string | null;
+        };
+        /** ReceiptLineIn */
+        ReceiptLineIn: {
+            /**
+             * Accepted Qty
+             * @description 0 … received; the rest goes back
+             * @example 50
+             */
+            accepted_qty: number;
+            /**
+             * Best Before
+             * @description Default received_at + the product's shelf life
+             */
+            best_before?: string | null;
+            /**
+             * Grade
+             * @description A fresh, B cosmetic faults, C kitchens or donation only
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /** Note */
+            note?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Received Qty
+             * @description > 0
+             * @example 52
+             */
+            received_qty: number;
+            /**
+             * Reject Reason
+             * @description Required when accepted < received
+             */
+            reject_reason?: ("rotten" | "damaged" | "undersized" | "wrong_item" | "other") | null;
+            /**
+             * Unit Cost Paise
+             * @description Per operations unit; default the PO line's
+             */
+            unit_cost_paise?: number | null;
+        };
+        /** ReceiptLineOut */
+        ReceiptLineOut: {
+            /** Accepted Qty */
+            accepted_qty: number;
+            /**
+             * Amount Paise
+             * @description accepted_qty x unit_cost_paise, half up
+             */
+            amount_paise: number | null;
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Lot Id
+             * @description null when nothing was accepted
+             */
+            lot_id: string | null;
+            /** Name */
+            name: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Ordered
+             * @description false: not on the purchase order (or no PO)
+             */
+            ordered: boolean;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Received Qty */
+            received_qty: number;
+            /** Reject Reason */
+            reject_reason: ("rotten" | "damaged" | "undersized" | "wrong_item" | "other") | null;
+            /** Rejected Qty */
+            rejected_qty: number;
+            /** Slug */
+            slug: string;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+            /** Unit Cost Paise */
+            unit_cost_paise: number | null;
+        };
+        /**
+         * RecipeIn
+         * @description The derived rules (diet, jain_ok, no_onion_garlic) are calculated, never sent.
+         */
+        RecipeIn: {
+            /** Cook Minutes */
+            cook_minutes: number;
+            /**
+             * Cuisine
+             * @enum {string}
+             */
+            cuisine: "maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common";
+            /** Diabetic Ok */
+            diabetic_ok: boolean;
+            /** Fasting Ok */
+            fasting_ok: boolean;
+            /** Ingredients */
+            ingredients: components["schemas"]["IngredientIn"][];
+            /**
+             * Is Side
+             * @default false
+             */
+            is_side: boolean;
+            names: components["schemas"]["NamesIn"];
+            /** Servings */
+            servings: number;
+            /**
+             * Sides
+             * @default []
+             */
+            sides: string[];
+            /** Slots */
+            slots: ("breakfast" | "lunch" | "dinner")[];
+            /** Slug */
+            slug: string;
+            /** Steps */
+            steps?: components["schemas"]["RecipeStep"][] | null;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
         };
         /** RecipeOut */
         RecipeOut: {
@@ -2269,6 +8585,43 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /**
+         * RecipePatch
+         * @description Only the fields sent change; ingredients and steps are replaced whole. A catalog editor
+         *     may send only names, fasting_ok and diabetic_ok.
+         */
+        RecipePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Cook Minutes */
+            cook_minutes?: number | null;
+            /** Cuisine */
+            cuisine?: ("maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common") | null;
+            /** Diabetic Ok */
+            diabetic_ok?: boolean | null;
+            /** Fasting Ok */
+            fasting_ok?: boolean | null;
+            /** Ingredients */
+            ingredients?: components["schemas"]["IngredientIn"][] | null;
+            /** Is Side */
+            is_side?: boolean | null;
+            names?: components["schemas"]["NamesIn"] | null;
+            /** Servings */
+            servings?: number | null;
+            /** Sides */
+            sides?: string[] | null;
+            /** Slots */
+            slots?: ("breakfast" | "lunch" | "dinner")[] | null;
+            /**
+             * Slug
+             * @description Refused: catalog.field_immutable
+             */
+            slug?: string | null;
+            /** Steps */
+            steps?: components["schemas"]["RecipeStep"][] | null;
+            /** Tags */
+            tags?: string[] | null;
+        };
         /** RecipeRules */
         RecipeRules: {
             /**
@@ -2291,6 +8644,15 @@ export interface components {
              * @description Derived: no onion or garlic ingredient
              */
             no_onion_garlic: boolean;
+        };
+        /** RecipeStep */
+        RecipeStep: {
+            /**
+             * N
+             * @description 1, 2, 3 … in order
+             */
+            n: number;
+            text: components["schemas"]["StepTextIn"];
         };
         /** RecipeSummary */
         RecipeSummary: {
@@ -2337,6 +8699,248 @@ export interface components {
             /** Tags */
             tags: string[];
         };
+        /** ReconItem */
+        ReconItem: {
+            /**
+             * Actual Paise
+             * @description What Razorpay says
+             */
+            actual_paise: number | null;
+            /**
+             * Expected Paise
+             * @description What our records say
+             */
+            expected_paise: number | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "captured_not_credited" | "credited_not_captured" | "amount_mismatch" | "unknown_payment" | "refund_status_mismatch" | "refund_unknown" | "refund_stuck";
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /**
+             * Razorpay Ref
+             * @example pay_EKwxwAgItmmXdp
+             */
+            razorpay_ref: string;
+            /** Refund Part Id */
+            refund_part_id: string | null;
+            resolution: components["schemas"]["ReconResolution"] | null;
+            /**
+             * Status
+             * @description healed: the job repaired a lost webhook itself
+             * @enum {string}
+             */
+            status: "open" | "healed" | "resolved";
+            /** Topup Id */
+            topup_id: string | null;
+            /** User Id */
+            user_id: string | null;
+        };
+        /** ReconPage */
+        ReconPage: {
+            /** Items */
+            items: components["schemas"]["ReconItem"][];
+            last_run: components["schemas"]["ReconRun"] | null;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** ReconResolution */
+        ReconResolution: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * By
+             * Format: uuid
+             * @description The admin who resolved it
+             */
+            by: string;
+            /** Note */
+            note: string;
+        };
+        /** ReconRun */
+        ReconRun: {
+            /** Checked */
+            checked: number;
+            /** Healed */
+            healed: number;
+            /** Opened */
+            opened: number;
+            /**
+             * Scheduled For
+             * Format: date-time
+             */
+            scheduled_for: string;
+            /**
+             * Status
+             * @description skipped: no Razorpay keys; failed: Razorpay was unavailable, nothing changed
+             * @enum {string}
+             */
+            status: "ok" | "skipped" | "failed";
+        };
+        /** Ref */
+        Ref: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** ReferralClaimIn */
+        ReferralClaimIn: {
+            /**
+             * Code
+             * @example K7Q2XD
+             */
+            code: string;
+        };
+        /** ReferralClaimOut */
+        ReferralClaimOut: {
+            /**
+             * Converts On
+             * @constant
+             */
+            converts_on: "first_delivered_box";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Referee Points
+             * @example 250
+             */
+            referee_points: number;
+            /**
+             * Status
+             * @constant
+             */
+            status: "joined";
+        };
+        /**
+         * ReferralItem
+         * @description A neighbour who joined with the caller's code: never a name, flat, tower or phone.
+         */
+        ReferralItem: {
+            /** Converted On */
+            converted_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Joined On
+             * Format: date
+             */
+            joined_on: string;
+            /**
+             * Points
+             * @description Set once converted; 0 over the monthly cap
+             */
+            points: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "joined" | "converted" | "void";
+        };
+        /** ReferralRewards */
+        ReferralRewards: {
+            /**
+             * Monthly Cap
+             * @description Rewarded conversions per IST month
+             * @example 10
+             */
+            monthly_cap: number;
+            /**
+             * Referee Points
+             * @example 250
+             */
+            referee_points: number;
+            /**
+             * Referrer Points
+             * @example 250
+             */
+            referrer_points: number;
+        };
+        /** ReferralSummary */
+        ReferralSummary: {
+            /**
+             * Converted
+             * @example 2
+             */
+            converted: number;
+            /**
+             * Joined
+             * @example 3
+             */
+            joined: number;
+            /**
+             * Points Earned
+             * @example 500
+             */
+            points_earned: number;
+        };
+        /** ReferralsOut */
+        ReferralsOut: {
+            /**
+             * Code
+             * @example K7Q2XD
+             */
+            code: string;
+            /**
+             * Items
+             * @description Newest first, at most 50
+             */
+            items: components["schemas"]["ReferralItem"][];
+            /**
+             * Link
+             * @description null while the caller has no household
+             * @example https://gharbasket.in/s/sunrise-towers-kharghar?ref=K7Q2XD
+             */
+            link: string | null;
+            referred_by: components["schemas"]["ReferredBy"] | null;
+            rewards: components["schemas"]["ReferralRewards"];
+            /**
+             * Share Text
+             * @description In the request language; carries the link
+             */
+            share_text: string;
+            summary: components["schemas"]["ReferralSummary"];
+        };
+        /** ReferredBy */
+        ReferredBy: {
+            /**
+             * Points
+             * @description Set once converted
+             * @example 250
+             */
+            points: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "joined" | "converted" | "void";
+        };
         /**
          * RefreshIn
          * @description Apps send the refresh token; browsers send `{}` and the `gb_rt` cookie carries it.
@@ -2344,6 +8948,109 @@ export interface components {
         RefreshIn: {
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /** RefundIn */
+        RefundIn: {
+            /**
+             * Amount Paise
+             * @description At least ₹1 (100); null sends back everything refundable
+             * @example 41000
+             */
+            amount_paise?: number | null;
+        };
+        /** RefundOut */
+        RefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Parts
+             * @description One per top-up taking money back, newest first
+             */
+            parts: components["schemas"]["RefundPartOut"][];
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "customer" | "account_deleted";
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "processing" | "processed" | "partly_failed" | "failed";
+        };
+        /** RefundPartOut */
+        RefundPartOut: {
+            /**
+             * Amount Paise
+             * @example 20000
+             */
+            amount_paise: number;
+            /**
+             * Razorpay Payment Id
+             * @example pay_EKwxwAgItmmXdp
+             */
+            razorpay_payment_id: string;
+            /**
+             * Razorpay Refund Id
+             * @example rfnd_FP8DDKxqJif6ca
+             */
+            razorpay_refund_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "sent" | "processed" | "failed";
+            /**
+             * Topup Id
+             * Format: uuid
+             */
+            topup_id: string;
+        };
+        /** RefundRef */
+        RefundRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "refund";
+        };
+        /** ReinstateIn */
+        ReinstateIn: {
+            /**
+             * Note
+             * @description Staff-only
+             */
+            note?: string | null;
+        };
+        /** RejectIn */
+        RejectIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "unusable" | "not_accepted" | "unsafe" | "other";
         };
         /** ReplacedOut */
         ReplacedOut: {
@@ -2359,6 +9066,45 @@ export interface components {
             /** Unit Price Paise */
             unit_price_paise: number;
         };
+        /** Requirements */
+        Requirements: {
+            /**
+             * Documents
+             * @description The kind's required types only
+             */
+            documents: components["schemas"]["DocumentRequirement"][];
+            /** Trainings */
+            trainings: components["schemas"]["TrainingRequirement"][];
+        };
+        /** Review */
+        Review: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            by: components["schemas"]["gharbasket__modules__catalog__schemas__UserRef"] | null;
+        };
+        /** Reviews */
+        Reviews: {
+            diabetic_ok: components["schemas"]["Review"] | null;
+            /** @description Who last set the flag, and when */
+            fasting_ok: components["schemas"]["Review"] | null;
+        };
+        /** RiderRef */
+        RiderRef: {
+            /**
+             * Name
+             * @description Shown to hub staff only
+             * @example Arjun Pawar
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /**
          * RoleGrantIn
          * @description Grant a role to an existing user (they must have signed in once).
@@ -2373,7 +9119,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin";
+            role: "captain" | "kitchen_partner" | "rider" | "packer" | "hub_manager" | "franchise_owner" | "ngo_coordinator" | "admin" | "catalog_editor";
             /** Scope Id */
             scope_id?: string | null;
         };
@@ -2410,6 +9156,242 @@ export interface components {
              */
             status: "applied" | "kyc_pending" | "verified" | "suspended";
         };
+        /** RoutePlanOut */
+        RoutePlanOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["gharbasket__modules__logistics__schemas__UserRef"] | null;
+            /** Routes */
+            routes: components["schemas"]["RouteSummary"][];
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlanSummary */
+        RoutePlanSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Distance Source
+             * @description How the distances were priced
+             */
+            distance_source: ("osrm" | "haversine") | null;
+            /**
+             * Error
+             * @description Why a plan failed
+             */
+            error: string | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Model
+             * @example cvrptw-waves-v0
+             */
+            model: string | null;
+            /** Published At */
+            published_at: string | null;
+            requested_by: components["schemas"]["gharbasket__modules__logistics__schemas__UserRef"] | null;
+            /**
+             * Seconds
+             * @example 7.9
+             */
+            seconds: number | null;
+            /**
+             * Source
+             * @description Null until solved. ml: M10's solver; ml_fallback: M10 answered with its own nearest neighbour; fallback_*: M7 planned it because M10 did not answer
+             */
+            source: ("ml" | "ml_fallback" | "fallback_previous" | "fallback_nearest") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "solving" | "solved" | "published" | "failed" | "superseded";
+            summary: components["schemas"]["PlanSummary"] | null;
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "job" | "manual";
+        };
+        /** RoutePlansOut */
+        RoutePlansOut: {
+            /** Items */
+            items: components["schemas"]["RoutePlanSummary"][];
+        };
+        /** RouteSummary */
+        RouteSummary: {
+            /**
+             * Bags
+             * @example 52
+             */
+            bags: number;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Crates
+             * @example 18
+             */
+            crates: number;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Depart
+             * @description IST HH:MM
+             * @example 06:30
+             */
+            depart: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /**
+             * Km
+             * @description Estimate: the straight line x 1.3 along the stops
+             * @example 14.8
+             */
+            km: number;
+            /**
+             * Plan Id
+             * Format: uuid
+             */
+            plan_id: string;
+            /**
+             * Return By
+             * @description IST HH:MM
+             * @example 11:30
+             */
+            return_by: string;
+            /** @description Null until a rider is set */
+            rider: components["schemas"]["RiderRef"] | null;
+            /** Started At */
+            started_at: string | null;
+            /**
+             * Status
+             * @description draft while its plan is not published
+             * @enum {string}
+             */
+            status: "draft" | "published" | "in_progress" | "completed" | "cancelled";
+            /**
+             * Stops Done
+             * @example 0
+             */
+            stops_done: number;
+            /**
+             * Stops Total
+             * @example 6
+             */
+            stops_total: number;
+            /**
+             * Trip
+             * @description A vehicle's second trip of the day is 2
+             * @example 1
+             */
+            trip: number;
+            vehicle: components["schemas"]["VehicleRef"];
+            /** Version */
+            version: number;
+        };
+        /** SavedTemplatesOut */
+        SavedTemplatesOut: {
+            /**
+             * Items
+             * @description The new active version in each locale
+             */
+            items: components["schemas"]["TemplateOut"][];
+        };
         /** SearchItem */
         SearchItem: {
             /**
@@ -2435,6 +9417,47 @@ export interface components {
         SearchResults: {
             /** Items */
             items: components["schemas"]["SearchItem"][];
+        };
+        /** SessionOut */
+        SessionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Locale */
+            locale: string;
+            /** Messages */
+            messages: components["schemas"]["MessageOut"][];
+            /** Model */
+            model: string | null;
+            /** Proposals */
+            proposals: components["schemas"]["ProposalOut"][];
+        };
+        /** ShortageIn */
+        ShortageIn: {
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Short Qty
+             * @example 1
+             */
+            short_qty: number;
+            /** Substitute Product Id */
+            substitute_product_id?: string | null;
         };
         /** SlotIn */
         SlotIn: {
@@ -2465,6 +9488,11 @@ export interface components {
              * @example Morning 7-9
              */
             label: string;
+            /**
+             * Meal
+             * @description Required for a tiffin slot, absent for a box slot (§3.5)
+             */
+            meal?: ("lunch" | "dinner") | null;
             /**
              * Start
              * Format: time
@@ -2505,6 +9533,11 @@ export interface components {
             kind: "box" | "tiffin";
             /** Label */
             label: string;
+            /**
+             * Meal
+             * @description Tiffin slots only (§3.5)
+             */
+            meal: ("lunch" | "dinner") | null;
             /**
              * Start
              * Format: time
@@ -2570,6 +9603,22 @@ export interface components {
             /** Items */
             items: components["schemas"]["SlotOut"][];
         };
+        /** SocietyLoad */
+        SocietyLoad: {
+            /** Bags */
+            bags: number;
+            /** Crates */
+            crates: number;
+            /** Name */
+            name: string;
+            /** Packed Bags */
+            packed_bags: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
         /** SocietyOut */
         SocietyOut: {
             /**
@@ -2612,6 +9661,16 @@ export interface components {
             status: "prospect" | "unlocking" | "live" | "paused";
             /** Towers */
             towers: components["schemas"]["Tower"][];
+        };
+        /** SocietyRef */
+        SocietyRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * SocietyRequestIn
@@ -2688,6 +9747,261 @@ export interface components {
              */
             status: "prospect" | "unlocking" | "live" | "paused";
         };
+        /** SocietyUnlockAdminOut */
+        SocietyUnlockAdminOut: {
+            /**
+             * Box Fee Paise
+             * @description The delivery fee on each box until live; 0 once `live_at` is set
+             * @example 3000
+             */
+            box_fee_paise: number;
+            /**
+             * Joined
+             * @example 14
+             */
+            joined: number;
+            /**
+             * Live At
+             * @description Set once, when it first went live
+             */
+            live_at: string | null;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold
+             * @example 20
+             */
+            threshold: number;
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
+            /** Unlock Threshold Pinned */
+            unlock_threshold_pinned: boolean;
+        };
+        /**
+         * SocietyUnlockIn
+         * @description The hub's unlock settings (§3.6); every field optional.
+         */
+        SocietyUnlockIn: {
+            /**
+             * Status
+             * @description A hub decision, audit-logged
+             */
+            status?: ("unlocking" | "paused" | "live") | null;
+            /**
+             * Unlock Threshold
+             * @example 25
+             */
+            unlock_threshold?: number | null;
+            /**
+             * Unlock Threshold Pinned
+             * @description Pinned: the weekly recompute leaves the threshold alone
+             */
+            unlock_threshold_pinned?: boolean | null;
+        };
+        /** SolveIn */
+        SolveIn: {
+            /**
+             * Date
+             * Format: date
+             * @description Today or tomorrow (IST)
+             * @example 2026-12-29
+             */
+            date: string;
+            /**
+             * Kind
+             * @description tiffin plans come with M8 (§3.7)
+             * @default box
+             * @constant
+             */
+            kind: "box";
+        };
+        /**
+         * StaffDonationOut
+         * @description The verification queue's row: tower and flat match the bag's label at the hub.
+         */
+        StaffDonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Flat
+             * @example A-1203
+             */
+            flat: string | null;
+            /**
+             * Household Id
+             * Format: uuid
+             */
+            household_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photo Urls
+             * @description 5-minute links; minting them is audit-logged
+             */
+            photo_urls: components["schemas"]["PhotoUrl"][];
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            picked_up_by: components["schemas"]["PickedUpBy"] | null;
+            /** Picked Up On */
+            picked_up_on: string | null;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            society: components["schemas"]["StaffSociety"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+            /**
+             * Tower
+             * @example A wing
+             */
+            tower: string | null;
+        };
+        /** StaffSociety */
+        StaffSociety: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** StartIn */
+        StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+        };
+        /** StatementEntry */
+        StatementEntry: {
+            /**
+             * Amount Paise
+             * @description Into the wallet +, out of it -
+             * @example -69000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Balance After Paise
+             * @description The wallet's balance after this entry, in posting order
+             * @example 181000
+             */
+            balance_after_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "topup" | "topup_bonus" | "box_debit" | "refund" | "adjustment" | "refund_to_source" | "refund_to_source_failed" | "unclaimed";
+            /** Ref */
+            ref: (components["schemas"]["TopUpRef"] | components["schemas"]["OrderRef"] | components["schemas"]["RefundRef"]) | null;
+        };
+        /** StatementOut */
+        StatementOut: {
+            /**
+             * Closing Paise
+             * @description opening + credits + debits; for the current month, now
+             * @example 181000
+             */
+            closing_paise: number;
+            /**
+             * Credits Paise
+             * @description Σ positive entries in the month
+             * @example 200000
+             */
+            credits_paise: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Debits Paise
+             * @description Σ negative entries (signed, as on entries)
+             * @example -69000
+             */
+            debits_paise: number;
+            /**
+             * Entries
+             * @description Every entry of the month, newest first
+             */
+            entries: components["schemas"]["StatementEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Opening Paise
+             * @description The balance at 00:00 IST on the 1st
+             * @example 50000
+             */
+            opening_paise: number;
+            /**
+             * Period
+             * @example 2026-10
+             */
+            period: string;
+        };
         /**
          * Step
          * @description The unit a person adds or removes in the app; prices are per step.
@@ -2709,6 +10023,60 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** StepIn */
+        StepIn: {
+            /**
+             * Qty
+             * @example 250
+             */
+            qty: number;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** StepTextIn */
+        StepTextIn: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi?: string | null;
+            /** Mr */
+            mr?: string | null;
+        };
+        /** StockMoveOut */
+        StockMoveOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** @description null: a job */
+            by: components["schemas"]["gharbasket__modules__hub_ops__schemas__UserRef"] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "receive" | "return" | "pack" | "waste" | "offer" | "count";
+            /**
+             * Qty
+             * @description Signed, in the lot's unit
+             * @example -3
+             */
+            qty: number;
+            /**
+             * Reason
+             * @description A count's reason
+             */
+            reason: string | null;
+            /**
+             * Ref Id
+             * Format: uuid
+             * @description The receipt line, task, waste log, offer or count
+             */
+            ref_id: string;
         };
         /** SubscriptionIn */
         SubscriptionIn: {
@@ -2816,23 +10184,294 @@ export interface components {
             /** Items */
             items: components["schemas"]["SubstituteOut"][];
         };
-        /** TimelineEntry */
-        TimelineEntry: {
+        /** SuspendIn */
+        SuspendIn: {
             /**
-             * Actor
+             * Note
+             * @description Staff-only
+             */
+            note: string;
+            /**
+             * Reason Code
              * @enum {string}
              */
-            actor: "customer" | "system" | "hub";
+            reason_code: "rating" | "hygiene" | "compliance" | "conduct" | "other";
+        };
+        /** SuspensionOut */
+        SuspensionOut: {
             /**
              * At
              * Format: date-time
              */
             at: string;
             /**
+             * Note
+             * @description Staff-only: null in the partner's own view
+             */
+            note: string | null;
+            /**
+             * Reason Code
+             * @enum {string}
+             */
+            reason_code: "rating" | "hygiene" | "compliance" | "conduct" | "other" | "left";
+        };
+        /** SynonymIn */
+        SynonymIn: {
+            /**
+             * Lang
+             * @enum {string}
+             */
+            lang: "en" | "hi" | "mr" | "hinglish";
+            /**
+             * Term
+             * @example lady finger
+             */
+            term: string;
+        };
+        /** TemplateIn */
+        TemplateIn: {
+            /**
+             * Channel
+             * @example app
+             */
+            channel: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Texts
+             * @description en-IN, hi-IN and mr-IN, once each
+             */
+            texts: components["schemas"]["TemplateText"][];
+            /** Wa Template Name */
+            wa_template_name?: string | null;
+        };
+        /** TemplateOut */
+        TemplateOut: {
+            /** Active */
+            active: boolean;
+            /** Body */
+            body: string;
+            /**
+             * Channel
+             * @description app (inbox and push) or whatsapp
+             */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @example orders.locked
+             */
+            kind: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+            /**
+             * Wa Template Name
+             * @description Meta's approved template (whatsapp)
+             */
+            wa_template_name: string | null;
+        };
+        /** TemplateText */
+        TemplateText: {
+            /**
+             * Body
+             * @example {total} was paid from your wallet.
+             */
+            body: string;
+            /**
+             * Locale
+             * @example en-IN
+             */
+            locale: string;
+            /**
+             * Title
+             * @description Empty for whatsapp
+             */
+            title: string;
+        };
+        /** TemplatesOut */
+        TemplatesOut: {
+            /** Items */
+            items: components["schemas"]["TemplateOut"][];
+            /** Kinds */
+            kinds: components["schemas"]["KindOut"][];
+        };
+        /** Texts */
+        Texts: {
+            /** En */
+            en: string;
+            /** Hi */
+            hi: string;
+            /** Mr */
+            mr: string;
+        };
+        /** TiffinMenuOut */
+        TiffinMenuOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dishes */
+            dishes: components["schemas"]["DishOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description The menu's cook: a preference (M8 §3.4) */
+            kitchen: components["schemas"]["MenuKitchenOut"];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Order By
+             * Format: date-time
+             * @description The cut-off of that date (T-1 21:00 IST)
+             */
+            order_by: string;
+            /**
+             * Price Paise
+             * @description Per portion
+             * @example 11000
+             */
+            price_paise: number;
+        };
+        /** TiffinMenusOut */
+        TiffinMenusOut: {
+            /** Items */
+            items: components["schemas"]["TiffinMenuOut"][];
+        };
+        /** TiffinOrderIn */
+        TiffinOrderIn: {
+            /**
+             * Kind
+             * @description tiffin (else 422 orders.kind_unavailable)
+             * @example tiffin
+             */
+            kind: string;
+            /**
+             * Menu Id
+             * @description From GET /v1/tiffin-menus
+             */
+            menu_id?: string | null;
+            /**
+             * Portions
+             * @description 1 to 12 (else 422 orders.qty_invalid); default the household size
+             */
+            portions?: number | null;
+        };
+        /** TiffinOut */
+        TiffinOut: {
+            /** Dishes */
+            dishes: components["schemas"]["DishOut"][];
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Menu Id
+             * Format: uuid
+             */
+            menu_id: string;
+        };
+        /**
+         * TimelineEvent
+         * @description A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.
+         */
+        TimelineEvent: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Id
+             * Format: uuid
+             * @description The order_events row; also the SSE event id
+             */
+            id: string;
+            /**
              * Status
              * @enum {string}
              */
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /**
+         * Timings
+         * @description The hub's day as IST `HH:MM`, in this order; display and job planning only.
+         */
+        Timings: {
+            /**
+             * Dispatch
+             * @example 06:30
+             */
+            dispatch: string;
+            /**
+             * Packing
+             * @example 05:00
+             */
+            packing: string;
+            /**
+             * Receiving
+             * @example 04:00
+             */
+            receiving: string;
+            /**
+             * Surplus
+             * @example 12:30
+             */
+            surplus: string;
+        };
+        /**
+         * TimingsPatch
+         * @description Any of the four; the others keep their current (or default) value.
+         */
+        TimingsPatch: {
+            /** Dispatch */
+            dispatch?: string | null;
+            /** Packing */
+            packing?: string | null;
+            /** Receiving */
+            receiving?: string | null;
+            /** Surplus */
+            surplus?: string | null;
         };
         /**
          * TokensOut
@@ -2921,16 +10560,179 @@ export interface components {
              */
             label: string;
         };
+        /** TrainingAnswer */
+        TrainingAnswer: {
+            /**
+             * Option
+             * @description The option's index, from 0
+             */
+            option: number;
+            /**
+             * Question Id
+             * @example q1
+             */
+            question_id: string;
+        };
+        /** TrainingCompleteIn */
+        TrainingCompleteIn: {
+            /**
+             * Answers
+             * @description One per question
+             */
+            answers: components["schemas"]["TrainingAnswer"][];
+            /**
+             * Version
+             * @description The module version answered
+             */
+            version: number;
+        };
+        /** TrainingModuleOut */
+        TrainingModuleOut: {
+            /** Best Score */
+            best_score: number | null;
+            /**
+             * Code
+             * @example hygiene
+             */
+            code: string;
+            /** For Kinds */
+            for_kinds: ("kitchen" | "captain" | "rider" | "packer")[];
+            /** Minutes */
+            minutes: number;
+            /**
+             * Pass Score
+             * @example 0.8
+             */
+            pass_score: number;
+            /** Passed At */
+            passed_at: string | null;
+            /**
+             * Questions
+             * @description The right answers are never sent
+             */
+            questions: components["schemas"]["TrainingQuestion"][];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "todo" | "passed" | "failed";
+            /** Summary */
+            summary: string;
+            /**
+             * Title
+             * @example Kitchen hygiene
+             */
+            title: string;
+            /** Version */
+            version: number;
+            /**
+             * Video Url
+             * @description An unlisted video; null for a read-only module
+             */
+            video_url: string | null;
+        };
+        /** TrainingModulesOut */
+        TrainingModulesOut: {
+            /** Items */
+            items: components["schemas"]["TrainingModuleOut"][];
+        };
+        /** TrainingQuestion */
+        TrainingQuestion: {
+            /**
+             * Id
+             * @example q1
+             */
+            id: string;
+            /**
+             * Options
+             * @description Answer with the option's index, from 0
+             */
+            options: string[];
+            /** Text */
+            text: string;
+        };
+        /** TrainingRequirement */
+        TrainingRequirement: {
+            /**
+             * Code
+             * @example hygiene
+             */
+            code: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "todo" | "passed" | "failed";
+        };
+        /** TrainingResultOut */
+        TrainingResultOut: {
+            /** @description Your open application, if any */
+            application: components["schemas"]["ApplicationStepOut"] | null;
+            /** Code */
+            code: string;
+            /** Correct */
+            correct: number;
+            /**
+             * Passed
+             * @description This attempt
+             */
+            passed: boolean;
+            /**
+             * Score
+             * @example 0.9
+             */
+            score: number;
+            /**
+             * Status
+             * @description The module: a pass is kept for good
+             * @enum {string}
+             */
+            status: "passed" | "failed";
+            /** Total */
+            total: number;
+        };
+        /** TurnOut */
+        TurnOut: {
+            /** Proposals */
+            proposals: components["schemas"]["ProposalOut"][];
+            reply: components["schemas"]["MessageOut"];
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Source
+             * @description fallback: the assistant was unreachable and a fixed reply was given
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /** Tokens Cap */
+            tokens_cap: number;
+            /** Tokens Today */
+            tokens_today: number;
+        };
         /**
          * UnlockOut
          * @description How close a society is to free delivery (US-2).
          */
         UnlockOut: {
             /**
+             * Box Fee Paise
+             * @description The delivery fee on each box until live; 0 once `live_at` is set
+             * @example 3000
+             */
+            box_fee_paise: number;
+            /**
              * Joined
              * @example 14
              */
             joined: number;
+            /**
+             * Live At
+             * @description Set once, when it first went live
+             */
+            live_at: string | null;
             /**
              * Society Id
              * Format: uuid
@@ -2946,6 +10748,11 @@ export interface components {
              * @example 20
              */
             threshold: number;
+            /**
+             * Threshold Source
+             * @enum {string}
+             */
+            threshold_source: "model" | "hub" | "default";
         };
         /** UserOut */
         UserOut: {
@@ -2966,6 +10773,284 @@ export interface components {
             /** Senior Mode */
             senior_mode: boolean;
         };
+        /**
+         * VehicleIn
+         * @description Capacities left out take the kind's defaults: cargo_3w 400 kg, 24 crates, 0 tiffins;
+         *     two_wheeler 40 kg, 0 crates, 30 tiffins.
+         */
+        VehicleIn: {
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates?: number | null;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg?: number | null;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins?: number | null;
+            /**
+             * Default Rider User Id
+             * @description A rider of this hub (an active rider:<hub> role)
+             */
+            default_rider_user_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration?: string | null;
+        };
+        /** VehicleOut */
+        VehicleOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Capacity Crates
+             * @example 24
+             */
+            capacity_crates: number;
+            /**
+             * Capacity Kg
+             * @example 400
+             */
+            capacity_kg: number;
+            /**
+             * Capacity Tiffins
+             * @example 0
+             */
+            capacity_tiffins: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** @description Set as the rider of new routes */
+            default_rider: components["schemas"]["RiderRef"] | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description cargo_3w carries boxes and add-ons; two_wheeler tiffins
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @description Unique per hub, ignoring case
+             * @example EV-1
+             */
+            label: string;
+            /**
+             * Registration
+             * @example MH46AB1234
+             */
+            registration: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * VehiclePatch
+         * @description Only the fields sent change; `registration` and `default_rider_user_id` may be null.
+         *     A change applies to the next solve, never to a route already published.
+         */
+        VehiclePatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Capacity Crates */
+            capacity_crates?: number | null;
+            /** Capacity Kg */
+            capacity_kg?: number | null;
+            /** Capacity Tiffins */
+            capacity_tiffins?: number | null;
+            /** Default Rider User Id */
+            default_rider_user_id?: string | null;
+            /** Kind */
+            kind?: ("cargo_3w" | "two_wheeler") | null;
+            /** Label */
+            label?: string | null;
+            /** Registration */
+            registration?: string | null;
+        };
+        /** VehicleRef */
+        VehicleRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cargo_3w" | "two_wheeler";
+            /**
+             * Label
+             * @example EV-1
+             */
+            label: string;
+        };
+        /** VehiclesOut */
+        VehiclesOut: {
+            /** Items */
+            items: components["schemas"]["VehicleOut"][];
+        };
+        /** VendorIn */
+        VendorIn: {
+            /**
+             * Is Default
+             * @description true clears it on the hub's other vendor
+             * @default false
+             */
+            is_default: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "apmc_trader" | "fpo" | "farmer" | "wholesaler";
+            /**
+             * Name
+             * @example Shinde Traders
+             */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Phone
+             * @example +919800002001
+             */
+            phone?: string | null;
+            /**
+             * Whatsapp
+             * @default true
+             */
+            whatsapp: boolean;
+        };
+        /** VendorOut */
+        VendorOut: {
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Default
+             * @description Suggested for products with no purchase history
+             */
+            is_default: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "apmc_trader" | "fpo" | "farmer" | "wholesaler";
+            /**
+             * Name
+             * @example Shinde Traders
+             */
+            name: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Phone
+             * @description E.164
+             * @example +919800002001
+             */
+            phone: string | null;
+            /**
+             * Score
+             * @description Last weekly score; null until scored
+             */
+            score: number | null;
+            /** Version */
+            version: number;
+            /**
+             * Whatsapp
+             * @description Purchase orders can be shared on WhatsApp
+             */
+            whatsapp: boolean;
+        };
+        /**
+         * VendorPatch
+         * @description Only the fields sent change; `phone` and `notes` may be null. Deactivating clears
+         *     `is_default`.
+         */
+        VendorPatch: {
+            /** Active */
+            active?: boolean | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Kind */
+            kind?: ("apmc_trader" | "fpo" | "farmer" | "wholesaler") | null;
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Whatsapp */
+            whatsapp?: boolean | null;
+        };
+        /** VendorsOut */
+        VendorsOut: {
+            /** Items */
+            items: components["schemas"]["VendorOut"][];
+        };
+        /** VerifyIn */
+        VerifyIn: {
+            /**
+             * Counted
+             * @description What the hub found, in each rate's unit; codes not declared may be added
+             * @example {
+             *       "clothes": 2.5,
+             *       "toys": 0
+             *     }
+             */
+            counted: {
+                [key: string]: number | string;
+            };
+            /**
+             * Has Unsuitable
+             * @description Some items were set aside
+             * @default false
+             */
+            has_unsuitable: boolean;
+            /** Note */
+            note?: string | null;
+        };
         /** WalletOut */
         WalletOut: {
             /**
@@ -2984,11 +11069,30 @@ export interface components {
              */
             entries: components["schemas"]["Entry"][];
             /**
+             * Refundable Paise
+             * @description What POST /v1/wallet/refund-to-source can send back now
+             * @example 41000
+             */
+            refundable_paise: number;
+            /**
              * Topup Room Paise
              * @description What can still be added now: the cap minus the balance and unpaid top-ups, limited by this month's allowance
              * @example 869000
              */
             topup_room_paise: number;
+        };
+        /** WalletRefundOut */
+        WalletRefundOut: {
+            /**
+             * Amount Paise
+             * @example 41000
+             */
+            amount_paise: number;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -2997,6 +11101,285 @@ export interface components {
              * @description What the event did (for Razorpay's dashboard and logs)
              */
             outcome: string;
+        };
+        /** WhatsAppAck */
+        WhatsAppAck: {
+            /**
+             * Outcomes
+             * @description Per status update: applied, duplicate, unchanged or unknown_delivery
+             */
+            outcomes: string[];
+        };
+        /** DonationIn */
+        gharbasket__modules__billing__schemas__DonationIn: {
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+        };
+        /** DonationOut */
+        gharbasket__modules__billing__schemas__DonationOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Code
+             * @constant
+             */
+            code: "child_meal";
+            /**
+             * Id
+             * Format: uuid
+             * @description The journal entry
+             */
+            id: string;
+            /**
+             * Meals
+             * @example 1
+             */
+            meals: number;
+            /**
+             * Points
+             * @example 500
+             */
+            points: number;
+        };
+        /** ResolveIn */
+        gharbasket__modules__billing__schemas__ResolveIn: {
+            /**
+             * Note
+             * @description The decision; a money correction is a separate, manual adjustment entry
+             */
+            note: string;
+        };
+        /** UserRef */
+        gharbasket__modules__catalog__schemas__UserRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string | null;
+        };
+        /** DonationIn */
+        gharbasket__modules__community__kindness_schemas__DonationIn: {
+            /** Drive Id */
+            drive_id?: string | null;
+            /**
+             * Items
+             * @description 1 to 5 lines, distinct codes
+             */
+            items: components["schemas"]["DonationLineIn"][];
+            /**
+             * Photo Keys
+             * @description Your own `donation_photo` uploads (POST /v1/files/presign)
+             */
+            photo_keys?: string[];
+            /**
+             * Pickup On
+             * Format: date
+             * @description One of `pickup_dates`
+             */
+            pickup_on: string;
+        };
+        /** DonationOut */
+        gharbasket__modules__community__kindness_schemas__DonationOut: {
+            /** Cancel Reason */
+            cancel_reason: ("customer" | "not_ready") | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            drive: components["schemas"]["DriveRef"] | null;
+            /**
+             * Estimated Points
+             * @description From the declared items, before counting
+             */
+            estimated_points: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["DonationLine"][];
+            /** @description Once handed over (§3.5) */
+            ngo: components["schemas"]["DonationNgo"] | null;
+            /**
+             * Photos
+             * @description How many; customers never get links back
+             */
+            photos: number;
+            /**
+             * Pickup On
+             * Format: date
+             */
+            pickup_on: string;
+            /** Points Awarded */
+            points_awarded: number | null;
+            /** Reject Reason */
+            reject_reason: ("unusable" | "not_accepted" | "unsafe" | "other") | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+            /** Timeline */
+            timeline: components["schemas"]["gharbasket__modules__community__kindness_schemas__TimelineEntry"][];
+        };
+        /** TimelineEntry */
+        gharbasket__modules__community__kindness_schemas__TimelineEntry: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled";
+        };
+        /**
+         * CaptainOut
+         * @description An appointment as hub staff see it (§3.2): never the captain's flat or phone.
+         */
+        gharbasket__modules__community__schemas__CaptainOut: {
+            /**
+             * Appointed By
+             * @description auto: on partners.verified
+             * @enum {string}
+             */
+            appointed_by: "auto" | "hub";
+            /**
+             * Display Name
+             * @description From M8
+             * @example Meena tai
+             */
+            display_name: string | null;
+            /** End Reason */
+            end_reason: ("stepped_down" | "replaced" | "hub_decision" | "suspended") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Photo Url
+             * @description null for now (M8 §11)
+             */
+            photo_url: string | null;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "ended";
+            /** Until */
+            until: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** UserRef */
+        gharbasket__modules__hub_ops__schemas__UserRef: {
+            /** Name */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** UserRef */
+        gharbasket__modules__logistics__schemas__UserRef: {
+            /**
+             * Name
+             * @example Vikram Desai
+             */
+            name: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** ResolveIn */
+        gharbasket__modules__orders__schemas__ResolveIn: {
+            /**
+             * Credit Paise
+             * @description Credit only; at most max_credit_paise
+             * @example 4000
+             */
+            credit_paise?: number | null;
+            /**
+             * Note
+             * @description Required to reject
+             */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "credit" | "reject";
+        };
+        /** TimelineEntry */
+        gharbasket__modules__orders__schemas__TimelineEntry: {
+            /**
+             * Actor
+             * @description Who moved it, as a kind of actor only: never a name or id
+             * @enum {string}
+             */
+            actor: "customer" | "system" | "hub" | "packer" | "rider" | "captain" | "kitchen";
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /**
+         * CaptainOut
+         * @description The society captain's card (M9 §3.2): never a flat or a phone.
+         */
+        gharbasket__modules__subscriptions__schemas__CaptainOut: {
+            /**
+             * Display Name
+             * @example Meena tai
+             */
+            display_name: string;
+            /** Photo Url */
+            photo_url: string | null;
         };
     };
     responses: never;
@@ -3121,6 +11504,2039 @@ export interface operations {
                 };
             };
             /** @description identity.society_unknown, identity.tower_unknown, identity.address_outside_society, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_donations_v1_admin_donations_get: {
+        parameters: {
+            query?: {
+                hub_id?: string | null;
+                /** @description e.g. picked_up */
+                status?: ("scheduled" | "picked_up" | "verified" | "rejected" | "handed_over" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StaffDonationOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_drive_v1_admin_drives_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_code_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_drive_v1_admin_drives__drive_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                drive_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrivePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub, or a platform drive (admin only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.drive_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.drive_dates_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_admin_festivals_v1_admin_festivals_get: {
+        parameters: {
+            query?: {
+                /** @description Default: today (IST) */
+                from?: string | null;
+                /** @description Default: from + 30 days */
+                to?: string | null;
+                /** @description Only this region */
+                region?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestivals"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_festival_v1_admin_festivals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FestivalIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestival"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_festival_v1_admin_festivals__day___code___region__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                day: string;
+                code: string;
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_past */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_festival_v1_admin_festivals__day___code___region__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                day: string;
+                code: string;
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FestivalPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFestival"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.festival_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_hub_v1_admin_hubs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.area_invalid, hub_ops.timings_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_hub_v1_admin_hubs__hub_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.area_invalid, hub_ops.timings_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_templates_v1_admin_notification_templates_get: {
+        parameters: {
+            query?: {
+                kind?: string | null;
+                channel?: string | null;
+                locale?: string | null;
+                history?: boolean;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_templates_v1_admin_notification_templates_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedTemplatesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    preview_templates_v1_admin_notification_templates_preview_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.template_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delivery_log_v1_admin_notifications_get: {
+        parameters: {
+            query: {
+                user_id: string;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_queue_v1_admin_order_issues_get: {
+        parameters: {
+            query?: {
+                /** @description Required for hub staff */
+                hub_id?: string | null;
+                status?: "open" | "credited" | "rejected";
+                kind?: ("missing" | "damaged" | "quality" | "wrong_item" | "late" | "other") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IssueTriage_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required (hub staff), request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    triage_detail_v1_admin_order_issues__issue_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriageDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_issue_v1_admin_order_issues__issue_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                issue_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__orders__schemas__ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueTriage"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_not_open */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_point_rate_v1_admin_point_rates__code__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PointRateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRateOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_admin_products_v1_admin_products_get: {
+        parameters: {
+            query?: {
+                /** @description In the slug or a name */
+                q?: string | null;
+                kind?: ("veg" | "fruit" | "staple" | "kit" | "tiffin" | "salad") | null;
+                /** @description Category slug */
+                category?: string | null;
+                /** @description Leave out for both */
+                active?: boolean | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminProduct_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_product_v1_admin_products_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProduct"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), catalog.kind_not_editable, catalog.tag_unknown (tags), catalog.category_unknown, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_admin_product_v1_admin_products__product_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProduct"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_product_v1_admin_products__product_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSaved"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_in_use (recipes) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.tag_unknown (tags), catalog.category_unknown, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    product_history_v1_admin_products__product_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["History"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.product_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_admin_recipes_v1_admin_recipes_get: {
+        parameters: {
+            query?: {
+                /** @description In the slug or a name */
+                q?: string | null;
+                cuisine?: ("maharashtrian" | "gujarati" | "north_indian" | "south_indian" | "bengali" | "common") | null;
+                slot?: ("breakfast" | "lunch" | "dinner") | null;
+                /** @description Leave out for both */
+                active?: boolean | null;
+                is_side?: boolean | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminRecipe_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_recipe_v1_admin_recipes_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.slug_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_admin_recipe_v1_admin_recipes__recipe_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_recipe_v1_admin_recipes__recipe_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecipePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRecipe"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (fields: what a catalog editor may not change) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_in_use (recipes) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.field_immutable (fields), catalog.names_incomplete (missing), catalog.product_unknown (product_ids), catalog.unit_mismatch (product_ids), catalog.side_invalid (sides), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    recipe_history_v1_admin_recipes__recipe_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                recipe_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["History"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.recipe_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_reconciliation_v1_admin_reconciliation_get: {
+        parameters: {
+            query?: {
+                status?: ("open" | "healed" | "resolved") | null;
+                kind?: ("captured_not_credited" | "credited_not_captured" | "amount_mismatch" | "unknown_payment" | "refund_status_mismatch" | "refund_unknown" | "refund_stuck") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconPage"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resolve_reconciliation_v1_admin_reconciliation__item_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__billing__schemas__ResolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconItem"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.recon_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.recon_not_open (with status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3257,6 +13673,79 @@ export interface operations {
                 };
             };
             /** @description orders.slot_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_society_unlock_v1_admin_societies__society_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SocietyUnlockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietyUnlockAdminOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3413,6 +13902,353 @@ export interface operations {
             };
         };
     };
+    ai_health_v1_analytics_ai_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiHealthOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confirm_proposal_v1_assistant_confirm__proposal_id__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_decided, assistant.proposal_expired, assistant.no_cycle, subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict (the week changed since the card) */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.product_unknown, subscriptions.qty_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    post_message_v1_assistant_messages_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.daily_cap */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_proposal_v1_assistant_proposals__proposal_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.proposal_decided, assistant.proposal_expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_session_v1_assistant_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description assistant.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     exchange_v1_auth_exchange_post: {
         parameters: {
             query?: never;
@@ -3455,6 +14291,15 @@ export interface operations {
             };
             /** @description auth.dev_login_disabled, auth.account_disabled or auth.csrf_rejected */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.deletion_pending (with purge_on): send keep_account to keep it; identity.account_deleted: the account was purged meanwhile */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3605,6 +14450,268 @@ export interface operations {
             };
             /** @description auth.rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_budget_lock_v1_budget_lock_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetLockOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_budget_lock */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_budget_lock_v1_budget_lock_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetLockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetLockOut"];
+                };
+            };
+            /** @description Switched off */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.budget_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    end_captain_v1_captains__captain_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                captain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptainEndIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_already_ended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_categories_v1_categories_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Categories"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3882,6 +14989,1004 @@ export interface operations {
             };
         };
     };
+    approve_cycle_v1_cycles__cycle_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable, orders.slot_full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.qty_invalid: the box is empty */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    give_feedback_v1_cycles__cycle_id__feedback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.feedback_window_closed, subscriptions.product_unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_lines_v1_cycles__cycle_id__lines_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinesPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.product_unknown, subscriptions.substitute_unknown, subscriptions.qty_invalid, subscriptions.budget_exceeded (over_paise) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_meal_v1_cycles__cycle_id__meals_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.meal_unknown, subscriptions.recipe_unknown, subscriptions.recipe_not_allowed (rules), subscriptions.no_alternative, subscriptions.budget_exceeded (over_paise) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    skip_cycle_v1_cycles__cycle_id__skip_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.cutoff_passed, subscriptions.not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unskip_cycle_v1_cycles__cycle_id__unskip_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                cycle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CycleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.no_cycle */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_skipped, subscriptions.cutoff_passed, subscriptions.paused (resume the subscription first) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_donations_v1_donations_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    schedule_donation_v1_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.too_many_open_donations */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.no_items, community.item_code_unknown, community.donation_qty_invalid, community.pickup_date_invalid (dates), community.no_pickup_day, community.drive_not_open, community.photo_key_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable (photos sent while storage is down) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_donation_v1_donations__donation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_cancellable (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reject_donation_v1_donations__donation_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    verify_donation_v1_donations__donation_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                donation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__kindness_schemas__DonationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_found (also outside your hubs) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.donation_not_picked_up, community.donation_already_verified (donation_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.item_code_unknown, community.donation_qty_invalid, community.nothing_counted, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_drives_v1_drives_get: {
+        parameters: {
+            query?: {
+                /** @description Default: running and upcoming */
+                state?: ("upcoming" | "running" | "ended" | "cancelled") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DrivesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_festivals_v1_festivals_get: {
         parameters: {
             query?: {
@@ -3910,6 +16015,136 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    presign_v1_files_presign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresignIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.upload_purpose_invalid, platform.upload_type_not_allowed (with allowed) or platform.upload_too_large (with max_bytes) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.upload_rate_limited (see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_goods_receipt_v1_goods_receipts__receipt_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.receipt_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4450,6 +16685,830 @@ export interface operations {
             };
         };
     };
+    list_hubs_v1_hubs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_hub_v1_hubs__hub_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_goods_receipts_v1_hubs__hub_id__goods_receipts_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_goods_receipt_v1_hubs__hub_id__goods_receipts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoodsReceiptOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found, hub_ops.po_not_found, hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_receivable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.receipt_invalid (reason), hub_ops.product_not_stocked (product_ids), hub_ops.qty_invalid, hub_ops.vendor_inactive, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_inventory_v1_hubs__hub_id__inventory_get: {
+        parameters: {
+            query?: {
+                product_id?: string | null;
+                /** @description Only lots whose best_before is earlier */
+                expiring_before?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    packing_summary_v1_hubs__hub_id__packing_summary_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingSummary"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_packing_tasks_v1_hubs__hub_id__packing_tasks_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                status?: ("queued" | "picking" | "packed") | null;
+                society_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackingTaskOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_packing_tasks_v1_hubs__hub_id__packing_tasks_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuildOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    next_packing_task_v1_hubs__hub_id__packing_tasks_next_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description Nothing queued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    review_queue_v1_hubs__hub_id__partner_applications_get: {
+        parameters: {
+            query?: {
+                status?: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
+                kind?: ("kitchen" | "captain" | "rider" | "packer") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ApplicationReviewOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_for_person_v1_hubs__hub_id__partner_applications_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HubApplicationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.already_applied (with application_id or partner_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kind_invalid, partners.user_not_found, partners.display_name_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_partners_v1_hubs__hub_id__partners_get: {
+        parameters: {
+            query?: {
+                kind?: ("kitchen" | "captain" | "rider" | "packer") | null;
+                status?: ("active" | "paused" | "suspended" | "left") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PartnerStaffOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_price_lists_v1_hubs__hub_id__price_lists_get: {
+        parameters: {
+            query?: {
+                /** @description Default: 30 days ago */
+                from?: string | null;
+                /** @description Default: no limit */
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceLists"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     publish_price_list_v1_hubs__hub_id__price_lists_post: {
         parameters: {
             query?: never;
@@ -4514,6 +17573,1089 @@ export interface operations {
                 };
             };
             /** @description catalog.valid_from_past, catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_price_list_v1_hubs__hub_id__price_lists__list_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    replace_price_list_v1_hubs__hub_id__price_lists__list_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceListItemsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceListDetail"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.version_conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_above_mrp, catalog.product_unknown (with product_ids), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_price_list_v1_hubs__hub_id__price_lists__list_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not this hub's manager */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description catalog.price_list_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_hub_plan_v1_hubs__hub_id__procurement_plans_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found (not built yet) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    build_plan_v1_hubs__hub_id__procurement_plans_build_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanBuildIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_editable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_purchase_orders_v1_hubs__hub_id__purchase_orders_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+                status?: ("draft" | "sent" | "partly_received" | "received" | "cancelled") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrdersOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_plans_v1_hubs__hub_id__route_plans_get: {
+        parameters: {
+            query?: {
+                /** @description IST date; default today */
+                date?: string | null;
+                /** @description Only this kind */
+                kind?: ("box" | "tiffin") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlansOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    solve_plan_v1_hubs__hub_id__route_plans_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SolveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.solve_running, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vehicles_v1_hubs__hub_id__vehicles_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vehicles */
+                active?: boolean | null;
+                /** @description Only this kind */
+                kind?: ("cargo_3w" | "two_wheeler") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehiclesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vehicle_v1_hubs__hub_id__vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_vendors_v1_hubs__hub_id__vendors_get: {
+        parameters: {
+            query?: {
+                /** @description Only active (or inactive) vendors */
+                active?: boolean | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_vendor_v1_hubs__hub_id__vendors_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_feature_snapshots_v1_internal_intel_feature_snapshots_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureSnapshotsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureSnapshotsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_forecasts_v1_internal_intel_forecasts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForecastsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_model_metrics_v1_internal_intel_model_metrics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelMetricsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelMetricsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_pantry_priors_v1_internal_intel_pantry_priors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PantryPriorsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PantryPriorsOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -4675,6 +18817,466 @@ export interface operations {
             };
         };
     };
+    get_kindness_balance_v1_kindness_balance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KindnessBalanceOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    donate_meals_v1_kindness_donations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__billing__schemas__DonationOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.not_enough_points (with points and needed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid: meals is 1 to 10 */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_kindness_entries_v1_kindness_entries_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PointsEntry_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    upload_document_v1_kyc_documents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KycDocumentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KycDocumentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.doc_type_invalid, partners.number_invalid (with field), partners.aadhaar_not_accepted, partners.document_expired, partners.file_key_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    file_links_v1_kyc_documents__document_id__file_links_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileLinksOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.document_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_lot_v1_lots__lot_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                lot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LotDetailOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.lot_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    count_lot_v1_lots__lot_id__count_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                lot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CountIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LotOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.lot_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     me_v1_me_get: {
         parameters: {
             query?: never;
@@ -4695,6 +19297,53 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_me_v1_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletionOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.fresh_otp_required (with max_age_s), or auth.csrf_rejected */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.staff_account (with roles): an admin removes staff roles first */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4746,6 +19395,91 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_export_v1_me_data_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.export_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ask_for_export_v1_me_data_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description identity.export_rate_limited (more than 5 a day; see Retry-After) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4831,6 +19565,55 @@ export interface operations {
             };
         };
     };
+    put_push_token_v1_me_push_token_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     my_roles_v1_me_roles_get: {
         parameters: {
             query?: never;
@@ -4851,6 +19634,214 @@ export interface operations {
             };
             /** @description auth.invalid_token */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_notifications_v1_notifications_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_preferences_v1_notifications_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    put_preferences_v1_notifications_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_consent_required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.category_unknown, notifications.quiet_hours_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_all_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_one_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4916,6 +19907,79 @@ export interface operations {
                 };
             };
             /** @description orders.hub_required, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    book_tiffin_v1_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TiffinOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.tiffin_already_booked (order_id), orders.slot_full */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.kind_unavailable, orders.menu_unknown, orders.qty_invalid, orders.hub_required, orders.slot_invalid, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5170,6 +20234,1493 @@ export interface operations {
             };
         };
     };
+    order_events_v1_orders__order_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "last-event-id"?: string | null;
+                "x-active-role"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderEventsOut"];
+                    "text/event-stream": string;
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: hub staff of another hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.too_many_streams: more than 3 open streams for this user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_issues_v1_orders__order_id__issues_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssuesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    report_issue_v1_orders__order_id__issues_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IssueOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_window_closed, orders.too_many_issues */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.issue_kind_invalid, orders.issue_items_required, orders.issue_item_unknown (with product_ids), orders.issue_qty_invalid, orders.photo_key_invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description platform.storage_unavailable (only when photo_keys are sent) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_order_v1_orders__order_id__pay_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.insufficient_balance (balance_paise, needed_paise), orders.not_payable, orders.payment_grace_over */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_packing_task_v1_packing_tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    complete_packing_v1_packing_tasks__task_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CompleteIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pick_line_v1_packing_tasks__task_id__pick_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PickIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    release_packing_v1_packing_tasks__task_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_shortage_v1_packing_tasks__task_id__shortage_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShortageIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, hub_ops.not_your_task */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_packing_v1_packing_tasks__task_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackingTaskDetail"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_not_found, hub_ops.line_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.task_packed, hub_ops.task_not_started, hub_ops.task_taken, hub_ops.shortage_recorded, hub_ops.lines_open, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.substitute_invalid, hub_ops.bag_mismatch, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    apply_v1_partner_applications_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.already_applied (with application_id or partner_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kind_invalid, partners.household_required, partners.no_hub, partners.captain_not_resident, partners.scope_invalid, partners.display_name_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_application_v1_partner_applications_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_application_v1_partner_applications__application_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationReviewOut"] | components["schemas"]["ApplicationDetailOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    decide_v1_partner_applications__application_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationReviewOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found, partners.document_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.not_reviewable, partners.documents_missing (with doc_types), partners.already_applied */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.reason_required, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    withdraw_v1_partner_applications__application_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.application_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_partners_v1_partners_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnersOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_partner_v1_partners__partner_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerStaffOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pause_partner_v1_partners__partner_id__pause_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.pause_not_allowed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reinstate_partner_v1_partners__partner_id__reinstate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReinstateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerStaffOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.not_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    resume_partner_v1_partners__partner_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.pause_not_allowed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    suspend_partner_v1_partners__partner_id__suspend_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerStaffOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.already_suspended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     razorpay_webhook_v1_payments_webhook_razorpay_post: {
         parameters: {
             query?: never;
@@ -5279,6 +21830,46 @@ export interface operations {
             };
         };
     };
+    point_rates_v1_point_rates_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PointRatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_prices_v1_prices_get: {
         parameters: {
             query: {
@@ -5320,6 +21911,250 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_v1_procurement_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_plan_line_v1_procurement_plans__plan_id__lines__product_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                plan_id: string;
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcurementLinePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcurementPlanOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found, hub_ops.line_not_found, hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_editable, hub_ops.line_ordered */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.reason_required, hub_ops.vendor_inactive, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    generate_purchase_orders_v1_procurement_plans__plan_id__purchase_orders_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedPurchaseOrders"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.plan_not_editable, hub_ops.nothing_to_order */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_missing (product_ids), request.idempotency_mismatch */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5489,6 +22324,231 @@ export interface operations {
             };
         };
     };
+    get_purchase_order_v1_purchase_orders__po_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                po_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_purchase_order_v1_purchase_orders__po_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                po_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_cancellable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    send_purchase_order_v1_purchase_orders__po_id__send_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                po_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.po_not_draft, hub_ops.po_stale */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_inactive, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     ready_v1_ready_get: {
         parameters: {
             query?: never;
@@ -5622,6 +22682,280 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_referrals_v1_referrals_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    claim_referral_v1_referrals_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReferralClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferralClaimOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.referral_code_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.already_referred, community.referral_window_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.household_required, community.referral_self, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_plan_v1_route_plans__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    publish_plan_v1_route_plans__plan_id__publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePlanOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.plan_not_publishable, logistics.plan_incomplete, logistics.plan_has_problems, logistics.routes_started */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5827,6 +23161,152 @@ export interface operations {
             };
         };
     };
+    society_captains_v1_societies__society_id__captains_get: {
+        parameters: {
+            query?: {
+                /** @description Only this status; default all */
+                status?: ("active" | "ended") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptainsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    appoint_captain_v1_societies__society_id__captains_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                society_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptainIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.society_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.captain_exists (captain_id), community.already_captain */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description community.partner_not_eligible, community.captain_not_resident, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_delivery_days_v1_societies__society_id__delivery_days_get: {
         parameters: {
             query?: never;
@@ -5990,6 +23470,57 @@ export interface operations {
             };
             /** @description community.request_rate_limited (see Retry-After) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_statement_v1_statements_get: {
+        parameters: {
+            query: {
+                period: string;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.period_invalid: not YYYY-MM, or after the current month (IST) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6209,6 +23740,373 @@ export interface operations {
             };
         };
     };
+    tiffin_menus_v1_tiffin_menus_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+                meal?: ("lunch" | "dinner") | null;
+            };
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinMenusOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description orders.hub_required, orders.date_out_of_range, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    trainings_v1_trainings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingModulesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    complete_training_v1_trainings__code__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrainingCompleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingResultOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_version_stale (with version), partners.already_applied */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.answers_invalid, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.training_attempts_exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vehicle_v1_vehicles__vehicle_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehiclePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.vehicle_label_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.capacity_invalid, logistics.rider_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patch_vendor_v1_vendors__vendor_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                vendor_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VendorPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VendorOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.vendor_name_taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     get_wallet_v1_wallet_get: {
         parameters: {
             query?: never;
@@ -6294,6 +24192,201 @@ export interface operations {
             };
             /** @description auth.forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    refund_to_source_v1_wallet_refund_to_source_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_in_progress (with refund_id) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_too_small, billing.refund_exceeds_refundable (with refundable_paise), request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.too_many_refunds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_refunds_v1_wallet_refunds_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RefundOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_refund_v1_wallet_refunds__refund_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                refund_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden or auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.refund_not_found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6444,6 +24537,115 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_handshake_v1_webhooks_whatsapp_get: {
+        parameters: {
+            query: {
+                "hub.mode": string;
+                "hub.verify_token": string;
+                "hub.challenge": string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description notifications.bad_verify_token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no verify token configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    whatsapp_webhook_v1_webhooks_whatsapp_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-hub-signature-256": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhatsAppAck"];
+                };
+            };
+            /** @description request.invalid: not a JSON object */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.bad_signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description notifications.whatsapp_unavailable: no app secret configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

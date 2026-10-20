@@ -47,38 +47,85 @@ const retryable = (/** @type {unknown} */ e) =>
 
 /** @type {Promise<void> | null} */
 let flushing = null;
+/** Set when flush() is called during a run: something may have been saved after that run read its list. */
+let again = false;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let retryTimer = null;
 
-/** Sends waiting actions in order; stops at the first one that should be retried later. */
+/** Next try after a retryable failure: 15 s, 30 s, 1 min … up to 10 min, with some jitter. */
+const backoffMs = (/** @type {number} */ attempts) =>
+  Math.min(15_000 * 2 ** Math.max(attempts - 1, 0), 600_000) * (0.8 + Math.random() * 0.4);
+
+function scheduleRetry(/** @type {number} */ attempts) {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    flush();
+  }, backoffMs(attempts));
+}
+
+/** One pass over the waiting actions. @returns {Promise<boolean>} true = stop, retry later */
+async function pass() {
+  const waiting = await outbox.where("status").equals("waiting").sortBy("createdAt");
+  if (waiting.length === 0) return false;
+  if (!(await refresh())) return true;
+  for (const item of waiting) {
+    try {
+      await request(item.path, {
+        method: item.method,
+        body: item.body,
+        headers: { "idempotency-key": item.key },
+      });
+      await outbox.delete(/** @type {number} */ (item.id));
+    } catch (e) {
+      const code = e instanceof ApiError ? e.code : "network";
+      const status = retryable(e) ? "waiting" : "failed";
+      await outbox.update(/** @type {number} */ (item.id), {
+        status,
+        attempts: item.attempts + 1,
+        lastError: code,
+      });
+      if (status === "waiting") {
+        scheduleRetry(item.attempts + 1);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Sends waiting actions in order; stops at the first one that should be retried later. One run at
+ * a time: a call made during a run does not start another, it makes that run read the list again,
+ * so an action saved mid-flush goes out in the same burst.
+ */
 export function flush() {
   if (!navigator.onLine) return Promise.resolve();
-  flushing ??= (async () => {
+  if (flushing) {
+    again = true;
+    return flushing;
+  }
+  flushing = (async () => {
     try {
-      const waiting = await outbox.where("status").equals("waiting").sortBy("createdAt");
-      if (waiting.length === 0 || !(await refresh())) return;
-      for (const item of waiting) {
-        try {
-          await request(item.path, {
-            method: item.method,
-            body: item.body,
-            headers: { "idempotency-key": item.key },
-          });
-          await outbox.delete(/** @type {number} */ (item.id));
-        } catch (e) {
-          const code = e instanceof ApiError ? e.code : "network";
-          const status = retryable(e) ? "waiting" : "failed";
-          await outbox.update(/** @type {number} */ (item.id), {
-            status,
-            attempts: item.attempts + 1,
-            lastError: code,
-          });
-          if (status === "waiting") return;
-        }
-      }
+      do {
+        again = false;
+        if (await pass()) break;
+      } while (again);
     } finally {
       flushing = null;
+      again = false;
     }
   })();
   return flushing;
+}
+
+/**
+ * Sends the actions the server refused again (after the person has fixed the cause, or to try
+ * once more). They are never deleted silently: they stay until sent or until sign-out.
+ */
+export async function retryFailed() {
+  await outbox.where("status").equals("failed").modify({ status: "waiting" });
+  return flush();
 }
 
 /** Flush on start, when the connection comes back and when the app returns to the foreground. */
@@ -90,16 +137,16 @@ export function startOutbox() {
   flush();
 }
 
-/** Live count of actions still waiting to be sent. */
-export function useWaitingCount() {
+/** Live count of actions in one state: "waiting" to be sent, or "failed" (refused by the server). */
+export function useOutboxCount(/** @type {"waiting" | "failed"} */ status = "waiting") {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    const sub = liveQuery(() => outbox.where("status").equals("waiting").count()).subscribe({
+    const sub = liveQuery(() => outbox.where("status").equals(status).count()).subscribe({
       next: setCount,
       error: () => setCount(0),
     });
     return () => sub.unsubscribe();
-  }, []);
+  }, [status]);
   return count;
 }
 

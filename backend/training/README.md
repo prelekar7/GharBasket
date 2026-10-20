@@ -4,18 +4,25 @@ Batch work that must not run inside an API request or the serving image: it runs
 
 ```
 uv run --directory backend/training python -m gharbasket_training.jobs.collect_mandi --out data/external/mandi
+just eval --smoke                      # the harness, one seed and one week (CI); `just eval` for the five seeds
 uv run --directory backend/training pytest --cov
 ```
 
 ## Jobs
 | Job | Schedule | What it does |
 |---|---|---|
+| `eval` | by hand (`workflow_dispatch` job `eval`) and `just eval` locally | The evaluation harness (docs/research/eval-protocol.md): planner A/B and the pantry baseline over five simulator seeds, an HTML + JSON report in `docs/eval`, rows to `POST /v1/internal/intel/model-metrics` |
+| `export_snapshots` | daily 02:03 IST (Actions) | The module tables to `snapshots/date=<day>/` in the lake (`<day>`: the IST day; rows created before its end; no personal data; one fixed schema per table; `--day` backfills a past day) and the point-in-time household features as of the latest order cut-off (21:00 IST the evening before the run) to `intel.feature_snapshots` (`--push-features`); reads the database with `DATABASE_URL_RO` in one read-only transaction |
+| `forecast` | T-1 21:10 IST (Actions; `--push`) | Uncommitted demand per hub × product × delivery day for the next 7 days (StatsForecast weekly models and a direct multi-step LightGBM with festival and as-of-origin price-index features, split over delivery days, rolling-origin backtest with a 2-week horizon, scaled conformal q_tau) with newsvendor order quantities → `POST /v1/internal/intel/forecasts`; WAPE, coverage, pinball and MASE per model → model-metrics; one `--data-source` per run (M10 §3.6) |
+| `train_ranker` | weekly (Actions, by hand until the data is real) | Trains the next-basket ranker (LightGBM LambdaRank) on every household's approved and locked boxes and their edits, one model per `data_source` (never pooled), scores it leave-last-basket-out against the baselines, writes `basket_ranker/<version>-<data_source>/` under `models/` in the `gb-mlflow` registry (`--out` for a local `MODELS_DIR`), metrics to model-metrics (`--push`). It never moves `latest.json`: promotion is manual (ADR-0025), `just promote basket_ranker <version>-<data_source>` |
+| `refit_pantry` | weekly, Sun 03:03 IST (Actions; `--push`) | Refits the pantry twin's cohort priors (NumPyro, per adult equivalent) from what the twin observes (M3's `daily_use_history`: the daily-use share of milk and curd and the taps), one candidate per `data_source`, scores it out of sample against the rule table (refit on each household's weeks before its last, scored on the last), writes `pantry_priors/<version>-<data_source>/priors.json` to the registry (`--out` for a local folder) and with `--push` only the metrics to model-metrics. It never touches `latest.json` or `intel.pantry_priors` |
+| `promote` | by hand: `just promote <model> <version> [--out D] [--force] [--no-push]` | The only thing that moves a model's `latest.json` (ADR-0025). Refuses a version that is not in the registry or does not beat its baseline out of sample (`--force` overrides, recorded in the pointer). For `pantry_priors` it first pushes the version's priors to `POST /v1/internal/intel/pantry-priors` (needs `API_URL`, `JOBS_TOKEN`; replaces the stored priors), so M3 serves what the pointer says; `--no-push` moves the pointer alone |
 | `collect_mandi` | daily 18:33 IST (Actions) | Pulls today's wholesale prices for Maharashtra markets from data.gov.in (Agmarknet), maps commodities to our product slugs, writes `external/mandi/date=<day>/maharashtra.parquet` to the lake, and pushes a 4-week price index per product to `POST /v1/internal/intel/price-index` |
 
 The data.gov.in resource keeps no history, so this collector is the history: it has run every day since 4 Oct 2026. The 2019–2025 bulk history (India Data Portal) is imported separately in January (forecast v0).
 
 ## Settings (environment)
-`DATA_GOV_IN_API_KEY` (your own key; the public sample key returns 10 rows), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_LAKE`, `API_URL`, `JOBS_TOKEN`, `MANDI_MARKETS` (comma-separated, default `Mumbai,Vashi New Mumbai,Pune`).
+`DATA_GOV_IN_API_KEY` (your own key; the public sample key returns 10 rows), `DATABASE_URL_RO` (a read-only Neon role; locally `DATABASE_URL`), `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET_LAKE`, `S3_BUCKET_MLFLOW` (the model registry, default `gb-mlflow`), `API_URL`, `JOBS_TOKEN`, `MANDI_MARKETS` (comma-separated, default `Mumbai,Vashi New Mumbai,Pune`).
 
 ## Conventions
 - Prices: Agmarknet reports ₹ per quintal; ₹ X per quintal is exactly X paise per kg, which is what we store (`modal_paise_per_kg`).

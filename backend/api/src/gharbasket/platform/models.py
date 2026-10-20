@@ -4,7 +4,18 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, Text, Uuid, func, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -70,6 +81,36 @@ class AuditEntry(Base):
     after: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     request_id: Mapped[str | None] = mapped_column(String(128))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Upload(Base):
+    """One presigned upload (M0 §3.1); the owning module claims the key when it saves it."""
+
+    __tablename__ = "uploads"
+    __table_args__ = (
+        CheckConstraint("size_bytes > 0", name="size_positive"),
+        # sweep_uploads looks for unclaimed uploads by age, and claimed ones by delete_after.
+        Index("ix_uploads_unclaimed", "created_at", postgresql_where=text("claimed_at IS NULL")),
+        Index(
+            "ix_uploads_delete_after",
+            "delete_after",
+            postgresql_where=text("delete_after IS NOT NULL"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    # <purpose>/<user_id>/<uuidv7>.<ext>
+    key: Mapped[str] = mapped_column(String(200), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    purpose: Mapped[str] = mapped_column(String(40))
+    content_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The module that saved the key (e.g. "orders"); NULL until claimed.
+    claimed_by: Mapped[str | None] = mapped_column(String(40))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set by the owning module (e.g. 90 days after the issue is resolved); NULL keeps it.
+    delete_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class JobRun(Base):

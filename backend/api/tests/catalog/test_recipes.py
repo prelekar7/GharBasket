@@ -34,7 +34,7 @@ async def _headers(
 async def _recipes(api: httpx2.AsyncClient, headers: dict[str, str], **params: Any) -> list[Any]:
     items: list[Any] = []
     cursor = None
-    for _ in range(20):
+    for _ in range(40):  # 120 recipes in pages of 5
         query = {**params, **({"cursor": cursor} if cursor else {})}
         page = await api.get("/v1/recipes", params=query, headers=headers)
         assert page.status_code == 200, page.text
@@ -64,18 +64,51 @@ async def test_recipes_alphabetical_with_pages_and_filters(
     mains = await _recipes(api, headers, limit=100, is_side="false")
     sides = await _recipes(api, headers, is_side="true")
 
-    assert len(everything) == 22 and paged == everything
-    assert [r["slug"] for r in sides] == ["chapati"] and sides[0]["sides"] == []
-    assert len(mains) == 21 and all(not r["is_side"] for r in mains)
+    assert len(everything) == 120 and paged == everything
+    assert [r["slug"] for r in sides] == [  # by English name
+        "beetroot-salad",
+        "begun-bhaja",
+        "carrot-koshimbir",
+        "chapati",
+        "coconut-chutney",
+        "curd-raita",
+        "jeera-rice",
+        "jowar-bhakri",
+        "kachumber",
+        "shengdana-chutney",
+        "plain-rice",
+    ]
+    assert all(r["sides"] == [] for r in sides)
+    assert len(mains) == 109 and all(not r["is_side"] for r in mains)
     assert next(r for r in mains if r["slug"] == "bhindi-masala")["sides"] == ["chapati"]
     assert next(r for r in mains if r["slug"] == "varan-bhaat")["sides"] == []
     english = [r["names"]["en"] for r in everything]
     assert english == sorted(english)
     assert jain and all(r["rules"]["jain_ok"] for r in jain)
-    assert {r["slug"] for r in fasting} == {"sabudana-khichdi", "kakdi-koshimbir", "fruit-bowl"}
+    assert {r["slug"] for r in fasting} == {
+        "sabudana-khichdi",
+        "kakdi-koshimbir",
+        "fruit-bowl",
+        "coconut-chutney",
+        "varai-bhaat",
+        "danyachi-amti",
+        "rajgira-thalipeeth",
+        "rajgira-sheera",
+        "shengdana-chutney",
+        "sabudana-kheer",
+        "shengdana-ladoo",
+    }
     assert all("breakfast" in r["slots"] for r in breakfast)
-    assert [r["slug"] for r in gujarati] == ["methi-thepla"]
-    assert [r["slug"] for r in egg] == ["egg-curry"]
+    assert sorted(r["slug"] for r in gujarati) == [
+        "dal-dhokli",
+        "dudhi-muthiya",
+        "gujarati-kadhi",
+        "handvo",
+        "khaman-dhokla",
+        "methi-thepla",
+        "ringan-bateta",
+    ]
+    assert [r["slug"] for r in egg] == ["egg-bhurji", "egg-curry", "masala-omelette"]
 
 
 async def test_a_recipe_with_ingredients_labels_and_cost(
@@ -174,12 +207,16 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
         headers=headers,
     )
     none = await api.get(
-        "/v1/festivals", params={"from": "2026-11-01", "to": "2026-11-30"}, headers=headers
+        "/v1/festivals", params={"from": "2027-09-01", "to": "2027-09-30"}, headers=headers
     )
 
     items = response.json()["items"]
-    assert [i["date"] for i in items] == [date(2026, 10, d).isoformat() for d in range(11, 20)]
-    assert items[0] == {
+    # October 2026 in Maharashtra: Indira Ekadashi, nine days of Navratri, Dussehra,
+    # Papankusha Ekadashi and Sankashti Chaturthi (kalagana; see data/external/festivals).
+    assert [i["date"] for i in items] == [
+        date(2026, 10, d).isoformat() for d in (6, *range(11, 20), 21, 22, 29)
+    ]
+    assert items[1] == {
         "date": "2026-10-11",
         "code": "navratri",
         "name": "नवरात्रि",
@@ -187,7 +224,8 @@ async def test_festivals_in_a_range_with_names_and_the_unverified_flag(
         "rules": {"fasting": True, "no_onion_garlic": True},
         "verified": False,
     }
-    assert none.json()["items"] == []
+    assert {i["code"] for i in items} == {"ekadashi", "navratri", "dussehra", "sankashti"}
+    assert none.json()["items"] == []  # beyond the generated window
 
 
 @pytest.mark.parametrize(

@@ -46,7 +46,7 @@ async def test_products_are_alphabetical_and_pages_join_up(
     everything = await _all_pages(api, headers, limit=100)
     paged = await _all_pages(api, headers, limit=7)
 
-    assert len(everything) == 68
+    assert len(everything) == 91
     assert paged == everything
     english = [item["names"]["en"] for item in everything]
     assert english == sorted(english)
@@ -83,7 +83,9 @@ async def test_a_product_in_english_hindi_and_marathi(
         "shelf_life_h": 72,
         "image_url": None,
         "price": None,
+        "nutrition": english["nutrition"],  # IFCT 2017 ladies finger: tests/catalog/test_nutrition
     }
+    assert english["nutrition"]["fibre_g"] == 4.1 and english["nutrition"]["kcal"] > 0
     assert answers["hi"].json()["name"] == "भिंडी"
     assert answers["hi"].json()["category"]["name"] == "सब्ज़ियाँ"
     assert answers["mr"].json()["step"]["label"] == "250 ग्रॅम"

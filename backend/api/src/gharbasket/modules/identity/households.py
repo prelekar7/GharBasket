@@ -268,6 +268,7 @@ _SETTINGS = (
     "weekend_cook_minutes",
     "no_cook_days",
     "budget_paise",
+    "shortage_preference",
 )
 
 
@@ -415,6 +416,7 @@ async def view(session: AsyncSession, household: Household) -> HouseholdOut:
         budget_paise=household.budget_paise,
         autopilot_enabled=household.autopilot_enabled,
         auto_approve=household.auto_approve,
+        shortage_preference=household.shortage_preference,  # pyright: ignore[reportArgumentType]
         members=[
             member_out(member, show_health=show_health)
             for member in await members_of(session, household.id)

@@ -7,7 +7,7 @@ them needs a PR reviewed by both app owners.
 
 import re
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal, Self
 
 import phonenumbers
@@ -23,6 +23,14 @@ class DeviceIn(BaseModel):
     push_token: str | None = Field(default=None, max_length=4096)
 
 
+class PushTokenIn(BaseModel):
+    push_token: str | None = Field(
+        min_length=1,
+        max_length=4096,
+        description="The FCM registration token of this device; null when notifications are off",
+    )
+
+
 class ExchangeIn(BaseModel):
     """Exactly one of `firebase_id_token` (always) or `dev_phone` (only with APP_ENV=dev)."""
 
@@ -30,6 +38,14 @@ class ExchangeIn(BaseModel):
     dev_phone: str | None = Field(default=None, examples=["+919800000001"])
     dev_name: str | None = Field(default=None, max_length=80, examples=["Priya"])
     device: DeviceIn
+    keep_account: bool = Field(
+        default=False,
+        description=(
+            'For an account whose deletion is scheduled: true (after the app asked "Keep my '
+            'account?") signs in and cancels the deletion; false gets 409 '
+            "identity.deletion_pending (spec §3.5)"
+        ),
+    )
 
     @field_validator("dev_phone")
     @classmethod
@@ -65,6 +81,26 @@ class TokensOut(BaseModel):
 class ExchangeOut(TokensOut):
     is_new_user: bool
     user: UserOut
+    deletion_cancelled: bool = Field(
+        default=False, description="True when this sign-in cancelled a scheduled deletion"
+    )
+
+
+class WalletRefundOut(BaseModel):
+    refund_id: uuid.UUID
+    amount_paise: int = Field(examples=[41000])
+
+
+class DeletionOut(BaseModel):
+    """DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
+    in again before then."""
+
+    status: Literal["scheduled"]
+    requested_at: datetime
+    purge_on: date = Field(description="IST date, 30 days after the request")
+    wallet_refund: WalletRefundOut | None = Field(
+        description="The wallet balance on its way back to the original payment source"
+    )
 
 
 class RefreshIn(BaseModel):
@@ -148,6 +184,7 @@ class RoleGrantIn(BaseModel):
         "franchise_owner",
         "ngo_coordinator",
         "admin",
+        "catalog_editor",
     ]
     scope_id: uuid.UUID | None = None
 
@@ -174,7 +211,9 @@ ConsentPurpose = Literal[
     "health_personalisation",
     "marketing",
     "research_anonymised",
+    "whatsapp",
 ]
+ShortagePreference = Literal["substitute", "refund"]
 CookMinutes = Annotated[int, Field(ge=10, le=240)]
 Weekday = Annotated[int, Field(ge=0, le=6)]
 FLAT = re.compile(r"^[A-Z0-9 /-]{1,20}$")
@@ -274,6 +313,11 @@ class HouseholdSettings(BaseModel):
     budget_paise: int | None = Field(
         default=None, ge=50_000, examples=[300_000], description="Monthly Budget Lock; null = off"
     )
+    shortage_preference: ShortagePreference = Field(
+        default="substitute",
+        description="A short item: a similar one at the same price or cheaper, or never "
+        "substitute and refund (§3.4)",
+    )
 
     _unique_cuisines = field_validator("cuisine_tags")(_unique)
     _unique_days = field_validator("no_cook_days")(_unique)
@@ -307,6 +351,7 @@ class HouseholdUpdate(BaseModel):
     budget_paise: int | None = Field(default=None, ge=50_000)
     autopilot_enabled: bool | None = None
     auto_approve: bool | None = None
+    shortage_preference: ShortagePreference | None = None
 
     @field_validator("cuisine_tags", "no_cook_days")
     @classmethod
@@ -335,6 +380,7 @@ class HouseholdOut(BaseModel):
     budget_paise: int | None
     autopilot_enabled: bool
     auto_approve: bool
+    shortage_preference: ShortagePreference
     members: list[MemberOut]
     address: AddressOut
     created_at: datetime
@@ -388,3 +434,24 @@ class AddressUpdate(BaseModel):
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
         return self
+
+
+# --- data export (§3.3) -------------------------------------------------------------------------
+
+
+class DataExportDownload(BaseModel):
+    url: str = Field(description="A signed GET link, valid 5 minutes; GET again for a fresh one")
+    expires_at: datetime
+    size_bytes: int = Field(examples=[48211])
+
+
+class DataExportOut(BaseModel):
+    """A copy of your data: one JSON file, built within a day and kept 7 days."""
+
+    id: uuid.UUID
+    status: Literal["queued", "building", "ready", "failed", "expired"]
+    requested_at: datetime
+    ready_at: datetime | None
+    expires_at: datetime | None = Field(description="When the file is deleted (7 days after ready)")
+    ready_within_hours: int = Field(examples=[24])
+    download: DataExportDownload | None = Field(description="Only while ready")
