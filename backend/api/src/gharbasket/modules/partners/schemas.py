@@ -10,6 +10,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gharbasket.platform.geo import LatLng
+
 PartnerKind = Literal["kitchen", "captain", "rider", "packer"]
 PartnerStatus = Literal["active", "paused", "suspended", "left"]
 SuspendReason = Literal["rating", "hygiene", "compliance", "conduct", "other"]
@@ -348,3 +350,255 @@ class TrainingResultOut(BaseModel):
     passed: bool = Field(description="This attempt")
     status: Literal["passed", "failed"] = Field(description="The module: a pass is kept for good")
     application: ApplicationStepOut | None = Field(description="Your open application, if any")
+
+
+# --- kitchens and capacity (§3.4) ---------------------------------------------------------------
+
+Meal = Literal["lunch", "dinner"]
+SKILLS_DESCRIPTION = (
+    "From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)"
+)
+
+
+class WeekPortions(BaseModel):
+    lunch: list[int] = Field(description="Monday … Sunday, 0 to 100 each", examples=[[10] * 7])
+    dinner: list[int] = Field(description="Monday … Sunday, 0 to 100 each", examples=[[0] * 7])
+
+
+class HygieneOut(BaseModel):
+    grade: Literal["A", "B", "C"]
+    inspected_on: date
+
+
+class KitchenOut(BaseModel):
+    """A kitchen as she and hub staff see it: `address` and `location` are private."""
+
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Lata tai"])
+    status: PartnerStatus
+    area: str | None = Field(description="Public (the card)", examples=["Sector 20, Kharghar"])
+    address: str | None = Field(description="Private: the kitchen, hub staff, the rider")
+    location: LatLng | None = Field(description="Private; null until set (no offers before)")
+    fssai_reg_no: str | None = Field(examples=["11521999000123"])
+    fssai_valid_until: date | None
+    skills: list[str] = Field(examples=[["veg", "jain"]])
+    default_portions: WeekPortions
+    hygiene: HygieneOut | None
+    version: int
+
+
+class KitchenPatchIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: str | None = Field(default=None, min_length=2, max_length=40)
+    area: str | None = Field(default=None, max_length=80)
+    address: str | None = Field(default=None, max_length=300)
+    location: LatLng | None = None
+    skills: list[Annotated[str, Field(max_length=32)]] | None = Field(
+        default=None, max_length=12, description=SKILLS_DESCRIPTION
+    )
+    default_portions: dict[str, list[int]] | None = Field(
+        default=None,
+        description="lunch and dinner, Monday … Sunday, 0 to 100 each "
+        "(else 422 partners.capacity_invalid)",
+    )
+
+    @field_validator("area", "address")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class InspectionIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grade: Literal["A", "B", "C"]
+    note: str | None = Field(default=None, max_length=300, description="Staff-only; audit log")
+
+    @field_validator("note")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class CapacityOut(BaseModel):
+    date: date
+    meal: Meal
+    max_portions: int = Field(examples=[12])
+    source: Literal["default", "set"]
+    assigned_portions: int = Field(description="In offered, accepted, preparing, ready offers")
+    locked: bool = Field(description="From 21:00 IST the day before")
+
+
+class CapacitiesOut(BaseModel):
+    items: list[CapacityOut]
+
+
+class CapacityIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    meal: str = Field(max_length=16, description="lunch or dinner", examples=["lunch"])
+    max_portions: int = Field(
+        description="0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins", examples=[12]
+    )
+
+
+# --- tiffin assignments (§3.4) ------------------------------------------------------------------
+
+
+AssignmentStatus = Literal[
+    "offered", "accepted", "preparing", "ready", "completed", "declined", "expired", "cancelled"
+]
+
+
+class SlotOut(BaseModel):
+    id: uuid.UUID
+    label: str
+    start: str = Field(examples=["12:30"])
+    end: str = Field(examples=["13:30"])
+
+
+class AssignedPartnerOut(BaseModel):
+    id: uuid.UUID
+    display_name: str
+
+
+class DishOut(BaseModel):
+    product_id: uuid.UUID
+    name: str = Field(examples=["Diet thali"])
+    portions: int
+
+
+class AssignmentOrderOut(BaseModel):
+    order_id: uuid.UUID
+    short_code: str = Field(examples=["T-07"])
+    portions: int
+    product: str = Field(examples=["Diet thali"])
+    society: SocietyRef
+    status: Literal["assigned", "ready", "picked_up", "delivered", "failed", "released"]
+
+
+class AssignmentOut(BaseModel):
+    """An offer to one kitchen: short codes, dishes and society names, never a flat or a name."""
+
+    id: uuid.UUID
+    date: date
+    meal: Meal
+    hub_id: uuid.UUID
+    slot: SlotOut
+    partner: AssignedPartnerOut
+    status: AssignmentStatus
+    round: int
+    source: Literal["ml", "fallback", "manual"]
+    portions: int
+    dishes: list[DishOut]
+    orders: list[AssignmentOrderOut]
+    respond_by: datetime
+    ready_by: str = Field(description="Slot start minus 60 min, HH:MM IST", examples=["11:30"])
+    pickup_qr: str | None = Field(description="GB1A: + the id without hyphens, once any is ready")
+    checklist: dict[str, bool] | None
+    accepted_at: datetime | None
+    ready_at: datetime | None
+    version: int
+
+
+class AssignmentsOut(BaseModel):
+    items: list[AssignmentOut]
+
+
+class DeclineIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: Literal["unwell", "no_ingredients", "family", "other"]
+    note: str | None = Field(default=None, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def _tidy(cls, value: str | None) -> str | None:
+        return _note(value)
+
+
+class RunIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+
+
+class RunOut(BaseModel):
+    run_id: uuid.UUID | None = Field(description="The first meal's run; null with nothing to do")
+    run_ids: list[uuid.UUID] = Field(description="One run per meal that had orders")
+    offers: int
+    unassigned: int
+
+
+# --- cooking, manual assignment and the tiffin board (§3.4) -------------------------------------
+
+
+class StartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_at: datetime | None = Field(default=None, description="When she tapped (offline)")
+
+
+class ReadyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_ids: list[uuid.UUID] | None = Field(
+        default=None, max_length=200, description="Default: every assigned order not yet ready"
+    )
+    checklist: dict[str, bool] = Field(
+        description="handwash, hair_cover, clean_surface, sealed, fresh_today: all true "
+        "(else 422 partners.checklist_incomplete)"
+    )
+    client_at: datetime | None = None
+
+
+class ManualIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+    order_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    partner_id: uuid.UUID
+    note: str | None = Field(default=None, max_length=300, description="Audit log")
+
+
+class ManualOut(AssignmentOut):
+    over_capacity: bool
+
+
+class BoardUnassignedOut(BaseModel):
+    order_id: uuid.UUID
+    society: SocietyRef
+    portions: int
+    reason: str = Field(description="From the latest run; pending before any run")
+
+
+class BoardMealOut(BaseModel):
+    meal: Meal
+    orders: int
+    portions: int
+    assigned: int = Field(description="Orders held by any assignment")
+    accepted: int
+    preparing: int
+    ready: int
+    picked_up: int
+    unassigned: list[BoardUnassignedOut]
+
+
+class BoardRunOut(BaseModel):
+    meal: Meal
+    round: int
+    source: Literal["ml", "fallback"]
+    model: str
+    status: str
+    gini: float | None
+    km_per_portion: float | None
+    at: datetime
+
+
+class TiffinBoardOut(BaseModel):
+    date: date
+    meals: list[BoardMealOut]
+    assignments: list[AssignmentOut]
+    runs: list[BoardRunOut]

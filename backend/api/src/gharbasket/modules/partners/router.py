@@ -1,8 +1,9 @@
 """HTTP endpoints of M8 Partner Network: the partner core (spec §3.3).
 
 A partner's own records (`/partners/me`, pause and resume), and hub staff's list, profile, suspend
-and reinstate. Applications and training (§3.1, §3.2) are in `application_router`; kitchens,
-ratings and earnings arrive later in S6.
+and reinstate. Applications and training (§3.1, §3.2) are in `application_router`, kitchens and
+capacity (§3.4) in `kitchen_router`, tiffin assignments in `assignment_router` and
+`cooking_router` (jobs in `jobs`); ratings and earnings arrive later in S6.
 """
 
 import uuid
@@ -13,8 +14,12 @@ from fastapi import APIRouter, Query, Response
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.partners import applications, service
+from gharbasket.modules.partners import jobs as _jobs  # noqa: F401 (registers the jobs)
 from gharbasket.modules.partners import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.partners.application_router import router as application_router
+from gharbasket.modules.partners.assignment_router import router as assignment_router
+from gharbasket.modules.partners.cooking_router import router as cooking_router
+from gharbasket.modules.partners.kitchen_router import router as kitchen_router
 from gharbasket.modules.partners.kyc_router import router as kyc_router
 from gharbasket.modules.partners.models import Partner
 from gharbasket.modules.partners.schemas import (
@@ -38,6 +43,9 @@ from gharbasket.platform.permissions import Permit, require
 router = APIRouter(tags=["partners"])
 router.include_router(application_router)
 router.include_router(kyc_router)
+router.include_router(kitchen_router)
+router.include_router(assignment_router)
+router.include_router(cooking_router)
 
 CanRead = Annotated[Permit, require("partners:read")]
 CanSuspend = Annotated[Permit, require("partners:suspend")]

@@ -521,6 +521,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your kitchen's assignments for a date (default tomorrow; a week back to tomorrow) */
+        get: operations["my_assignments_v1_assignments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept the whole offer while it is open (Idempotency-Key required) */
+        post: operations["accept_v1_assignments__assignment_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decline the whole offer while it is open; its orders go to the next round */
+        post: operations["decline_v1_assignments__assignment_id__decline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark orders ready with the hygiene checklist: orders show Ready at the kitchen */
+        post: operations["ready_v1_assignments__assignment_id__ready_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/assignments/{assignment_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start cooking an accepted assignment on its day: orders show Being cooked */
+        post: operations["start_v1_assignments__assignment_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assistant/confirm/{proposal_id}": {
         parameters: {
             query?: never;
@@ -1408,6 +1493,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/tiffin-assignments/manual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign tiffins to a kitchen by hand, accepted at once (hub manager, admin) */
+        post: operations["manual_v1_hubs__hub_id__tiffin_assignments_manual_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/tiffin-assignments/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one assignment round now for a date (hub manager, admin; Idempotency-Key) */
+        post: operations["run_round_v1_hubs__hub_id__tiffin_assignments_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/tiffin-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The day's tiffins per meal, the assignments and the runs (hub staff, admin) */
+        get: operations["tiffin_board_v1_hubs__hub_id__tiffin_board_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vehicles": {
         parameters: {
             query?: never;
@@ -1613,6 +1749,59 @@ export interface paths {
         get: operations["list_kindness_entries_v1_kindness_entries_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kitchen-capacity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your capacity per date and meal: from today, up to 14 days (default 7) */
+        get: operations["my_capacity_v1_kitchen_capacity_get"];
+        /** Set your capacity for one date and meal (0 = none) until 21:00 the day before */
+        put: operations["set_capacity_v1_kitchen_capacity_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/kitchens/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your kitchen (kitchen partner) */
+        get: operations["my_kitchen_v1_kitchens_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit your kitchen: name, area, address, pin, skills, weekly portions (If-Match) */
+        patch: operations["edit_kitchen_v1_kitchens_me_patch"];
+        trace?: never;
+    };
+    "/v1/kitchens/{partner_id}/inspection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a kitchen inspection's hygiene grade (hub staff, admin; audit-logged) */
+        post: operations["inspect_kitchen_v1_kitchens__partner_id__inspection_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3541,6 +3730,190 @@ export interface components {
              */
             status: "applied" | "kyc_pending" | "training" | "verified" | "rejected" | "withdrawn";
         };
+        /** AssignedPartnerOut */
+        AssignedPartnerOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** AssignmentOrderOut */
+        AssignmentOrderOut: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Portions */
+            portions: number;
+            /**
+             * Product
+             * @example Diet thali
+             */
+            product: string;
+            /**
+             * Short Code
+             * @example T-07
+             */
+            short_code: string;
+            society: components["schemas"]["SocietyRef"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "assigned" | "ready" | "picked_up" | "delivered" | "failed" | "released";
+        };
+        /**
+         * AssignmentOut
+         * @description An offer to one kitchen: short codes, dishes and society names, never a flat or a name.
+         */
+        AssignmentOut: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /** Checklist */
+            checklist: {
+                [key: string]: boolean;
+            } | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dishes */
+            dishes: components["schemas"]["gharbasket__modules__partners__schemas__DishOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Orders */
+            orders: components["schemas"]["AssignmentOrderOut"][];
+            partner: components["schemas"]["AssignedPartnerOut"];
+            /**
+             * Pickup Qr
+             * @description GB1A: + the id without hyphens, once any is ready
+             */
+            pickup_qr: string | null;
+            /** Portions */
+            portions: number;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Ready By
+             * @description Slot start minus 60 min, HH:MM IST
+             * @example 11:30
+             */
+            ready_by: string;
+            /**
+             * Respond By
+             * Format: date-time
+             */
+            respond_by: string;
+            /** Round */
+            round: number;
+            slot: components["schemas"]["gharbasket__modules__partners__schemas__SlotOut"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback" | "manual";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "offered" | "accepted" | "preparing" | "ready" | "completed" | "declined" | "expired" | "cancelled";
+            /** Version */
+            version: number;
+        };
+        /** AssignmentsOut */
+        AssignmentsOut: {
+            /** Items */
+            items: components["schemas"]["AssignmentOut"][];
+        };
+        /** BoardMealOut */
+        BoardMealOut: {
+            /** Accepted */
+            accepted: number;
+            /**
+             * Assigned
+             * @description Orders held by any assignment
+             */
+            assigned: number;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Orders */
+            orders: number;
+            /** Picked Up */
+            picked_up: number;
+            /** Portions */
+            portions: number;
+            /** Preparing */
+            preparing: number;
+            /** Ready */
+            ready: number;
+            /** Unassigned */
+            unassigned: components["schemas"]["BoardUnassignedOut"][];
+        };
+        /** BoardRunOut */
+        BoardRunOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Gini */
+            gini: number | null;
+            /** Km Per Portion */
+            km_per_portion: number | null;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Model */
+            model: string;
+            /** Round */
+            round: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback";
+            /** Status */
+            status: string;
+        };
+        /** BoardUnassignedOut */
+        BoardUnassignedOut: {
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Portions */
+            portions: number;
+            /**
+             * Reason
+             * @description From the latest run; pending before any run
+             */
+            reason: string;
+            society: components["schemas"]["SocietyRef"];
+        };
         /** BudgetLockIn */
         BudgetLockIn: {
             /**
@@ -3587,6 +3960,64 @@ export interface components {
         CancelIn: {
             /** Reason */
             reason: string;
+        };
+        /** CapacitiesOut */
+        CapacitiesOut: {
+            /** Items */
+            items: components["schemas"]["CapacityOut"][];
+        };
+        /** CapacityIn */
+        CapacityIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Max Portions
+             * @description 0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins
+             * @example 12
+             */
+            max_portions: number;
+            /**
+             * Meal
+             * @description lunch or dinner
+             * @example lunch
+             */
+            meal: string;
+        };
+        /** CapacityOut */
+        CapacityOut: {
+            /**
+             * Assigned Portions
+             * @description In offered, accepted, preparing, ready offers
+             */
+            assigned_portions: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Locked
+             * @description From 21:00 IST the day before
+             */
+            locked: boolean;
+            /**
+             * Max Portions
+             * @example 12
+             */
+            max_portions: number;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "default" | "set";
         };
         /** CaptainCard */
         CaptainCard: {
@@ -3920,6 +4351,16 @@ export interface components {
              */
             reason?: string | null;
         };
+        /** DeclineIn */
+        DeclineIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "unwell" | "no_ingredients" | "family" | "other";
+        };
         /**
          * DeletionOut
          * @description DELETE /v1/me (spec §3.5): the account is deleted on `purge_on` unless the customer signs
@@ -4041,20 +4482,6 @@ export interface components {
              * Format: date-time
              */
             signed_in_at: string;
-        };
-        /** DishOut */
-        DishOut: {
-            /**
-             * Name
-             * @description In Accept-Language
-             * @example Varan bhaat
-             */
-            name: string;
-            /**
-             * Recipe Id
-             * Format: uuid
-             */
-            recipe_id: string;
         };
         /** DocumentRequirement */
         DocumentRequirement: {
@@ -5073,6 +5500,19 @@ export interface components {
             /** Items */
             items: components["schemas"]["HubSummary"][];
         };
+        /** HygieneOut */
+        HygieneOut: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Inspected On
+             * Format: date
+             */
+            inspected_on: string;
+        };
         /** InboxOut */
         InboxOut: {
             /** Items */
@@ -5138,6 +5578,19 @@ export interface components {
              * @enum {string}
              */
             unit: "g" | "ml" | "piece" | "bunch";
+        };
+        /** InspectionIn */
+        InspectionIn: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Note
+             * @description Staff-only; audit log
+             */
+            note?: string | null;
         };
         /** InventoryItem */
         InventoryItem: {
@@ -5639,6 +6092,81 @@ export interface components {
              */
             points: number;
         };
+        /**
+         * KitchenOut
+         * @description A kitchen as she and hub staff see it: `address` and `location` are private.
+         */
+        KitchenOut: {
+            /**
+             * Address
+             * @description Private: the kitchen, hub staff, the rider
+             */
+            address: string | null;
+            /**
+             * Area
+             * @description Public (the card)
+             * @example Sector 20, Kharghar
+             */
+            area: string | null;
+            default_portions: components["schemas"]["WeekPortions"];
+            /**
+             * Display Name
+             * @example Lata tai
+             */
+            display_name: string;
+            /**
+             * Fssai Reg No
+             * @example 11521999000123
+             */
+            fssai_reg_no: string | null;
+            /** Fssai Valid Until */
+            fssai_valid_until: string | null;
+            hygiene: components["schemas"]["HygieneOut"] | null;
+            /** @description Private; null until set (no offers before) */
+            location: components["schemas"]["LatLng"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            /**
+             * Skills
+             * @example [
+             *       "veg",
+             *       "jain"
+             *     ]
+             */
+            skills: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "paused" | "suspended" | "left";
+            /** Version */
+            version: number;
+        };
+        /** KitchenPatchIn */
+        KitchenPatchIn: {
+            /** Address */
+            address?: string | null;
+            /** Area */
+            area?: string | null;
+            /**
+             * Default Portions
+             * @description lunch and dinner, Monday … Sunday, 0 to 100 each (else 422 partners.capacity_invalid)
+             */
+            default_portions?: {
+                [key: string]: number[];
+            } | null;
+            /** Display Name */
+            display_name?: string | null;
+            location?: components["schemas"]["LatLng"] | null;
+            /**
+             * Skills
+             * @description From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)
+             */
+            skills?: string[] | null;
+        };
         /** KitchenRef */
         KitchenRef: {
             /**
@@ -6060,6 +6588,97 @@ export interface components {
             /** Unit Cost Paise */
             unit_cost_paise: number | null;
             vendor: components["schemas"]["Ref"] | null;
+        };
+        /** ManualIn */
+        ManualIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Note
+             * @description Audit log
+             */
+            note?: string | null;
+            /** Order Ids */
+            order_ids: string[];
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
+        /** ManualOut */
+        ManualOut: {
+            /** Accepted At */
+            accepted_at: string | null;
+            /** Checklist */
+            checklist: {
+                [key: string]: boolean;
+            } | null;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Dishes */
+            dishes: components["schemas"]["gharbasket__modules__partners__schemas__DishOut"][];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Meal
+             * @enum {string}
+             */
+            meal: "lunch" | "dinner";
+            /** Orders */
+            orders: components["schemas"]["AssignmentOrderOut"][];
+            /** Over Capacity */
+            over_capacity: boolean;
+            partner: components["schemas"]["AssignedPartnerOut"];
+            /**
+             * Pickup Qr
+             * @description GB1A: + the id without hyphens, once any is ready
+             */
+            pickup_qr: string | null;
+            /** Portions */
+            portions: number;
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Ready By
+             * @description Slot start minus 60 min, HH:MM IST
+             * @example 11:30
+             */
+            ready_by: string;
+            /**
+             * Respond By
+             * Format: date-time
+             */
+            respond_by: string;
+            /** Round */
+            round: number;
+            slot: components["schemas"]["gharbasket__modules__partners__schemas__SlotOut"];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ml" | "fallback" | "manual";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "offered" | "accepted" | "preparing" | "ready" | "completed" | "declined" | "expired" | "cancelled";
+            /** Version */
+            version: number;
         };
         /** MeOut */
         MeOut: {
@@ -8373,6 +8992,23 @@ export interface components {
              */
             status: "ok";
         };
+        /** ReadyIn */
+        ReadyIn: {
+            /**
+             * Checklist
+             * @description handwash, hair_cover, clean_surface, sealed, fresh_today: all true (else 422 partners.checklist_incomplete)
+             */
+            checklist: {
+                [key: string]: boolean;
+            };
+            /** Client At */
+            client_at?: string | null;
+            /**
+             * Order Ids
+             * @description Default: every assigned order not yet ready
+             */
+            order_ids?: string[] | null;
+        };
         /** ReceiptIn */
         ReceiptIn: {
             /** Lines */
@@ -9384,6 +10020,31 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** RunIn */
+        RunIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** RunOut */
+        RunOut: {
+            /** Offers */
+            offers: number;
+            /**
+             * Run Id
+             * @description The first meal's run; null with nothing to do
+             */
+            run_id: string | null;
+            /**
+             * Run Ids
+             * @description One run per meal that had orders
+             */
+            run_ids: string[];
+            /** Unassigned */
+            unassigned: number;
+        };
         /** SavedTemplatesOut */
         SavedTemplatesOut: {
             /**
@@ -9500,52 +10161,6 @@ export interface components {
              */
             start: string;
         };
-        /** SlotOut */
-        SlotOut: {
-            /** Available */
-            available: number;
-            /**
-             * Booked
-             * @description For the requested date
-             */
-            booked: number;
-            /** Capacity */
-            capacity: number;
-            /**
-             * End
-             * Format: time
-             */
-            end: string;
-            /**
-             * Hub Id
-             * Format: uuid
-             */
-            hub_id: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "box" | "tiffin";
-            /** Label */
-            label: string;
-            /**
-             * Meal
-             * @description Tiffin slots only (§3.5)
-             */
-            meal: ("lunch" | "dinner") | null;
-            /**
-             * Start
-             * Format: time
-             * @description IST clock time
-             * @example 07:00
-             */
-            start: string;
-        };
         /** SlotPatch */
         SlotPatch: {
             /** Active */
@@ -9601,7 +10216,7 @@ export interface components {
              */
             date: string;
             /** Items */
-            items: components["schemas"]["SlotOut"][];
+            items: components["schemas"]["gharbasket__modules__orders__schemas__SlotOut"][];
         };
         /** SocietyLoad */
         SocietyLoad: {
@@ -9908,19 +10523,6 @@ export interface components {
             id: string;
             /** Name */
             name: string;
-        };
-        /** StartIn */
-        StartIn: {
-            /**
-             * Bag Qr
-             * @description When scanned
-             */
-            bag_qr?: string | null;
-            /**
-             * Client At
-             * @description When the packer tapped (audit only; the server's time decides)
-             */
-            client_at?: string | null;
         };
         /** StatementEntry */
         StatementEntry: {
@@ -10327,6 +10929,20 @@ export interface components {
             /** Mr */
             mr: string;
         };
+        /** TiffinBoardOut */
+        TiffinBoardOut: {
+            /** Assignments */
+            assignments: components["schemas"]["AssignmentOut"][];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Meals */
+            meals: components["schemas"]["BoardMealOut"][];
+            /** Runs */
+            runs: components["schemas"]["BoardRunOut"][];
+        };
         /** TiffinMenuOut */
         TiffinMenuOut: {
             /**
@@ -10335,7 +10951,7 @@ export interface components {
              */
             date: string;
             /** Dishes */
-            dishes: components["schemas"]["DishOut"][];
+            dishes: components["schemas"]["gharbasket__modules__orders__schemas__DishOut"][];
             /**
              * Hub Id
              * Format: uuid
@@ -10393,7 +11009,7 @@ export interface components {
         /** TiffinOut */
         TiffinOut: {
             /** Dishes */
-            dishes: components["schemas"]["DishOut"][];
+            dishes: components["schemas"]["gharbasket__modules__orders__schemas__DishOut"][];
             /**
              * Meal
              * @enum {string}
@@ -11102,6 +11718,37 @@ export interface components {
              */
             outcome: string;
         };
+        /** WeekPortions */
+        WeekPortions: {
+            /**
+             * Dinner
+             * @description Monday … Sunday, 0 to 100 each
+             * @example [
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0,
+             *       0
+             *     ]
+             */
+            dinner: number[];
+            /**
+             * Lunch
+             * @description Monday … Sunday, 0 to 100 each
+             * @example [
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10,
+             *       10
+             *     ]
+             */
+            lunch: number[];
+        };
         /** WhatsAppAck */
         WhatsAppAck: {
             /**
@@ -11307,6 +11954,19 @@ export interface components {
              */
             user_id: string;
         };
+        /** StartIn */
+        gharbasket__modules__hub_ops__schemas__StartIn: {
+            /**
+             * Bag Qr
+             * @description When scanned
+             */
+            bag_qr?: string | null;
+            /**
+             * Client At
+             * @description When the packer tapped (audit only; the server's time decides)
+             */
+            client_at?: string | null;
+        };
         /** UserRef */
         gharbasket__modules__hub_ops__schemas__UserRef: {
             /** Name */
@@ -11330,6 +11990,20 @@ export interface components {
              */
             user_id: string;
         };
+        /** DishOut */
+        gharbasket__modules__orders__schemas__DishOut: {
+            /**
+             * Name
+             * @description In Accept-Language
+             * @example Varan bhaat
+             */
+            name: string;
+            /**
+             * Recipe Id
+             * Format: uuid
+             */
+            recipe_id: string;
+        };
         /** ResolveIn */
         gharbasket__modules__orders__schemas__ResolveIn: {
             /**
@@ -11349,6 +12023,52 @@ export interface components {
              */
             outcome: "credit" | "reject";
         };
+        /** SlotOut */
+        gharbasket__modules__orders__schemas__SlotOut: {
+            /** Available */
+            available: number;
+            /**
+             * Booked
+             * @description For the requested date
+             */
+            booked: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * End
+             * Format: time
+             */
+            end: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "box" | "tiffin";
+            /** Label */
+            label: string;
+            /**
+             * Meal
+             * @description Tiffin slots only (§3.5)
+             */
+            meal: ("lunch" | "dinner") | null;
+            /**
+             * Start
+             * Format: time
+             * @description IST clock time
+             * @example 07:00
+             */
+            start: string;
+        };
         /** TimelineEntry */
         gharbasket__modules__orders__schemas__TimelineEntry: {
             /**
@@ -11367,6 +12087,49 @@ export interface components {
              * @enum {string}
              */
             status: "approved" | "locked" | "payment_failed" | "cancelled" | "picking" | "packed" | "dispatched" | "at_society" | "delivered" | "undelivered" | "redelivery" | "refunded";
+        };
+        /** DishOut */
+        gharbasket__modules__partners__schemas__DishOut: {
+            /**
+             * Name
+             * @example Diet thali
+             */
+            name: string;
+            /** Portions */
+            portions: number;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** SlotOut */
+        gharbasket__modules__partners__schemas__SlotOut: {
+            /**
+             * End
+             * @example 13:30
+             */
+            end: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Start
+             * @example 12:30
+             */
+            start: string;
+        };
+        /** StartIn */
+        gharbasket__modules__partners__schemas__StartIn: {
+            /**
+             * Client At
+             * @description When she tapped (offline)
+             */
+            client_at?: string | null;
         };
         /**
          * CaptainOut
@@ -13569,7 +14332,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SlotOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__orders__schemas__SlotOut"];
                 };
             };
             /** @description http.400: the body cannot be read */
@@ -13642,7 +14405,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SlotOut"];
+                    "application/json": components["schemas"]["gharbasket__modules__orders__schemas__SlotOut"];
                 };
             };
             /** @description http.400: the body cannot be read */
@@ -13941,6 +14704,399 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_assignments_v1_assignments_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    accept_v1_assignments__assignment_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    decline_v1_assignments__assignment_id__decline_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeclineIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    ready_v1_assignments__assignment_id__ready_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_accepted, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    start_v1_assignments__assignment_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["gharbasket__modules__partners__schemas__StartIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.assignment_not_accepted, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.checklist_incomplete, partners.order_not_in_assignment, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -18168,6 +19324,209 @@ export interface operations {
             };
         };
     };
+    manual_v1_hubs__hub_id__tiffin_assignments_manual_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.order_not_assignable, partners.assignment_closed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_round_v1_hubs__hub_id__tiffin_assignments_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    tiffin_board_v1_hubs__hub_id__tiffin_board_get: {
+        parameters: {
+            query?: {
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TiffinBoardOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_vehicles_v1_hubs__hub_id__vehicles_get: {
         parameters: {
             query?: {
@@ -18982,6 +20341,369 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_capacity_v1_kitchen_capacity_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacitiesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    set_capacity_v1_kitchen_capacity_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_locked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    my_kitchen_v1_kitchens_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    edit_kitchen_v1_kitchens_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KitchenPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.skills_invalid, partners.capacity_invalid, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required: send If-Match */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    inspect_kitchen_v1_kitchens__partner_id__inspection_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                partner_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description partners.kitchen_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -20947,7 +22669,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["StartIn"] | null;
+                "application/json": components["schemas"]["gharbasket__modules__hub_ops__schemas__StartIn"] | null;
             };
         };
         responses: {

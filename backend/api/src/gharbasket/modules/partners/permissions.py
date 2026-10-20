@@ -15,3 +15,8 @@ for role in ("hub_manager", "admin"):
         # KYC files, through 5-minute links; every call audit-logged (owner, 2026-10-09).
         "kyc_files:read",
     )
+# A kitchen partner's own kitchen and capacity (§3.4); the service checks "own".
+PERMISSIONS.allow("kitchen_partner", "kitchens:write", "assignments:read", "assignments:write")
+for role in ("hub_manager", "admin"):
+    # Kitchen inspections, and running an assignment round or assigning by hand (§3.4).
+    PERMISSIONS.allow(role, "kitchens:inspect", "assignments:manage")
