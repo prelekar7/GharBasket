@@ -55,3 +55,51 @@ export const stack = {
     return call("POST", "/__e2e/sweep");
   },
 };
+
+/**
+ * Talk to the API as a seed or fresh person with a bearer token (the exchange without the web headers answers
+ * tokens in the body). For reading what the backend holds: the wallet, the cycle, the orders. An access token lasts
+ * 15 minutes of the server's clock, so after the clock has moved the call signs in again once.
+ * @param {string} phone e.g. "+919800001011"
+ */
+export async function asUser(phone) {
+  let token = "";
+  async function signIn() {
+    const answer = await fetch(`${API}/v1/auth/exchange`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dev_phone: phone, device: { platform: "android", push_token: null } }),
+    });
+    if (!answer.ok)
+      throw new Error(`exchange for ${phone}: ${answer.status} ${await answer.text()}`);
+    token = (await answer.json()).access_token;
+  }
+  async function once(method, path, body, extra = {}) {
+    const response = await fetch(`${API}${path}`, {
+      method,
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "idempotency-key": crypto.randomUUID(),
+        ...extra,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  }
+  async function send(method, path, body, extra) {
+    if (!token) await signIn();
+    const first = await once(method, path, body, extra);
+    if (first.status !== 401) return first;
+    await signIn();
+    return once(method, path, body, extra);
+  }
+  return {
+    /** @param {string} path */
+    get: (path) => send("GET", path),
+    post: (path, body, headers) => send("POST", path, body ?? {}, headers),
+    put: (path, body, headers) => send("PUT", path, body, headers),
+    patch: (path, body, headers) => send("PATCH", path, body, headers),
+  };
+}
