@@ -15,11 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing.models import JournalEntry, Posting
 from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
 from gharbasket.modules.catalog import api as catalog_api
-from gharbasket.modules.logistics import deliveries
+from gharbasket.modules.logistics import attempts, deliveries
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RouteStop
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.modules.orders.models import Order
 from gharbasket.platform.jobs import run_job
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_SOCIETY_ID
 
 from ..conftest import make_settings
@@ -59,6 +60,25 @@ async def job(db: AsyncSession, name: str, when: datetime) -> dict[str, Any]:
     return run.summary
 
 
+async def events(db: AsyncSession, event_type: str) -> list[dict[str, Any]]:
+    rows = await db.execute(
+        select(OutboxEvent.payload)
+        .where(OutboxEvent.event_type == event_type)
+        .order_by(OutboxEvent.id)
+    )
+    return list(rows.scalars())
+
+
+async def attempts_of(db: AsyncSession, order_id: uuid.UUID) -> list[Delivery]:
+    rows = await db.execute(
+        select(Delivery)
+        .where(Delivery.order_id == order_id)
+        .order_by(Delivery.attempt)
+        .execution_options(populate_existing=True)
+    )
+    return list(rows.scalars())
+
+
 async def stops(db: AsyncSession, route_id: uuid.UUID) -> dict[uuid.UUID | None, RouteStop]:
     rows = await db.execute(
         select(RouteStop)
@@ -77,7 +97,10 @@ async def status(db: AsyncSession, order_id: uuid.UUID) -> str:
 
 
 async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_refunded(
-    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     api = clients()
     with time_machine.travel(MORNING, tick=False):
@@ -201,15 +224,24 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
         done = await api.post(f"/v1/routes/{route_id}/complete", headers={**rider, **key()})
         assert done.status_code == 200, done.text
 
-    # The second miss: the perishables minus ₹20 (never below 0) and, until carry_over exists,
-    # the non-perishables in full.
+    # The second miss (the owner's decision of 9 Oct): the perishables minus ₹20, never below 0;
+    # the non-perishables are not refunded, they ride on the household's next delivery. The seed
+    # box has one perishable line, so tomato counts as one too here.
     ramesh = day.orders[RAMESH]
     [summary] = await orders_api.summaries(db_session, [ramesh])
-    fresh = await catalog_api.perishable_ids(db_session, [ln.product_id for ln in summary.lines])
+    real = catalog_api.perishable_ids
+    tomato = (await catalog_api.product_ids_by_slug(db_session, ["tomato"]))["tomato"]
+
+    async def tomato_too(session: AsyncSession, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+        return await real(session, ids) | {tomato}
+
+    monkeypatch.setattr(catalog_api, "perishable_ids", tomato_too)
+    fresh = await tomato_too(db_session, [ln.product_id for ln in summary.lines])
     paid = {True: 0, False: 0}
     for ln in summary.lines:
         paid[ln.product_id in fresh] += (ln.qty - ln.shortage_qty) * ln.unit_price_paise
-    expected = max(0, paid[True] - 2_000) + paid[False]
+    expected = max(0, paid[True] - 2_000)
+    assert 0 < expected < summary.order.total_paise and paid[False] > 0
     assert await job(db_session, "schedule_redeliveries", at(14, 20, 45)) == {
         "date": "2026-10-14",
         "redelivery": 0,
@@ -218,6 +250,10 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
         "failed": 0,
     }
     assert await status(db_session, ramesh) == "refunded"
+    # Refunded attempts ride no more: the stops count only the live redelivery (Meena's).
+    stop_ids = [stop.id for stop in (await stops(db_session, route_id)).values()]
+    riding = await attempts.riding(db_session, stop_ids)
+    assert [(d.order_id, d.status) for d in riding] == [(meena_order, "delivered")]
     second = await db_session.scalar(
         select(Delivery)
         .where(Delivery.order_id == ramesh, Delivery.attempt == 2)
@@ -239,9 +275,18 @@ async def test_a_held_bag_is_redelivered_from_the_captain_and_a_second_miss_is_r
         )
     ).scalars()
     assert tap is not None and tap["refund_paise"] == expected
-    assert {line["product_id"] for line in tap["non_perishable"]} == {
-        str(ln.product_id) for ln in summary.lines if ln.product_id not in fresh
-    }
+    kept = {str(ln.product_id) for ln in summary.lines if ln.product_id not in fresh}
+    assert {line["product_id"] for line in tap["non_perishable"]} == kept
+    # What was not refunded stays visible: the order has the rest of its paid total unrefunded and
+    # the carry-over record is published for the next packing (M4 carry_over / M6 are follow-ups).
+    assert await orders_api.refundable_paise(db_session, ramesh) == paid[False] + 2_000
+    [pending] = [
+        e
+        for e in await events(db_session, "logistics.carry_over_pending")
+        if e["order_id"] == str(ramesh)
+    ]
+    assert {line["product_id"] for line in pending["lines"]} == kept
+    assert sum(line["paid_paise"] for line in pending["lines"]) == paid[False]
 
 
 async def test_hold_expiry_sends_unconfirmed_bags_to_triage(
@@ -277,7 +322,7 @@ async def test_hold_expiry_sends_unconfirmed_bags_to_triage(
 
 
 @time_machine.travel(MORNING, tick=False)
-async def test_the_fee_never_eats_into_the_non_perishables(
+async def test_the_fee_floors_the_perishables_at_zero_and_the_non_perishables_are_not_refunded(
     clients: ClientFactory,
     google: FakeGoogle,
     db_session: AsyncSession,
@@ -296,9 +341,9 @@ async def test_the_fee_never_eats_into_the_non_perishables(
 
     monkeypatch.setattr(catalog_api, "perishable_ids", only_the_cheapest)
     amount, kept = await deliveries.second_miss_refund(db_session, order)
-    rest = sum(ln.qty * ln.unit_price_paise for ln in summary.lines if ln is not cheapest)
-    assert amount == rest  # the perishable part is floored at 0, the rest is whole
+    assert amount == 0  # the perishable part is floored at 0; the rest is not refunded
     assert len(kept) == len(summary.lines) - 1
+    assert sum(int(str(line["paid_paise"])) for line in kept) > 0
 
 
 async def test_one_failing_order_is_counted_and_a_full_wallet_goes_to_triage(
@@ -338,7 +383,12 @@ async def test_one_failing_order_is_counted_and_a_full_wallet_goes_to_triage(
     monkeypatch.undo()
     assert await status(db_session, day.orders[RAMESH]) == "undelivered"
 
-    # A second miss whose refund the wallet cannot take goes to triage.
+    # A second miss whose refund the wallet cannot take goes to triage (all of it perishable here,
+    # so there is a refund to take).
+    async def all_fresh(_: AsyncSession, ids: list[uuid.UUID]) -> set[uuid.UUID]:
+        return set(ids)
+
+    monkeypatch.setattr(catalog_api, "perishable_ids", all_fresh)
     priya = day.orders[PRIYA]
     await db_session.execute(
         update(Delivery)
@@ -396,5 +446,9 @@ async def test_left_behind_bags_go_to_triage_at_day_end_and_can_ride_again(
             headers={**manager, **key()},
         )
         assert ride.status_code == 200, ride.text
-        assert (ride.json()["attempt"], ride.json()["delivery_date"]) == (2, "2026-10-14")
+        # The ride is attempt 1 booked again, not the free redelivery (that is still unused).
+        assert (ride.json()["attempt"], ride.json()["delivery_date"]) == (1, "2026-10-14")
+        assert ride.json()["status"] == "scheduled"
     assert await status(db_session, meena_order) == "packed"
+    [booked] = await attempts_of(db_session, meena_order)
+    assert (booked.hub_ride, booked.status, booked.delivery_date) == (True, "scheduled", NEXT_DAY)

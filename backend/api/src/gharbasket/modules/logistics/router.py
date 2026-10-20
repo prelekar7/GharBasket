@@ -590,6 +590,7 @@ async def complete_route(
     session: DbSession,
     idem: Idempotent,
     response: Response,
+    valkey: Valkey,
     body: Annotated[CompleteIn | None, Body()] = None,
 ) -> RouteDetail:
     body = body or CompleteIn()
@@ -600,6 +601,7 @@ async def complete_route(
     out = await _detail(session, route, response)
     await idem.save(200, out)
     await session.commit()
+    await tracking.forget(valkey, route.id)  # the closed route's last position is not shown again
     return out
 
 
@@ -932,8 +934,10 @@ async def prove_delivery(
 ) -> DeliveryOut:
     attempt, order, actor = await deliveries.door_actor(session, permit, order_id)
     store = getattr(request.app.state, "storage", None)
-    photo_valid = body.photo_key is not None and await handover.photo_ok(
-        session, store, body.photo_key, actor.user_id
+    photo_valid = (
+        body.proof == "photo"  # a photo sent with a scan or a code is not stored, so not checked
+        and body.photo_key is not None
+        and await handover.photo_ok(session, store, body.photo_key, actor.user_id)
     )
     try:
         deliveries.check_proof(attempt, order, actor, body, photo_valid)
@@ -976,11 +980,19 @@ async def mark_undelivered(
 @router.post(
     "/deliveries/{order_id}/resolve",
     summary="Triage an undelivered order: the free redelivery or a refund (Idempotency-Key)",
+    description="`redeliver` books the one free redelivery (attempt 1 only); a bag the day's route "
+    "left behind rides again as attempt 1; a redelivery no route picked up is booked again. "
+    "`refund` pays the wallet up to what is left of the order's paid total; when the wallet "
+    "cannot take it (422 `billing.wallet_limit` with `room_paise`) nothing has changed: refund "
+    "at most that room, or wait for the customer to refund their balance to the payment source.",
     responses={
         **CREATES,
         **DELIVERY_404,
         409: _problem("logistics.not_undelivered, orders.illegal_transition"),
-        422: _problem("logistics.refund_invalid (max_paise), request.invalid"),
+        422: _problem(
+            "logistics.refund_invalid (max_paise), billing.wallet_limit (room_paise), "
+            "request.invalid"
+        ),
     },
 )
 async def resolve_delivery(

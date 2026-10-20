@@ -21,3 +21,8 @@ HANDOVER_COMPLETED = "logistics.handover_completed"
 DELIVERY_HELD = "logistics.delivery_held"
 # order_id, household_id, society_id, delivery_date, window — M11
 REDELIVERY_SCHEDULED = "logistics.redelivery_scheduled"
+# order_id, household_id, hub_id, society_id, lines: [{product_id, steps, paid_paise}] — the
+# non-perishable lines of a box missed twice, neither refunded nor surplus: they ride on the
+# household's next delivery (ADR-0027 §2). Nothing consumes it until M4's carry_over and M6's kept
+# items exist; it is the record the next packing can read.
+CARRY_OVER_PENDING = "logistics.carry_over_pending"

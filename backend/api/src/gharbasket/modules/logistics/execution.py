@@ -114,6 +114,17 @@ async def route_orders(
     return out
 
 
+async def dispatched_now(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[uuid.UUID]:
+    """Those of these orders that are still `dispatched`, each locked and read again: a damaged-bag
+    refund or a hub's move that committed since the route's orders were listed is not undone by a
+    handover or a route's completion working from the earlier list."""
+    out = []
+    for order_id in order_ids:
+        if (await orders_api.get(session, order_id, for_update=True)).status == "dispatched":
+            out.append(order_id)
+    return out
+
+
 # --- start, arrive, skip, complete --------------------------------------------------------------
 
 
@@ -327,11 +338,11 @@ async def close(
     """Complete a started route: its dispatched orders come back to the hub; publishes
     `logistics.route_completed`. Returns the number of orders that came back."""
     per_stop = await route_orders(session, route, ("dispatched",))
-    back = [o for orders in per_stop.values() for o in orders]
-    for order in back:
+    back = await dispatched_now(session, [o.id for orders in per_stop.values() for o in orders])
+    for order_id in back:
         await orders_api.transition(
             session,
-            order.id,
+            order_id,
             "undelivered",
             actor=actor,
             actor_user_id=actor_user,
@@ -339,7 +350,7 @@ async def close(
         )
     await attempts.set_status(
         session,
-        [o.id for o in back],
+        back,
         "undelivered",
         reason="returned_to_hub",
         by_actor=actor,

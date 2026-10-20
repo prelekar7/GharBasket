@@ -38,6 +38,13 @@ NOT_IN_THE_DAY = {
     "build_data_export": "needs object storage (SeaweedFS, `just up-storage`); no export is "
     "requested in the day",
     "sweep_uploads": "needs object storage (SeaweedFS, `just up-storage`)",
+    # M7's stage of the day (MS-B: the 23:15 plan, route start, handover, doors) is not in the
+    # simulated day yet; tests/logistics runs each of these jobs against the seed world.
+    "persist_gps_pings": "the simulated day has no riders sending pings yet (M7 MS-B stage)",
+    "close_routes": "the simulated day has no routes in progress (M7 MS-B stage)",
+    "hold_expiry": "the simulated day has no bags at a society yet (M7 MS-B stage)",
+    "schedule_redeliveries": "the simulated day has no missed bags yet (M7 MS-B stage)",
+    "purge_gps_pings": "the simulated day has no pings yet (M7 MS-B stage)",
 }
 # Open product bugs this suite found, by the invariant that shows them, with the bug as the reason;
 # each is xfail(strict=True), so fixing one turns the suite red until it is removed. (#280's two,

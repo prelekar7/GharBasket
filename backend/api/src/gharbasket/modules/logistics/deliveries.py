@@ -14,16 +14,18 @@ from datetime import date, time, timedelta
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.logistics import events
-from gharbasket.modules.logistics.attempts import latest, new_code
+from gharbasket.modules.logistics.attempts import latest, new_code, orphaned
 from gharbasket.modules.logistics.handover import (
     MAX_CODE_TRIES,
     Actor,
     CodeInvalid,
     ensure_captain,
+    keep_photo,
 )
 from gharbasket.modules.logistics.models import Delivery, FieldEvent, Route, RoutePlan, RouteStop
 from gharbasket.modules.logistics.routes import caller, conflict
@@ -134,11 +136,15 @@ async def _tap(
 async def deliver(
     session: AsyncSession, delivery: Delivery, order: orders_api.Order, actor: Actor, body: ProofIn
 ) -> None:
-    """at_society → delivered (a held bag too, until hold_expiry)."""
+    """at_society → delivered (a held bag too, until hold_expiry). Only a photo proof keeps the
+    photo: claimed for M7 and deleted 90 days after the delivery date."""
     await orders_api.transition(
         session, order.id, "delivered", actor=actor.kind, actor_user_id=actor.user_id
     )
-    delivery.status, delivery.proof, delivery.photo_key = "delivered", body.proof, body.photo_key
+    photo = body.photo_key if body.proof == "photo" else None
+    if photo is not None:
+        await keep_photo(session, photo, actor.user_id, delivery.delivery_date)
+    delivery.status, delivery.proof, delivery.photo_key = "delivered", body.proof, photo
     delivery.by_actor, delivery.user_id, delivery.client_at = (
         actor.kind,
         actor.user_id,
@@ -223,6 +229,7 @@ async def fail(
             )
             await _tap(session, delivery, "hold", actor, None, body.client_at)
         return
+    at_society = order.status == "at_society"
     await orders_api.transition(
         session,
         order.id,
@@ -231,9 +238,13 @@ async def fail(
         actor_user_id=actor.user_id,
         payload={"reason": body.reason},
     )
+    if body.photo_key is not None:
+        await keep_photo(session, body.photo_key, actor.user_id, delivery.delivery_date)
     delivery.status, delivery.reason, delivery.hold_until = "undelivered", body.reason, None
     delivery.by_actor, delivery.user_id, delivery.note = actor.kind, actor.user_id, body.note
     delivery.photo_key, delivery.client_at, delivery.at = body.photo_key, body.client_at, now()
+    # A bag that ended at the society with the captain stays with her (a rider's rides back).
+    delivery.kept_by_captain = at_society and not await _rider_holds(session, delivery)
     if body.reason in REFUND_AT_ONCE:
         amount = await orders_api.refundable_paise(session, order.id)
         if not await try_refund(session, delivery, order.id, amount, body.reason):
@@ -242,6 +253,12 @@ async def fail(
         delivery.status = "triage"
     await _tap(session, delivery, "undelivered", actor, {"reason": body.reason}, body.client_at)
     await session.flush()
+
+
+async def _rider_holds(session: AsyncSession, delivery: Delivery) -> bool:
+    """Whether the stop is in rider mode: the bag at the society is the rider's, not a captain's."""
+    stop = None if delivery.stop_id is None else await session.get(RouteStop, delivery.stop_id)
+    return stop is not None and stop.rider_mode
 
 
 async def redelivery_day(session: AsyncSession, hub_id: uuid.UUID, earliest: date) -> date:
@@ -291,9 +308,22 @@ async def schedule_redelivery(
         slot_id=order.slot_id,
         status="scheduled",
         delivery_code=new_code(),
+        kept_by_captain=delivery.kept_by_captain,  # a bag in her hands stays there overnight
     )
-    session.add(again)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(again)
+            await session.flush()
+    except IntegrityError:  # two resolves at once: the other one booked it
+        raise conflict(
+            "logistics.not_undelivered", "This order was resolved by someone else just now."
+        ) from None
+    await announce_redelivery(session, order, day)
+    return again
+
+
+async def announce_redelivery(session: AsyncSession, order: orders_api.Order, day: date) -> None:
+    """Tell the household (M11) the date and window of the redelivery."""
     slot = await orders_api.slot_ref(session, order.slot_id)
     await publish(
         session,
@@ -306,29 +336,33 @@ async def schedule_redelivery(
             "window": None if slot is None else {"start": hhmm(slot.start), "end": hhmm(slot.end)},
         },
     )
-    return again
 
 
 async def book_ride(
     session: AsyncSession, delivery: Delivery, order: orders_api.Order, day: date
-) -> Delivery:
-    """A packed bag left behind gets a ride on the next unsolved day (attempt 2; no order move:
-    the route start takes it from packed to dispatched)."""
-    delivery.status, delivery.at = "redelivery", now()
-    again = Delivery(
-        order_id=order.id,
-        attempt=2,
-        hub_id=order.hub_id,
-        society_id=order.society_id,
-        order_kind=order.kind,
-        delivery_date=await redelivery_day(session, order.hub_id, day),
-        slot_id=order.slot_id,
-        status="scheduled",
-        delivery_code=new_code(),
-    )
-    session.add(again)
+) -> None:
+    """A packed bag the hub's route left behind gets a ride on the next unsolved day (no order
+    move: the route start takes it from packed to dispatched). The ride is attempt 1 booked
+    again, flagged `hub_ride`: it is no customer miss, so a real miss on it still gets the one
+    free redelivery."""
+    delivery.status, delivery.reason, delivery.at = "scheduled", None, now()
+    delivery.hub_ride, delivery.stop_id = True, None
+    delivery.delivery_date = await redelivery_day(session, order.hub_id, day)
+    delivery.delivery_code = new_code()
+    delivery.code_attempts = 0
     await session.flush()
-    return again
+
+
+async def rebook(
+    session: AsyncSession, delivery: Delivery, order: orders_api.Order, day: date
+) -> None:
+    """A redelivery no route picked up, booked again on the first day from `day` whose plan is not
+    solved yet; the household is told the new date (a left-behind ride was never announced)."""
+    delivery.delivery_date = await redelivery_day(session, order.hub_id, day)
+    delivery.at = now()
+    await session.flush()
+    if not delivery.hub_ride:
+        await announce_redelivery(session, order, delivery.delivery_date)
 
 
 async def resolve(
@@ -339,19 +373,28 @@ async def resolve(
     body: ResolveIn,
     tomorrow: date,
 ) -> None:
-    """A hub manager's triage: the one free redelivery (attempt 1 only), or a refund of up to
-    what is left of the order's paid total (actor system on M4's move, naming the manager; also
-    audited). A packed bag the day's route left behind can only ride again (`book_ride`)."""
-    left_behind = delivery.reason == "left_behind" and order.status == "packed"
-    if left_behind and body.outcome != "redeliver":
+    """A hub manager's triage. An undelivered order: the one free redelivery (attempt 1 only), or
+    a refund of up to what is left of the order's paid total (actor system on M4's move, naming
+    the manager; also audited). A packed bag the day's route left behind can only ride again
+    (`book_ride`). A redelivery no route picked up (an orphan) is booked again on the next
+    solvable day, or refunded in full (its order moves `redelivery → refunded`, ADR-0028)."""
+    left_behind = (
+        delivery.status == "triage"
+        and delivery.reason == "left_behind"
+        and order.status == "packed"
+    )
+    orphan = await orphaned(session, delivery, tomorrow - timedelta(days=1))
+    if (left_behind or (orphan and order.status == "packed")) and body.outcome != "redeliver":
         raise conflict("logistics.not_undelivered", "A left-behind bag can only ride again.")
-    if not left_behind and (
+    if not (left_behind or orphan) and (
         order.status != "undelivered" or delivery.status not in ("undelivered", "triage")
     ):
         raise conflict("logistics.not_undelivered", "Only an undelivered order is resolved.")
     amount = None
     if left_behind:
         await book_ride(session, delivery, order, tomorrow)
+    elif orphan and body.outcome == "redeliver":
+        await rebook(session, delivery, order, tomorrow)
     elif body.outcome == "redeliver":
         if delivery.attempt != 1:
             raise ProblemError(
@@ -389,11 +432,13 @@ SECOND_MISS_FEE_PAISE = 2_000  # ₹20 (spec §11)
 MISSED = ("not_home", "returned_to_hub")
 
 
-async def _due(session: AsyncSession, day: date, statuses: tuple[str, ...]) -> list[uuid.UUID]:
+async def _due(
+    session: AsyncSession, day: date, statuses: tuple[str, ...], *, since: bool = False
+) -> list[uuid.UUID]:
+    """The attempts of `day` in these statuses; with `since`, those of earlier days too."""
+    when = Delivery.delivery_date <= day if since else Delivery.delivery_date == day
     rows = await session.execute(
-        select(Delivery.id)
-        .where(Delivery.delivery_date == day, Delivery.status.in_(statuses))
-        .order_by(Delivery.id)
+        select(Delivery.id).where(when, Delivery.status.in_(statuses)).order_by(Delivery.id)
     )
     return list(rows.scalars())
 
@@ -450,7 +495,9 @@ async def expire_holds(session: AsyncSession, day: date) -> dict[str, int]:
         )
         attempt.status = "undelivered" if reason == "not_home" else "triage"
         attempt.reason, attempt.by_actor, attempt.user_id = reason, "system", None
-        attempt.kept_by_captain = reason == "not_home"  # in her hands when the hold ended
+        # In her hands when the hold ended (a rider-mode stop's bag is the rider's): the next
+        # morning's van carries nothing for it, whatever the reason.
+        attempt.kept_by_captain = not await _rider_holds(session, attempt)
         attempt.hold_until, attempt.at = None, now()
         return reason
 
@@ -499,20 +546,19 @@ async def _sweep_left_behind(session: AsyncSession, day: date) -> int:
 async def second_miss_refund(
     session: AsyncSession, order: orders_api.Order
 ) -> tuple[int, list[dict[str, object]]]:
-    """A box missed twice (ADR-0027 §2, as built): the perishable lines' delivered steps at the
-    paid price minus ₹20, never below 0, plus, until M4's carry_over exists, the non-perishable
-    lines in full without the fee; capped at what is left to refund. Returns the amount and the
-    non-perishable lines, which the caller records."""
+    """A box missed twice (ADR-0027 §2, the owner's decision of 9 Oct): the perishable lines'
+    delivered steps at the paid price minus ₹20, never below 0 and never more than is left to
+    refund. The non-perishable lines are not refunded: they ride on the household's next delivery.
+    Returns the amount and those lines, which the caller records."""
     [summary] = await orders_api.summaries(session, [order.id])
     fresh = await catalog_api.perishable_ids(session, [ln.product_id for ln in summary.lines])
-    perishable = keep = 0
+    perishable = 0
     kept: list[dict[str, object]] = []
     for ln in summary.lines:
         steps = ln.qty - ln.shortage_qty
         if ln.product_id in fresh:
             perishable += steps * ln.unit_price_paise
         elif steps > 0:
-            keep += steps * ln.unit_price_paise
             kept.append(
                 {
                     "product_id": str(ln.product_id),
@@ -521,13 +567,15 @@ async def second_miss_refund(
                 }
             )
     most = await orders_api.refundable_paise(session, order.id)
-    return min(max(0, perishable - SECOND_MISS_FEE_PAISE) + keep, most), kept
+    return min(max(0, perishable - SECOND_MISS_FEE_PAISE), most), kept
 
 
 async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
-    """T 20:45: the day's not-home and returned bags (box, add-on). A first miss gets the one free
+    """T 20:45: the not-home and returned bags (box, add-on) of the day and of earlier days that
+    never got a decision (a route `close_routes` completed late). A first miss gets the one free
     redelivery on the next day whose plan is not solved; a second miss is refunded
-    (`second_miss_refund`), or goes to triage when the wallet cannot take it."""
+    (`second_miss_refund`: the perishables minus the fee, the non-perishables carried on and
+    recorded), or goes to triage when the wallet cannot take it."""
 
     async def settle(attempt_id: uuid.UUID) -> str | None:
         order, attempt = await _locked(session, attempt_id)
@@ -539,10 +587,9 @@ async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
         ):
             return None
         if attempt.attempt == 1:
-            again = await schedule_redelivery(
+            await schedule_redelivery(
                 session, attempt, order, day + timedelta(days=1), actor="system", actor_user_id=None
             )
-            again.kept_by_captain = attempt.kept_by_captain
             return "redelivery"
         amount, kept = await second_miss_refund(session, order)
         if not await try_refund(session, attempt, order.id, amount, "second_miss"):
@@ -560,11 +607,23 @@ async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
                     payload={"second_miss": True, "refund_paise": amount, "non_perishable": kept},
                 )
             )
+        if kept:  # waiting for M4's carry_over and M6's kept items (spec §10)
+            await publish(
+                session,
+                events.CARRY_OVER_PENDING,
+                {
+                    "order_id": str(order.id),
+                    "household_id": str(order.household_id),
+                    "hub_id": str(order.hub_id),
+                    "society_id": str(order.society_id),
+                    "lines": kept,
+                },
+            )
         return "refunded"
 
     return await _each(
         session,
-        await _due(session, day, ("undelivered",)),
+        await _due(session, day, ("undelivered",), since=True),
         settle,
         {"redelivery": 0, "refunded": 0, "triage": 0},
     )

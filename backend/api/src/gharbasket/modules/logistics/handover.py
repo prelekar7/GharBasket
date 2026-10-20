@@ -11,7 +11,7 @@ are tower and flat only, for her own society's orders of today and yesterday.
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time, timedelta
 
 from redis.asyncio import Redis
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import attempts, events, tracking
+from gharbasket.modules.logistics import attempts, events, execution, tracking
 from gharbasket.modules.logistics.execution import (
     ensure_running,
     route_orders,
@@ -30,7 +30,7 @@ from gharbasket.modules.logistics.models import Delivery, Handover, Route, Route
 from gharbasket.modules.logistics.routes import Caller, caller, conflict
 from gharbasket.modules.logistics.routing import DETOUR, metres
 from gharbasket.modules.logistics.schemas import CaptainFlat, FlatStatus, HandoverIn
-from gharbasket.modules.logistics.views import now
+from gharbasket.modules.logistics.views import IST, now
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform import files
 from gharbasket.platform.errors import ProblemError
@@ -39,6 +39,7 @@ from gharbasket.platform.permissions import Permit, forbidden
 
 MAX_CODE_TRIES = 5
 PHOTO_PURPOSE = "delivery_photo"  # M0
+PHOTO_KEPT = timedelta(days=90)  # after the delivery date (spec Privacy; M0 §3.1)
 KINDS = ("box", "addon")
 # order status -> what the captain's checklist calls it
 FLAT_STATUS = {
@@ -120,13 +121,54 @@ async def photo_ok(
     session: AsyncSession, store: files.ObjectStore | None, key: str, user_id: uuid.UUID
 ) -> bool:
     """True for an uploaded photo of the caller with M0's `delivery_photo` purpose: its upload row
-    names the caller and the purpose, and the object is in storage. Until M0 registers the purpose
-    (PR #316) every photo key is refused, so an invented key never stands in for a code."""
-    if PHOTO_PURPOSE not in files.PURPOSES or store is None:
+    names the caller and the purpose, and the object is in storage. A photo already used as proof
+    is refused with 409 `logistics.photo_already_used`: one photo proves one thing."""
+    if store is None:
         return False
     if await files.verify(session, key, user_id=user_id, purpose=PHOTO_PURPOSE) is None:
         return False
-    return await store.head(key) is not None
+    if await store.head(key) is None:
+        return False
+    if await photo_used(session, key):
+        raise photo_reused()
+    return True
+
+
+def photo_reused() -> ProblemError:
+    return conflict(
+        "logistics.photo_already_used", "This photo was already used as proof; take a new one."
+    )
+
+
+async def photo_used(session: AsyncSession, key: str) -> bool:
+    """Whether a handover or a delivery already holds this photo."""
+    held = await session.scalar(select(Handover.id).where(Handover.photo_key == key).limit(1))
+    if held is not None:
+        return True
+    return (
+        await session.scalar(select(Delivery.id).where(Delivery.photo_key == key).limit(1))
+        is not None
+    )
+
+
+async def keep_photo(
+    session: AsyncSession, key: str, user_id: uuid.UUID, delivery_date: date
+) -> None:
+    """Claim a proof photo for M7 and keep it 90 days after the delivery date; `sweep_uploads`
+    then deletes it (an unclaimed upload would go within 24 hours). Called in the transaction
+    that stores the key on the handover or the delivery. The claim takes the upload's row lock, so
+    of two requests with one key the second finds the first's row and is refused."""
+    claimed = await files.claim(
+        session, key, user_id=user_id, purpose=PHOTO_PURPOSE, by="logistics"
+    )
+    if claimed is None:
+        raise ProblemError(
+            422, "logistics.photo_key_invalid", "Upload the photo as delivery_photo first."
+        )
+    if await photo_used(session, key):
+        raise photo_reused()
+    until = datetime.combine(delivery_date + PHOTO_KEPT, time.min, tzinfo=IST)
+    await files.set_delete_after(session, key, until)
 
 
 def check_proof(
@@ -194,7 +236,8 @@ async def hand_over(
 ) -> tuple[Handover, list[uuid.UUID], list[uuid.UUID]]:
     """Move the stop's dispatched orders to `at_society`: all of them when the counts match, the
     scanned ones otherwise (409 `logistics.count_mismatch` without scans); `check_proof` first."""
-    dispatched = [o.id for o in (await route_orders(session, route, ("dispatched",)))[stop.id]]
+    listed = [o.id for o in (await route_orders(session, route, ("dispatched",)))[stop.id]]
+    dispatched = await execution.dispatched_now(session, listed)  # as they are now, locked
     # Redelivered bags: those back from the hub are counted; one the captain kept overnight is
     # not, yet it moves with the handover (§3.4).
     again = await attempts.riding(session, [stop.id])
@@ -218,6 +261,8 @@ async def hand_over(
     await attempts.set_status(
         session, moving, "with_captain", by_actor=actor.kind, user_id=actor.user_id
     )
+    if proof == "photo" and body.photo_key is not None:
+        await keep_photo(session, body.photo_key, actor.user_id, route.delivery_date)
     at = now()
     handover = Handover(
         stop_id=stop.id,
@@ -231,7 +276,7 @@ async def hand_over(
         bags_counted=body.bags,
         mismatch=mismatch,
         proof=proof,
-        photo_key=body.photo_key,
+        photo_key=body.photo_key if proof == "photo" else None,
         distance_m=await _distance_m(session, valkey, route, stop),
         note=body.note,
         client_at=body.client_at,

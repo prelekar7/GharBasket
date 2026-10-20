@@ -307,7 +307,10 @@ async def test_the_build_writes_one_file_with_each_section_and_get_links_it(
         "notifications",
         "partners",
         "community",
+        "logistics",
     }
+    assert sections["logistics"]["deliveries"] == []  # nothing was delivered yet
+    assert sections["logistics"]["routes"] == [] and sections["logistics"]["gps_pings"] == []
     assert sections["partners"] == {
         "applications": [],
         "kyc_documents": [],

@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.logistics import tracking
+from gharbasket.modules.logistics import attempts, tracking
 from gharbasket.modules.logistics.models import Route, RouteStop
 from gharbasket.modules.logistics.views import eta_now, stops_of
 from gharbasket.modules.orders import api as orders_api
@@ -78,6 +78,12 @@ async def audience(session: AsyncSession, permit: Permit, route: Route) -> Audie
                 stop_id = pairs.get((order.society_id, order.slot_id))
                 if order.household_id == household.id and stop_id is not None:
                     return Audience(stop_id, customer=True)
+            # A redelivery of an earlier day rides this route too: its order is not one of the
+            # route's date, but the attempt is booked on one of its stops.
+            for again in await attempts.riding(session, [s.id for s in stops]):
+                order = await orders_api.get(session, again.order_id)
+                if order.household_id == household.id and order.status in ON_ROUTE:
+                    return Audience(again.stop_id, customer=True)
     raise forbidden()
 
 

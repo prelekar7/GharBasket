@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import plans
-from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop
+from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop, booked
 from gharbasket.modules.logistics.routing import clock
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
@@ -179,7 +179,8 @@ async def _redelivery_bags(
         select(Delivery.stop_id, func.count())
         .where(
             Delivery.stop_id.in_(stop_ids),
-            Delivery.attempt == 2,
+            booked(),
+            Delivery.status != "refunded",
             Delivery.kept_by_captain.is_(False),
         )
         .group_by(Delivery.stop_id)

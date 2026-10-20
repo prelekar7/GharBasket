@@ -1003,7 +1003,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Triage an undelivered order: the free redelivery or a refund (Idempotency-Key) */
+        /**
+         * Triage an undelivered order: the free redelivery or a refund (Idempotency-Key)
+         * @description `redeliver` books the one free redelivery (attempt 1 only); a bag the day's route left behind rides again as attempt 1; a redelivery no route picked up is booked again. `refund` pays the wallet up to what is left of the order's paid total; when the wallet cannot take it (422 `billing.wallet_limit` with `room_paise`) nothing has changed: refund at most that room, or wait for the customer to refund their balance to the payment source.
+         */
         post: operations["resolve_delivery_v1_deliveries__order_id__resolve_post"];
         delete?: never;
         options?: never;
@@ -17646,7 +17649,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.refund_invalid (max_paise), request.invalid */
+            /** @description logistics.refund_invalid (max_paise), billing.wallet_limit (room_paise), request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

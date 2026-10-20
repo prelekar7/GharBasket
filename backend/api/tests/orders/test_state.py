@@ -33,6 +33,7 @@ BOX_MOVES = {
     ("at_society", "undelivered"): {"captain", "rider", "system", "hub"},
     ("undelivered", "redelivery"): {"customer", "system", "hub"},  # system: ADR-0027 §5
     ("undelivered", "refunded"): {"customer", "system"},
+    ("redelivery", "refunded"): {"system", "hub"},  # an orphan redelivery (ADR-0028)
 }
 TIFFIN_MOVES = {
     ("approved", "locked"): {"system"},
