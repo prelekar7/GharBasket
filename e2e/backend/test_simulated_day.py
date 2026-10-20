@@ -106,6 +106,11 @@ async def database(config: Config):
         await engine.dispose()
 
 
+async def rows(config: Config, sql: str, **params: Any) -> list[Any]:
+    async with database(config) as session:
+        return list((await session.execute(text(sql), params)).all())
+
+
 async def scalar(config: Config, sql: str, **params: Any) -> Any:
     async with database(config) as session:
         return (await session.execute(text(sql), params)).scalar()
@@ -726,9 +731,12 @@ def test_after_the_grace_the_plan_is_refreshed_and_the_routes_are_solved(
 
 
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
-    """Tuesday T 04:03 to 04:33 IST: the daily platform, identity and notification jobs."""
+    """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
+    jobs."""
+    out: dict[str, Any] = {}
 
     async def go() -> None:
+        out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
             ("expire_data_exports", 4, 23),
@@ -737,6 +745,7 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
             await app.job(name, ist(day.t, hour, minute))
 
     step(loop, ist(day.t, 4, 0), go())
+    assert out["pings"] == {"deleted": 0, "partitions_dropped": 0}, out  # no rider sent a ping
 
 
 def test_packing_tasks_are_built_for_every_paid_box(
@@ -788,6 +797,26 @@ def test_the_morning_sends_what_quiet_hours_held(
     assert not [k for k, n in pushes.items() if n > 1], "a message was pushed twice to a device"
     devices = set(app.devices.values())
     assert {p["token"] for p in app.outside.pushes} <= devices
+
+
+async def logistics_untouched(config: Config, day: Day) -> None:
+    """The published route is as the 23:15 solve left it, and no rider has sent a ping."""
+    states = await rows(
+        config, "SELECT status FROM logistics.routes WHERE delivery_date = :d", d=day.t
+    )
+    assert states and {status for (status,) in states} == {"published"}, states
+    assert await scalar(config, "SELECT count(*) FROM logistics.gps_pings") == 0
+
+
+def test_the_morning_moves_the_riders_pings_and_finds_none(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 07:02: `persist_gps_pings` (every minute) with nothing in the stream. No route has
+    started, so the published route stays as it is."""
+    when = ist(day.t, 7, 2)
+    summary = step(loop, when, app.job("persist_gps_pings", when))
+    assert summary == {"read": 0, "inserted": 0}, summary
+    loop.run(logistics_untouched(config, day))
 
 
 def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop: Runner) -> None:
