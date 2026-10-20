@@ -91,8 +91,5 @@ These rows extend ADR-0026 §2's table (box and add-on orders unless stated):
   - **handbook 07** W5: the held bag overnight, then refund and carry-over;
   - **M7 and M8**: their contracts already follow this ADR.
 
-## As built (M7 PRs, October 2026)
-- **A hub manager tapping for a rider.** When a hub manager starts or completes a route for its rider, M7 moves the orders with actor `rider` and the route's rider's user id, so the rider's per-order pay (M8 §3.6) is unchanged; the manager is recorded on M7's field event. A route with no rider moves its orders as `hub`.
-
 ## Related
 [ADR-0026](0026-operations-contract.md) · [ADR-0021](0021-jobs-without-a-broker.md) · [M2 spec](../modules/M2-catalog.md) · [M4 spec](../modules/M4-orders.md) · [M5 spec](../modules/M5-billing.md) · [M6 spec](../modules/M6-hub-ops.md) · [M7 spec](../modules/M7-logistics.md) · [M8 spec](../modules/M8-partners.md) · [M10 spec](../modules/M10-intelligence.md) · Handbook [Chapter 06](../handbook/06-domain-lifecycles.md), [Chapter 07](../handbook/07-workflows.md)
