@@ -182,14 +182,6 @@
       "pr": "#329",
       "milestone": "MS-B"
     },
-    "GET /v1/assignments": {
-      "app": "mobile",
-      "class": "pending-pr",
-      "owner": "prathamesh",
-      "pr": "M8 stack: #335 (rounds), then offers, cooking",
-      "milestone": "MS-B",
-      "note": "M8 §3.4. Branch feat/M8-assignment-offers."
-    },
     "GET /v1/earnings": {
       "app": "mobile",
       "class": "pending-pr",
