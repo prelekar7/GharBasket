@@ -655,7 +655,7 @@ async def test_every_module_erases_its_part(
         "quiet_hours": 1,
     }
     assert counts["intel_gateway"] == {"predictions": 1, "feature_snapshots": 1}
-    assert counts["community"] == {"society_requests": 1}
+    assert counts["community"] == {"society_requests": 1, "referral_codes": 0, "referrals": 0}
     assert counts["hub_ops"] == {"packing_tasks": 1, "packing_events": 0}
     assert counts["subscriptions"] == {
         "edit_feedback": 0,

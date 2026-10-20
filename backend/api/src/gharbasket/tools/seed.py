@@ -6,7 +6,7 @@ Every row is `data_source='synthetic'`, so it never counts in real metrics. Runn
 changes nothing. It writes through the module services, like the simulator will, so the same
 rules hold as for a real sign-in: a new phone becomes a customer, staff roles are audit-logged.
 
-The phones +91 98000 01001 to 01012 are reserved for this seed. Sign in as any of them locally
+The phones +91 98000 01001 to 01013 are reserved for this seed. Sign in as any of them locally
 with `dev_phone` (`POST /v1/auth/exchange`, APP_ENV=dev). The societies are made-up names in real
 Kharghar, Kamothe and Panvel sectors, with approximate boundaries; five of the people have a
 household there, created through the same onboarding service as `POST /v1/households`. Each live
@@ -17,6 +17,7 @@ data/seeds/catalog/*.json. The seed hub gets one morning box slot and every seed
 hub delivers on Tuesdays (M3/M4), so `just sim` and the weekly job have somewhere to deliver.
 The seed hub itself (M6, ADR-0026 §5) is Kharghar, with a service area around the seed societies
 and one default vendor, so every hub id above points at a real `hub_ops.hubs` row.
+The partner training modules (M8) come from data/seeds/trainings, placeholders until reviewed.
 Later module PRs add their rows here and use the hub, society and NGO ids below.
 
 Only for the local Docker database: shared databases (staging) are always refused.
@@ -31,13 +32,17 @@ from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.catalog.models import NUTRITION_SOURCES, PriceList, Product, Recipe
 from gharbasket.modules.catalog.pricing import save_price_list
 from gharbasket.modules.catalog.recipes import (
     IngredientData,
     RecipeData,
+    recompute_rules,
     save_festival,
     save_recipe,
 )
@@ -58,6 +63,7 @@ from gharbasket.modules.identity.service import find_or_create_user, grant_role
 from gharbasket.modules.orders import service as orders_service
 from gharbasket.modules.partners import api as partners_api
 from gharbasket.modules.partners import service as partners_service
+from gharbasket.modules.partners import training as partners_training
 from gharbasket.modules.registry import load_modules
 from gharbasket.modules.subscriptions import service as subscriptions_service
 from gharbasket.platform import outbox
@@ -68,6 +74,7 @@ from gharbasket.platform.settings import DatabaseSettings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 CATALOG_SEED = REPO_ROOT / "data" / "seeds" / "catalog"
+TRAININGS_SEED = REPO_ROOT / "data" / "seeds" / "trainings" / "modules.json"
 
 # Fixed ids, so every machine gets the same world and later seeds can point at these rows.
 SEED_HUB_ID = uuid.UUID("0199a000-0000-7000-8000-00000000a001")  # Kharghar hub
@@ -101,6 +108,7 @@ PEOPLE = (
     Person("+919800001010", "Asha Fernandes", roles=(("ngo_coordinator", SEED_NGO_ID),)),
     Person("+919800001011", "Neha Iyer", roles=(("admin", None),)),
     Person("+919800001012", "Savita Naik", locale="mr-IN"),
+    Person("+919800001013", "Rekha Joshi", roles=(("catalog_editor", None),)),
 )
 
 
@@ -213,12 +221,28 @@ SEED_HUB = HubIn(
         ],
     ),
 )
-SEED_VENDOR = VendorIn(
-    name="Shinde Traders",
-    kind="apmc_trader",
-    phone="+919800002001",
-    is_default=True,
-    notes="APMC Vashi, vegetables",
+# The demo's three vendors (M6 §11): the APMC trader is the default for anything without a
+# purchase history; leafy greens and staples are moved to the others on the plan's lines.
+SEED_VENDORS = (
+    VendorIn(
+        name="Shinde Traders",
+        kind="apmc_trader",
+        phone="+919800002001",
+        is_default=True,
+        notes="APMC Vashi, vegetables and fruit",
+    ),
+    VendorIn(
+        name="Kharghar Kisan FPO",
+        kind="fpo",
+        phone="+919800002002",
+        notes="Leafy greens, cut the evening before",
+    ),
+    VendorIn(
+        name="Patil Wholesale",
+        kind="wholesaler",
+        phone="+919800002003",
+        notes="Dals, rice, flours, oils and dairy",
+    ),
 )
 
 
@@ -356,7 +380,7 @@ async def seed(session: AsyncSession) -> list[Seeded]:
 
 
 async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh the seed hub, and give it its default vendor once: (slug, created).
+    """Create or refresh the seed hub, and give it its vendors once: (slug, created).
 
     Commits nothing. A refresh puts the hub back as SEED_HUB describes it (version + 1 only if
     something had changed); an existing vendor of that name is kept as it is.
@@ -373,8 +397,10 @@ async def seed_hubs(session: AsyncSession) -> list[tuple[str, bool]]:
         )
         await hub_service.update_hub(session, hub, HubPatch.model_validate(fields))
     vendors = await hub_service.list_vendors(session, hub.id, None)
-    if not any(vendor.name.lower() == SEED_VENDOR.name.lower() for vendor in vendors):
-        await hub_service.create_vendor(session, hub, SEED_VENDOR)
+    names = {vendor.name.lower() for vendor in vendors}
+    for vendor in SEED_VENDORS:
+        if vendor.name.lower() not in names:
+            await hub_service.create_vendor(session, hub, vendor)
     return [(hub.slug, created)]
 
 
@@ -428,11 +454,30 @@ async def seed_partners(session: AsyncSession) -> list[tuple[str, bool]]:
     return done
 
 
-async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
-    """Create or refresh data/seeds/catalog: categories, products, the seed hub's price list,
-    recipes and festival days.
+async def seed_trainings(session: AsyncSession) -> list[tuple[str, bool]]:
+    """Create or refresh the partner training modules (M8 §3.2) from data/seeds/trainings:
+    placeholders until Rhythm and Manish write the real ones. (code, created) each."""
+    saved: list[tuple[str, bool]] = []
+    for data in json.loads(TRAININGS_SEED.read_text())["modules"]:
+        module, created = await partners_training.save_module(session, data)
+        saved.append((module.code, created))
+    return saved
 
-    Returns (slug, created) for each product.
+
+async def _kept(session: AsyncSession, model: Any, slug: str, refresh: bool) -> Any:
+    """The existing row the seed leaves alone: every existing one, or with `refresh` only those
+    edited in the console (`updated_by` set). None when the seed should write the row."""
+    row = (await session.execute(select(model).where(model.slug == slug))).scalar_one_or_none()
+    return row if row is not None and (row.updated_by is not None or not refresh) else None
+
+
+async def seed_catalog(session: AsyncSession, *, refresh: bool = False) -> list[tuple[str, bool]]:
+    """Add data/seeds/catalog: categories, products, the seed hub's price list, recipes and
+    festival days.
+
+    Products and recipes are only added (by slug); with `refresh` the seed files' values are
+    re-applied to the rows nobody edited in the console (M2 §3.3). Returns (slug, created) for
+    each product.
     """
     categories = json.loads((CATALOG_SEED / "categories.json").read_text())["categories"]
     for category in categories:
@@ -440,7 +485,12 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
     saved: list[tuple[str, bool]] = []
     ids: dict[str, uuid.UUID] = {}
     nutrition = {
-        row["slug"]: {**row["per_100g"], "unit_g": row.get("unit_g"), "source": row["source"]}
+        row["slug"]: {
+            **row["per_100g"],
+            "unit_g": row.get("unit_g"),
+            "source": NUTRITION_SOURCES[row["source"]["name"]],
+            "ref": {key: value for key, value in row["source"].items() if key != "name"},
+        }
         for row in json.loads((CATALOG_SEED / "nutrition.json").read_text())["items"]
     }
     for item in json.loads((CATALOG_SEED / "products.json").read_text())["products"]:
@@ -454,29 +504,44 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
             data_source="synthetic",
             nutrition=nutrition.get(item["slug"]),
         )
+        if kept := await _kept(session, Product, data.slug, refresh):
+            saved.append((kept.slug, False))
+            ids[kept.slug] = kept.id
+            continue
         product, created = await save_product(session, data)
         saved.append((product.slug, created))
         ids[product.slug] = product.id
 
     prices = json.loads((CATALOG_SEED / "prices.json").read_text())
-    await save_price_list(
-        session,
-        SEED_HUB_ID,
-        date.fromisoformat(prices["valid_from"]),
-        [
-            PriceItem(
-                product_id=ids[item["slug"]],
-                price_paise=item["price_paise"],
-                mrp_paise=item["mrp_paise"],
-            )
-            for item in prices["items"]
-        ],
-        published_by=None,
-        data_source="synthetic",
+    valid_from = date.fromisoformat(prices["valid_from"])
+    replaced_in_console = await session.scalar(
+        select(PriceList.id).where(
+            PriceList.hub_id == SEED_HUB_ID,
+            PriceList.valid_from == valid_from,
+            PriceList.updated_by.is_not(None),
+        )
     )
+    if not replaced_in_console:
+        await save_price_list(
+            session,
+            SEED_HUB_ID,
+            valid_from,
+            [
+                PriceItem(
+                    product_id=ids[item["slug"]],
+                    price_paise=item["price_paise"],
+                    mrp_paise=item["mrp_paise"],
+                )
+                for item in prices["items"]
+            ],
+            published_by=None,
+            data_source="synthetic",
+        )
 
     recipes = json.loads((CATALOG_SEED / "recipes.json").read_text())["recipes"]
     for recipe in sorted(recipes, key=lambda r: not r.get("is_side", False)):  # sides first
+        if await _kept(session, Recipe, recipe["slug"], refresh):
+            continue
         await save_recipe(
             session,
             RecipeData(
@@ -503,6 +568,8 @@ async def seed_catalog(session: AsyncSession) -> list[tuple[str, bool]]:
                 data_source="synthetic",
             ),
         )
+    if refresh:  # refreshed tags may change the rules of recipes edited in the console
+        await recompute_rules(session, list(ids.values()), None)
     for festival in json.loads((CATALOG_SEED / "festivals.json").read_text())["festivals"]:
         await save_festival(
             session,
@@ -524,8 +591,6 @@ async def seed_delivery(session: AsyncSession) -> tuple[uuid.UUID, int]:
     """One morning box slot at the seed hub, and Tuesday delivery for each seed society with a
     hub (M3/M4). Returns (slot id, societies set). Existing rows are kept."""
     from datetime import time
-
-    from sqlalchemy import select
 
     from gharbasket.modules.orders.models import Slot
 
@@ -563,11 +628,12 @@ class Report:
     households: list[tuple[str, bool]]
     partners: list[tuple[str, bool]]
     products: list[tuple[str, bool]]
+    trainings: list[tuple[str, bool]] = field(default_factory=list)
     delivery: tuple[uuid.UUID, int] | None = None
     hubs: list[tuple[str, bool]] = field(default_factory=list[tuple[str, bool]])
 
 
-async def run(database_url: str) -> Report:
+async def run(database_url: str, *, refresh: bool = False) -> Report:
     load_modules()  # the relay at the end needs every module's consumers
     engine = create_engine(database_url, pooled=False)
     try:
@@ -578,7 +644,8 @@ async def run(database_url: str) -> Report:
                 societies=await seed_societies(session),
                 households=await seed_households(session),
                 partners=await seed_partners(session),
-                products=await seed_catalog(session),
+                products=await seed_catalog(session, refresh=refresh),
+                trainings=await seed_trainings(session),
                 delivery=await seed_delivery(session),
             )
             await session.commit()
@@ -592,7 +659,12 @@ async def run(database_url: str) -> Report:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fill the local database with synthetic data.")
-    parser.parse_args(argv)
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="re-apply the catalog seed files to products and recipes nobody edited in the console",
+    )
+    args = parser.parse_args(argv)
 
     url = DatabaseSettings(_env_file=REPO_ROOT / ".env").migrations_url  # pyright: ignore[reportCallIssue]
     if url is None:
@@ -600,7 +672,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not is_local_database(url):
         parser.error("seed data is only for the local Docker database")
 
-    report = asyncio.run(run(url))
+    report = asyncio.run(run(url, refresh=args.refresh))
     for slug, created in report.hubs:
         print(f"hub {slug} ({SEED_HUB_ID}) {'new' if created else 'kept'}")
     seeded, societies = report.people, report.societies
@@ -619,6 +691,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{len(report.partners)} synthetic captain partners")
     new = sum(created for _, created in report.products)
     print(f"{len(report.products)} synthetic products ({new} new)")
+    print(f"{len(report.trainings)} partner training modules (placeholders)")
     if report.delivery:
         print(f"delivery: slot {report.delivery[0]} on Tuesdays for {report.delivery[1]} societies")
     return 0

@@ -12,3 +12,8 @@ SUSPENDED = "partners.suspended"
 # {partner_id, user_id, kind, hub_id}: M1 marks the hub role verified again; a captain is not
 # re-appointed.
 REINSTATED = "partners.reinstated"
+# {application_id, user_id, kind, hub_id, scope_type, scope_id} (§3.1).
+APPLICATION_SUBMITTED = "partners.application_submitted"
+# {application_id, user_id, kind, hub_id, outcome}: outcome approved, resubmit or rejected; the
+# reason is not in the event (M11 reads it through the facade).
+APPLICATION_DECIDED = "partners.application_decided"

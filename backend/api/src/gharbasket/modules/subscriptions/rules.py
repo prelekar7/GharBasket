@@ -43,6 +43,15 @@ def steps_needed(base_units: float, step_qty: int, step_unit_factor: int) -> int
     return int(max(1, steps))
 
 
+def cohort_of(equivalents: float) -> str:
+    """The pantry twin's household-size cohort (M10 §3.3 v1): the learned priors are per cohort."""
+    if equivalents < 2.0:
+        return "small"
+    if equivalents < 3.5:
+        return "medium"
+    return "large"
+
+
 def daily_use_plan(equivalents: float) -> dict[str, float]:
     """Base units per week of each daily-use product for a household of `equivalents`."""
     return {slug: rate * equivalents for slug, rate in DAILY_USE_PER_ADULT_WEEK.items()}

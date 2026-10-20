@@ -19,7 +19,10 @@ What a report holds (v0, October 2026):
   over the weekly quantity (Σ |error| / Σ actual per household item, zero weeks kept): the family-size
   rule table (static) and a running mean of the weeks observed so far (the cold-start curve, k observed
   weeks → the error on week k + 1). M-A's targets are shown on the running mean for reference only;
-  the twin (M10 F13) gets a verdict when it is scored the same way.
+  the twin (M10 F13) gets a verdict when it is scored the same way. On the twin's scope (milk and
+  curd, their daily-use share) a reference arm with no target sits next to it: the twin from cohort
+  priors learned (v1, NumPyro) on another seed's households (`--learned-from`, by default the next
+  of the five seeds; `--no-learned` skips it; protocol §7, 8 Oct).
 - **Provenance:** the simulator version and source digest, and the sha256 of cohorts.json,
   shocks.json and every file in data/seeds/catalog, in the report and in each metric row's `details`
   (with the per-seed values).
