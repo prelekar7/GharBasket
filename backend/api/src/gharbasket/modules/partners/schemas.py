@@ -442,3 +442,19 @@ class CapacityIn(BaseModel):
     max_portions: int = Field(
         description="0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins", examples=[12]
     )
+
+
+# --- tiffin assignments (§3.4) ------------------------------------------------------------------
+
+
+class RunIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: date
+
+
+class RunOut(BaseModel):
+    run_id: uuid.UUID | None = Field(description="The first meal's run; null with nothing to do")
+    run_ids: list[uuid.UUID] = Field(description="One run per meal that had orders")
+    offers: int
+    unassigned: int

@@ -17,3 +17,8 @@ APPLICATION_SUBMITTED = "partners.application_submitted"
 # {application_id, user_id, kind, hub_id, outcome}: outcome approved, resubmit or rejected; the
 # reason is not in the event (M11 reads it through the facade).
 APPLICATION_DECIDED = "partners.application_decided"
+# {assignment_id, partner_id, user_id, hub_id, date, meal, portions, orders_count, respond_by,
+# round} (§3.4): M11 pushes the offer to the kitchen.
+ASSIGNMENT_CREATED = "partners.assignment_created"
+# {hub_id, date, meal, run_id, order_ids, reasons}: once per run; M11 tells the hub managers.
+TIFFINS_UNASSIGNED = "partners.tiffins_unassigned"

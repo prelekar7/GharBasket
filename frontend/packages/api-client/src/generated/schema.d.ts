@@ -1408,6 +1408,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/tiffin-assignments/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run one assignment round now for a date (hub manager, admin; Idempotency-Key) */
+        post: operations["run_round_v1_hubs__hub_id__tiffin_assignments_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/vehicles": {
         parameters: {
             query?: never;
@@ -9595,6 +9612,31 @@ export interface components {
             vehicle: components["schemas"]["VehicleRef"];
             /** Version */
             version: number;
+        };
+        /** RunIn */
+        RunIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** RunOut */
+        RunOut: {
+            /** Offers */
+            offers: number;
+            /**
+             * Run Id
+             * @description The first meal's run; null with nothing to do
+             */
+            run_id: string | null;
+            /**
+             * Run Ids
+             * @description One run per meal that had orders
+             */
+            run_ids: string[];
+            /** Unassigned */
+            unassigned: number;
         };
         /** SavedTemplatesOut */
         SavedTemplatesOut: {
@@ -18401,6 +18443,71 @@ export interface operations {
                 };
             };
             /** @description logistics.date_out_of_range, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_round_v1_hubs__hub_id__tiffin_assignments_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

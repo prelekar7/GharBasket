@@ -99,6 +99,8 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The tiffin assignment's fairness weight, paise per portion (M8 §3.4; M10's knee is 300).
+    partners_fairness_lambda: float = Field(default=300.0, ge=0, le=10_000)
     # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
     public_web_url: str = "https://gharbasket.in"
     # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
