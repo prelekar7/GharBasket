@@ -3085,6 +3085,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stops/{stop_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Switch a stop to rider mode for the day (If-Match: the route's version)
+         * @description For an absent captain: the route's rider then hands over and does the doors. Audited.
+         */
+        patch: operations["patch_stop_v1_stops__stop_id__patch"];
+        trace?: never;
+    };
     "/v1/stops/{stop_id}/arrive": {
         parameters: {
             query?: never;
@@ -3096,6 +3116,26 @@ export interface paths {
         put?: never;
         /** Record the arrival at a stop and tell the captain (Idempotency-Key) */
         post: operations["arrive_at_stop_v1_stops__stop_id__arrive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stops/{stop_id}/handover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hand a stop's crates to its captain by count and code or photo (Idempotency-Key)
+         * @description Matching counts move every dispatched order of the stop to at_society; otherwise only the scanned bags move and the rest ride back. Rider mode needs no code or photo. Five wrong codes for a stop allow only a photo.
+         */
+        post: operations["hand_over_v1_stops__stop_id__handover_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5300,6 +5340,57 @@ export interface components {
         GoodsReceiptsOut: {
             /** Items */
             items: components["schemas"]["GoodsReceiptOut"][];
+        };
+        /** HandoverIn */
+        HandoverIn: {
+            /**
+             * Bags
+             * @example 14
+             */
+            bags: number;
+            /**
+             * Client At
+             * @description When the tap happened on the phone (stored for audit)
+             */
+            client_at?: string | null;
+            /**
+             * Crates
+             * @description Counted by the captain
+             * @example 5
+             */
+            crates: number;
+            /**
+             * Handover Code
+             * @example 4821
+             */
+            handover_code?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Photo Key
+             * @example delivery_photo/<user_id>/<uuid>.jpg
+             */
+            photo_key?: string | null;
+            /**
+             * Scanned Bags
+             * @description Needed only when the counts do not match
+             */
+            scanned_bags?: string[] | null;
+        };
+        /** HandoverOut */
+        HandoverOut: {
+            /** At Society */
+            at_society: string[];
+            /**
+             * Handover Id
+             * Format: uuid
+             */
+            handover_id: string;
+            /** Mismatch */
+            mismatch: boolean;
+            /** Still Dispatched */
+            still_dispatched: string[];
+            stop: components["schemas"]["StopOut"];
         };
         /** Health */
         Health: {
@@ -11136,6 +11227,14 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "arrived" | "handed_over" | "skipped";
+        };
+        /** StopPatch */
+        StopPatch: {
+            /**
+             * Rider Mode
+             * @description True: the rider hands over and does the doors today
+             */
+            rider_mode: boolean;
         };
         /** StopSlot */
         StopSlot: {
@@ -26393,6 +26492,107 @@ export interface operations {
             };
         };
     };
+    patch_stop_v1_stops__stop_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "If-Match"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StopPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopOut"];
+                };
+            };
+            /** @description http.400: the body cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.route_closed, logistics.already_handed_over */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.version_mismatch: reload and try again */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.precondition_required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     arrive_at_stop_v1_stops__stop_id__arrive_post: {
         parameters: {
             query?: never;
@@ -26467,6 +26667,98 @@ export interface operations {
             };
             /** @description request.idempotency_mismatch, request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hand_over_v1_stops__stop_id__handover_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                stop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoverIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandoverOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden, logistics.not_society_captain, logistics.not_your_route */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.stop_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.count_mismatch, logistics.already_handed_over, logistics.route_not_started, logistics.route_closed, orders.illegal_transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.code_invalid, logistics.photo_key_invalid, request.invalid, request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description logistics.code_attempts_exceeded */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

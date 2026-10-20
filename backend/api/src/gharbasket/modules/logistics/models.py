@@ -234,6 +234,43 @@ class RouteStop(Base):
     empties_expected: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     skip_reason: Mapped[str | None] = mapped_column(String(16))
+    handed_over_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+HANDOVER_ACTORS = ("captain", "rider", "hub")
+HANDOVER_PROOFS = ("code", "photo", "rider_mode")
+
+
+class Handover(Base):
+    """The bags of a stop handed to its society's captain (or the rider, in rider mode), once per
+    stop (spec §3.4). Counts are what the captain counted against what the van carried."""
+
+    __tablename__ = "handovers"
+    __table_args__ = (
+        CheckConstraint(_one_of("by_actor", HANDOVER_ACTORS), name="by_actor"),
+        CheckConstraint(_one_of("proof", HANDOVER_PROOFS), name="proof"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    stop_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.route_stops.id", ondelete="CASCADE"), unique=True
+    )
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    by_actor: Mapped[str] = mapped_column(String(8))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # null once the user is erased
+    partner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # the captain's M8 partner
+    crates_expected: Mapped[int] = mapped_column(SmallInteger)
+    crates_counted: Mapped[int] = mapped_column(SmallInteger)
+    bags_expected: Mapped[int] = mapped_column(SmallInteger)
+    bags_counted: Mapped[int] = mapped_column(SmallInteger)
+    mismatch: Mapped[bool] = mapped_column(Boolean)
+    proof: Mapped[str] = mapped_column(String(12))
+    photo_key: Mapped[str | None] = mapped_column(String(200))
+    distance_m: Mapped[int | None] = mapped_column(Integer)  # the rider's, from the last ping
+    note: Mapped[str | None] = mapped_column(String(300))
+    client_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class FieldEvent(Base):
