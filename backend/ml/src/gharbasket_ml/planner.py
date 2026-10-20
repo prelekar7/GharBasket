@@ -2,8 +2,9 @@
 
 One choice per (day, slot): a recipe, or a tiffin for lunch and dinner on no-cook days. Hard rules
 come first (`allowed` and the constraints in `solve`); among valid plans the solver maximises
-3 x cuisine match + 5 x variety - 4 x distinct perishables bought (less waste), and in v1 (§3.2)
-+ 4 x adherent days - 3 x the chosen dishes' price spikes, every term on one scale (`SCALE`).
+3 x cuisine match + 5 x variety - 4 x distinct perishables bought (less waste), in v1 (§3.2)
++ 4 x adherent days - 3 x the chosen dishes' price spikes, and in v2 + 3 x the chosen dishes'
+liking (0..1 per meal), every term on one scale (`SCALE`).
 
 `check()` re-verifies a plan independently of the model; the tests use it on every plan, and the
 API's rule-based fallback is checked with it too.
@@ -176,6 +177,11 @@ def score(week: Week, plan: Plan) -> Score:
         cost_paise=cost(week, plan),
         nutrition=round(sum(days.values()) / len(days), 3) if days else None,
         price_penalty=price_penalty(week, plan) if any(r.price_spike for r in used) else None,
+        liking=(
+            round(sum(r.preference or 0.0 for r in used) / len(used), 3)
+            if used and any(r.preference is not None for r in used)
+            else None
+        ),
     )
 
 
@@ -188,7 +194,7 @@ class Solved:
 # Every objective term is counted in hundredths of a weight point, so that a price spike (0.62)
 # stays an integer and costs its share of the weight: one cuisine match is worth
 # SCALE x preference, one adherent day SCALE x nutrition, a dish 62 % above its index
-# 0.62 x SCALE x price.
+# 0.62 x SCALE x price, a meal of a dish liked 0.8 (v2) 0.8 x SCALE x liking.
 SCALE = 100
 # v1 warm start: this share of the time limit goes to the v0 objective (no nutrition term), whose
 # plan then seeds the v1 search as a hint; the rest goes to the v1 objective.
@@ -318,10 +324,21 @@ def solve(
         for p in sorted(perishables)
     ]
     w = week.weights
-    v0_objective = SCALE * (
-        w.preference * preference + w.variety * sum(used.values()) - w.perishables * sum(bought)
-    ) - w.price * sum(
-        round(SCALE * (week.recipes[slug].price_spike or 0)) * v for (_, _, slug), v in x.items()
+    # v2: the learned liking, on the same scale: each meal of a fully liked dish is worth
+    # liking x SCALE, one cuisine match at the default weights (3 = 3), 0.6 of a distinct dish
+    # of variety (5), so taste tilts the plan without overriding any rule or the variety.
+    liking = sum(
+        round(SCALE * (week.recipes[slug].preference or 0.0)) * v for (_, _, slug), v in x.items()
+    )
+    v0_objective = (
+        SCALE
+        * (w.preference * preference + w.variety * sum(used.values()) - w.perishables * sum(bought))
+        + w.liking * liking
+        - w.price
+        * sum(
+            round(SCALE * (week.recipes[slug].price_spike or 0)) * v
+            for (_, _, slug), v in x.items()
+        )
     )
     # v1 nutrition: a scored day counts when its meals' kcal and protein per person are within
     # ±20 % of the target; one indicator per day enforces the four bounds when it is set.

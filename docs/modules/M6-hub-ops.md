@@ -79,6 +79,9 @@ Hub : { "id": "<uuid>", "slug": "kharghar", "name": "Kharghar hub",
                      "dispatch": "06:30", "surplus": "12:30" },   the hub's day (IST); display and
                                                          job planning only; the cut-off is not here
         "procurement_buffer_pct": 10,                    0 to 50; the rule-based buffer (§3.3)
+        "pre_live_box_fee_paise": 3000,                  0 to 10,000; the delivery fee on each box
+                                                         while a society is not live (added
+                                                         2026-10-10, M9 §3.6 and §11)
         "version": 1, "created_at", "updated_at" }
 HubSummary : { "id", "slug", "name", "status" }
 
@@ -87,12 +90,12 @@ GET /v1/hubs                    200 { "items": [ HubSummary ] }   admin: every h
 GET /v1/hubs/{id}               200 Hub (ETag = version) | 404 "hub_ops.hub_not_found"
 POST /v1/admin/hubs             admin; Idempotency-Key
   request : { "slug", "name", "address", "location", "service_area"?, "timings"?,
-              "procurement_buffer_pct"? }       slug: lower-case letters, digits and "-", 3 to 40,
+              "procurement_buffer_pct"?, "pre_live_box_fee_paise"? }   slug: lower-case letters, digits and "-", 3 to 40,
                                                 unique, never changes; name 3 to 80; address up to 300
   201 : Hub (status active; timings default to the values above); publishes hub_ops.hub_created
 PATCH /v1/admin/hubs/{id}       admin; If-Match (the hub's version)
   request : any of { "name", "address", "location", "service_area" (null clears it), "status",
-                     "timings", "procurement_buffer_pct" }
+                     "timings", "procurement_buffer_pct", "pre_live_box_fee_paise" }
   200 : Hub (version + 1); publishes hub_ops.hub_updated { hub_id, changed: ["service_area", …] }
 
 Vendor : { "id", "hub_id", "name": "Shinde Traders",
@@ -357,6 +360,22 @@ Deliver by 04:00 on Tue 15 Dec 2026 to Plot 12, Sector 19, Kharghar
 Total ₹1,600.00 + 1 item at market price
 ```
 
+**As built (PR c1, plans and lines).** Details the rules above leave open, settled in the code:
+- One migration creates all four §3.3 tables.
+- A plan's `version` counts changes to its lines (a rebuild that changes something, a line edit). Status moves made by purchase orders do not bump it, so sending one PO never makes the plan's other drafts stale.
+- A number sent as `order_qty` pins the line (`edited: true`) and needs a `reason`, unless the line is already edited at that quantity; `order_qty: null` needs none. A `PATCH` that changes nothing keeps the version and writes no audit row; otherwise `platform.audit_log` gets `procurement.line_updated` (entity `<plan id>:<product id>`) with the changed fields before and after, and the reason.
+- A rebuild uses the hub's current `procurement_buffer_pct`. `buffer_qty` is rounded half up to 0.001 before `suggested_qty` is rounded up. Lines are listed by the catalog category's sort order, then by name in Accept-Language.
+- `POST …/build` on a closed plan is 409 `hub_ops.plan_not_editable`; the jobs skip it and report how many plans were `built`, `rebuilt`, `unchanged` or `closed`. `refresh_procurement_plan` and the `intel.forecast_ready` consumer never create a plan.
+- Until the sections they read exist, three hooks stand in: the forecast (`_forecast_for`, wired to `intel_gateway.api.hub_forecast` when M10's forecast PRs land; none today, so `source` is `fallback` and every line uses the buffer), usable stock (`_on_hand_for`, §3.4 lots; 0 today) and the last receipt cost (`_last_costs`, §3.4; null today). Carried-over lines are left out once M4's order lines carry `carried_from_order_id`.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/…` paths and 404 `hub_ops.plan_not_found` for its plan ids.
+- `just seed` adds "Kharghar Kisan FPO" (`fpo`, leafy greens) and "Patil Wholesale" (`wholesaler`, staples) beside the default "Shinde Traders".
+
+**As built (PR c2, purchase orders).**
+- `share_text` reads "PO draft" until the PO is sent, then carries its number; it uses the hub's full address and `timings.receiving`, and lists the lines by English name. `whatsapp_url` is made on each read from the vendor's current phone and WhatsApp flag.
+- A number counts every numbered PO of the hub and delivery date (a cancelled one keeps its number), so numbers are never reused; sending locks the hub, then the plan, then the PO.
+- A cancelled draft stays, `cancelled` with its reason; regenerating deletes the plan's drafts instead.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/purchase-orders` and 404 `hub_ops.po_not_found` for its PO ids.
+
 **Error codes** (in addition to §3.1 and §3.2)
 
 | Status | Code | When |
@@ -448,6 +467,21 @@ POST /v1/lots/{id}/count                   hub_manager; Idempotency-Key
 - **reliability** (20 %) = ½ × the fill rate (mean over its POs' lines of `min(1, received_qty ÷ qty)`, a cancelled `not_delivered` PO counting 0) + ½ × the share of its POs whose first receipt came by the hub's `timings.packing` on the delivery day;
 - **defects** (stored as the rejected share: the mean over its receipt lines of rejected ÷ received; it counts 20 % as `1 − defects`);
 - `score` = the weighted sum over the components that have data, divided by their weights; rounded to 2 decimals.
+
+**As built (PR d1, receipts, lots and the stock ledger).** Details the rules above leave open, settled in the code:
+- One migration creates all five §3.4 tables (`vendor_scores` too, filled by PR d2). `stock_moves.kept_item_id` arrives with kept items (§3.5).
+- `received_at` and `best_before` must carry a time zone (else 422 `request.invalid`) and are stored in UTC; a `received_at` up to one minute ahead is taken as now (a tablet's clock). A receipt without a PO and without `vendor_id` is 422 `request.invalid`; a PO of another hub is 404 `hub_ops.po_not_found`; a received quantity of 0 is `hub_ops.qty_invalid`.
+- A line that leaves `unit_cost_paise` out takes the PO line's cost; one that sends `null` has no cost. A `reject_reason` sent with nothing rejected is dropped (the table checks that a reason is stored exactly when something went back).
+- A receipt locks the hub, then (with a PO) the plan, the PO and its lines, the procurement lock order. A PO that becomes `received` gets `closed_at`. The receipt is audited (`goods_receipts.created`, with the request).
+- The 201 answer shows the PO's status after the receipt; `GET` shows its current status. `GET …/goods-receipts?date=` takes any IST day (default today), newest `received_at` first; lines are listed by name.
+- Every stock change goes through one function that inserts the move with `ON CONFLICT DO NOTHING` and applies it to the (row-locked) lot only when it was written, so the lot's `qty_on_hand` stays the sum of its moves.
+- Hub staff of another hub get 403 `auth.forbidden` on its `/v1/hubs/{id}/goods-receipts` and 404 `hub_ops.receipt_not_found` for its receipt ids.
+
+**As built (PR d2, inventory, counts, vendor scores and the plan hooks).**
+- Inventory items are listed by shelf, then name; `expiring_before` must carry a time zone. `packed_not_drawn_qty` is 0 until the 12:30 draw-down (§3.5) exists. `GET /v1/lots/{id}` lists moves oldest first, each with its `reason` (a count's; additive).
+- A count needs `inventory:manage` (the hub's manager, admin). Each count is its own source (a fresh `ref_id`); a count that matches the lot writes no move but is still audited (`inventory.counted`, the quantity before and after, the reason). Another hub's lot is 404 `hub_ops.lot_not_found`.
+- Plans now read stock (§3.3's hooks): `on_hand_qty` sums grade A and B lots with stock whose `best_before` is after the next IST midnight; a new line's cost is the latest receipt line at the hub (by `received_at`, then id) with a cost and something accepted, from any vendor.
+- Vendor scores take the purchase orders delivered in the week that were sent; one cancelled by hand after sending is left out, one still `sent` counts like one not delivered. A receipt line whose product had a single vendor at the hub that week (or cost 0) scores 1 on price. Components are stored to 3 decimals, the score to 2 (half up); a rerun rewrites the week's rows (`computed_at`). `Vendor.score` is the latest week's score. The job runs from `jobs-staging.yml` at `3 22 * * 0` (Monday 03:33 IST).
 
 **Error codes** (in addition to §3.1–§3.3)
 
@@ -570,7 +604,7 @@ GET /v1/hubs/{id}/waste-summary?from=&to=    at most 31 days; default the last 7
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
-| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, data_source, version, created_at, updated_at |
+| `hub_ops.hubs` | id (uuidv7), slug (unique), name, address, location geography(Point, 4326), service_area geography(Polygon, 4326) null, status (active, paused), timings jsonb, procurement_buffer_pct smallint, pre_live_box_fee_paise bigint (default 3000, 0 to 10,000), data_source, version, created_at, updated_at |
 | `hub_ops.vendors` | id, hub_id → hubs, name (unique per hub, case-insensitive), kind (apmc_trader, fpo, farmer, wholesaler), phone_e164 null, whatsapp, is_default (partial unique per hub), notes, active, version, created_at |
 | `hub_ops.packing_tasks` | id, hub_id → hubs, order_id (unique), order_kind, delivery_date, slot_id, society_id, tower_id, flat, seq, route_id null, stop_seq null, status (queued, picking, packed), packer_user_id null, bags, crate_no null, started_at, packed_at, drawn_at null (§3.4, added with the draw-down), version, created_at; index (hub_id, delivery_date, status, seq) |
 | `hub_ops.packing_lines` | task_id → packing_tasks, product_id (the ordered product), carried (bool, default false; §3.5, added with kept items), step_qty, step_unit, qty, picked_qty, short_qty, substitute_product_id null, updated_at; primary key (task_id, product_id), becoming (task_id, product_id, carried) with kept items |

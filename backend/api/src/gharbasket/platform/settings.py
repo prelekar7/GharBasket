@@ -87,6 +87,11 @@ class Settings(DatabaseSettings):
     ml_service_url: str | None = None
     ml_service_token: SecretStr | None = None
     ml_timeout_s: float = Field(default=3.0, gt=0, le=10)
+    # Ghar Saathi (M13): the LLM loop runs in the ML service; a turn may take longer than a
+    # solver call (the service gives up after its own ASSISTANT_TURN_TIMEOUT_S, 25 s, first).
+    # Tokens (uncached in + out) a user may spend a day.
+    assistant_timeout_s: float = Field(default=30.0, gt=0, le=120)
+    assistant_daily_tokens: int = Field(default=60_000, gt=0)
     # /route/solve may take time_limit_s plus this: the ML service's OSRM timeout
     # (OSRM_TIMEOUT_S, 2.5 s) plus a margin for the checker and the network.
     ml_route_overhead_s: float = Field(default=6.0, gt=0, le=30)
@@ -94,6 +99,15 @@ class Settings(DatabaseSettings):
     # (PANTRY_TWIN_ENABLED=true); off, the family-size rule table does. It is switched on only
     # once the eval harness shows the twin's pre-registered target holds (MAE ≤ 15 % after 4 weeks).
     pantry_twin_enabled: bool = False
+    # The public web app: referral links are PUBLIC_WEB_URL/s/<society slug>?ref=<code> (M9 §3.3).
+    public_web_url: str = "https://gharbasket.in"
+    # Kindness points each side of a referral earns on the neighbour's first delivered box (M9
+    # §3.3, owner 2026-10-09): half a donated meal each.
+    referral_points_referrer: int = Field(default=250, ge=0, le=5000)
+    referral_points_referee: int = Field(default=250, ge=0, le=5000)
+    # The eval protocol's label for rows marked `real` (orders, cycles): `pilot` during the pilot,
+    # `live` after launch. Monitoring writes metrics under it, never pooled with `synthetic`.
+    real_data_source: Literal["pilot", "live"] = "pilot"
     # Browser apps (console, PWA) sign in with httpOnly cookies through same-origin proxies; a
     # cookie-authenticated request that changes something must come from one of these origins.
     # Comma-separated, e.g. "https://gharbasket-console.vercel.app,https://gharbasket.vercel.app".
@@ -103,6 +117,10 @@ class Settings(DatabaseSettings):
     razorpay_key_id: str | None = Field(default=None, pattern=r"^rzp_test_[A-Za-z0-9]+$")
     razorpay_key_secret: SecretStr | None = None
     razorpay_webhook_secret: SecretStr | None = None
+    # Refund to source (M5 §3.3): only top-ups captured this recently can take money back.
+    razorpay_refund_window_days: int = Field(default=180, ge=1, le=365)
+    # Kindness points one donated meal ("a meal for a child") takes (M5 §3.6, `goal.points`).
+    kindness_goal: int = Field(default=500, ge=1, le=100_000)
     # Phone sign-in: the apps verify the OTP with Firebase and send us Firebase's ID token.
     # Locally it may be unset; then only dev login (APP_ENV=dev) can sign in.
     firebase_project_id: str | None = None
