@@ -414,7 +414,40 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 - `mark_shortage` refuses a substitute for a household whose M1 `shortage_preference` is `refund`: 422 `orders.substitute_invalid` with `reason: "refund_preferred"` (M1 §3.4).
 - **Fulfilment events gain `actor` and `actor_user_id`** (internal only, never shown to customers), so that M8 can attribute earnings without reading M4's tables (M8 §3.6, M5 §3.5). This is in addition to `kind` (ADR-0026 §3).
 - `orders_for_delivery` returns, for tiffins, the tiffin lines, `slot_id` and `preferred_partner_id` (M8 §3.4).
-- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `redelivery → refunded` (`system`, `hub`: ADR-0028); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10).
+- **From [ADR-0027](../adr/0027-operations-contract-amendments.md)** (made in the M7 and M8 PRs that need them, reviewed by both owners): the tiffin move `locked → refunded` (actor `system`, reason `no_kitchen`); `system` on `undelivered → redelivery`; `dispatched → undelivered` for box and add-on orders (`rider`, `system`, `hub`); `redelivery → refunded` (`system`, `hub`: ADR-0028); `rider` on the last-50-m moves of a stop a hub manager switched to rider mode; `transition(…, "refunded")` takes `payload.refund_paise` and `payload.reason`; `orders.delivery_failed` carries `reason`; and `carry_over(session, order_id, lines)` for a box missed twice, with its 14-day wait (M7 §3.4, §10). The carry-over is specified in §3.8.
+
+### 3.8 Carry-over contract (drafted 2026-10-20, frozen on approval)
+After a box's second miss, M7 refunds its perishable lines minus ₹20, and its non-perishable lines ride free on the household's next box ([ADR-0027](../adr/0027-operations-contract-amendments.md) §2, §6; M7 §3.4). M6 keeps the goods on a shelf and packs them (M6 §3.5). This section is M4's side.
+
+- **Carried items are not order lines.** They live in M4's own table, `orders.carry_overs`, one row per (missed order, product). An order shows them as `carried`, apart from `lines`. So a carried item never collides with a paid line of the same product (the line key is `(order_id, product_id)`), and it never counts towards totals, debits, shortages, add-on edits, a re-approval's box lines, procurement demand or `sold_lines`.
+- **`carry_over(session, order_id, lines: [ { product_id, steps, paid_paise } ]) -> list[CarryOver]`.** M7's `schedule_redeliveries` calls it in the second-miss transaction, after `undelivered → refunded`. M7 keeps publishing `logistics.carry_over_pending` as its record.
+  - The order must be a `refunded` box or add-on order (else `ValueError`: a programming error, not a problem response).
+  - Each line becomes a `pending` row with `steps`, the order line's `step_qty` and `step_unit`, `paid_paise` (what those steps cost), `missed_on` (the order's delivery date) and `expires_on` = `missed_on` + 14 days.
+  - It is idempotent per (order, product): a second call returns the existing rows and changes nothing.
+  - It then attaches at once (below) if the household already has a box that fits.
+- **Attaching.** A pending row is attached to the household's next box or add-on order whose delivery date is after `missed_on` and that is `locked` (paid, not yet picking). The row gets `to_order_id` and becomes `attached`, and `orders.carry_over_attached` is published once per target order.
+  - Attaching happens in `carry_over` (a box already locked), and whenever a box or add-on order of the household moves to `locked`: `cutoff_lock`, a top-up during the grace period, or `POST /v1/orders/{id}/pay`. All rows still pending are attached, oldest `missed_on` first.
+  - An `approved` order is never used: a skip or a re-approval could drop the items, and the money for the box is not yet taken.
+- **After attaching**, the row follows its target order:
+  - the target moves to `picking` or `packed` → `packed` (M6 is packing it);
+  - the target is `delivered` → `delivered` (final);
+  - the target is missed twice and moves to `refunded` → the row goes back to `pending`. `to_order_id` is cleared, `returned_in_order_id` is set to that order, and `expires_on` is kept. Its first redelivery changes nothing.
+- **`carried_lines(session, order_id) -> list[CarriedLine]`** (M6's returned-bag scan, M6 §3.5): the items that are in that order's bag. These are the rows carried *from* it, plus the rows that rode *in* it and came back (`returned_in_order_id`). Each has `carry_id`, `product_id`, `steps`, `step_qty` and `step_unit`.
+- **`OrderSummary.carried`** (from `orders_for_delivery`, `get` and `summaries`): the rows attached to that order, each with `carry_id`, `carried_from_order_id`, `product_id`, `steps`, `step_qty` and `step_unit`. M6 copies them into the packing task as `"carried": true` lines.
+- **The customer's order** (`GET /v1/orders/{id}`, additive) gains `carried: [ { product_id, name, steps, step_qty, step_unit, carried_from_order_id } ]`, so the app can show "Kept from your box of 14 Oct: 1 kg toor dal". A missed order gains `carry_over: { status, expires_on, to_order_id } | null` (null when nothing was carried). The status is that of its oldest unsettled row: `pending` (waiting for the next box), `attached`, `packed`, `delivered` or `refunded`.
+- **Expiry job `expire_carry_overs`** (daily at 02:40 IST, the run's `scheduled_for` gives the day).
+  - Every `pending` row whose `expires_on` is before that day is refunded at its `paid_paise`, **without** the ₹20 fee: `billing.api.refund_to_wallet(owner, from_order_id, paid_paise, reason=f"carry_{product_id.hex}")`, in a savepoint per row. The refund is keyed per row, so a repeat run moves no money.
+  - The row becomes `refunded` with `settled_at`, and `orders.carry_over_expired` is published once per missed order with the rows refunded in that run.
+  - An `attached` or `packed` row is not refunded: it is already on a paid box, and rides with it.
+  - A refund the wallet cannot take (`billing.wallet_limit`) leaves the row `pending`; the next run tries again, and the job counts it as `wallet_limit`. M5's per-order refund to the payment source (a follow-up) will take these.
+  - It returns `{ "date", "refunded", "refunded_paise", "wallet_limit" }`.
+- **A lost kept item** (the open question of M6 §10). `refund_carry(session, carry_id, actor_user_id) -> CarryOver` refunds one `pending` or `attached` row at once, at its `paid_paise` without the fee, with the same per-row key. M6's hub-manager action `POST /v1/hubs/{id}/kept-items/{item_id}/lost` calls it (M6 §3.5, audited there). A `packed` or `delivered` row is 409 `orders.carry_not_refundable` with its `status`; an already `refunded` row returns as is.
+- **Money.** `refunded_paise` and `refundable_paise` count carry refunds of the missed order. So, with its perishables refunded and its carried items refunded or delivered, an order never returns more than was paid.
+- **Account deletion.** `has_open_orders` is true while the household has a `pending`, `attached` or `packed` row, so M1's purge waits for the carry-over to settle: at most 14 days, or less if the hub refunds it. `export_for_user` lists the rows.
+- **Events.**
+  - `orders.carry_over_attached { order_id, household_id, hub_id, lines: [ { carry_id, carried_from_order_id, product_id, steps } ] }`, for M11's "your kept items ride on Thursday's box" (a later template).
+  - `orders.carry_over_expired { order_id, household_id, hub_id, lines: [ { carry_id, product_id, steps, paid_paise } ], reason: "carry_over_expired" }`, for M6 (release the kept items, M6 §3.5) and M11.
+- **No backfill.** The `logistics.carry_over_pending` events published before this ships were dev and test data. The outbox does not replay an event that had no consumer.
 
 ## 4. Tables owned
 | Table | Key columns |
@@ -426,11 +459,12 @@ POST /v1/admin/order-issues/{id}/resolve      Idempotency-Key required (it may m
 | `orders.slot_bookings` | slot_id, date, order_id (unique); capacity is checked under a row lock on the slot |
 | `orders.order_issues` | id, order_id, household_id, hub_id, kind, status (open, credited, rejected), open_reason, note, photo_keys text[], amount_paise, credit_paise, resolved_by (auto, hub), resolver_user_id, resolution_note, resolved_at, refund_entry_id, created_by, created_at |
 | `orders.order_issue_items` | issue_id, product_id, qty (steps), unit_price_paise (the line's paid price) |
+| `orders.carry_overs` (§3.8) | id, from_order_id, household_id, hub_id, society_id, product_id, steps, step_qty, step_unit, paid_paise, missed_on, expires_on, status (pending, attached, packed, delivered, refunded), to_order_id, returned_in_order_id, refunded_by (expiry, hub), settled_at, created_at; unique (from_order_id, product_id); index (household_id, status) |
 
 Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots only); `orders.orders.tiffin_menu_id`, `preferred_partner_id` (the menu's kitchen) and `portions` (tiffin only); `orders.orders.cycle_id` stays unique only among orders that are not `cancelled` (a partial unique index), so a cycle that is skipped and then un-skipped (M3 §3.3) can get a new order.
 
 ## 5. Events
-**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved` (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
+**Published:** `orders.locked`, `orders.payment_failed`, `orders.cancelled` (gains `kind`), `orders.tiffin_booked` (§3.5), `orders.shortage_substituted`, `orders.packed`, `orders.dispatched`, `orders.at_society`, `orders.delivered`, `orders.delivery_failed`, `orders.issue_reported`, `orders.issue_resolved`, `orders.carry_over_attached` and `orders.carry_over_expired` (§3.8) (fulfilment statuses are applied by M6/M7 through `orders.api`, and M4 publishes the events). Payloads in §3.1.
 **Consumed:** `subscriptions.box_approved` (→ `create_from_cycle`), `subscriptions.box_skipped` (→ `cancel_from_cycle`), `billing.wallet_topped_up` (retry a failed debit in the grace period); `billing.payment_failed` (Autopay captures, pilot phase).
 
 ## 6. Jobs
@@ -439,6 +473,7 @@ Changes from §3.3–§3.7: `orders.slots.meal` (lunch, dinner; tiffin slots onl
 | `cutoff_lock` | T-1 21:00 IST (cron-job.org → `POST /v1/internal/jobs/cutoff_lock`) | Advisory lock; batches of 200; `billing.api.debit_for_order` keyed by order id; see §3.1 |
 | `payment_grace_expiry` | T-1 23:00 IST (cron-job.org) | `payment_failed` → `cancelled` |
 | retry after top-up | Outbox consumer of `billing.wallet_topped_up` | Re-runs the debit for a `payment_failed` order inside the grace period |
+| `expire_carry_overs` | Daily 02:40 IST (cron-job.org) | Refunds carried items still pending 14 days after the miss, without the fee (§3.8) |
 
 Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal job endpoints (ADR-0021); the API itself refuses edits after the cut-off, and the job uses its `scheduled_for`, not the run time.
 
@@ -462,6 +497,7 @@ Minute-level jobs are triggered by cron-job.org (ADR-0025) against the internal 
 - E2E: approve → lock → status stream to delivered.
 
 - Leftovers (§3.3–§3.7): the stream sends a snapshot, then one `status` per new event, and `end` at a final status; Last-Event-ID replays only later rows; a fourth stream gets 429; JSON and SSE forms agree. `pay` debits once under replays and races with the top-up consumer (one `box:` entry), answers 200 for an already locked order, 409 after the grace period. Tiffin: one per date and meal, refused after `order_by`, paid at the cut-off, M3 marks the meal; `kind: addon` 422. Triage: hub scope enforced, credit above `max_credit_paise` 422, a replayed resolve moves money once, photo links and contact reads are audit-logged.
+- Carry-over (§3.8): a second miss → `pending` rows, idempotent per (order, product); attached at the next lock (cut-off, grace top-up, pay) and at once to a box already locked, never to an `approved` one; `packed` at picking or packed, `delivered` at delivery; back to `pending` after the target's own second miss, with `carried_lines` of that order listing them; carried items never change totals, debits, procurement, `sold_lines` or shortages; the expiry job refunds the paid price without the fee once under repeats, skips attached rows and leaves a row the wallet cannot take; `refund_carry` refunds once and refuses a packed row; `refundable_paise` adds up; the purge waits while a row is open.
 ## 10. Dependencies
 M3 (approved cycles via events), M2 (prices via `catalog.api`), M5 (debit/capture, shortage and issue refunds via `billing.api`), M0 (issue photos via `platform.files`), M6/M7/M8 call `orders.api` for fulfilment transitions (ADR-0026).
 
