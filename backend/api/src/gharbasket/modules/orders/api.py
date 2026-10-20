@@ -81,6 +81,7 @@ __all__ = [
     "set_kitchen",
     "slot_ref",
     "sold_lines",
+    "summaries",
     "transition",
 ]
 
@@ -132,6 +133,15 @@ async def transition(
     return await service.transition(
         session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
     )
+
+
+async def summaries(session: AsyncSession, order_ids: list[uuid.UUID]) -> list[OrderSummary]:
+    """Orders with their lines, by id (M7's redeliveries, which ride on a later day)."""
+    out = []
+    for order_id in order_ids:
+        order = await service.get(session, order_id)
+        out.append(OrderSummary(order, await service.lines_of(session, order_id)))
+    return out
 
 
 async def refundable_paise(session: AsyncSession, order_id: uuid.UUID) -> int:

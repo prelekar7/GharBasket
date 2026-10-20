@@ -37,6 +37,7 @@ __all__ = [
     "latest_prices_on",
     "line_grams",
     "line_products",
+    "perishable_ids",
     "plan_catalog",
     "product_ids_by_slug",
     "step_label",
@@ -403,6 +404,20 @@ async def festivals_between(
 ) -> list[tuple[date, str, dict[str, bool]]]:
     """(day, code, rules) of every festival day in the range, any region."""
     return [(f.day, f.code, dict(f.rules)) for f in await festivals(session, start, end, None)]
+
+
+async def perishable_ids(session: AsyncSession, product_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+    """The products that keep 96 h or less (M7's refund of a box missed twice, ADR-0027 §2)."""
+    if not product_ids:
+        return set()
+    rows = await session.execute(
+        select(Product.id).where(
+            Product.id.in_(product_ids),
+            Product.shelf_life_h.is_not(None),
+            Product.shelf_life_h <= PERISHABLE_H,
+        )
+    )
+    return set(rows.scalars())
 
 
 # --- tiffin menus (§4; booked through M4 §3.5) ---------------------------------------------------

@@ -800,11 +800,12 @@ def test_the_morning_sends_what_quiet_hours_held(
 
 
 async def logistics_untouched(config: Config, day: Day) -> None:
-    """The published route is as the 23:15 solve left it, and no rider has sent a ping."""
+    """The published route is as the 23:15 solve left it, and no bag has been tried at a door."""
     states = await rows(
         config, "SELECT status FROM logistics.routes WHERE delivery_date = :d", d=day.t
     )
     assert states and {status for (status,) in states} == {"published"}, states
+    assert await scalar(config, "SELECT count(*) FROM logistics.deliveries") == 0
     assert await scalar(config, "SELECT count(*) FROM logistics.gps_pings") == 0
 
 
@@ -827,14 +828,19 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
-def test_the_logistics_evening_closes_the_routes_with_nothing_to_do(
+def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_do(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
-    """Tuesday T 16:00: `close_routes`. The day's published route never started (the simulated day
-    has no rider), so it closes nothing and leaves the route as it is."""
-    when = ist(day.t, 16, 0)
-    closed = step(loop, when, app.job("close_routes", when))
+    """Tuesday T 16:00, 20:30 and 20:45: `close_routes`, `hold_expiry` and `schedule_redeliveries`.
+    The day's published route never started (the simulated day has no rider), so each runs clean,
+    touches nothing and writes no delivery."""
+    closed = step(loop, ist(day.t, 16, 0), app.job("close_routes", ist(day.t, 16, 0)))
     assert closed["closed"] == 0, closed
+    expired = step(loop, ist(day.t, 20, 30), app.job("hold_expiry", ist(day.t, 20, 30)))
+    assert not [k for k, v in expired.items() if isinstance(v, int) and v], expired
+    when = ist(day.t, 20, 45)
+    again = step(loop, when, app.job("schedule_redeliveries", when))
+    assert not [k for k, v in again.items() if isinstance(v, int) and v], again
     step(loop, when, app.sweep(when))
     loop.run(logistics_untouched(config, day))
 

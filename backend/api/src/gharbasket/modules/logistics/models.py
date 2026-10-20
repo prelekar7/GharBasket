@@ -379,6 +379,9 @@ class Delivery(Base):
     hold_until: Mapped[time | None] = mapped_column(Time)  # IST
     proof: Mapped[str | None] = mapped_column(String(8))
     photo_key: Mapped[str | None] = mapped_column(String(200))
+    # Attempt 2 of a bag the captain kept overnight (held, not collected): the van carries
+    # nothing for it, but her society needs the stop (§3.4).
+    kept_by_captain: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     delivery_code: Mapped[str] = mapped_column(String(8))
     code_attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     by_actor: Mapped[str | None] = mapped_column(String(8))

@@ -1,5 +1,6 @@
 """Jobs of M7 Logistics (spec §6, ADR-0021): `solve_routes` at T-1 23:15 IST; `persist_gps_pings`
-every minute, `close_routes` at T 16:00 and `purge_gps_pings` daily (90 days).
+every minute, `close_routes` at T 16:00, `hold_expiry` at T 20:30, `schedule_redeliveries` at
+T 20:45 and `purge_gps_pings` daily (90 days).
 
 `scheduled_for` decides the delivery date (the day after its IST calendar day), never the clock.
 A manual solve (`POST /v1/hubs/{id}/route-plans`) runs in the background right after its request.
@@ -21,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.logistics import execution, plans, tracking
+from gharbasket.modules.logistics import deliveries, execution, plans, tracking
 from gharbasket.modules.logistics.models import Route, RoutePlan
 from gharbasket.platform import outbox
 from gharbasket.platform.errors import ProblemError
@@ -154,3 +155,18 @@ async def close_routes(ctx: JobContext) -> dict[str, Any]:
 async def purge_gps_pings(ctx: JobContext) -> dict[str, Any]:
     deleted, dropped = await tracking.purge(ctx.session, ctx.scheduled_for - RETENTION)
     return {"deleted": deleted, "partitions_dropped": dropped}
+
+
+# --- the doors' evening (§3.4, §6) ----------------------------------------------------------------
+
+
+@job("hold_expiry", "Undelivered for the day's bags still at the society (T 20:30 IST)")
+async def hold_expiry(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(IST).date()
+    return {"date": day.isoformat(), **await deliveries.expire_holds(ctx.session, day)}
+
+
+@job("schedule_redeliveries", "One free redelivery tomorrow, or the second miss refunded (T 20:45)")
+async def schedule_redeliveries(ctx: JobContext) -> dict[str, Any]:
+    day = ctx.scheduled_for.astimezone(IST).date()
+    return {"date": day.isoformat(), **await deliveries.schedule_day(ctx.session, day)}

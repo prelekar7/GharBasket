@@ -10,13 +10,13 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import plans
-from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop
+from gharbasket.modules.logistics.models import Delivery, Route, RoutePlan, RouteStop
 from gharbasket.modules.logistics.routing import clock
 from gharbasket.modules.logistics.schemas import (
     CaptainOut,
@@ -114,6 +114,7 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
         slot_id: await orders_api.slot_ref(session, slot_id)
         for slot_id in {s.slot_id for s in stops if s.slot_id is not None}
     }
+    back = await _redelivery_bags(session, [s.id for s in stops])
     etas = eta_now(route, stops)
     out = []
     for stop in stops:
@@ -143,7 +144,7 @@ async def stop_views(session: AsyncSession, route: Route, stops: list[RouteStop]
                 status=stop.status,  # pyright: ignore[reportArgumentType]
                 crates=stop.crates,
                 bags=stop.bags,
-                redelivery_bags=0,
+                redelivery_bags=back.get(stop.id, 0),
                 empties_expected=stop.empties_expected,
                 captain=None if card is None else CaptainOut(**vars(card)),
                 rider_mode=stop.rider_mode,
@@ -166,3 +167,21 @@ async def route_detail(session: AsyncSession, route: Route) -> RouteDetail:
         source=None if plan is None else plan.source,  # pyright: ignore[reportArgumentType]
         left_behind=list(route.left_behind),
     )
+
+
+async def _redelivery_bags(
+    session: AsyncSession, stop_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """Redelivery bags the van carries per stop (back from the hub; not those a captain kept)."""
+    if not stop_ids:
+        return {}
+    rows = await session.execute(
+        select(Delivery.stop_id, func.count())
+        .where(
+            Delivery.stop_id.in_(stop_ids),
+            Delivery.attempt == 2,
+            Delivery.kept_by_captain.is_(False),
+        )
+        .group_by(Delivery.stop_id)
+    )
+    return {stop_id: int(n) for stop_id, n in rows.all() if stop_id is not None}

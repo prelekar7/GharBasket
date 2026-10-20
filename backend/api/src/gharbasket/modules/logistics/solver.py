@@ -21,7 +21,7 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.intel_gateway import api as intel_api
-from gharbasket.modules.logistics import routing
+from gharbasket.modules.logistics import attempts, routing
 from gharbasket.modules.logistics.models import Route, RoutePlan, RouteStop, Vehicle
 from gharbasket.modules.logistics.routing import Stop, Trip, Van
 from gharbasket.modules.orders import api as orders_api
@@ -58,8 +58,12 @@ async def _stops(
     found = await orders_api.orders_for_delivery(
         session, hub_id, day, statuses=ORDER_STATUSES, kinds=ORDER_KINDS
     )
-    # (§3.4, later PR) plus the redeliveries M7 schedules for the day.
-    lines = [(x.order.id, line) for x in found for line in x.lines]
+    # Plus the redeliveries M7 scheduled for the day (§3.4); a bag the captain kept overnight
+    # needs the stop but rides on no van.
+    again = await attempts.redeliveries_for(session, hub_id, day)
+    kept = {d.order_id for d in again if d.kept_by_captain}
+    found = [*found, *await orders_api.summaries(session, [d.order_id for d in again])]
+    lines = [(x.order.id, line) for x in found if x.order.id not in kept for line in x.lines]
     weights = await catalog_api.line_grams(
         session,
         [(ln.product_id, ln.qty - ln.shortage_qty, ln.step_qty, ln.step_unit) for _, ln in lines],
@@ -87,7 +91,7 @@ async def _stops(
             point=points[society_id],
             window=(seconds(slot.start), seconds(slot.end)),
             orders=len(order_ids),
-            crates=math.ceil(len(order_ids) / BAGS_PER_CRATE),
+            crates=math.ceil(len([o for o in order_ids if o not in kept]) / BAGS_PER_CRATE),
             kg_tenths=math.ceil(sum(grams[o] for o in order_ids) / 100),
         )
     return located, unlocated, len(found)

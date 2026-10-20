@@ -3,6 +3,7 @@ household's delivery code; later steps move the latest attempt."""
 
 import secrets
 import uuid
+from datetime import date
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,3 +82,42 @@ def delivery_out(row: Delivery) -> DeliveryOut:
         by=row.by_actor,  # pyright: ignore[reportArgumentType]
         at=row.at,
     )
+
+
+async def redeliveries_for(
+    session: AsyncSession, hub_id: uuid.UUID, day: date, status: str = "scheduled"
+) -> list[Delivery]:
+    """The hub's redeliveries (attempt 2) on `day` in `status`: T+1's solve and route start."""
+    rows = await session.execute(
+        select(Delivery)
+        .where(
+            Delivery.hub_id == hub_id,
+            Delivery.delivery_date == day,
+            Delivery.attempt == 2,
+            Delivery.status == status,
+        )
+        .order_by(Delivery.id)
+    )
+    return list(rows.scalars())
+
+
+async def riding(session: AsyncSession, stop_ids: list[uuid.UUID]) -> list[Delivery]:
+    """The redeliveries booked on these stops."""
+    if not stop_ids:
+        return []
+    rows = await session.execute(
+        select(Delivery).where(Delivery.stop_id.in_(stop_ids), Delivery.attempt == 2)
+    )
+    return list(rows.scalars())
+
+
+async def redeliveries_on(
+    session: AsyncSession, society_id: uuid.UUID, day: date, slot_id: uuid.UUID | None = None
+) -> list[Delivery]:
+    """A society's redeliveries (attempt 2) booked on `day`, one slot's when given."""
+    stmt = select(Delivery).where(
+        Delivery.society_id == society_id, Delivery.delivery_date == day, Delivery.attempt == 2
+    )
+    if slot_id is not None:
+        stmt = stmt.where(Delivery.slot_id == slot_id)
+    return list((await session.execute(stmt.order_by(Delivery.id))).scalars())
