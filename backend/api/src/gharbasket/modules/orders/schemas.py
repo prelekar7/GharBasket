@@ -47,6 +47,7 @@ class SlotOut(BaseModel):
     kind: SlotKind
     start: time = Field(description="IST clock time", examples=["07:00"])
     end: time
+    meal: Literal["lunch", "dinner"] | None = Field(description="Tiffin slots only (§3.5)")
     capacity: int
     booked: int = Field(description="For the requested date")
     available: int
@@ -66,6 +67,9 @@ class SlotIn(BaseModel):
     start: time = Field(examples=["07:00"])
     end: time = Field(examples=["09:00"])
     capacity: int = Field(ge=1, le=2000, examples=[120])
+    meal: Literal["lunch", "dinner"] | None = Field(
+        default=None, description="Required for a tiffin slot, absent for a box slot (§3.5)"
+    )
 
 
 class SlotPatch(BaseModel):
@@ -146,9 +150,27 @@ class OrderSummaryOut(BaseModel):
     locked_at: datetime | None
 
 
+class KitchenRef(BaseModel):
+    partner_id: uuid.UUID
+
+
+class TiffinOut(BaseModel):
+    menu_id: uuid.UUID
+    meal: Literal["lunch", "dinner"]
+    dishes: list["DishOut"]
+
+
 class OrderOut(OrderSummaryOut):
     lines: list[OrderLineOut]
     timeline: list[TimelineEntry]
+    tiffin: TiffinOut | None = Field(
+        default=None, description="Tiffin orders (§3.5): the booked menu; null otherwise"
+    )
+    kitchen: KitchenRef | None = Field(
+        default=None,
+        description="The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is "
+        "GET /v1/partners/{partner_id}/card",
+    )
 
 
 class AddonItem(BaseModel):
@@ -294,3 +316,50 @@ class ResolveIn(BaseModel):
         if self.outcome == "reject" and self.credit_paise:
             raise ValueError("A rejection credits nothing.")
         return self
+
+
+# --- tiffin menus and direct tiffin orders (§3.5) -----------------------------------------------
+
+Meal = Literal["lunch", "dinner"]
+
+
+class DishOut(BaseModel):
+    recipe_id: uuid.UUID
+    name: str = Field(description="In Accept-Language", examples=["Varan bhaat"])
+
+
+class MenuKitchenOut(BaseModel):
+    partner_id: uuid.UUID
+    display_name: str = Field(examples=["Lata tai"])
+    photo_url: str | None = Field(description="Null for now (M8 §3.5)")
+
+
+class TiffinMenuOut(BaseModel):
+    id: uuid.UUID
+    date: date
+    meal: Meal
+    hub_id: uuid.UUID
+    dishes: list[DishOut]
+    price_paise: int = Field(description="Per portion", examples=[11000])
+    kitchen: MenuKitchenOut = Field(description="The menu's cook: a preference (M8 §3.4)")
+    order_by: datetime = Field(description="The cut-off of that date (T-1 21:00 IST)")
+
+
+class TiffinMenusOut(BaseModel):
+    items: list[TiffinMenuOut]
+
+
+class TiffinOrderIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(
+        max_length=16, description="tiffin (else 422 orders.kind_unavailable)", examples=["tiffin"]
+    )
+    menu_id: uuid.UUID | None = Field(default=None, description="From GET /v1/tiffin-menus")
+    portions: int | None = Field(
+        default=None,
+        description="1 to 12 (else 422 orders.qty_invalid); default the household size",
+    )
+
+
+TiffinOut.model_rebuild()

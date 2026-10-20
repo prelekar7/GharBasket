@@ -120,11 +120,22 @@ async def create_slot(
     start: time,
     end: time,
     capacity: int,
+    meal: str | None = None,
 ) -> Slot:
     if end <= start:
         raise ProblemError(422, "orders.slot_invalid", "The slot must end after it starts.")
+    if (kind == "tiffin") != (meal is not None):
+        raise ProblemError(
+            422, "orders.slot_invalid", "A tiffin slot names its meal; a box slot has none."
+        )
     slot = Slot(
-        hub_id=hub_id, label=label, kind=kind, start_time=start, end_time=end, capacity=capacity
+        hub_id=hub_id,
+        label=label,
+        kind=kind,
+        start_time=start,
+        end_time=end,
+        capacity=capacity,
+        meal=meal,
     )
     try:
         async with session.begin_nested():
@@ -601,7 +612,7 @@ async def transition(
     state.check(order.kind, order.status, to_status, actor)
     from_status = order.status
     if to_status == "refunded":
-        payload = {**(payload or {}), "refund_paise": await _refund(session, order, payload or {})}
+        payload = await _refund(session, order, payload or {})
     order.status = to_status
     order.version += 1
     if to_status == "locked":
@@ -642,6 +653,17 @@ async def transition(
                 for line in await lines_of(session, order.id)
             ]
         await publish(session, event_type, body)
+    return order
+
+
+async def set_kitchen(session: AsyncSession, order: Order, partner_id: uuid.UUID | None) -> Order:
+    """Record the kitchen that cooks a tiffin, or clear it (M8, ADR-0026 §3)."""
+    if order.kind != "tiffin":
+        raise ProblemError(409, "orders.not_editable", "Only a tiffin has a kitchen.")
+    if order.kitchen_partner_id != partner_id:
+        order.kitchen_partner_id = partner_id
+        order.version += 1
+        await session.flush()
     return order
 
 
@@ -841,9 +863,13 @@ async def refundable_paise(session: AsyncSession, order: Order) -> int:
     return max(0, order.total_paise - await refunded_paise(session, order))
 
 
-async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> int:
+async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) -> dict[str, Any]:
     """The money of a move to `refunded` (ADR-0027 §5): `payload.refund_paise` (default: all that
-    is refundable) back to the wallet with `payload.reason`, once per order and reason."""
+    is refundable, 0 to that at most) back to the wallet, keyed by order and `payload.reason`
+    (default `undelivered`; `no_kitchen` for a tiffin no kitchen took), in the caller's
+    transaction. `billing.wallet_limit` is raised as is. Returns the payload with the `reason`
+    and the `refund_paise` paid, which the timeline row and the event carry."""
+    reason = str(payload.get("reason") or "undelivered")
     most = await refundable_paise(session, order)
     amount = payload.get("refund_paise")
     amount = most if amount is None else int(amount)
@@ -853,8 +879,6 @@ async def _refund(session: AsyncSession, order: Order, payload: dict[str, Any]) 
         owner = await identity_api.owner_of_household(session, order.household_id)
         if owner is None:
             raise ValueError(f"order {order.id} has no household owner")
-        async with session.begin_nested():  # a refused refund leaves nothing behind
-            await billing_api.refund_to_wallet(
-                session, owner, order.id, amount, reason=str(payload.get("reason") or "refund")
-            )
-    return amount
+        async with session.begin_nested():  # a refused refund leaves no move behind
+            await billing_api.refund_to_wallet(session, owner, order.id, amount, reason=reason)
+    return {**payload, "reason": reason, "refund_paise": amount}

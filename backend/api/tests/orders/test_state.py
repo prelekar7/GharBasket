@@ -41,6 +41,7 @@ TIFFIN_MOVES = {
     ("payment_failed", "locked"): {"system", "customer"},  # pay during the grace (M4 §3.4)
     ("payment_failed", "cancelled"): {"customer", "system"},
     ("locked", "picking"): {"kitchen", "hub"},
+    ("locked", "refunded"): {"system"},  # no kitchen took it (ADR-0027 §1)
     ("picking", "packed"): {"kitchen", "hub"},
     ("packed", "dispatched"): {"rider", "hub"},
     ("dispatched", "delivered"): {"rider", "captain", "hub"},

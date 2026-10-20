@@ -255,6 +255,34 @@ ApplicationReview : Application & {
 | 403 | `auth.forbidden` | A role without the permission, or hub staff of another hub |
 | 400 / 422 | `request.idempotency_key_required`, `request.idempotency_mismatch`, `request.invalid` | As in M0 |
 
+**As built (applications, S6 build order (b), first PR).**
+- **Endpoints.** `POST /v1/partner-applications`, `POST /v1/hubs/{id}/partner-applications`, `GET /v1/partner-applications/me`, `GET /v1/partner-applications/{id}`, `POST …/withdraw` and the review queue. Training, KYC documents, the decision and verification follow in the next PRs; until then every required document shows `missing`, every module `todo`, and applications stay `applied`.
+- **Permissions.** A customer's own application needs only sign-in. The hub-created application and the review queue take `partner_applications:review` (hub_manager, admin), so a customer's unscoped role can never reach another hub's queue.
+- **Checks, in order.** Kind, then `partners.already_applied`, then household, hub and scope, then the display name. Two applications at the same moment meet the one-open-application index, and the second gets 409.
+- **`GET /v1/partner-applications/{id}`.** The applicant sees her `Application`; hub staff of its hub and admins see `ApplicationReview` (the applicant's name and phone from `identity.api.user_contacts`, the society's name from `community.api.get_society`). Anyone else gets 404.
+- **`society.has_active_captain`** comes from M9's `community.api.captain_for_society`.
+- **M1.** `identity.api.user_by_phone(phone_e164)` (active users only), as listed in §10.
+- **`PartnerStaff.requested_society`** comes from the partner's captain application; seeded partners have none.
+- **The data export** gains `applications` (without `created_by`, `decided_by` and `data_source`).
+
+**As built (KYC documents, S6 build order (b), third PR).**
+- **Endpoints.** `POST /v1/kyc-documents` and `POST /v1/kyc-documents/{id}/file-links`; the decision and verification follow in the next PR, so applications reach `kyc_pending` and wait there. The applicant's `GET /v1/partner-applications/{id}` carries her current `documents`, and `ApplicationReview` does too.
+- **Secrets.** `KYC_ENCRYPTION_KEY` (with `KYC_KEY_VERSION`, default 1) and `KYC_HASH_PEPPER` are required on staging and prod (at least 32 bytes each); local runs and tests use dev-only values. Encryption runs as its own `SELECT pgp_sym_encrypt(:number, :key)`, so no failing INSERT can echo the key. The hash is HMAC-SHA256 of `<type>:<number>`, where the type is `id_kind` for an ID proof.
+- **Checks, in order.** Own application (404), open (409), then the document: type, `id_kind`, Aadhaar (kind or a 12-digit ID or licence number), number format, IFSC and account holder (bank; `field: account_holder` when missing), `valid_until` (missing is `number_invalid` with `field: valid_until`; past is `document_expired`), vehicle number (driving licence), the file count (distinct keys), then each file (`files.verify`, the stored object's type and size, `claim` by `partners`). Kitchen photos with a number are `number_invalid`. Fields a type does not use are ignored.
+- **Duplicates** count current documents of other people whose application is open or verified. A failed penny drop and a duplicate still store the document; a duplicate wins over the penny drop's code.
+- **Superseding.** One application row lock serialises uploads; the older document of the same type gets `superseded_by` and its files `delete_after` 30 days on. Withdrawal sets the same on the current documents' files.
+- **File links** answer `{ files: [{ url, content_type, expires_at }] }` and write `kyc.file_read` (actor, document, application id, file count) on every call; a document outside the caller's hubs is 404 `partners.document_not_found`. Permission `kyc_files:read` (hub_manager, admin).
+- **The data export** gains `kyc_documents` (masked references with check and review states; no files, hashes, encrypted numbers, key versions or reviewers).
+
+**As built (the decision and verification, S6 build order (b), fourth PR).**
+- **Endpoint.** `POST /v1/partner-applications/{id}/decision` (`partner_applications:review`). Hub staff of another hub get 403 `auth.forbidden` (reading an application of another hub is 404). Checks: reason, documents and grade (422) before the status (409).
+- **Outcomes.** `approve` accepts every current document. `resubmit` sets the reason on the listed documents only (unknown or other applications' ids are 404 `partners.document_not_found`). `reject` sets `reason` on the application and `delete_after` (30 days) on its documents' files. A kitchen's `hygiene_grade` is stored on the application (`applications.hygiene_grade`) until the kitchen record (§3.4) takes it.
+- **Audit.** `partners.application_decided` holds the outcome, status, reason, grade and every current document's review state.
+- **Uploads in `training`** are accepted as `pending` replacements; the approval stays.
+- **Verification** (`review.verify_if_complete`) runs at approval and after a passed training attempt of an approved (`training`) application; it calls `service.verify` with the application's hub, display name and, for captains, the requested society. The training answer then shows the application `verified`.
+- **M1.** `identity/partner_roles.py` consumes `partners.verified`, `partners.suspended` and `partners.reinstated`: it reads the partner through `partners.api.get_partner` and sets `kitchen_partner:<hub>`, `rider:<hub>` or `packer:<hub>` to `verified` (active or paused) or `suspended` (suspended or left), audit-logged without an actor, so a late or repeated event never undoes a newer change. Captains get nothing here (M9's appointment).
+- **Facade.** `partners.api.application_reason(application_id)` for M11's notification of `partners.application_decided`.
+
 ### 3.2 Training (frozen for S6)
 ```
 TrainingModule : {
@@ -287,6 +315,14 @@ POST /v1/trainings/{code}/complete     Idempotency-Key
 | 409 | `partners.training_version_stale` | `version` is not the current one |
 | 422 | `partners.answers_invalid` | A question missing or repeated, or an option out of range |
 | 429 | `partners.training_attempts_exceeded` | A sixth attempt on the same module in one IST day |
+
+**As built (training, S6 build order (b), second PR).**
+- **Content.** Placeholder modules (`app_basics`, `hygiene`, `kitchen_ops`, `captain_handover`, `rider_safety`, `packing`; five questions each) in `data/seeds/trainings/modules.json`, loaded by `just seed` (`partners.training.save_module`). Titles and summaries are in English, Hindi and Marathi; the questions are English only and fall back per field. They are marked as placeholders until Rhythm Thakur and Manish Raje write the real ones and the owner reviews them.
+- **Answers.** `option` is the option's index, from 0. Every question once, else 422 `partners.answers_invalid`.
+- **Order of checks.** Not required or unknown (404), stale version (409, which carries the current `version`), the daily limit (429), then the answers (422). Refused attempts are not counted.
+- **Passes.** The status of a module counts passes of any version, so a new version does not undo a pass; `best_score` is the best over all attempts. The requirement statuses on the application use the same rule.
+- **Required order.** The kinds of the open application first, then the partner records (not `left`), each kind's modules in the table's order, each module once. The current version is the highest active one.
+- **The data export** gains `training_attempts`.
 
 ### 3.3 Partners: verification, roles, pause and suspend (frozen for S6)
 ```
@@ -488,6 +524,13 @@ POST /v1/assignments/{id}/ready        Idempotency-Key
 | 422 | `partners.order_not_in_assignment` | `order_ids` not in this assignment, or already ready |
 | 409 | `partners.order_not_assignable` | Manual assignment of orders that are not free locked tiffins of the hub and date |
 | 409 | `orders.illegal_transition` | The order is not in the status the step needs (from M4) |
+
+**As built (kitchens and capacity, S6 build order (c), part 1).**
+- **The kitchen** (`partners.kitchens`) is made when a kitchen partner is verified (the review's last step), with the FSSAI number and validity of her current `fssai` document and the hygiene grade given at approval (`inspected_on` is the approval's IST date). Area, address and location start null (M1 has no `household_location` yet); a kitchen without a location is offered nothing. Weekly defaults start at 0.
+- **Access.** The own endpoints need the `kitchen_partner` role of her hub (`kitchens:write`), so a suspended kitchen (role suspended by M1) gets 403. No kitchen record: 404 `partners.kitchen_not_found`.
+- **PATCH.** `display_name` changes the partner record's name. `default_portions` must have both meals with 7 values of 0 to 100, else 422 `partners.capacity_invalid`. Skills are de-duplicated and kept in the list's order. `location: null` clears the pin.
+- **Inspection** sets the grade and today's IST date as `inspected_on`, audit-logged (`partners.kitchen_inspected`) with the note.
+- **Capacity.** `GET` shows her own values (a paused kitchen counts as 0 only in the assignment rounds). `PUT` is accepted from today to today + 13, and is naturally idempotent (no Idempotency-Key). `assigned_portions` sums her live (offered, accepted, preparing, ready) assignments.
 
 ### 3.5 Know your cook and ratings (frozen for S6)
 ```
