@@ -1309,7 +1309,7 @@
             "type": "string"
           },
           "society": {
-            "$ref": "#/components/schemas/SocietyRef"
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SocietyRef"
           },
           "status": {
             "enum": [
@@ -1669,7 +1669,7 @@
             "type": "string"
           },
           "society": {
-            "$ref": "#/components/schemas/SocietyRef"
+            "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SocietyRef"
           }
         },
         "required": [
@@ -1921,6 +1921,45 @@
         "title": "CaptainCard",
         "type": "object"
       },
+      "CaptainDay": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/FlatCounts"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "flats": {
+            "description": "By tower, then flat",
+            "items": {
+              "$ref": "#/components/schemas/CaptainFlat"
+            },
+            "title": "Flats",
+            "type": "array"
+          },
+          "society": {
+            "$ref": "#/components/schemas/gharbasket__modules__logistics__schemas__SocietyRef"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/CaptainStop"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "society",
+          "stops",
+          "flats",
+          "counts"
+        ],
+        "title": "CaptainDay",
+        "type": "object"
+      },
       "CaptainEndIn": {
         "additionalProperties": false,
         "properties": {
@@ -1951,6 +1990,86 @@
         "title": "CaptainEndIn",
         "type": "object"
       },
+      "CaptainFlat": {
+        "properties": {
+          "bags": {
+            "examples": [
+              1
+            ],
+            "title": "Bags",
+            "type": "integer"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tower and flat only",
+            "examples": [
+              "B wing, 402"
+            ],
+            "title": "Flat Label"
+          },
+          "hold_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "20:00"
+            ],
+            "title": "Hold Until"
+          },
+          "kind": {
+            "enum": [
+              "box",
+              "addon",
+              "tiffin"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "redelivery": {
+            "title": "Redelivery",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "on_the_way",
+              "with_you",
+              "held",
+              "delivered",
+              "undelivered"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "flat_label",
+          "kind",
+          "bags",
+          "redelivery",
+          "status",
+          "hold_until"
+        ],
+        "title": "CaptainFlat",
+        "type": "object"
+      },
       "CaptainIn": {
         "additionalProperties": false,
         "properties": {
@@ -1970,6 +2089,64 @@
           "partner_id"
         ],
         "title": "CaptainIn",
+        "type": "object"
+      },
+      "CaptainStop": {
+        "properties": {
+          "eta_now": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Now"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/Expected"
+          },
+          "route_id": {
+            "format": "uuid",
+            "title": "Route Id",
+            "type": "string"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "arrived",
+              "handed_over",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "stop_id": {
+            "format": "uuid",
+            "title": "Stop Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stop_id",
+          "route_id",
+          "slot",
+          "eta_now",
+          "status",
+          "expected"
+        ],
+        "title": "CaptainStop",
         "type": "object"
       },
       "CaptainsOut": {
@@ -3932,6 +4109,29 @@
         "title": "ExchangeOut",
         "type": "object"
       },
+      "Expected": {
+        "properties": {
+          "bags": {
+            "title": "Bags",
+            "type": "integer"
+          },
+          "crates": {
+            "title": "Crates",
+            "type": "integer"
+          },
+          "redelivery_bags": {
+            "title": "Redelivery Bags",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "crates",
+          "bags",
+          "redelivery_bags"
+        ],
+        "title": "Expected",
+        "type": "object"
+      },
       "FastingRules": {
         "additionalProperties": false,
         "properties": {
@@ -4348,6 +4548,53 @@
           "files"
         ],
         "title": "FileLinksOut",
+        "type": "object"
+      },
+      "FlatCounts": {
+        "properties": {
+          "delivered": {
+            "default": 0,
+            "title": "Delivered",
+            "type": "integer"
+          },
+          "held": {
+            "default": 0,
+            "title": "Held",
+            "type": "integer"
+          },
+          "on_the_way": {
+            "default": 0,
+            "title": "On The Way",
+            "type": "integer"
+          },
+          "undelivered": {
+            "default": 0,
+            "title": "Undelivered",
+            "type": "integer"
+          },
+          "with_you": {
+            "default": 0,
+            "title": "With You",
+            "type": "integer"
+          }
+        },
+        "title": "FlatCounts",
+        "type": "object"
+      },
+      "FlatsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaptainFlat"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "FlatsOut",
         "type": "object"
       },
       "ForecastItemIn": {
@@ -11213,7 +11460,7 @@
           "requested_society": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SocietyRef"
+                "$ref": "#/components/schemas/gharbasket__modules__partners__schemas__SocietyRef"
               },
               {
                 "type": "null"
@@ -17468,25 +17715,6 @@
         "title": "SocietyOut",
         "type": "object"
       },
-      "SocietyRef": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "SocietyRef",
-        "type": "object"
-      },
       "SocietyRequestIn": {
         "additionalProperties": false,
         "description": "Ask GharBasket to come to a society that isn't listed (US-8).",
@@ -21687,6 +21915,32 @@
         "title": "CompleteIn",
         "type": "object"
       },
+      "gharbasket__modules__logistics__schemas__SocietyRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SocietyRef",
+        "type": "object"
+      },
       "gharbasket__modules__logistics__schemas__StartIn": {
         "additionalProperties": false,
         "properties": {
@@ -22003,6 +22257,25 @@
           "end"
         ],
         "title": "SlotOut",
+        "type": "object"
+      },
+      "gharbasket__modules__partners__schemas__SocietyRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SocietyRef",
         "type": "object"
       },
       "gharbasket__modules__partners__schemas__StartIn": {
@@ -28681,6 +28954,101 @@
         "summary": "Set the month's Budget Lock (≥ ₹500, this month or next); null switches it off (204)",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/captains/me/today": {
+      "get": {
+        "description": "The society of X-Active-Role (captain:<society>), today or yesterday. Flat labels only: no names, no phones.",
+        "operationId": "captain_today_v1_captains_me_today_get",
+        "parameters": [
+          {
+            "description": "IST date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptainDay"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, logistics.not_society_captain"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The captain's day: the van's stops, the flats of her society and their counts",
+        "tags": [
+          "logistics"
         ]
       }
     },
@@ -47034,6 +47402,101 @@
           }
         ],
         "summary": "Record the arrival at a stop and tell the captain (Idempotency-Key)",
+        "tags": [
+          "logistics"
+        ]
+      }
+    },
+    "/v1/stops/{stop_id}/deliveries": {
+      "get": {
+        "operationId": "stop_deliveries_v1_stops__stop_id__deliveries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "logistics.stop_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A stop's flats: for the rider of a rider-mode stop while the route runs, hub staff",
         "tags": [
           "logistics"
         ]

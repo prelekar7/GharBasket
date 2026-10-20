@@ -364,6 +364,7 @@ class LocationOut(BaseModel):
 
 # --- handover (§3.4) ----------------------------------------------------------------------------
 
+FlatStatus = Literal["on_the_way", "with_you", "held", "delivered", "undelivered"]
 BAG_QR = r"^GB1:[0-9a-f]{32}$"
 
 
@@ -371,6 +372,56 @@ class StopPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rider_mode: bool = Field(description="True: the rider hands over and does the doors today")
+
+
+class CaptainFlat(BaseModel):
+    order_id: uuid.UUID
+    flat_label: str | None = Field(examples=["B wing, 402"], description="Tower and flat only")
+    kind: Literal["box", "addon", "tiffin"]
+    bags: int = Field(examples=[1])
+    redelivery: bool
+    status: FlatStatus
+    hold_until: str | None = Field(examples=["20:00"])
+
+
+class FlatsOut(BaseModel):
+    items: list[CaptainFlat]
+
+
+class Expected(BaseModel):
+    crates: int
+    bags: int
+    redelivery_bags: int
+
+
+class CaptainStop(BaseModel):
+    stop_id: uuid.UUID
+    route_id: uuid.UUID
+    slot: StopSlot | None
+    eta_now: str | None
+    status: StopStatus
+    expected: Expected
+
+
+class SocietyRef(BaseModel):
+    id: uuid.UUID
+    name: str | None
+
+
+class FlatCounts(BaseModel):
+    on_the_way: int = 0
+    with_you: int = 0
+    held: int = 0
+    delivered: int = 0
+    undelivered: int = 0
+
+
+class CaptainDay(BaseModel):
+    date: date
+    society: SocietyRef
+    stops: list[CaptainStop]
+    flats: list[CaptainFlat] = Field(description="By tower, then flat")
+    counts: FlatCounts
 
 
 class HandoverIn(FieldTap):
