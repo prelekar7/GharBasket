@@ -38,6 +38,7 @@ from .conftest import (
     MEENA,
     MORNING,
     PRIYA,
+    RAMESH,
     SUNITA,
     VIKRAM,
     Day,
@@ -689,7 +690,7 @@ async def test_an_orphan_redelivery_is_rebooked_or_refunded_by_the_hub(
 
 
 @time_machine.travel(MORNING, tick=False)
-async def test_a_triage_refund_the_wallet_cannot_take_changes_nothing_until_it_fits(
+async def test_a_triage_refund_the_wallet_cannot_take_waits_and_a_partial_one_needs_final(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
@@ -721,10 +722,118 @@ async def test_a_triage_refund_the_wallet_cannot_take_changes_nothing_until_it_f
     assert full.json()["room_paise"] == 100
     assert await status(db_session, sunita) == "undelivered"
     assert [a.status for a in await tries(db_session, sunita)] == ["triage"]
+    # What fits is a partial refund: it ends the order, so it is refused unless the manager says
+    # it is final (the rest could never go back), and then it does end it.
     part = await api.post(
         f"/v1/deliveries/{sunita}/resolve",
         json={"outcome": "refund", "refund_paise": 100, "note": "what fits"},
         headers={**manager, **key()},
     )
-    assert part.status_code == 200, part.text
+    assert (part.status_code, part.json()["code"]) == (422, "logistics.partial_refund_not_final")
+    assert part.json()["max_paise"] > 100 and await status(db_session, sunita) == "undelivered"
+    final = await api.post(
+        f"/v1/deliveries/{sunita}/resolve",
+        json={"outcome": "refund", "refund_paise": 100, "final": True, "note": "what fits"},
+        headers={**manager, **key()},
+    )
+    assert final.status_code == 200, final.text
     assert await status(db_session, sunita) == "refunded"
+
+
+# --- the customer watching a redelivery; holds of a missed run ------------------------------------
+
+
+async def test_a_customer_watches_the_van_that_brings_their_redelivery_and_nobody_else(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    savita = "+919800001012"  # Krishna Kunj's captain
+    with time_machine.travel(MORNING, tick=False):
+        day, rider = await started(api, google, db_session)
+        stops = await stops_of(db_session, day.route_id)
+        krishna = next(s for s in stops if s not in (SEED_SOCIETY_ID, GREEN_VALLEY))
+        for phone, society, bags in ((MEENA, SEED_SOCIETY_ID, 2), (savita, krishna, 1)):
+            who = await as_user(api, google, phone)
+            handed = await api.post(
+                f"/v1/stops/{stops[society].id}/handover",
+                json={"crates": 1, "bags": bags, "handover_code": stops[society].handover_code},
+                headers={**who, **key()},
+            )
+            assert handed.status_code == 200, handed.text
+        captain = await as_user(api, google, MEENA)
+        ramesh = day.orders[RAMESH]
+        delivered = await api.post(
+            f"/v1/deliveries/{ramesh}/proof",
+            json={"bag_qr": bag(ramesh), "proof": "scan"},
+            headers={**await as_user(api, google, savita), **key()},
+        )
+        assert delivered.status_code == 200, delivered.text  # delivered on T, no redelivery
+        priya = day.orders[PRIYA]
+        refused = await api.post(
+            f"/v1/deliveries/{priya}/undelivered",
+            json={"reason": "refused"},
+            headers={**captain, **key()},
+        )
+        assert refused.json()["status"] == "triage"
+        await skip_all(api, rider, db_session, day.route_id)
+        done = await api.post(f"/v1/routes/{day.route_id}/complete", headers={**rider, **key()})
+        assert done.status_code == 200, done.text
+    with time_machine.travel(at(13, 21, 0), tick=False):
+        manager = await as_user(api, google, VIKRAM)
+        booked = await api.post(
+            f"/v1/deliveries/{priya}/resolve",
+            json={"outcome": "redeliver", "note": "tomorrow"},
+            headers={**manager, **key()},
+        )
+        assert booked.status_code == 200, booked.text
+    assert (await job(db_session, "solve_routes", at(13, 23, 15)))["published"] == 1
+    route_id = await db_session.scalar(select(Route.id).where(Route.delivery_date == NEXT_DAY))
+    assert route_id is not None
+    with time_machine.travel(at(14, 6, 30), tick=False):
+        rider = await as_user(api, google, ARJUN)
+        started_again = await api.post(f"/v1/routes/{route_id}/start", headers={**rider, **key()})
+        assert started_again.status_code == 200, started_again.text
+        # Let the stream end at once (a finished route) instead of waiting for the van.
+        await db_session.execute(
+            update(Route).where(Route.id == route_id).values(status="completed")
+        )
+        await db_session.commit()
+        sse = {"Accept": "text/event-stream"}
+        mine = await api.get(
+            f"/v1/routes/{route_id}/live", headers={**await as_user(api, google, PRIYA), **sse}
+        )
+        assert mine.status_code == 200, mine.text
+        assert mine.text.startswith("event: snapshot")
+        assert "route_completed" in mine.text
+        other = await api.get(
+            f"/v1/routes/{route_id}/live", headers={**await as_user(api, google, RAMESH), **sse}
+        )
+        assert (other.status_code, other.json()["code"]) == (403, "auth.forbidden")
+
+
+async def test_a_hold_whose_20_30_run_was_missed_expires_with_the_next_days_run(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    with time_machine.travel(MORNING, tick=False):
+        day, _ = await started(api, google, db_session)
+        stops = await stops_of(db_session, day.route_id)
+        captain = await as_user(api, google, MEENA)
+        sunrise = stops[SEED_SOCIETY_ID]
+        handed = await api.post(
+            f"/v1/stops/{sunrise.id}/handover",
+            json={"crates": 1, "bags": 2, "handover_code": sunrise.handover_code},
+            headers={**captain, **key()},
+        )
+        assert handed.status_code == 200, handed.text
+        held = await api.post(
+            f"/v1/deliveries/{day.orders[MEENA]}/undelivered",
+            json={"reason": "not_home"},
+            headers={**captain, **key()},
+        )
+        assert held.json()["status"] == "held"
+    # Nobody ran 13 October's 20:30. The 14th's run takes up the held bag and the unscanned one.
+    summary = await job(db_session, "hold_expiry", at(14, 20, 30))
+    assert (summary["not_home"], summary["not_confirmed"], summary["failed"]) == (1, 1, 0)
+    assert await status(db_session, day.orders[MEENA]) == "undelivered"
+    assert await status(db_session, day.orders[PRIYA]) == "undelivered"

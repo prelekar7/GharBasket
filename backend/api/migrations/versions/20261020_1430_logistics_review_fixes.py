@@ -8,6 +8,9 @@ gets the one free redelivery as attempt 2 (M7 §3.4).
 (`WHERE route_id = … ORDER BY at DESC LIMIT 1`); the BRIN index on `at` cannot serve that. Made on
 the partitioned parent, so every month's partition gets it.
 
+`ix_deliveries_date_status`: the evening jobs read `WHERE delivery_date <= :day AND status IN (…)`
+(`hold_expiry`, `schedule_redeliveries`), which the hub-first index cannot serve.
+
 Revision ID: a7c41e5d9b02
 Revises: 57fb2f8062ee
 Create Date: 2026-10-20 14:30:00+00:00
@@ -31,8 +34,15 @@ def upgrade() -> None:
         schema="logistics",
     )
     op.execute("CREATE INDEX ix_gps_pings_route_at ON logistics.gps_pings (route_id, at DESC)")
+    op.create_index(
+        "ix_deliveries_date_status",
+        "deliveries",
+        ["delivery_date", "status"],
+        schema="logistics",
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_deliveries_date_status", table_name="deliveries", schema="logistics")
     op.execute("DROP INDEX logistics.ix_gps_pings_route_at")
     op.drop_column("deliveries", "hub_ride", schema="logistics")

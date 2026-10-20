@@ -364,6 +364,8 @@ class Delivery(Base):
         ),
         UniqueConstraint("order_id", "attempt"),
         Index("ix_deliveries_hub_date", "hub_id", "delivery_date", "status"),
+        # The evening jobs: delivery_date <= day and status in (…), for every hub at once
+        Index("ix_deliveries_date_status", "delivery_date", "status"),
         {"schema": SCHEMA},
     )
 

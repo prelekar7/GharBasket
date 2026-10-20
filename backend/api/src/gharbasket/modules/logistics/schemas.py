@@ -493,6 +493,12 @@ class ResolveIn(BaseModel):
     refund_paise: int | None = Field(
         default=None, ge=1, examples=[42000], description="Default: all that is left to refund"
     )
+    final: bool = Field(
+        default=False,
+        description="Needed for a refund below all that is left: `refunded` is final, so the "
+        "rest of the money would never go back. Without it that is 422 "
+        "`logistics.partial_refund_not_final`.",
+    )
     note: str = Field(min_length=1, max_length=300)
 
 

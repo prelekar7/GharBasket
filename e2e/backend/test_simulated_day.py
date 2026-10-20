@@ -38,13 +38,6 @@ NOT_IN_THE_DAY = {
     "build_data_export": "needs object storage (SeaweedFS, `just up-storage`); no export is "
     "requested in the day",
     "sweep_uploads": "needs object storage (SeaweedFS, `just up-storage`)",
-    # M7's stage of the day (MS-B: the 23:15 plan, route start, handover, doors) is not in the
-    # simulated day yet; tests/logistics runs each of these jobs against the seed world.
-    "persist_gps_pings": "the simulated day has no riders sending pings yet (M7 MS-B stage)",
-    "close_routes": "the simulated day has no routes in progress (M7 MS-B stage)",
-    "hold_expiry": "the simulated day has no bags at a society yet (M7 MS-B stage)",
-    "schedule_redeliveries": "the simulated day has no missed bags yet (M7 MS-B stage)",
-    "purge_gps_pings": "the simulated day has no pings yet (M7 MS-B stage)",
 }
 # Open product bugs this suite found, by the invariant that shows them, with the bug as the reason;
 # each is xfail(strict=True), so fixing one turns the suite red until it is removed. (#280's two,
@@ -111,6 +104,11 @@ async def database(config: Config):
             yield session
     finally:
         await engine.dispose()
+
+
+async def rows(config: Config, sql: str, **params: Any) -> list[Any]:
+    async with database(config) as session:
+        return list((await session.execute(text(sql), params)).all())
 
 
 async def scalar(config: Config, sql: str, **params: Any) -> Any:
@@ -733,9 +731,12 @@ def test_after_the_grace_the_plan_is_refreshed_and_the_routes_are_solved(
 
 
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
-    """Tuesday T 04:03 to 04:33 IST: the daily platform, identity and notification jobs."""
+    """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
+    jobs."""
+    out: dict[str, Any] = {}
 
     async def go() -> None:
+        out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
             ("expire_data_exports", 4, 23),
@@ -744,6 +745,7 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
             await app.job(name, ist(day.t, hour, minute))
 
     step(loop, ist(day.t, 4, 0), go())
+    assert out["pings"] == {"deleted": 0, "partitions_dropped": 0}, out  # no rider sent a ping
 
 
 def test_packing_tasks_are_built_for_every_paid_box(
@@ -797,12 +799,63 @@ def test_the_morning_sends_what_quiet_hours_held(
     assert {p["token"] for p in app.outside.pushes} <= devices
 
 
+async def logistics_untouched(config: Config, day: Day) -> None:
+    """The published route is as the 23:15 solve left it, and no bag has been tried at a door."""
+    states = await rows(
+        config, "SELECT status FROM logistics.routes WHERE delivery_date = :d", d=day.t
+    )
+    assert states and {status for (status,) in states} == {"published"}, states
+    assert await scalar(config, "SELECT count(*) FROM logistics.deliveries") == 0
+    assert await scalar(config, "SELECT count(*) FROM logistics.gps_pings") == 0
+
+
+def test_the_morning_moves_the_riders_pings_and_finds_none(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 07:02: `persist_gps_pings` (every minute) with nothing in the stream. No route has
+    started, so the published route stays as it is."""
+    when = ist(day.t, 7, 2)
+    summary = step(loop, when, app.job("persist_gps_pings", when))
+    assert summary == {"read": 0, "inserted": 0}, summary
+    loop.run(logistics_untouched(config, day))
+
+
 def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 09:30: the lunch slot's manual assignment closes and unassigned tiffins are
     refunded (the day books no tiffin, so there is nothing to refund)."""
     when = ist(day.t, 9, 30)
     summary = step(loop, when, app.job("refund_unassigned_tiffins", when))
     assert summary["refunded"] == summary["refused"] == 0, summary
+
+
+def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_do(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 16:00, 20:30 and 20:45: `close_routes`, `hold_expiry` and `schedule_redeliveries`.
+    The day's published route never started (the simulated day has no rider), so each runs clean,
+    touches nothing and writes no delivery."""
+    date = day.t.isoformat()
+    closed = step(loop, ist(day.t, 16, 0), app.job("close_routes", ist(day.t, 16, 0)))
+    assert closed == {"date": date, "closed": 0, "returned_to_hub": 0}, closed
+    expired = step(loop, ist(day.t, 20, 30), app.job("hold_expiry", ist(day.t, 20, 30)))
+    assert expired == {
+        "date": date,
+        "not_home": 0,
+        "not_confirmed": 0,
+        "failed": 0,
+        "left_behind": 0,
+    }, expired
+    when = ist(day.t, 20, 45)
+    again = step(loop, when, app.job("schedule_redeliveries", when))
+    assert again == {
+        "date": date,
+        "redelivery": 0,
+        "refunded": 0,
+        "triage": 0,
+        "failed": 0,
+    }, again
+    step(loop, when, app.sweep(when))
+    loop.run(logistics_untouched(config, day))
 
 
 def test_every_event_of_the_day_that_m11_maps_became_a_message(

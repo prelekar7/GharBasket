@@ -143,7 +143,7 @@ POST /v1/orders/{id}/cancel         Idempotency-Key; while approved: 200 OrderOu
 | at_society → delivered | captain, rider (no captain), hub | — |
 | at_society → undelivered | captain, rider (no captain), system (`hold_expiry`), hub | — |
 | dispatched → delivered / undelivered | — | rider, captain, hub |
-| undelivered → redelivery | customer, hub | — |
+| undelivered → redelivery | customer, system (the free redelivery, `schedule_redeliveries`), hub | — |
 | undelivered → refunded | customer, system | system (at once; a lunch is never redelivered) |
 | redelivery → refunded | system, hub (a redelivery no route picked up; [ADR-0028](../adr/0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md), accepted) | — |
 

@@ -1039,7 +1039,7 @@ export interface paths {
         put?: never;
         /**
          * Triage an undelivered order: the free redelivery or a refund (Idempotency-Key)
-         * @description `redeliver` books the one free redelivery (attempt 1 only); a bag the day's route left behind rides again as attempt 1; a redelivery no route picked up is booked again. `refund` pays the wallet up to what is left of the order's paid total; when the wallet cannot take it (422 `billing.wallet_limit` with `room_paise`) nothing has changed: refund at most that room, or wait for the customer to refund their balance to the payment source.
+         * @description `redeliver` books the one free redelivery (attempt 1 only); a bag the day's route left behind rides again as attempt 1; a redelivery no route picked up is booked again. `refund` pays the wallet all that is left of the order's paid total; a smaller `refund_paise` ends the order with the rest unrefunded, so it needs `final: true` (else 422 `logistics.partial_refund_not_final`). When the wallet cannot take the full amount (422 `billing.wallet_limit` with `room_paise`) nothing has changed and the attempt stays in triage until the customer has room, or until M5 offers a per-order refund to the payment source.
          */
         post: operations["resolve_delivery_v1_deliveries__order_id__resolve_post"];
         delete?: never;
@@ -13015,6 +13015,12 @@ export interface components {
         };
         /** ResolveIn */
         gharbasket__modules__logistics__schemas__ResolveIn: {
+            /**
+             * Final
+             * @description Needed for a refund below all that is left: `refunded` is final, so the rest of the money would never go back. Without it that is 422 `logistics.partial_refund_not_final`.
+             * @default false
+             */
+            final: boolean;
             /** Note */
             note: string;
             /**
@@ -18086,7 +18092,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description logistics.refund_invalid (max_paise), billing.wallet_limit (room_paise), request.invalid */
+            /** @description logistics.refund_invalid (max_paise), logistics.partial_refund_not_final (max_paise), billing.wallet_limit (room_paise), request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

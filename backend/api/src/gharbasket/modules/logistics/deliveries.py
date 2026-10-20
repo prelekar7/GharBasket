@@ -413,6 +413,14 @@ async def resolve(
                 "That is more than is left to refund on this order.",
                 extra={"max_paise": most},
             )
+        if amount < most and not body.final:  # `refunded` is final: the rest could never go back
+            raise ProblemError(
+                422,
+                "logistics.partial_refund_not_final",
+                "A refund of less than all that is left ends the order; send final: true to "
+                "keep the rest unrefunded.",
+                extra={"max_paise": most},
+            )
         await refund(session, delivery, order.id, amount, "triage", user_id)
     delivery.note, delivery.by_actor, delivery.user_id = body.note, "hub", user_id
     await audit.record(
@@ -480,7 +488,8 @@ async def _each(
 
 
 async def expire_holds(session: AsyncSession, day: date) -> dict[str, int]:
-    """T 20:30: every order of the day still at the society becomes undelivered (actor system):
+    """T 20:30: every order of the day, and of earlier days whose run was missed, still at the
+    society becomes undelivered (actor system):
     `not_home` for a held bag, which stays with the captain overnight, `not_confirmed` (to triage)
     for one never scanned at a door. Orders the day's routes left behind and that never rode go
     to triage too (`left_behind`)."""
@@ -503,7 +512,7 @@ async def expire_holds(session: AsyncSession, day: date) -> dict[str, int]:
 
     counts = await _each(
         session,
-        await _due(session, day, ("with_captain", "held")),
+        await _due(session, day, ("with_captain", "held"), since=True),
         expire,
         {"not_home": 0, "not_confirmed": 0},
     )
