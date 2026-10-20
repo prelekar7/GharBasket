@@ -1374,6 +1374,108 @@
         "title": "CancelIn",
         "type": "object"
       },
+      "CapacitiesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CapacityOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CapacitiesOut",
+        "type": "object"
+      },
+      "CapacityIn": {
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "max_portions": {
+            "description": "0 to 100 (else 422 partners.capacity_invalid); 0 = no tiffins",
+            "examples": [
+              12
+            ],
+            "title": "Max Portions",
+            "type": "integer"
+          },
+          "meal": {
+            "description": "lunch or dinner",
+            "examples": [
+              "lunch"
+            ],
+            "maxLength": 16,
+            "title": "Meal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "meal",
+          "max_portions"
+        ],
+        "title": "CapacityIn",
+        "type": "object"
+      },
+      "CapacityOut": {
+        "properties": {
+          "assigned_portions": {
+            "description": "In offered, accepted, preparing, ready offers",
+            "title": "Assigned Portions",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "locked": {
+            "description": "From 21:00 IST the day before",
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "max_portions": {
+            "examples": [
+              12
+            ],
+            "title": "Max Portions",
+            "type": "integer"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "default",
+              "set"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "meal",
+          "max_portions",
+          "source",
+          "assigned_portions",
+          "locked"
+        ],
+        "title": "CapacityOut",
+        "type": "object"
+      },
       "CaptainCard": {
         "properties": {
           "display_name": {
@@ -2523,6 +2625,29 @@
           "current"
         ],
         "title": "DeviceOut",
+        "type": "object"
+      },
+      "DishOut": {
+        "properties": {
+          "name": {
+            "description": "In Accept-Language",
+            "examples": [
+              "Varan bhaat"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe_id": {
+            "format": "uuid",
+            "title": "Recipe Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe_id",
+          "name"
+        ],
+        "title": "DishOut",
         "type": "object"
       },
       "DocumentRequirement": {
@@ -5060,6 +5185,30 @@
         "title": "HubsOut",
         "type": "object"
       },
+      "HygieneOut": {
+        "properties": {
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "inspected_on": {
+            "format": "date",
+            "title": "Inspected On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grade",
+          "inspected_on"
+        ],
+        "title": "HygieneOut",
+        "type": "object"
+      },
       "InboxOut": {
         "properties": {
           "items": {
@@ -5198,6 +5347,38 @@
           "optional"
         ],
         "title": "IngredientOut",
+        "type": "object"
+      },
+      "InspectionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff-only; audit log",
+            "title": "Note"
+          }
+        },
+        "required": [
+          "grade"
+        ],
+        "title": "InspectionIn",
         "type": "object"
       },
       "InventoryItem": {
@@ -6274,6 +6455,246 @@
           "code"
         ],
         "title": "KindnessGoal",
+        "type": "object"
+      },
+      "KitchenOut": {
+        "description": "A kitchen as she and hub staff see it: `address` and `location` are private.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Private: the kitchen, hub staff, the rider",
+            "title": "Address"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public (the card)",
+            "examples": [
+              "Sector 20, Kharghar"
+            ],
+            "title": "Area"
+          },
+          "default_portions": {
+            "$ref": "#/components/schemas/WeekPortions"
+          },
+          "display_name": {
+            "examples": [
+              "Lata tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fssai_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "11521999000123"
+            ],
+            "title": "Fssai Reg No"
+          },
+          "fssai_valid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fssai Valid Until"
+          },
+          "hygiene": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HygieneOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Private; null until set (no offers before)"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "skills": {
+            "examples": [
+              [
+                "veg",
+                "jain"
+              ]
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "suspended",
+              "left"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "status",
+          "area",
+          "address",
+          "location",
+          "fssai_reg_no",
+          "fssai_valid_until",
+          "skills",
+          "default_portions",
+          "hygiene",
+          "version"
+        ],
+        "title": "KitchenOut",
+        "type": "object"
+      },
+      "KitchenPatchIn": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "area": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "default_portions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "lunch and dinner, Monday … Sunday, 0 to 100 each (else 422 partners.capacity_invalid)",
+            "title": "Default Portions"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatLng"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skills": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 32,
+                  "type": "string"
+                },
+                "maxItems": 12,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From veg, jain, no_onion_garlic, diabetic, egg, nonveg (else 422 partners.skills_invalid)",
+            "title": "Skills"
+          }
+        },
+        "title": "KitchenPatchIn",
+        "type": "object"
+      },
+      "KitchenRef": {
+        "properties": {
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_id"
+        ],
+        "title": "KitchenRef",
         "type": "object"
       },
       "KycCheckOut": {
@@ -7609,6 +8030,41 @@
         "title": "MemberUpdate",
         "type": "object"
       },
+      "MenuKitchenOut": {
+        "properties": {
+          "display_name": {
+            "examples": [
+              "Lata tai"
+            ],
+            "title": "Display Name",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for now (M8 §3.5)",
+            "title": "Photo Url"
+          }
+        },
+        "required": [
+          "partner_id",
+          "display_name",
+          "photo_url"
+        ],
+        "title": "MenuKitchenOut",
+        "type": "object"
+      },
       "MessageIn": {
         "additionalProperties": false,
         "properties": {
@@ -8296,6 +8752,17 @@
             "title": "Kind",
             "type": "string"
           },
+          "kitchen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KitchenRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The kitchen cooking a tiffin, once one accepted (ADR-0026 §3); the card is GET /v1/partners/{partner_id}/card"
+          },
           "lines": {
             "items": {
               "$ref": "#/components/schemas/OrderLineOut"
@@ -8344,6 +8811,17 @@
           "subtotal_paise": {
             "title": "Subtotal Paise",
             "type": "integer"
+          },
+          "tiffin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TiffinOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin orders (§3.5): the booked menu; null otherwise"
           },
           "timeline": {
             "items": {
@@ -15384,6 +15862,22 @@
             "title": "Label",
             "type": "string"
           },
+          "meal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lunch",
+                  "dinner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for a tiffin slot, absent for a box slot (§3.5)",
+            "title": "Meal"
+          },
           "start": {
             "examples": [
               "07:00"
@@ -15445,6 +15939,22 @@
             "title": "Label",
             "type": "string"
           },
+          "meal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "lunch",
+                  "dinner"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tiffin slots only (§3.5)",
+            "title": "Meal"
+          },
           "start": {
             "description": "IST clock time",
             "examples": [
@@ -15462,6 +15972,7 @@
           "kind",
           "start",
           "end",
+          "meal",
           "capacity",
           "booked",
           "available"
@@ -17232,6 +17743,161 @@
         "title": "Texts",
         "type": "object"
       },
+      "TiffinMenuOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kitchen": {
+            "$ref": "#/components/schemas/MenuKitchenOut",
+            "description": "The menu's cook: a preference (M8 §3.4)"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "order_by": {
+            "description": "The cut-off of that date (T-1 21:00 IST)",
+            "format": "date-time",
+            "title": "Order By",
+            "type": "string"
+          },
+          "price_paise": {
+            "description": "Per portion",
+            "examples": [
+              11000
+            ],
+            "title": "Price Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "meal",
+          "hub_id",
+          "dishes",
+          "price_paise",
+          "kitchen",
+          "order_by"
+        ],
+        "title": "TiffinMenuOut",
+        "type": "object"
+      },
+      "TiffinMenusOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TiffinMenuOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "TiffinMenusOut",
+        "type": "object"
+      },
+      "TiffinOrderIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "description": "tiffin (else 422 orders.kind_unavailable)",
+            "examples": [
+              "tiffin"
+            ],
+            "maxLength": 16,
+            "title": "Kind",
+            "type": "string"
+          },
+          "menu_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From GET /v1/tiffin-menus",
+            "title": "Menu Id"
+          },
+          "portions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1 to 12 (else 422 orders.qty_invalid); default the household size",
+            "title": "Portions"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "TiffinOrderIn",
+        "type": "object"
+      },
+      "TiffinOut": {
+        "properties": {
+          "dishes": {
+            "items": {
+              "$ref": "#/components/schemas/DishOut"
+            },
+            "title": "Dishes",
+            "type": "array"
+          },
+          "meal": {
+            "enum": [
+              "lunch",
+              "dinner"
+            ],
+            "title": "Meal",
+            "type": "string"
+          },
+          "menu_id": {
+            "format": "uuid",
+            "title": "Menu Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "menu_id",
+          "meal",
+          "dishes"
+        ],
+        "title": "TiffinOut",
+        "type": "object"
+      },
       "TimelineEvent": {
         "description": "A timeline row of the live timeline (§3.3's TimelineEntry): with the row's id.",
         "properties": {
@@ -18806,6 +19472,54 @@
           "outcome"
         ],
         "title": "WebhookAck",
+        "type": "object"
+      },
+      "WeekPortions": {
+        "properties": {
+          "dinner": {
+            "description": "Monday … Sunday, 0 to 100 each",
+            "examples": [
+              [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Dinner",
+            "type": "array"
+          },
+          "lunch": {
+            "description": "Monday … Sunday, 0 to 100 each",
+            "examples": [
+              [
+                10,
+                10,
+                10,
+                10,
+                10,
+                10,
+                10
+              ]
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Lunch",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lunch",
+          "dinner"
+        ],
+        "title": "WeekPortions",
         "type": "object"
       },
       "WhatsAppAck": {
@@ -33301,6 +34015,599 @@
         ]
       }
     },
+    "/v1/kitchen-capacity": {
+      "get": {
+        "operationId": "my_capacity_v1_kitchen_capacity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapacitiesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.capacity_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your capacity per date and meal: from today, up to 14 days (default 7)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      },
+      "put": {
+        "operationId": "set_capacity_v1_kitchen_capacity_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapacityIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapacityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.capacity_locked"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.capacity_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Set your capacity for one date and meal (0 = none) until 21:00 the day before",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/kitchens/me": {
+      "get": {
+        "operationId": "my_kitchen_v1_kitchens_me_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Your kitchen (kitchen partner)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      },
+      "patch": {
+        "operationId": "edit_kitchen_v1_kitchens_me_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KitchenPatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "http.400: the body cannot be read"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.version_mismatch: reload and try again"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.skills_invalid, partners.capacity_invalid, request.invalid"
+          },
+          "428": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.precondition_required: send If-Match"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Edit your kitchen: name, area, address, pin, skills, weekly portions (If-Match)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
+    "/v1/kitchens/{partner_id}/inspection": {
+      "post": {
+        "operationId": "inspect_kitchen_v1_kitchens__partner_id__inspection_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "partner_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Partner Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden, auth.role_not_granted"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "partners.kitchen_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Record a kitchen inspection's hygiene grade (hub staff, admin; audit-logged)",
+        "tags": [
+          "partners",
+          "partners"
+        ]
+      }
+    },
     "/v1/kyc-documents": {
       "post": {
         "operationId": "upload_document_v1_kyc_documents_post",
@@ -34728,6 +36035,143 @@
           }
         ],
         "summary": "Orders of the caller's household, or of a hub for its staff (newest delivery first)",
+        "tags": [
+          "orders"
+        ]
+      },
+      "post": {
+        "description": "Only `kind: tiffin` (§3.5): add-ons ride on the box. The menu fixes the date, meal, price and the preferred cook; the server picks the hub's tiffin slot for the meal.",
+        "operationId": "book_tiffin_v1_orders_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TiffinOrderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden or auth.role_not_granted"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.tiffin_already_booked (order_id), orders.slot_full"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.kind_unavailable, orders.menu_unknown, orders.qty_invalid, orders.hub_required, orders.slot_invalid, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Book a kitchen's tiffin for one meal (Idempotency-Key); paid at the cut-off",
         "tags": [
           "orders"
         ]
@@ -41522,6 +42966,109 @@
         "summary": "Pause or resume, or set auto-approve",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/tiffin-menus": {
+      "get": {
+        "operationId": "tiffin_menus_v1_tiffin_menus_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "meal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "lunch",
+                    "dinner"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meal"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TiffinMenusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "orders.hub_required, orders.date_out_of_range, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Approved tiffin menus of your hub, tomorrow to a week ahead, still open to book",
+        "tags": [
+          "orders",
+          "orders"
         ]
       }
     },

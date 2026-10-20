@@ -70,6 +70,7 @@ __all__ = [
     "order_ids_of_household",
     "orders_for_delivery",
     "resolve_issue",
+    "set_kitchen",
     "slot_ref",
     "sold_lines",
     "transition",
@@ -113,11 +114,26 @@ async def transition(
     `actor_user_id` the person, recorded on the timeline row but never shown to customers.
     M4 checks only the state machine (409 `orders.illegal_transition`); the caller has already
     checked that this person may act on this order (packer of its hub, rider of its route,
-    active captain of its society, kitchen of its assignment)."""
+    active captain of its society, kitchen of its assignment).
+
+    A move to `refunded` returns money to the owner's wallet through `billing.api`:
+    `payload.refund_paise` (default what is left of the paid total after issue credits), keyed
+    by order and `payload.reason` (default `undelivered`; `no_kitchen` for a locked tiffin no
+    kitchen took, ADR-0027), so a replay never pays twice."""
     order = await service.get(session, order_id, for_update=True)
     return await service.transition(
         session, order, to_status, actor=actor, actor_user_id=actor_user_id, payload=payload
     )
+
+
+async def set_kitchen(
+    session: AsyncSession, order_id: uuid.UUID, partner_id: uuid.UUID | None
+) -> Order:
+    """Record the kitchen partner that cooks a tiffin (M8 on accept), or clear it with None (M8
+    on a cancellation after acceptance), ADR-0026 §3; the order shows it as `kitchen`. Tiffins
+    only (else `orders.not_editable`); the same kitchen again changes nothing."""
+    order = await service.get(session, order_id, for_update=True)
+    return await service.set_kitchen(session, order, partner_id)
 
 
 async def mark_shortage(
