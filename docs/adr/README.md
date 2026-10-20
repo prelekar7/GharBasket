@@ -37,3 +37,4 @@ Each ADR records one significant decision: the context, what we decided, the alt
 | [0025](0025-ml-runtime-spaces-actions-r2.md) | ML runtime: serve on Hugging Face Spaces, train in GitHub Actions, R2 lake and registry, cron-job.org for minute-level jobs | Accepted |
 | [0026](0026-operations-contract.md) | Operations contract: units, order actors, tiffin states, Society Captains in M9, hubs in M6 | Accepted (amended by 0027) |
 | [0027](0027-operations-contract-amendments.md) | Operations contract amendments: unassigned tiffins refunded, boxes missed twice (perishables refunded, the rest carried over), captain pay at `delivered`, M7's order moves, the preferred cook | Accepted |
+| [0028](0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md) | M7 order moves: a hub manager's tap for a rider moves the orders as `rider`; a redelivery no route picked up can be refunded (`redelivery → refunded`) | Proposed |

@@ -49,7 +49,7 @@ quadrantChart
 
 ## 15.2 Decision log
 
-D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 and D27 on 9 October 2026. Each has an ADR with context, alternatives and consequences.
+D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided between 2 and 4 October 2026 and D26 and D27 on 9 October 2026 (D28 is proposed on 20 October 2026). Each has an ADR with context, alternatives and consequences.
 
 | ID | Decision | ADR |
 |---|---|---|
@@ -80,6 +80,7 @@ D1–D17 were agreed on 2 October 2026 during planning; D18–D25 were decided b
 | D25 | ML runtime: the ML service and OSRM serve from one Hugging Face Space; training, forecasting and snapshots run in GitHub Actions (`backend/training`); R2 is the lake and the model registry (`latest.json`, `just promote`); MLflow local only; cron-job.org triggers minute-level jobs; settles the open item in D20 and refines D21 | [ADR-0025](../adr/0025-ml-runtime-spaces-actions-r2.md) |
 | D26 | Operations contract: one unit set (`g, kg, ml, l, piece, bunch, pack`); order actors `packer`, `rider`, `captain`, `kitchen` alongside `customer`, `system`, `hub`; tiffins reuse the order statuses and events; M9 is the source of truth for Society Captains; M6 owns `hub_ops.hubs` (hub ids elsewhere without foreign keys); crates counted, not tracked — amended by D27 | [ADR-0026](../adr/0026-operations-contract.md) |
 | D27 | Operations contract amendments: a tiffin no kitchen accepts goes `locked → refunded` (system, `no_kitchen`); a box missed twice has its perishables refunded minus ₹20 and its non-perishables carried to the next delivery (`orders.api.carry_over`, up to 14 days, then refunded); the held bag stays overnight with the captain; captains earn ₹6 a bag at `orders.delivered` (none for tiffins); the extra M4 moves M7 needs; the booked menu's cook is honoured first, the rest fair-assigned | [ADR-0027](../adr/0027-operations-contract-amendments.md) |
+| D28 | M7 order moves: a hub manager who starts or completes a route for its rider moves the orders as `rider` (the rider's pay is unchanged); a redelivery no route picked up is rebooked or refunded by the hub (`redelivery → refunded`, system or hub) — proposed, for the owner to approve | [ADR-0028](../adr/0028-m7-order-moves-by-hub-managers-and-orphan-redeliveries.md) |
 
 ### How decisions change
 
