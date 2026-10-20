@@ -827,6 +827,18 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
+def test_the_logistics_evening_closes_the_routes_with_nothing_to_do(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 16:00: `close_routes`. The day's published route never started (the simulated day
+    has no rider), so it closes nothing and leaves the route as it is."""
+    when = ist(day.t, 16, 0)
+    closed = step(loop, when, app.job("close_routes", when))
+    assert closed["closed"] == 0, closed
+    step(loop, when, app.sweep(when))
+    loop.run(logistics_untouched(config, day))
+
+
 def test_every_event_of_the_day_that_m11_maps_became_a_message(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:
