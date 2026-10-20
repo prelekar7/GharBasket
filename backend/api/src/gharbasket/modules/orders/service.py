@@ -113,11 +113,22 @@ async def create_slot(
     start: time,
     end: time,
     capacity: int,
+    meal: str | None = None,
 ) -> Slot:
     if end <= start:
         raise ProblemError(422, "orders.slot_invalid", "The slot must end after it starts.")
+    if (kind == "tiffin") != (meal is not None):
+        raise ProblemError(
+            422, "orders.slot_invalid", "A tiffin slot names its meal; a box slot has none."
+        )
     slot = Slot(
-        hub_id=hub_id, label=label, kind=kind, start_time=start, end_time=end, capacity=capacity
+        hub_id=hub_id,
+        label=label,
+        kind=kind,
+        start_time=start,
+        end_time=end,
+        capacity=capacity,
+        meal=meal,
     )
     try:
         async with session.begin_nested():

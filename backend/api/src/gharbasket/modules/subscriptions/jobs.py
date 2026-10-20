@@ -90,8 +90,14 @@ async def apply_auto_approve(ctx: JobContext) -> dict[str, Any]:
 MIRRORED = {"order_id", "household_id", "delivery_date"}
 
 
+def _about_the_box(event: OutboxEvent) -> bool:
+    """A box order's event with what the cycle mirrors; a tiffin (M4 §3.5) on the same date is
+    another order and never moves the week."""
+    return event.payload.get("kind", "box") == "box" and event.payload.keys() >= MIRRORED
+
+
 async def on_order_locked(session: AsyncSession, event: OutboxEvent) -> None:
-    if not event.payload.keys() >= MIRRORED:
+    if not _about_the_box(event):
         return
     cycle = await service.cycle_for(
         session,
@@ -103,7 +109,7 @@ async def on_order_locked(session: AsyncSession, event: OutboxEvent) -> None:
 
 
 async def on_order_payment_failed(session: AsyncSession, event: OutboxEvent) -> None:
-    if not event.payload.keys() >= MIRRORED:
+    if not _about_the_box(event):
         return
     cycle = await service.cycle_for(
         session,
@@ -115,7 +121,7 @@ async def on_order_payment_failed(session: AsyncSession, event: OutboxEvent) -> 
 
 
 async def on_order_cancelled(session: AsyncSession, event: OutboxEvent) -> None:
-    if event.payload.get("reason") != "payment" or not event.payload.keys() >= MIRRORED:
+    if event.payload.get("reason") != "payment" or not _about_the_box(event):
         return  # a skip or a customer cancellation already changed the cycle
     cycle = await service.cycle_for(
         session,
