@@ -168,3 +168,7 @@ dev-real:
 # Sign in as all 13 seed people against a running dev API and check /v1/me against the seed, e.g. `just real-check 8020`
 real-check *args:
     ./scripts/real-check.sh {{args}}
+
+# Report the frontends' API calls that openapi.json lacks (docs/integration/contract-gaps.md); `node scripts/contract-gaps.mjs --check` gates
+contract-gaps:
+    node scripts/contract-gaps.mjs

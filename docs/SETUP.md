@@ -90,7 +90,8 @@ Gotchas:
 - **Sign-in is rate limited**: 30 dev sign-ins per IP and 10 per phone in 10 minutes (`auth.rate_limited`, 429). `just real-check`
   uses 13 of them. Wait, or empty the limiter's Valkey database.
 - **Some screens show an error screen on purpose.** Both apps were built against mocks first; calls to endpoints that have
-  not shipped answer 404 (`http.not_found`).
+  not shipped answer 404 (`http.not_found`). `just contract-gaps` lists every such call, who fixes it and when, in
+  `docs/integration/contract-gaps.md`; the hand-kept classes are in `docs/integration/gaps.json`.
 - **Payments** settle without Razorpay: a top-up creates a dev order, paid with `POST /v1/dev/razorpay/pay` (see
   `docs/modules/M5-billing.md`). Push notifications and WhatsApp are skipped without credentials; the in-app inbox still works.
 - **Time** is the real clock. Cut-off, delivery days and the weekly job depend on the day; `just job <name>` runs a scheduled
