@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 import time_machine
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
@@ -19,8 +19,9 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.logistics import deliveries
 from gharbasket.modules.orders import api as orders_api
-from gharbasket.modules.orders import service
-from gharbasket.modules.orders.models import CarryOver
+from gharbasket.modules.orders import carry, service
+from gharbasket.modules.orders.jobs import on_wallet_topped_up
+from gharbasket.modules.orders.models import CarryOver, Order
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import OutboxEvent
@@ -323,8 +324,10 @@ async def test_rows_follow_their_box_through_packing_and_delivery_without_touchi
     assert (await rows_of(db_session, missed))["toor-dal"].steps == 2
 
     await orders_api.transition(db_session, next_box, "picking", actor="packer")
-    assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"packed"}
+    # Still being picked: the hub can yet report an item lost, so it is not `packed` (M4 §3.8).
+    assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"attached"}
     await orders_api.transition(db_session, next_box, "packed", actor="packer")
+    assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"packed"}
     for to in ("dispatched", "at_society"):
         await orders_api.transition(db_session, next_box, to, actor="hub")
         assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"packed"}
@@ -333,6 +336,10 @@ async def test_rows_follow_their_box_through_packing_and_delivery_without_touchi
     done = await rows_of(db_session, missed)
     assert {r.status for r in done.values()} == {"delivered"}
     assert all(r.settled_at is not None for r in done.values())
+    # The carried items were delivered, so they are not refunded: only the perishables were.
+    perishable = BOX["bhindi"][0] * BOX["bhindi"][1] - deliveries.SECOND_MISS_FEE_PAISE
+    first = await orders_api.get(db_session, missed)
+    assert await orders_api.refundable_paise(db_session, missed) == first.total_paise - perishable
     detail = (await api.get(f"/v1/orders/{missed}", headers=auth)).json()
     assert detail["carry_over"]["status"] == "delivered"
     assert detail["carry_over"]["to_order_id"] == str(next_box)
@@ -404,6 +411,7 @@ async def test_the_expiry_job_refunds_the_paid_price_without_the_fee_once(
         "refunded": 0,
         "refunded_paise": 0,
         "wallet_limit": 0,
+        "no_owner": 0,
     }
     assert await billing_api.balance(db_session, owner) == balance
 
@@ -413,6 +421,7 @@ async def test_the_expiry_job_refunds_the_paid_price_without_the_fee_once(
         "refunded": 2,
         "refunded_paise": KEPT_PAISE,
         "wallet_limit": 0,
+        "no_owner": 0,
     }
     assert await billing_api.balance(db_session, owner) == balance + KEPT_PAISE
     assert await refund_keys(db_session, missed) >= {
@@ -465,6 +474,7 @@ async def test_the_expiry_job_skips_attached_rows_and_leaves_a_wallet_at_its_cap
         "refunded": 0,
         "refunded_paise": 0,
         "wallet_limit": 2,  # A's rows are on a paid box: not tried at all
+        "no_owner": 0,
     }
     assert {r.status for r in (await rows_of(db_session, p)).values()} == {"pending"}
     assert {r.status for r in (await rows_of(db_session, a)).values()} == {"attached"}
@@ -472,6 +482,7 @@ async def test_the_expiry_job_skips_attached_rows_and_leaves_a_wallet_at_its_cap
 
     # Packed on the box: still not refunded. Room again: the next run takes P's rows.
     await orders_api.transition(db_session, b, "picking", actor="packer")
+    await orders_api.transition(db_session, b, "packed", actor="packer")
     await billing_api.debit_for_order(db_session, owner, uuid.uuid4(), KEPT_PAISE, NEXT)
     await db_session.commit()
     next_run = await job(db_session, "expire_carry_overs", late + timedelta(days=1))
@@ -508,15 +519,19 @@ async def test_refund_carry_refunds_once_and_refuses_a_packed_or_delivered_row(
     [summary] = await orders_api.summaries(db_session, [box])
     assert summary.carried == []
 
-    # A row on a box that is being packed, or was delivered, is not refundable.
+    # A row on a box that is packed, or was delivered, is not refundable.
     other = await place(db_session, owner, date(2026, 10, 14), AT_THE_DOOR)
     await miss_twice(db_session, other)
     stuck = (await rows_of(db_session, other))["toor-dal"]
     assert (stuck.status, stuck.to_order_id) == ("attached", box)
     await orders_api.transition(db_session, box, "picking", actor="packer")
+    # While the box is being picked the hub can still refund (M6 takes the item off the task).
+    picking = (await rows_of(db_session, other))["moong-dal"]
+    assert (await orders_api.refund_carry(db_session, picking.id)).status == "refunded"
+    await orders_api.transition(db_session, box, "packed", actor="packer")
     for expected, to in (("packed", None), ("delivered", "delivered")):
         if to is not None:
-            for step in ("packed", "dispatched", "at_society", "delivered"):
+            for step in ("dispatched", "at_society", "delivered"):
                 await orders_api.transition(db_session, box, step, actor="hub")
         with pytest.raises(ProblemError) as refused:
             await orders_api.refund_carry(db_session, stuck.id)
@@ -548,3 +563,148 @@ async def test_the_purge_waits_while_a_row_is_open_and_the_export_lists_them(
     for row in (await rows_of(db_session, missed)).values():
         await orders_api.refund_carry(db_session, row.id)
     assert await orders_api.has_open_orders(db_session, home.id) is False
+
+
+async def test_a_top_up_in_the_grace_period_attaches_the_rows(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    unpaid = await place(db_session, owner, NEXT)
+    await miss_twice(db_session, missed)
+    eve = NEXT - timedelta(days=1)
+    assert (await job(db_session, "cutoff_lock", at(eve, 21, 0)))["payment_failed"] == 1
+    assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"pending"}
+
+    total = (await orders_api.get(db_session, unpaid)).total_paise
+    await credit_topup(
+        db_session, owner, total, payment_ref=uuid.uuid4().hex, topup_id=uuid.uuid4()
+    )
+    with time_machine.travel(at(eve, 21, 30), tick=False):
+        await on_wallet_topped_up(
+            db_session,
+            OutboxEvent(event_type="billing.wallet_topped_up", payload={"user_id": str(owner)}),
+        )
+    await db_session.commit()
+
+    assert (await orders_api.get(db_session, unpaid)).status == "locked"
+    rows = await rows_of(db_session, missed)
+    assert {(r.status, r.to_order_id) for r in rows.values()} == {("attached", unpaid)}
+    [attached] = await events(db_session, "orders.carry_over_attached")
+    assert attached["order_id"] == str(unpaid)
+
+
+async def test_a_tiffin_never_takes_or_gives_back_carried_items(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    await miss_twice(db_session, missed)
+    tiffin = await place(db_session, owner, NEXT)
+    await db_session.execute(update(Order).where(Order.id == tiffin).values(kind="tiffin"))
+    total = (await orders_api.get(db_session, tiffin)).total_paise
+    await credit_topup(
+        db_session, owner, total, payment_ref=uuid.uuid4().hex, topup_id=uuid.uuid4()
+    )
+    await billing_api.debit_for_order(db_session, owner, tiffin, total, NEXT)
+    await db_session.commit()
+
+    await orders_api.transition(db_session, tiffin, "locked", actor="system")
+    assert {r.status for r in (await rows_of(db_session, missed)).values()} == {"pending"}
+    assert await events(db_session, "orders.carry_over_attached") == []
+    # Even a row that rides on a box is not given back by a tiffin's refund.
+    await orders_api.transition(
+        db_session,
+        tiffin,
+        "refunded",
+        actor="system",
+        payload={"refund_paise": 0, "reason": "no_kitchen"},
+    )
+    assert {
+        (r.status, r.returned_in_order_id) for r in (await rows_of(db_session, missed)).values()
+    } == {("pending", None)}
+
+
+async def test_rows_ride_on_the_next_locked_box_when_their_box_is_refunded_otherwise(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    b = await place(db_session, owner, NEXT, LOCKED)
+    await miss_twice(db_session, missed)
+    c = await place(db_session, owner, LATER, LOCKED)
+    assert {r.to_order_id for r in (await rows_of(db_session, missed)).values()} == {b}
+    for to in ("picking", "packed", "dispatched", "at_society", "undelivered"):
+        await orders_api.transition(db_session, b, to, actor="hub")
+
+    # A triage refund (not a second miss) of the box that carries them: C is already locked.
+    await orders_api.transition(
+        db_session, b, "refunded", actor="system", payload={"refund_paise": 0, "reason": "triage"}
+    )
+    await db_session.commit()
+
+    rows = await rows_of(db_session, missed)
+    assert {(r.status, r.to_order_id, r.returned_in_order_id) for r in rows.values()} == {
+        ("attached", c, b)
+    }
+    [*_, attached] = await events(db_session, "orders.carry_over_attached")
+    assert attached["order_id"] == str(c) and len(attached["lines"]) == 2
+
+
+async def test_a_carry_refund_is_never_more_than_is_left_on_the_missed_order(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    await miss_twice(db_session, missed)
+    rows = await rows_of(db_session, missed)
+    balance = await billing_api.balance(db_session, owner)
+
+    async def room(_: AsyncSession, __: Order) -> int:
+        return 5_000
+
+    monkeypatch.setattr(service, "refundable_paise", room)
+    capped = await orders_api.refund_carry(db_session, rows["toor-dal"].id)  # paid 18,000
+    assert capped.status == "refunded"
+    assert await billing_api.balance(db_session, owner) == balance + 5_000
+
+    async def none(_: AsyncSession, __: Order) -> int:
+        return 0
+
+    monkeypatch.setattr(service, "refundable_paise", none)
+    settled = await orders_api.refund_carry(db_session, rows["moong-dal"].id)
+    assert (settled.status, settled.settled_at is not None) == ("refunded", True)
+    assert await billing_api.balance(db_session, owner) == balance + 5_000  # nothing was left
+    assert await carry.refunded_paise(db_session, missed) == KEPT_PAISE  # both rows are settled
+
+
+async def test_a_household_without_an_owner_is_counted_and_the_others_still_refunded(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    await miss_twice(db_session, missed)
+    ordered = sorted((await rows_of(db_session, missed)).values(), key=lambda r: r.id)
+    balance = await billing_api.balance(db_session, owner)
+    real = identity_api.owner_of_household
+    calls = {"n": 0}
+
+    async def owner_of(session: AsyncSession, household_id: uuid.UUID) -> uuid.UUID | None:
+        calls["n"] += 1
+        return None if calls["n"] == 1 else await real(session, household_id)
+
+    monkeypatch.setattr(identity_api, "owner_of_household", owner_of)
+
+    summary = await job(db_session, "expire_carry_overs", at(LATER + timedelta(days=1), 2, 40))
+
+    assert (summary["refunded"], summary["no_owner"], summary["wallet_limit"]) == (1, 1, 0)
+    assert summary["refunded_paise"] == ordered[1].paid_paise
+    assert await billing_api.balance(db_session, owner) == balance + ordered[1].paid_paise
+    left = {r.id: r.status for r in (await rows_of(db_session, missed)).values()}
+    assert left == {ordered[0].id: "pending", ordered[1].id: "refunded"}

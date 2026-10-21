@@ -742,6 +742,7 @@ def test_the_night_refunds_no_carried_items_when_none_waited(
         "refunded": 0,
         "refunded_paise": 0,
         "wallet_limit": 0,
+        "no_owner": 0,
     }, summary
 
 
