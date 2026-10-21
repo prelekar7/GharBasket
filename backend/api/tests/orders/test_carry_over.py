@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
-from gharbasket.modules.billing.models import JournalEntry
+from gharbasket.modules.billing.models import JournalEntry, Refund
 from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
@@ -27,6 +27,7 @@ from gharbasket.platform.jobs import run_job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.tools.seed import SEED_HUB_ID
 
+from ..billing.paid import paid_topup
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
@@ -489,6 +490,32 @@ async def test_the_expiry_job_skips_attached_rows_and_leaves_a_wallet_at_its_cap
     assert (next_run["refunded"], next_run["wallet_limit"]) == (2, 0)
     assert {r.status for r in (await rows_of(db_session, p)).values()} == {"refunded"}
     assert {r.status for r in (await rows_of(db_session, a)).values()} == {"packed"}
+
+
+async def test_the_expiry_job_refunds_a_full_wallet_to_the_payment_source(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    _, _, owner = await household(clients, google)
+    missed = await place(db_session, owner, MISSED, AT_THE_DOOR)
+    await miss_twice(db_session, missed)
+    await paid_topup(db_session, owner, CAP_PAISE - await billing_api.balance(db_session, owner))
+    await db_session.commit()
+
+    summary = await job(db_session, "expire_carry_overs", at(LATER + timedelta(days=1), 2, 40))
+
+    assert (summary["refunded"], summary["refunded_paise"], summary["wallet_limit"]) == (
+        2,
+        KEPT_PAISE,
+        0,
+    )
+    assert await billing_api.balance(db_session, owner) == CAP_PAISE  # the money went out again
+    sent = list(
+        (await db_session.execute(select(Refund).where(Refund.order_id == missed))).scalars()
+    )
+    assert [r.reason for r in sent] == ["order", "order"]
+    assert sum(r.amount_paise for r in sent) == KEPT_PAISE
+    settled = await rows_of(db_session, missed)
+    assert {(r.status, r.refunded_by) for r in settled.values()} == {("refunded", "expiry")}
 
 
 async def test_refund_carry_refunds_once_and_refuses_a_packed_or_delivered_row(

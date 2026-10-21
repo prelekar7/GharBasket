@@ -16830,6 +16830,19 @@
             "title": "Id",
             "type": "string"
           },
+          "order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the reason is \"order\"",
+            "title": "Order Id"
+          },
           "parts": {
             "description": "One per top-up taking money back, newest first",
             "items": {
@@ -16841,7 +16854,8 @@
           "reason": {
             "enum": [
               "customer",
-              "account_deleted"
+              "account_deleted",
+              "order"
             ],
             "title": "Reason",
             "type": "string"
@@ -16874,6 +16888,7 @@
           "id",
           "amount_paise",
           "reason",
+          "order_id",
           "status",
           "parts",
           "created_at",

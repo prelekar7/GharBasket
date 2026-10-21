@@ -185,7 +185,7 @@ stateDiagram-v2
 | Pre-debit notice | Every Autopay capture must be preceded by a notice at least 24 h earlier (sent at T-3 18:30). |
 | Posting | Only `CAPTURED → POSTED` writes to the ledger; `POSTED` is when the wallet balance changes. |
 | Reconciliation | Hourly job compares local payments with the Razorpay API and raises alerts on mismatch. |
-| Refund | Wallet refunds are instant ledger entries; refunds to source go through Razorpay and reach `REFUNDED` by webhook. |
+| Refund | Wallet refunds are instant ledger entries (an order refund the full wallet cannot take goes to the source instead); refunds to source go through Razorpay and reach `REFUNDED` by webhook. |
 
 ## 6.6 Partner and KYC (M8)
 

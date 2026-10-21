@@ -193,6 +193,7 @@ async def test_a_refund_is_split_newest_first_posted_at_once_and_holds_its_room(
         {
             "refund_id": out["id"],
             "user_id": str(user),
+            "order_id": None,
             "amount_paise": 350_000,
             "processed_paise": 350_000,
             "status": "processed",

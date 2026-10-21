@@ -126,6 +126,13 @@ def valkey_url() -> str:
     return url
 
 
+@pytest.fixture(autouse=True)
+def _billing_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`refund_to_wallet` has no settings argument and reads `get_settings()` when a refund goes to
+    the payment source: tests give it the same test settings as the rest."""
+    monkeypatch.setattr("gharbasket.modules.billing.refunds.get_settings", make_settings)
+
+
 @pytest.fixture
 def app() -> FastAPI:
     app = create_app(make_settings(cors_allow_origins=["https://localhost"]))

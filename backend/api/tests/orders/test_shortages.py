@@ -17,6 +17,7 @@ from gharbasket.modules.orders import service
 from gharbasket.modules.orders.models import OrderLine
 from gharbasket.platform.errors import ProblemError
 
+from ..billing.paid import order_refund_to_source, paid_topup
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from .test_issues import NOW, assert_ledger_balances, events, placed_order
@@ -211,6 +212,27 @@ async def test_a_full_wallet_refuses_the_refund_and_nothing_is_recorded(
     cucumber = (await slugs(db_session, "cucumber"))["cucumber"]
     line = await orders_api.mark_shortage(db_session, order_id, ids["tomato"], 2, cucumber)
     assert line.product_id == cucumber
+    await assert_ledger_balances(db_session)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_full_wallet_sends_the_shortage_refund_to_the_payment_source(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    _, priya_id = await as_user(api, google, PRIYA)
+    order_id, ids = await placed_order(db_session, priya_id, reach=PICKING, box=BOX)
+    await paid_topup(db_session, priya_id, CAP_PAISE)
+    assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
+
+    await orders_api.mark_shortage(db_session, order_id, ids["onion"], 1)
+
+    onion = await line_of(db_session, order_id, ids["onion"])
+    assert onion.shortage_qty == 1
+    assert await billing_api.balance(db_session, priya_id) == CAP_PAISE  # the money went out again
+    assert await refunds(db_session, order_id) == [f"refund:{order_id}:short_{ids['onion'].hex}"]
+    await order_refund_to_source(db_session, order_id, 4_000)
+    assert len(await events(db_session, SHORTAGE)) == 1
     await assert_ledger_balances(db_session)
 
 

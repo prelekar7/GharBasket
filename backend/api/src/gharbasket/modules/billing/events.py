@@ -9,8 +9,9 @@ POINTS_CREDITED = "billing.points_credited"
 # the meals towards its NGO hand-offs and the impact counters.
 POINTS_DONATED = "billing.points_donated"
 
-# { refund_id, user_id, amount_paise, processed_paise, status }: every part of a refund to source
-# is final (spec §3.3); M11 tells the customer (category money, link /wallet).
+# { refund_id, user_id, order_id, amount_paise, processed_paise, status }: every part of a refund
+# to source is final (spec §3.3); order_id is set for an order refund the wallet could not take,
+# else null. M11 tells the customer (category money, link /wallet).
 REFUND_TO_SOURCE_SETTLED = "billing.refund_to_source_settled"
 
 # { run_id, opened, kinds }: a reconciliation run opened items (spec §3.4); M11 tells admins.

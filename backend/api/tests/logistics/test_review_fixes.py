@@ -15,6 +15,8 @@ from redis.asyncio import Redis
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.billing.models import Refund
 from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
 from gharbasket.modules.logistics import attempts, execution, live, tracking
 from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop
@@ -27,6 +29,7 @@ from gharbasket.platform.models import OutboxEvent, Upload
 from gharbasket.platform.permissions import Grant, Permit
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
+from ..billing.paid import paid_topup
 from ..conftest import make_settings
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
@@ -690,6 +693,42 @@ async def test_an_orphan_redelivery_is_rebooked_or_refunded_by_the_hub(
 
 
 @time_machine.travel(MORNING, tick=False)
+async def test_a_triage_refund_the_wallet_cannot_take_goes_to_the_payment_source(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    day, rider = await started(api, google, db_session)
+    manager = await as_user(api, google, VIKRAM)
+    sunita = day.orders[SUNITA]
+    stop = (await stops_of(db_session, day.route_id))[GREEN_VALLEY]
+    await api.post(
+        f"/v1/stops/{stop.id}/handover", json={"crates": 1, "bags": 1}, headers={**rider, **key()}
+    )
+    await api.post(
+        f"/v1/deliveries/{sunita}/undelivered",
+        json={"reason": "refused"},
+        headers={**rider, **key()},
+    )
+    owner = await user_id(db_session, SUNITA)
+    await paid_topup(db_session, owner, CAP_PAISE - await billing_api.balance(db_session, owner))
+    await db_session.commit()
+    resolved = await api.post(
+        f"/v1/deliveries/{sunita}/resolve",
+        json={"outcome": "refund", "note": "refused"},
+        headers={**manager, **key()},
+    )
+
+    assert resolved.status_code == 200, resolved.text
+    assert await status(db_session, sunita) == "refunded"
+    assert await billing_api.balance(db_session, owner) == CAP_PAISE  # sent back, not kept
+    refund = (
+        await db_session.execute(select(Refund).where(Refund.order_id == sunita))
+    ).scalar_one()
+    assert (refund.reason, refund.status) == ("order", "pending")
+    assert refund.amount_paise > 0 and await orders_api.refundable_paise(db_session, sunita) == 0
+
+
+@time_machine.travel(MORNING, tick=False)
 async def test_a_triage_refund_the_wallet_cannot_take_waits_and_a_partial_one_needs_final(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
@@ -716,8 +755,8 @@ async def test_a_triage_refund_the_wallet_cannot_take_waits_and_a_partial_one_ne
         json={"outcome": "refund", "note": "refused"},
         headers={**manager, **key()},
     )
-    # M5's refund-to-source has no facade for an order yet (report): the manager sees the wallet
-    # limit and the room, and nothing moved.
+    # The top-ups here are not Razorpay payments, so there is nothing to send the money back to
+    # (M5 §3.3): the manager sees the wallet limit and the room, and nothing moved.
     assert (full.status_code, full.json()["code"]) == (422, "billing.wallet_limit")
     assert full.json()["room_paise"] == 100
     assert await status(db_session, sunita) == "undelivered"

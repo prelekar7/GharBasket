@@ -1,10 +1,11 @@
 """Settling refunds to source (spec §3.3): what Razorpay says about each part.
 
 - `refund.processed` settles a part; `refund.failed` fails it and puts its money back into the
-  wallet (`refund_to_source_failed`, razorpay_clearing → wallet). It always fits under the cap,
-  because the part held its room while in flight.
-- On a deleting account a failed part is moved once to another top-up that can take it, otherwise
-  to `unclaimed_balances`.
+  wallet (`refund_to_source_failed`, razorpay_clearing → wallet). A customer's refund always fits
+  under the cap, because the part held its room while in flight.
+- On a deleting account, and for an order refund whose money no longer fits under the cap, a
+  failed part is moved once to another top-up that can take it, otherwise to
+  `unclaimed_balances`: the money never stays in a wallet above ₹10,000.
 - Once every part is final the refund is `processed`, `failed` or `partly_failed`, and
   `billing.refund_to_source_settled` goes to M11.
 """
@@ -16,7 +17,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.billing import events, refunds, service
+from gharbasket.modules.billing import events, refunds, service, wallet
 from gharbasket.modules.billing.models import IN_FLIGHT, Payment, Refund, RefundPart
 from gharbasket.modules.billing.service import Leg
 from gharbasket.platform.outbox import publish
@@ -59,6 +60,7 @@ async def settle(session: AsyncSession, refund_id: uuid.UUID) -> None:
         {
             "refund_id": str(refund.id),
             "user_id": str(refund.user_id),
+            "order_id": None if refund.order_id is None else str(refund.order_id),
             "amount_paise": refund.amount_paise,
             "processed_paise": processed,
             "status": refund.status,
@@ -107,8 +109,9 @@ async def handle_event(session: AsyncSession, event: dict[str, Any], settings: S
 
 
 async def _put_back(session: AsyncSession, part: RefundPart, settings: Settings) -> None:
-    """Razorpay failed a part: the money goes back into the wallet (it always fits, its room was
-    held). On a deleting account it is moved once to another top-up, otherwise to unclaimed."""
+    """Razorpay failed a part: the money goes back into the wallet. On a deleting account, or
+    when an order refund's money would leave the wallet over the cap, it is moved once to another
+    top-up, otherwise to unclaimed."""
     refund = await session.get(Refund, part.refund_id)
     assert refund is not None
     account = await refunds.wallet_account(session, refund.user_id)
@@ -134,7 +137,10 @@ async def _put_back(session: AsyncSession, part: RefundPart, settings: Settings)
             )
         ).first()
     )
-    if not deleting:
+    over_cap = (
+        refund.reason == "order" and await service.balance(session, account) > wallet.CAP_PAISE
+    )
+    if not (deleting or over_cap):
         return
     if part.replaces_part_id is None:
         for room in await refunds.rooms(session, refund.user_id, settings, datetime.now(UTC)):

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import service, wallet
 from gharbasket.modules.billing.models import (
+    JournalEntry,
     LedgerAccount,
     Payment,
     Refund,
@@ -28,7 +29,7 @@ from gharbasket.modules.billing.service import Leg
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
-from gharbasket.platform.settings import Settings
+from gharbasket.platform.settings import Settings, get_settings
 
 MIN_PAISE = 100  # ₹1, Razorpay's smallest refund
 DAILY_LIMIT = 3  # requests per IST day
@@ -108,7 +109,11 @@ async def request_refund(
     account = await wallet_account(session, user_id)  # requests of one user run one at a time
     open_refund = (
         await session.execute(
-            select(Refund.id).where(Refund.user_id == user_id, Refund.status.not_in(SETTLED))
+            select(Refund.id).where(
+                Refund.user_id == user_id,
+                Refund.reason != "order",  # an order refund runs beside the customer's own
+                Refund.status.not_in(SETTLED),
+            )
         )
     ).scalar()
     if open_refund is not None:
@@ -165,11 +170,35 @@ async def _create(
     reason: str,
     key: str | None,
 ) -> Refund:
+    refund = await _new_refund(session, user_id, amount, reason, key)
+    await _split(session, account, refund, amount, found)
+    return refund
+
+
+async def _new_refund(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    key: str | None,
+    order_id: uuid.UUID | None = None,
+) -> Refund:
     refund = Refund(
-        user_id=user_id, amount_paise=amount, reason=reason, status="pending", idempotency_key=key
+        user_id=user_id,
+        amount_paise=amount,
+        reason=reason,
+        status="pending",
+        idempotency_key=key,
+        order_id=order_id,
     )
     session.add(refund)
     await session.flush()
+    return refund
+
+
+async def _split(
+    session: AsyncSession, account: LedgerAccount, refund: Refund, amount: int, found: list[Room]
+) -> None:
     left = amount
     for room in found:  # newest first; one part per top-up
         take = min(room.room_paise, left)
@@ -179,7 +208,42 @@ async def _create(
     if left:
         raise ValueError("the refund is larger than its top-ups can take")
     await session.refresh(refund)
-    return refund
+
+
+async def refund_order_to_source(
+    session: AsyncSession,
+    account: LedgerAccount,
+    user_id: uuid.UUID,
+    order_id: uuid.UUID,
+    amount: int,
+    reason: str,
+    details: dict[str, str],
+    committed_paise: int,
+) -> JournalEntry:
+    """An order refund the wallet cannot take (spec §3.3): the whole of it goes to the payment
+    source. The `refund` entry is posted as usual (so every reader of order refunds is unchanged),
+    then the parts take the same amount out again: the balance ends where it started. All or
+    nothing: when the top-ups cannot take it, `billing.wallet_limit` and nothing is posted. The
+    caller holds the wallet's row lock; this is not a customer request, so the one-refund and
+    three-a-day rules do not apply."""
+    found = await rooms(session, user_id, get_settings(), datetime.now(UTC))
+    if amount < MIN_PAISE or amount > sum(r.room_paise for r in found):
+        raise wallet.wallet_limit(max(0, wallet.CAP_PAISE - committed_paise))
+    refund = await _new_refund(
+        session, user_id, amount, "order", f"order:{order_id}:{reason}", order_id
+    )
+    unearned = await service.platform_account(session, "unearned_revenue")
+    entry, _ = await service.post(
+        session,
+        kind="refund",
+        key=f"refund:{order_id}:{reason}",
+        legs=[Leg(unearned, amount), Leg(account, -amount)],
+        ref_type="order",
+        ref_id=order_id,
+        details={**details, "to_source": str(refund.id)},
+    )
+    await _split(session, account, refund, amount, found)
+    return entry
 
 
 async def add_part(
@@ -310,6 +374,7 @@ async def to_out(session: AsyncSession, refund: Refund) -> RefundOut:
         id=refund.id,
         amount_paise=refund.amount_paise,
         reason=refund.reason,  # pyright: ignore[reportArgumentType]
+        order_id=refund.order_id,
         status=refund.status,  # pyright: ignore[reportArgumentType]
         parts=[
             RefundPartOut(
