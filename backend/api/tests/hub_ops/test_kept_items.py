@@ -3,7 +3,7 @@ splits into the household's kept items and grade C returned lots, once; a lost i
 the hub manager; M4's expiry releases the items into lots; the erase hook does the same."""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx2
@@ -26,7 +26,7 @@ from gharbasket.tools.seed import SEED_HUB_ID
 
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
-from ..orders.test_carry_over import at, events, job, miss_twice
+from ..orders.test_carry_over import LOCKED, at, events, job, miss_twice, place
 from ..orders.test_shortages import refunds
 from .conftest import KAVITA, PRIYA, SANJAY, VIKRAM, key
 from .test_packer_actions import act
@@ -264,33 +264,52 @@ async def test_a_lost_kept_item_is_refunded_once_and_audited(
 
 
 @time_machine.travel(NOW, tick=False)
-async def test_an_item_a_box_is_already_packing_cannot_be_reported_lost(
+async def test_an_item_can_be_reported_lost_while_its_box_is_picked_but_not_once_packed(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
     api = clients()
-    order_id, _, _ = await missed_bag(api, google, db_session)
+    order_id, ids, _ = await missed_bag(api, google, db_session)
     packer, _ = await staff(api, google, KAVITA)
-    kept = (await scan(api, packer, qr(order_id))).json()["kept"][0]
-    # M4 attached the item to the household's next box and that box is being packed: its row is
-    # `packed`, so the hub can no longer refund it (the shelf's copy is still `kept` until M6's
-    # draw-down).
-    row = await db_session.scalar(
-        select(CarryOver).where(CarryOver.id == uuid.UUID(kept["carry_id"]))
-    )
-    assert row is not None
-    row.status = "packed"
+    kept = {k["slug"]: k for k in (await scan(api, packer, qr(order_id))).json()["kept"]}
+    owner = await user_id(db_session, PRIYA)
+    # M4 attaches the items to the household's next box, which is then being picked.
+    next_box = await place(db_session, owner, date(2026, 10, 14), LOCKED)
+    await orders_api.transition(db_session, next_box, "picking", actor="packer")
     await db_session.commit()
     manager, _ = await staff(api, google, VIKRAM)
+    balance = await billing_api.balance(db_session, owner)
 
-    refused = await api.post(
-        f"{HUB}/kept-items/{kept['id']}/lost", json={"note": "Gone"}, headers={**manager, **key()}
+    lost = await api.post(
+        f"{HUB}/kept-items/{kept['toor-dal']['id']}/lost",
+        json={"note": "Gone"},
+        headers={**manager, **key()},
     )
 
+    assert lost.status_code == 200, lost.text
+    assert lost.json()["status"] == "lost"
+    assert await billing_api.balance(db_session, owner) == balance + 18_000  # refunded once
+    assert f"refund:{order_id}:carry_{ids['toor-dal'].hex}" in await refunds(db_session, order_id)
+    again = await api.post(
+        f"{HUB}/kept-items/{kept['toor-dal']['id']}/lost",
+        json={"note": "Gone"},
+        headers={**manager, **key()},
+    )
+    assert again.json() == lost.json()
+    assert await billing_api.balance(db_session, owner) == balance + 18_000
+
+    # Once the box is packed the other item is on its way: the hub can no longer refund it.
+    await orders_api.transition(db_session, next_box, "packed", actor="packer")
+    await db_session.commit()
+    refused = await api.post(
+        f"{HUB}/kept-items/{kept['moong-dal']['id']}/lost",
+        json={"note": "Gone"},
+        headers={**manager, **key()},
+    )
     assert (refused.status_code, refused.json()["code"]) == (409, "orders.carry_not_refundable")
     assert refused.json()["current_status"] == "packed"
     item = await db_session.scalar(
         select(KeptItem)
-        .where(KeptItem.id == uuid.UUID(kept["id"]))
+        .where(KeptItem.id == uuid.UUID(kept["moong-dal"]["id"]))
         .execution_options(populate_existing=True)
     )
     assert item is not None and item.status == "kept"  # nothing recorded
@@ -337,10 +356,11 @@ async def test_the_expiry_of_the_carry_over_releases_the_kept_items_into_returne
     move = await db_session.scalar(select(StockMove).where(StockMove.lot_id == lot.id))
     assert move is not None and (move.kind, move.kept_item_id) == ("return", toor.id)
 
-    # A replay of the event changes nothing.
-    await hub_jobs.on_carry_over_expired(
-        db_session, OutboxEvent(event_type="orders.carry_over_expired", payload=event)
-    )
+    # A replay of the event, twice, changes nothing.
+    for _ in range(2):
+        await hub_jobs.on_carry_over_expired(
+            db_session, OutboxEvent(event_type="orders.carry_over_expired", payload=event)
+        )
     assert (
         await db_session.scalar(
             select(func.count())
