@@ -333,14 +333,13 @@ async def _unpack_the_rest(
     by_user_id: uuid.UUID,
 ) -> None:
     """One returned lot per product for what the bag held besides the household's kept items: the
-    task's picked steps (the substitute's, when the line was substituted) less the steps M4
-    carried from this order."""
+    task's picked steps (the substitute's, when the line was substituted; carried lines too) less
+    the steps M4 lists for this bag: carried from this order, or kept items that rode in it."""
     [summary] = await orders_api.summaries(session, [order.id])
     on_order = {line.product_id: line for line in summary.lines}
     kept_steps = Counter[uuid.UUID]()
-    for line in carried:
-        if line.carried_from_order_id == order.id:
-            kept_steps[line.product_id] += line.steps
+    for line in carried:  # carried from this order, or kept items that rode in it and came back
+        kept_steps[line.product_id] += line.steps
     held: dict[uuid.UUID, tuple[int, int, str]] = {}  # product -> (steps, step_qty, step_unit)
     for line in await packing.lines_of(session, task.id):
         product_id = line.substitute_product_id or line.product_id
@@ -394,7 +393,7 @@ async def lose(session: AsyncSession, item: KeptItem, note: str, by_user_id: uui
     status checked again. If the row moved to another box meanwhile (409
     `hub_ops.kept_item_moved`), nothing is changed and the client tries again."""
     target = await orders_api.carry_target(session, item.carry_id)
-    await _lock_task(session, target)
+    task = await _lock_task(session, target)
     locked = await session.scalar(
         select(KeptItem)
         .where(KeptItem.id == item.id)
@@ -409,9 +408,16 @@ async def lose(session: AsyncSession, item: KeptItem, note: str, by_user_id: uui
         raise item_settled(item.status)
     if await orders_api.carry_target(session, item.carry_id) != target:
         raise item_moved()
-    await orders_api.refund_carry(session, item.carry_id, by_user_id)
+    carry = await orders_api.refund_carry(session, item.carry_id, by_user_id)
     item.status, item.settled_at = "lost", datetime.now(UTC)
     await session.flush()
+    # It was riding on a box: that box no longer carries it, whether its task is queued or being
+    # picked (a picked one is dropped too). The task was locked above, before the row.
+    if carry.to_order_id != target:
+        raise item_moved()  # nothing is committed: the client tries again
+    if task is not None and task.status != "packed":
+        [summary] = await orders_api.summaries(session, [task.order_id])
+        await packing.sync_carried(session, task, summary.carried)
     after: dict[str, Any] = {"status": "lost", "carry_id": str(item.carry_id), "note": note}
     await audit.record(
         session,

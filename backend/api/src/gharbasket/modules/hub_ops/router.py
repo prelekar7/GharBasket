@@ -927,7 +927,9 @@ async def pick_line(
 ) -> PackingTaskDetail:
     task = await packing.get_task(session, task_id, permit, for_update=True)
     by = packing.actor(permit, task.hub_id)
-    await packing.pick(session, task, by, body.product_id, body.picked_qty, body.client_at)
+    await packing.pick(
+        session, task, by, body.product_id, body.picked_qty, body.client_at, body.carried
+    )
     return await _answer(session, idem, task, lang)
 
 
@@ -954,6 +956,7 @@ async def record_shortage(
         body.short_qty,
         body.substitute_product_id,
         body.client_at,
+        body.carried,
     )
     return await _answer(session, idem, task, lang)
 
