@@ -607,3 +607,53 @@ class CountIn(BaseModel):
     reason: str = Field(min_length=3, max_length=200)
 
     _tidy_text = field_validator("reason", mode="before")(_tidy)
+
+
+# --- kept items and returned bags (§3.5) ---------------------------------------------------------
+
+KeptStatus = Literal["kept", "packed", "released", "lost"]
+
+
+class KeptItemOut(BaseModel):
+    id: uuid.UUID
+    carry_id: uuid.UUID = Field(description="M4's carry-over row")
+    from_order_id: uuid.UUID = Field(description="The box that was missed twice")
+    society: PackingSociety
+    flat_label: str | None = Field(
+        examples=["B wing, B-402"], description="Tower label and flat; no name or phone"
+    )
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In the Accept-Language language")
+    step: PackingStep
+    qty: int = Field(description="Steps")
+    status: KeptStatus
+    kept_at: datetime
+    packed_task_id: uuid.UUID | None = Field(description="The packing task that took it")
+    settled_at: datetime | None
+
+
+class KeptItemsOut(BaseModel):
+    items: list[KeptItemOut] = Field(description="By society, then flat")
+
+
+class ReturnedBagIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bag_qr: str = Field(max_length=60, examples=["GB1:0199a0000000700080000000000000ab"])
+
+
+class ReturnedBagOut(BaseModel):
+    order_id: uuid.UUID
+    society: PackingSociety
+    flat_label: str | None
+    kept: list[KeptItemOut] = Field(description="The household's items, kept on the shelf")
+    lots: list[LotOut] = Field(description="The rest of the bag: grade C, offered at 12:30")
+
+
+class LostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str = Field(min_length=1, max_length=500, examples=["Not on the shelf at the count"])
+
+    _tidy_text = field_validator("note", mode="before")(_tidy)

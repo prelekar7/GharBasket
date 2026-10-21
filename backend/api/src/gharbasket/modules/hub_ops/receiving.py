@@ -74,15 +74,17 @@ async def move(
     lot: InventoryLot | None = None,
     reason: str | None = None,
     by_user_id: uuid.UUID | None = None,
+    kept_item_id: uuid.UUID | None = None,
 ) -> bool:
     """Write one stock move and apply it to its (row-locked) lot. When the same kind, source row,
     product and lot already moved, nothing changes and it returns False: replays never move stock
-    twice."""
+    twice. `kept_item_id` names the kept item the move released or packed (§3.5)."""
     written = await session.execute(
         insert(StockMove)
         .values(
             hub_id=hub_id,
             lot_id=None if lot is None else lot.id,
+            kept_item_id=kept_item_id,
             product_id=product_id,
             unit=unit,
             qty=qty,
