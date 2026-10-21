@@ -221,7 +221,7 @@ sequenceDiagram
 1. **Wallet top-up:** the app asks the API to create a Razorpay order (our own thin async Razorpay client on httpx2) → Razorpay Checkout runs inside the WebView → Razorpay sends a webhook → the webhook is stored, then processed idempotently → ledger entry → push notification.
 2. **Autopay (from the pilot phase; MS-A uses prepaid wallet top-ups only):** the mandate is created once. Each cycle sends a pre-debit notice at T-3 18:30 and captures at cut-off.
 3. **At cut-off:** after 21:00 IST the API itself refuses box edits; the `cutoff_lock` job (internal job endpoint, scheduled by GitHub Actions) then locks the orders. The wallet is debited (`wallet → unearned_revenue`) or Autopay is captured. Failure → `PAYMENT_FAILED` → 2-hour grace notification → cancel.
-4. **Refunds:** shortages and undelivered orders are refunded to the wallet instantly; refunds to the original source happen on request.
+4. **Refunds:** shortages and undelivered orders are refunded to the wallet instantly, unless that would take the wallet over ₹10,000: then the same refund goes to the original payment source (M5 §3.3). Other refunds to the original source happen on request.
 5. **Reconciliation:** an hourly job (internal job endpoint, scheduled by GitHub Actions) compares local payments with the Razorpay API.
 
 *Figure 7.6 — Sequence: cut-off lock and payment*

@@ -13,6 +13,7 @@ from sqlalchemy import event, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
+from gharbasket.modules.billing.wallet import CAP_PAISE
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.hub_ops import jobs as hub_jobs
@@ -24,6 +25,7 @@ from gharbasket.platform.models import AuditEntry, OutboxEvent
 from gharbasket.platform.outbox import relay
 from gharbasket.tools.seed import SEED_HUB_ID
 
+from ..billing.paid import order_refund_to_source, paid_topup
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..orders.test_carry_over import LOCKED, at, events, job, miss_twice, place
@@ -261,6 +263,32 @@ async def test_a_lost_kept_item_is_refunded_once_and_audited(
         f"{HUB}/kept-items/{uuid.uuid4()}/lost", json={"note": "Gone"}, headers={**manager, **key()}
     )
     assert (unknown.status_code, unknown.json()["code"]) == (404, "hub_ops.kept_item_not_found")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_lost_kept_item_is_refunded_to_the_payment_source_when_the_wallet_is_full(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    order_id, ids, _ = await missed_bag(api, google, db_session)
+    packer, _ = await staff(api, google, KAVITA)
+    kept = {k["slug"]: k for k in (await scan(api, packer, qr(order_id))).json()["kept"]}
+    manager, _ = await staff(api, google, VIKRAM)
+    owner = await user_id(db_session, PRIYA)
+    await paid_topup(db_session, owner, CAP_PAISE - await billing_api.balance(db_session, owner))
+    await db_session.commit()
+
+    lost = await api.post(
+        f"{HUB}/kept-items/{kept['toor-dal']['id']}/lost",
+        json={"note": "Not on the shelf at the count"},
+        headers={**manager, **key()},
+    )
+
+    assert lost.status_code == 200, lost.text
+    assert lost.json()["status"] == "lost"
+    assert await billing_api.balance(db_session, owner) == CAP_PAISE  # sent back, not kept
+    assert f"refund:{order_id}:carry_{ids['toor-dal'].hex}" in await refunds(db_session, order_id)
+    await order_refund_to_source(db_session, order_id, 18_000, f"carry_{ids['toor-dal'].hex}")
 
 
 @time_machine.travel(NOW, tick=False)

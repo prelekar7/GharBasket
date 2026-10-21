@@ -111,8 +111,10 @@ async def ledger_accounts_consistent(session: AsyncSession) -> list[str]:
         SELECT a.owner_id,
                -sum(p.amount) AS balance,
                -sum(p.amount) FILTER (WHERE e.kind IN ('topup', 'refund', 'adjustment',
-                                                      'topup_bonus')) AS credits,
-               sum(p.amount) FILTER (WHERE e.kind = 'box_debit') AS debits
+                                                      'topup_bonus',
+                                                      'refund_to_source_failed')) AS credits,
+               sum(p.amount) FILTER (WHERE e.kind IN ('box_debit', 'refund_to_source',
+                                                      'unclaimed')) AS debits
         FROM billing.ledger_accounts a
         JOIN billing.postings p ON p.account_id = a.id
         JOIN billing.journal_entries e ON e.id = p.entry_id

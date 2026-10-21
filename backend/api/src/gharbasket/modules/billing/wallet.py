@@ -2,7 +2,8 @@
 
 Every change locks the wallet's account row first, so two movements at the same moment are
 checked one after the other: the balance never goes below zero or above the ₹10,000 cap, counting
-the refunds to source still in flight (spec §3.3), so a failed one always fits back. Each
+the refunds to source still in flight (spec §3.3), so a failed one fits back (if an order refund
+to source kept the balance up meanwhile, it is moved or unclaimed). Each
 movement is keyed by its cause, so retrying it (a webhook delivered twice, a cut-off job rerun)
 never moves money twice.
 """
@@ -131,8 +132,10 @@ async def refund_to_wallet(
 ) -> JournalEntry:
     """Money back for an order (unearned_revenue → wallet), once per order and reason.
 
-    A refund that would take the wallet over the cap raises `billing.wallet_limit`: the caller
-    refunds to the payment source instead (pilot phase).
+    A refund that would take the wallet over the cap goes to the payment source in the same call
+    (spec §3.3, "Order refunds when the wallet is full"): the `refund` entry, a Refund and its
+    `refund_to_source` parts. It is all or nothing: when the top-ups cannot take the whole amount,
+    `billing.wallet_limit` is raised and nothing is posted.
     """
     _positive(amount_paise)
     if not REASON.match(reason):
@@ -147,7 +150,12 @@ async def refund_to_wallet(
     if await service.find_entry(session, key) is None:
         current = await service.balance(session, wallet) + await in_flight_paise(session, user_id)
         if current + amount_paise > CAP_PAISE:
-            raise wallet_limit(max(0, CAP_PAISE - current))
+            # refunds.py imports this module, so it is imported here, where it is used.
+            from gharbasket.modules.billing import refunds
+
+            return await refunds.refund_order_to_source(
+                session, wallet, user_id, order_id, amount_paise, reason, details, current
+            )
     entry, _ = await service.post(
         session,
         kind="refund",

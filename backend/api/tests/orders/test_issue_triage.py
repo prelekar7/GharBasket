@@ -21,6 +21,7 @@ from gharbasket.modules.orders.models import Order, OrderIssue
 from gharbasket.platform.models import AuditEntry
 from gharbasket.tools.seed import SEED_HUB_ID
 
+from ..billing.paid import paid_topup
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..test_files import FakeS3
@@ -329,7 +330,9 @@ async def test_a_full_wallet_refuses_the_credit_and_the_issue_stays_open(
 ) -> None:
     api = clients()
     who = await staff(api, google, db_session)
-    order_id, ids = await placed_order(db_session, who["priya_id"], extra_topup=CAP_PAISE)
+    order_id, ids = await placed_order(db_session, who["priya_id"])
+    await paid_topup(db_session, who["priya_id"], CAP_PAISE, age_days=181)  # too old to refund to
+    await db_session.commit()
     issue = (
         await report(
             api, who["priya"], order_id, {"kind": "missing", "items": items(ids, tomato=1)}

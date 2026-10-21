@@ -292,6 +292,11 @@ billing.refund_to_source_settled  gains  order_id (null for wallet refunds)
     - M6's `lost`;
     - M7's triage `refund`.
 
+*As built (2026-10-21).*
+- M11 has no consumer for `billing.refund_to_source_settled` yet (a customer's own refund has none either), so the "went back to your UPI/card" message waits for it. The event now carries `order_id` (null for a customer's own refund or a deleting account's).
+- The customer's one-refund-in-progress check ignores order refunds, so their own request runs beside one, as written above.
+- `refund_to_wallet` reads the refund window from `get_settings()`, as it has no settings argument.
+
 ### 3.4 Reconciliation contract (drafted 2026-10-09, frozen on approval)
 US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The console's Reconciliation page (admin) builds against this.
 

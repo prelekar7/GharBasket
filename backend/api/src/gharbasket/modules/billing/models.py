@@ -60,7 +60,7 @@ PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
 PAYMENT_STATUSES = ("created", "paid", "failed", "refunded")
-REFUND_REASONS = ("customer", "account_deleted")
+REFUND_REASONS = ("customer", "account_deleted", "order")
 REFUND_STATUSES = ("pending", "processing", "processed", "partly_failed", "failed")
 OPEN_REFUND = "status IN ('pending', 'processing') AND reason = 'customer'"
 PART_STATUSES = ("pending", "sent", "processed", "failed")
@@ -226,6 +226,7 @@ class Refund(Base):
         CheckConstraint(_one_of("reason", REFUND_REASONS), name="reason"),
         CheckConstraint(_one_of("status", REFUND_STATUSES), name="status"),
         CheckConstraint("amount_paise > 0", name="amount_paise"),
+        CheckConstraint("(reason = 'order') = (order_id IS NOT NULL)", name="order_id"),
         # One customer refund in progress per user, even for two requests at the same moment.
         Index(
             "ix_billing_refunds_one_open",
@@ -243,6 +244,8 @@ class Refund(Base):
     reason: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), server_default="pending")
     idempotency_key: Mapped[str | None] = mapped_column(String(255))  # none for account deletion
+    # The order of an "order" refund (M4's id; no foreign key across schemas), else none.
+    order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

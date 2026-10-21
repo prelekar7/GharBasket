@@ -17,7 +17,7 @@ from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import create_engine, is_local_database
 from gharbasket.platform.files import create_store
 from gharbasket.platform.jobs import JOBS, run_job
-from gharbasket.platform.settings import DatabaseSettings, Settings
+from gharbasket.platform.settings import DatabaseSettings, Settings, use_settings
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 
@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 async def run(database_url: str, name: str, scheduled_for: datetime | None) -> int:
     load_modules()
     settings = Settings(_env_file=REPO_ROOT / ".env", app_env="dev")  # pyright: ignore[reportCallIssue]
+    use_settings(settings)
     engine = create_engine(database_url, pooled=False)
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:

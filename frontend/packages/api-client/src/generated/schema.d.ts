@@ -10791,6 +10791,11 @@ export interface components {
              */
             id: string;
             /**
+             * Order Id
+             * @description Set when the reason is "order"
+             */
+            order_id: string | null;
+            /**
              * Parts
              * @description One per top-up taking money back, newest first
              */
@@ -10799,7 +10804,7 @@ export interface components {
              * Reason
              * @enum {string}
              */
-            reason: "customer" | "account_deleted";
+            reason: "customer" | "account_deleted" | "order";
             /** Settled At */
             settled_at: string | null;
             /**

@@ -25,6 +25,7 @@ from gharbasket.platform.files import ObjectStore, create_store
 from gharbasket.platform.models import OutboxEvent, Upload
 from gharbasket.tools.seed import SEED_HUB_ID
 
+from ..billing.paid import order_refund_to_source, paid_topup
 from ..identity.conftest import ClientFactory
 from ..identity.fake_firebase import FakeGoogle
 from ..test_files import SETTINGS as STORAGE_SETTINGS
@@ -381,7 +382,9 @@ async def test_a_full_wallet_leaves_the_issue_open_and_moves_no_money(
 ) -> None:
     api = clients()
     priya, priya_id = await as_user(api, google, PRIYA)
-    order_id, ids = await placed_order(db_session, priya_id, extra_topup=CAP_PAISE)
+    order_id, ids = await placed_order(db_session, priya_id)
+    await paid_topup(db_session, priya_id, CAP_PAISE, age_days=181)  # too old to refund to
+    await db_session.commit()
     assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
 
     answer = await report(api, priya, order_id, {"kind": "missing", "items": items(ids, tomato=1)})
@@ -390,6 +393,45 @@ async def test_a_full_wallet_leaves_the_issue_open_and_moves_no_money(
     assert (answer.json()["status"], answer.json()["open_reason"]) == ("open", "wallet_limit")
     assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
     assert [e["status"] for e in await events(db_session, "orders.issue_reported")] == ["open"]
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_full_wallet_credits_an_issue_to_the_payment_source(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    priya, priya_id = await as_user(api, google, PRIYA)
+    order_id, ids = await placed_order(db_session, priya_id)
+    await paid_topup(db_session, priya_id, CAP_PAISE)
+    await db_session.commit()
+
+    answer = await report(api, priya, order_id, {"kind": "missing", "items": items(ids, tomato=1)})
+
+    assert answer.status_code == 201, answer.text
+    assert (answer.json()["status"], answer.json()["credit_paise"]) == ("credited", 1500)
+    assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
+    await order_refund_to_source(db_session, order_id, 1500)
+    await assert_ledger_balances(db_session)
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_full_wallet_refunds_an_undelivered_order_to_the_payment_source(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    _, priya_id = await as_user(api, google, PRIYA)
+    reach = (*DISPATCHED, "at_society", "undelivered")
+    order_id, _ = await placed_order(db_session, priya_id, reach=reach)
+    await paid_topup(db_session, priya_id, CAP_PAISE)
+    total = (await orders_api.get(db_session, order_id)).total_paise
+
+    moved = await orders_api.transition(db_session, order_id, "refunded", actor="system")
+
+    assert moved.status == "refunded"
+    assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
+    refund, _ = await order_refund_to_source(db_session, order_id, total)
+    assert refund.idempotency_key == f"order:{order_id}:undelivered"
+    await assert_ledger_balances(db_session)
 
 
 @time_machine.travel(NOW, tick=False)

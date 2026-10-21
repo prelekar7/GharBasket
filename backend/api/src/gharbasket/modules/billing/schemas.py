@@ -183,7 +183,8 @@ class RefundPartOut(BaseModel):
 class RefundOut(BaseModel):
     id: uuid.UUID
     amount_paise: int = Field(examples=[41000])
-    reason: Literal["customer", "account_deleted"]
+    reason: Literal["customer", "account_deleted", "order"]
+    order_id: uuid.UUID | None = Field(description='Set when the reason is "order"')
     status: Literal["pending", "processing", "processed", "partly_failed", "failed"]
     parts: list[RefundPartOut] = Field(description="One per top-up taking money back, newest first")
     created_at: datetime
