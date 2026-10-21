@@ -17,6 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 OLD = "reason IN ('customer', 'account_deleted')"
 NEW = "reason IN ('customer', 'account_deleted', 'order')"
+ORDER_ID = "(reason = 'order') = (order_id IS NOT NULL)"
 
 
 def upgrade() -> None:
@@ -24,11 +25,24 @@ def upgrade() -> None:
     op.add_column("refunds", sa.Column("order_id", sa.Uuid(), nullable=True), schema="billing")
     op.drop_constraint(op.f("ck_refunds_reason"), "refunds", schema="billing")
     op.create_check_constraint(op.f("ck_refunds_reason"), "refunds", NEW, schema="billing")
+    op.create_check_constraint(op.f("ck_refunds_order_id"), "refunds", ORDER_ID, schema="billing")
 
 
 def downgrade() -> None:
-    # Refunds are kept for reconciliation, so an order refund is relabelled rather than deleted.
-    op.execute("UPDATE billing.refunds SET reason = 'account_deleted' WHERE reason = 'order'")
+    # Refunds are kept for reconciliation and their parts are real money in flight: an order
+    # refund cannot be relabelled as another reason (a deleting account's refunds are read as
+    # such), so the downgrade stops while any exists.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM billing.refunds WHERE reason = 'order') THEN
+                RAISE EXCEPTION 'billing.refunds has order refunds: settle and remove them first';
+            END IF;
+        END $$
+        """
+    )
+    op.drop_constraint(op.f("ck_refunds_order_id"), "refunds", schema="billing")
     op.drop_constraint(op.f("ck_refunds_reason"), "refunds", schema="billing")
     op.create_check_constraint(op.f("ck_refunds_reason"), "refunds", OLD, schema="billing")
     op.drop_column("refunds", "order_id", schema="billing")

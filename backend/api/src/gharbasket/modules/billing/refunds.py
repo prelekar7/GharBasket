@@ -5,7 +5,9 @@ came from.
   razorpay_clearing), and queues the parts. It never calls Razorpay: `send_refunds` does.
 - Parts are split over the user's paid top-ups, newest first, within Razorpay's refund window.
 - A part in flight (pending or sent) holds its room under the ₹10,000 cap, so when Razorpay
-  fails it the money always fits back into the wallet (`refund_to_source_failed`).
+  fails it the money goes back into the wallet (`refund_to_source_failed`); if an order refund
+  to source has kept the balance up meanwhile and it no longer fits, the part is moved or
+  unclaimed (settlement.py).
 - `send_refunds` sends the parts to Razorpay, and its webhooks settle them.
 """
 

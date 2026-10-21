@@ -399,9 +399,7 @@ async def test_one_failing_order_is_counted_and_a_full_wallet_goes_to_triage(
     monkeypatch.setattr(orders_api, "transition", flaky)
     summary = await job(db_session, "schedule_redeliveries", at(13, 20, 45))
     assert (summary["redelivery"], summary["failed"]) == (3, 1)
-    monkeypatch.setattr(
-        orders_api, "transition", real
-    )  # not `undo`: it would drop the settings too
+    monkeypatch.undo()
     assert await status(db_session, day.orders[RAMESH]) == "undelivered"
 
     # A second miss whose refund the wallet cannot take goes to triage (all of it perishable here,

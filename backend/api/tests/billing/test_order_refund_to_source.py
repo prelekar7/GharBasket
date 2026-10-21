@@ -310,7 +310,63 @@ async def test_the_customer_sees_the_order_refund_and_its_parts(
     assert (await ask(api, auth, 10_000)).status_code == 202
 
 
-def _this_month() -> str:
-    from datetime import datetime
+async def test_a_moved_part_that_is_processed_ends_the_refund_processed(
+    db_session: AsyncSession,
+) -> None:
+    user, order = uuid.uuid4(), uuid.uuid4()
+    _, b, c = await full_wallet(db_session, user, 500_000, 300_000, 200_000)
+    await wallet.refund_to_wallet(db_session, user, order, 250_000, "shortage")
+    (refund,) = await refund_rows(db_session, user)
+    first, second = await parts_of(db_session, refund)
+    await fail(db_session, first)  # moved to b
+    moved = next(p for p in await parts_of(db_session, refund) if p.replaces_part_id == first.id)
+    assert moved.payment_id == b
 
-    return datetime.now(wallet.IST).strftime("%Y-%m")
+    for part in (second, moved):
+        event = refund_event("refund.processed", f"rfnd_{part.id.hex[:12]}", str(part.id))
+        assert await settlement.handle_event(db_session, event, make_settings()) == (
+            "refund_processed"
+        )
+
+    await db_session.refresh(refund)
+    assert (refund.status, refund.settled_at is not None) == ("processed", True)
+    assert await wallet.balance(db_session, user) == CAP
+    (event,) = await settled_events(db_session)
+    assert (event["status"], event["processed_paise"], event["order_id"]) == (
+        "processed",
+        250_000,
+        str(order),
+    )
+    assert c is not None
+    await assert_ledger_balances(db_session)
+
+
+async def test_a_customers_failed_part_cannot_push_the_wallet_over_the_cap_after_an_order_refund(
+    db_session: AsyncSession,
+) -> None:
+    """An order refund to source keeps the balance up while its parts are in flight, so a part of
+    the customer's own refund that fails later can find the wallet full again."""
+    user, order = uuid.uuid4(), uuid.uuid4()
+    await paid_topup(db_session, user, 600_000, age_days=10)
+    await paid_topup(db_session, user, 400_000, age_days=8)
+    await wallet.debit_for_order(db_session, user, order, 200_000, date(2026, 10, 12))
+    await paid_topup(db_session, user, 200_000, age_days=6)  # the wallet is full again
+    await wallet.refund_to_wallet(db_session, user, order, 200_000, "shortage")
+    (by_order,) = await refund_rows(db_session, user)
+    mine = await refunds.request_refund(
+        db_session, user, 900_000, settings=make_settings(), idempotency_key="mine"
+    )
+    assert await wallet.balance(db_session, user) == 100_000
+
+    for refund in (by_order, mine):
+        for part in await parts_of(db_session, refund):
+            await fail(db_session, part)
+            assert await wallet.balance(db_session, user) <= CAP
+
+    unclaimed = await service.platform_account(db_session, "unclaimed_balances")
+    # Everything came back (₹12,000 in all); what the wallet could not hold went to unclaimed.
+    assert await wallet.balance(db_session, user) + await service.balance(
+        db_session, unclaimed
+    ) == (1_200_000)
+    assert await service.balance(db_session, unclaimed) >= 200_000
+    await assert_ledger_balances(db_session)

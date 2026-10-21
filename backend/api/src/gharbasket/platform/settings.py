@@ -274,6 +274,21 @@ class Settings(DatabaseSettings):
         return self.app_env != "prod"
 
 
+_in_use: Settings | None = None
+
+
 @lru_cache
-def get_settings() -> Settings:
+def _from_environment() -> Settings:
     return Settings()
+
+
+def use_settings(settings: Settings | None) -> None:
+    """Make these the settings `get_settings()` returns: `create_app` and the job runner call it,
+    so module code outside a request (a refund made inside a job) sees the settings the app was
+    built with, not a second set read from the environment. `None` goes back to the environment."""
+    global _in_use
+    _in_use = settings
+
+
+def get_settings() -> Settings:
+    return _in_use if _in_use is not None else _from_environment()

@@ -18,7 +18,7 @@ from gharbasket.main import create_app
 from gharbasket.modules.registry import load_modules
 from gharbasket.platform.db import DbSession, create_engine, get_session, is_local_database
 from gharbasket.platform.errors import ProblemError
-from gharbasket.platform.settings import Settings
+from gharbasket.platform.settings import Settings, use_settings
 from gharbasket.platform.valkey import create_valkey
 
 from .commit_guard import CommitGuard
@@ -127,10 +127,13 @@ def valkey_url() -> str:
 
 
 @pytest.fixture(autouse=True)
-def _billing_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`refund_to_wallet` has no settings argument and reads `get_settings()` when a refund goes to
-    the payment source: tests give it the same test settings as the rest."""
-    monkeypatch.setattr("gharbasket.modules.billing.refunds.get_settings", make_settings)
+def _settings_in_use() -> Iterator[None]:
+    """Module code outside a request reads `get_settings()` (a refund to the payment source made by
+    `refund_to_wallet`): without an app, tests give it the test settings; `create_app` replaces
+    them with its own."""
+    use_settings(make_settings())
+    yield
+    use_settings(None)
 
 
 @pytest.fixture

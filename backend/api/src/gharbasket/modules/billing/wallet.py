@@ -2,7 +2,8 @@
 
 Every change locks the wallet's account row first, so two movements at the same moment are
 checked one after the other: the balance never goes below zero or above the ₹10,000 cap, counting
-the refunds to source still in flight (spec §3.3), so a failed one always fits back. Each
+the refunds to source still in flight (spec §3.3), so a failed one fits back (if an order refund
+to source kept the balance up meanwhile, it is moved or unclaimed). Each
 movement is keyed by its cause, so retrying it (a webhook delivered twice, a cut-off job rerun)
 never moves money twice.
 """

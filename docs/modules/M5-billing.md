@@ -293,7 +293,7 @@ billing.refund_to_source_settled  gains  order_id (null for wallet refunds)
     - M7's triage `refund`.
 
 *As built (2026-10-21).*
-- M11 has no consumer for `billing.refund_to_source_settled` yet (a customer's own refund has none either), so the "went back to your UPI/card" message waits for it. The event now carries `order_id` (null for a wallet refund or a deleted account).
+- M11 has no consumer for `billing.refund_to_source_settled` yet (a customer's own refund has none either), so the "went back to your UPI/card" message waits for it. The event now carries `order_id` (null for a customer's own refund or a deleting account's).
 - The customer's one-refund-in-progress check ignores order refunds, so their own request runs beside one, as written above.
 - `refund_to_wallet` reads the refund window from `get_settings()`, as it has no settings argument.
 

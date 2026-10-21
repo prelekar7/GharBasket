@@ -194,9 +194,8 @@ async def test_a_full_wallet_refuses_the_refund_and_nothing_is_recorded(
 ) -> None:
     api = clients()
     _, priya_id = await as_user(api, google, PRIYA)
-    order_id, ids = await placed_order(
-        db_session, priya_id, reach=PICKING, box=BOX, extra_topup=CAP_PAISE
-    )
+    order_id, ids = await placed_order(db_session, priya_id, reach=PICKING, box=BOX)
+    await paid_topup(db_session, priya_id, CAP_PAISE, age_days=181)  # too old to refund to
     assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
 
     with pytest.raises(ProblemError) as full:

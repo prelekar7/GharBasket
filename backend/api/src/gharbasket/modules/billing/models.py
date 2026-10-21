@@ -226,6 +226,7 @@ class Refund(Base):
         CheckConstraint(_one_of("reason", REFUND_REASONS), name="reason"),
         CheckConstraint(_one_of("status", REFUND_STATUSES), name="status"),
         CheckConstraint("amount_paise > 0", name="amount_paise"),
+        CheckConstraint("(reason = 'order') = (order_id IS NOT NULL)", name="order_id"),
         # One customer refund in progress per user, even for two requests at the same moment.
         Index(
             "ix_billing_refunds_one_open",

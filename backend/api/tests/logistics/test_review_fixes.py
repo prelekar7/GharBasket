@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.billing.models import Refund
-from gharbasket.modules.billing.wallet import CAP_PAISE, credit_topup
+from gharbasket.modules.billing.wallet import CAP_PAISE
 from gharbasket.modules.logistics import attempts, execution, live, tracking
 from gharbasket.modules.logistics.models import Delivery, Handover, Route, RouteStop
 from gharbasket.modules.orders import api as orders_api
@@ -746,9 +746,7 @@ async def test_a_triage_refund_the_wallet_cannot_take_waits_and_a_partial_one_ne
         headers={**rider, **key()},
     )
     owner = await user_id(db_session, SUNITA)
-    await credit_topup(
-        db_session, owner, CAP_PAISE - 100, payment_ref=uuid.uuid4().hex, topup_id=uuid.uuid4()
-    )
+    await paid_topup(db_session, owner, CAP_PAISE - 100, age_days=181)  # too old to refund to
     await db_session.commit()
     full = await api.post(
         f"/v1/deliveries/{sunita}/resolve",

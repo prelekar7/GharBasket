@@ -382,7 +382,9 @@ async def test_a_full_wallet_leaves_the_issue_open_and_moves_no_money(
 ) -> None:
     api = clients()
     priya, priya_id = await as_user(api, google, PRIYA)
-    order_id, ids = await placed_order(db_session, priya_id, extra_topup=CAP_PAISE)
+    order_id, ids = await placed_order(db_session, priya_id)
+    await paid_topup(db_session, priya_id, CAP_PAISE, age_days=181)  # too old to refund to
+    await db_session.commit()
     assert await billing_api.balance(db_session, priya_id) == CAP_PAISE
 
     answer = await report(api, priya, order_id, {"kind": "missing", "items": items(ids, tomato=1)})
