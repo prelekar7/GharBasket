@@ -9,7 +9,7 @@ from typing import Any
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops.models import KeptItem, StockMove
@@ -98,7 +98,8 @@ async def test_kept_items_are_their_own_lines_picked_from_the_shelf_and_marked_p
     carried_rows = await db_session.scalars(
         select(CarryOver).where(CarryOver.to_order_id == next_box)
     )
-    assert {r.status for r in carried_rows} == {"packed"}  # M4 follows the order into picking
+    # While the box is picked the rows are still `attached`: the hub can yet report one lost.
+    assert {r.status for r in carried_rows} == {"attached"}
 
     # A kept item takes no shortage, with or without the flag; the paid line still can.
     for body in (
@@ -144,6 +145,12 @@ async def test_kept_items_are_their_own_lines_picked_from_the_shelf_and_marked_p
 
     assert done.status_code == 200, done.text
     assert done.json()["status"] == "packed" and done.json()["lines_done"] == 4
+    packed_rows = await db_session.scalars(
+        select(CarryOver)
+        .where(CarryOver.to_order_id == next_box)
+        .execution_options(populate_existing=True)
+    )
+    assert {r.status for r in packed_rows} == {"packed"}  # M4 follows the order into packed
     listed = await api.get(f"{HUB}/kept-items", params={"status": "packed"}, headers=manager)
     packed = {k["slug"]: k for k in listed.json()["items"]}
     assert set(packed) == {"toor-dal", "moong-dal"}
@@ -357,3 +364,162 @@ async def test_a_box_that_carried_items_and_is_missed_twice_keeps_them_again(
         select(KeptItem).where(KeptItem.status == "kept").execution_options(populate_existing=True)
     )
     assert len(list(items)) == 3
+
+
+async def pick_all(
+    api: httpx2.AsyncClient,
+    packer: dict[str, str],
+    task: dict[str, Any],
+    ids: dict[str, uuid.UUID],
+    which: tuple[tuple[str, bool, int], ...],
+) -> None:
+    for slug, carried, qty in which:
+        picked = await act(
+            api,
+            packer,
+            task["id"],
+            "pick",
+            {"product_id": str(ids[slug]), "carried": carried, "picked_qty": qty},
+        )
+        assert picked.status_code == 200, picked.text
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_starting_a_task_takes_the_items_attached_since_it_was_built(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    owner = await user_id(db_session, PRIYA)
+    next_box = await place(db_session, owner, NEXT, LOCKED, NEXT_BOX)  # locked, built first
+    manager, _ = await staff(api, google, VIKRAM)
+    packer, _ = await staff(api, google, KAVITA)
+    await build_next(api, manager)
+    assert set(lines(await next_task(api, manager))) == {("bhindi", False), ("toor-dal", False)}
+    missed, ids, _ = await missed_bag(api, google, db_session)  # attaches at once
+    assert len((await orders_api.summaries(db_session, [next_box]))[0].carried) == 2
+    assert missed != next_box
+    task = await next_task(api, manager)
+
+    # No rebuild: the packer's start brings the kept items onto the task before the order moves.
+    started = await act(api, packer, task["id"], "start")
+
+    assert started.status_code == 200, started.text
+    assert set(lines(started.json())) == {
+        ("bhindi", False),
+        ("toor-dal", False),
+        ("toor-dal", True),
+        ("moong-dal", True),
+    }
+    await pick_all(
+        api,
+        packer,
+        task,
+        ids,
+        (
+            ("bhindi", False, 1),
+            ("toor-dal", False, 1),
+            ("toor-dal", True, 2),
+            ("moong-dal", True, 1),
+        ),
+    )
+    done = await act(api, packer, task["id"], "complete")
+    assert done.status_code == 200, done.text
+    carry_rows = await db_session.scalars(
+        select(CarryOver)
+        .where(CarryOver.to_order_id == next_box)
+        .execution_options(populate_existing=True)
+    )
+    assert {r.status for r in carry_rows} == {"packed"}
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_kept_item_lost_while_the_box_is_picked_leaves_it_even_when_picked(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    missed, ids, _ = await missed_bag(api, google, db_session)
+    packer, _ = await staff(api, google, KAVITA)
+    kept = {k["slug"]: k for k in (await scan(api, packer, qr(missed))).json()["kept"]}
+    owner = await user_id(db_session, PRIYA)
+    await place(db_session, owner, NEXT, LOCKED, NEXT_BOX)
+    manager, _ = await staff(api, google, VIKRAM)
+    await build_next(api, manager)
+    task = await next_task(api, manager)
+    assert (await act(api, packer, task["id"], "start")).status_code == 200
+    # The packer found the toor dal, then the count shows it is not on the shelf after all.
+    await pick_all(api, packer, task, ids, (("bhindi", False, 1), ("toor-dal", True, 2)))
+    assert (await act(api, packer, task["id"], "complete")).json()["code"] == "hub_ops.lines_open"
+
+    lost = await api.post(
+        f"{HUB}/kept-items/{kept['toor-dal']['id']}/lost",
+        json={"note": "Not on the shelf"},
+        headers={**manager, **key()},
+    )
+
+    assert lost.status_code == 200, lost.text
+    shown = await next_task(api, manager)
+    assert set(lines(shown)) == {("bhindi", False), ("toor-dal", False), ("moong-dal", True)}
+    await pick_all(api, packer, task, ids, (("toor-dal", False, 1), ("moong-dal", True, 1)))
+    done = await act(api, packer, task["id"], "complete")
+    assert done.status_code == 200, done.text  # the box completes without the lost item
+    statuses = {
+        k.product_id: k.status
+        for k in await db_session.scalars(
+            select(KeptItem).execution_options(populate_existing=True)
+        )
+    }
+    assert statuses == {ids["toor-dal"]: "lost", ids["moong-dal"]: "packed"}
+    assert {m.product_id for m in await moves(db_session)} == {ids["moong-dal"]}
+    # Packed: nothing can be reported lost any more.
+    late = await api.post(
+        f"{HUB}/kept-items/{kept['moong-dal']['id']}/lost",
+        json={"note": "Gone"},
+        headers={**manager, **key()},
+    )
+    assert (late.status_code, late.json()["code"]) == (409, "hub_ops.kept_item_settled")
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_a_second_copy_of_an_item_already_on_the_shelf_becomes_a_returned_lot(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    missed, ids, _ = await missed_bag(api, google, db_session)
+    packer, _ = await staff(api, google, KAVITA)
+    assert (await scan(api, packer, qr(missed))).status_code == 200
+    owner = await user_id(db_session, PRIYA)
+    next_box = await place(db_session, owner, NEXT, LOCKED, NEXT_BOX)
+    manager, _ = await staff(api, google, VIKRAM)
+    await build_next(api, manager)
+    task = await next_task(api, manager)
+    assert (await act(api, packer, task["id"], "start")).status_code == 200
+    await pick_all(
+        api,
+        packer,
+        task,
+        ids,
+        (
+            ("bhindi", False, 1),
+            ("toor-dal", False, 1),
+            ("toor-dal", True, 2),
+            ("moong-dal", True, 1),
+        ),
+    )
+    assert (await act(api, packer, task["id"], "complete")).status_code == 200
+    for to in ("dispatched", "at_society", "undelivered"):
+        await orders_api.transition(db_session, next_box, to, actor="hub")
+    await miss_twice(db_session, next_box)
+    # The toor dal that rode in this box is still on the shelf as a kept item (as if the older
+    # item had never been drawn): the bag brings a second copy of it.
+    await db_session.execute(
+        update(KeptItem).where(KeptItem.product_id == ids["toor-dal"]).values(status="kept")
+    )
+    await db_session.commit()
+
+    bag = await scan(api, packer, qr(next_box))
+
+    assert bag.status_code == 200, bag.text
+    kept = sorted((k["slug"], k["qty"]) for k in bag.json()["kept"])
+    assert kept == [("moong-dal", 1), ("toor-dal", 1)]  # the box's own toor dal; moong came back
+    lots = {lot["slug"]: lot["qty_in"] for lot in bag.json()["lots"]}
+    assert lots == {"bhindi": lots["bhindi"], "toor-dal": 1.0}  # 2 steps of 500 g, not shelved

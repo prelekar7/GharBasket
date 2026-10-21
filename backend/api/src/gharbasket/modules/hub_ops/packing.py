@@ -509,7 +509,8 @@ async def start(
     scanned: str | None = None,
     client_at: datetime | None = None,
 ) -> None:
-    """Take a queued task (the order moves locked → picking) or a released one."""
+    """Take a queued task (the order moves locked → picking) or a released one. A queued task
+    first takes the kept items attached since it was built, so the packer sees them all."""
     if task.status == "packed":
         raise _problem(409, "hub_ops.task_packed", "This task is packed.")
     if scanned is not None and scanned != bag_qr(task.order_id):
@@ -519,6 +520,8 @@ async def start(
     if task.packer_user_id is not None:
         raise _problem(409, "hub_ops.task_taken", "Another packer holds this task.")
     if task.status == "queued":
+        [summary] = await orders_api.summaries(session, [task.order_id])
+        await sync_carried(session, task, summary.carried)
         await orders_api.transition(
             session, task.order_id, "picking", actor=by.order_actor, actor_user_id=by.user_id
         )
@@ -715,8 +718,18 @@ async def draw_carried(session: AsyncSession, task: PackingTask, by_user_id: uui
     """The kept items on a packed bag leave the shelf (§3.5): the item of that carry becomes
     `packed` with the task, and a `pack` move for it (no lot) is written; with no kept item (the
     bag was never scanned) the move stands alone, unlotted. The 12:30 draw-down is not built yet;
-    when it is, it draws paid lines only, as these moves are keyed by the carried item."""
+    when it is, it draws paid lines only, as these moves are keyed by the carried item.
+
+    The items are the task's own carried lines, which must be exactly what M4 has on the order
+    (a programming error otherwise: a box packed without a kept item that M4 marks delivered)."""
     [summary] = await orders_api.summaries(session, [task.order_id])
+    on_task = {
+        line.product_id: (line.qty, line.step_qty, line.step_unit)
+        for line in await lines_of(session, task.id)
+        if line.carried
+    }
+    if on_task != _carried_wanted(summary.carried):
+        raise RuntimeError(f"task {task.id} carried lines differ from the order's carried items")
     for item in summary.carried:
         kept = await session.scalar(
             select(KeptItem)
