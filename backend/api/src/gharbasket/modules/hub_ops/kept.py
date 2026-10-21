@@ -69,6 +69,12 @@ def item_not_found() -> ProblemError:
     return ProblemError(404, "hub_ops.kept_item_not_found", "No such kept item.")
 
 
+def item_moved() -> ProblemError:
+    return ProblemError(
+        409, "hub_ops.kept_item_moved", "The item moved to another box meanwhile; try again."
+    )
+
+
 def item_settled(status: str) -> ProblemError:
     return ProblemError(
         409,
@@ -381,15 +387,28 @@ async def lose(session: AsyncSession, item: KeptItem, note: str, by_user_id: uui
     """The hub manager reports a kept item lost: M4 refunds it at its paid price, no fee
     (`orders.api.refund_carry`, which answers 409 `orders.carry_not_refundable` once its box is
     packed), and the item becomes `lost`. This works while the box is `locked` or being picked.
-    A lost item returns as is; a packed or released one is 409 `hub_ops.kept_item_settled`. The
-    item was locked by the caller; the box's packing task is locked here before M4's rows (the
-    order everywhere: task, then carry rows)."""
+    A lost item returns as is; a packed or released one is 409 `hub_ops.kept_item_settled`.
+
+    Lock order, as in `packing.complete`: the box's packing task, then the kept item, then M4's
+    carry row. So the caller passes the item unlocked; it is re-read here under its lock and its
+    status checked again. If the row moved to another box meanwhile (409
+    `hub_ops.kept_item_moved`), nothing is changed and the client tries again."""
+    target = await orders_api.carry_target(session, item.carry_id)
+    await _lock_task(session, target)
+    locked = await session.scalar(
+        select(KeptItem)
+        .where(KeptItem.id == item.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert locked is not None
+    item = locked
     if item.status == "lost":
         return item
     if item.status != "kept":
         raise item_settled(item.status)
-    target = await orders_api.carry_target(session, item.carry_id)
-    await _lock_task(session, target)
+    if await orders_api.carry_target(session, item.carry_id) != target:
+        raise item_moved()
     await orders_api.refund_carry(session, item.carry_id, by_user_id)
     item.status, item.settled_at = "lost", datetime.now(UTC)
     await session.flush()

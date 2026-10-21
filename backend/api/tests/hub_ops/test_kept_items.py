@@ -9,7 +9,7 @@ from typing import Any
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import func, select, update
+from sqlalchemy import event, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
@@ -313,6 +313,77 @@ async def test_an_item_can_be_reported_lost_while_its_box_is_picked_but_not_once
         .execution_options(populate_existing=True)
     )
     assert item is not None and item.status == "kept"  # nothing recorded
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_reporting_an_item_lost_locks_the_task_then_the_item_then_the_carry_row(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """The order `packing.complete` takes too (task, carry rows, kept item): no deadlock."""
+    api = clients()
+    order_id, _, _ = await missed_bag(api, google, db_session)
+    packer, _ = await staff(api, google, KAVITA)
+    kept = (await scan(api, packer, qr(order_id))).json()["kept"][0]
+    owner = await user_id(db_session, PRIYA)
+    await place(db_session, owner, date(2026, 10, 14), LOCKED)
+    manager, _ = await staff(api, google, VIKRAM)
+    locks: list[str] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, *_: Any) -> None:
+        if "FOR UPDATE" in statement and statement.lstrip().upper().startswith("SELECT"):
+            for table in ("packing_tasks", "kept_items", "carry_overs"):
+                if f"FROM {'hub_ops' if table != 'carry_overs' else 'orders'}.{table}" in statement:
+                    locks.append(table)
+
+    assert db_session.bind is not None
+    engine = db_session.bind.sync_engine  # type: ignore[union-attr]
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        lost = await api.post(
+            f"{HUB}/kept-items/{kept['id']}/lost",
+            json={"note": "Gone"},
+            headers={**manager, **key()},
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert lost.status_code == 200, lost.text
+    first = {table: locks.index(table) for table in dict.fromkeys(locks)}
+    assert first["packing_tasks"] < first["kept_items"] < first["carry_overs"], locks
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_an_item_whose_row_moved_to_another_box_meanwhile_is_a_409_to_retry(
+    clients: ClientFactory,
+    google: FakeGoogle,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = clients()
+    order_id, _, _ = await missed_bag(api, google, db_session)
+    packer, _ = await staff(api, google, KAVITA)
+    kept = (await scan(api, packer, qr(order_id))).json()["kept"][0]
+    manager, _ = await staff(api, google, VIKRAM)
+    real = orders_api.carry_target
+    seen = {"n": 0}
+
+    async def moving(session: AsyncSession, carry_id: uuid.UUID) -> uuid.UUID | None:
+        seen["n"] += 1
+        return await real(session, carry_id) if seen["n"] == 1 else uuid.uuid4()
+
+    monkeypatch.setattr(orders_api, "carry_target", moving)
+
+    refused = await api.post(
+        f"{HUB}/kept-items/{kept['id']}/lost", json={"note": "Gone"}, headers={**manager, **key()}
+    )
+
+    assert (refused.status_code, refused.json()["code"]) == (409, "hub_ops.kept_item_moved")
+    item = await db_session.scalar(
+        select(KeptItem)
+        .where(KeptItem.id == uuid.UUID(kept["id"]))
+        .execution_options(populate_existing=True)
+    )
+    assert item is not None and item.status == "kept"
 
 
 @time_machine.travel(NOW, tick=False)

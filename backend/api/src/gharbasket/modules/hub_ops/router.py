@@ -1047,7 +1047,9 @@ async def list_kept_items(
     responses={
         **CREATES,
         404: _problem("hub_ops.kept_item_not_found"),
-        409: _problem("hub_ops.kept_item_settled, orders.carry_not_refundable"),
+        409: _problem(
+            "hub_ops.kept_item_settled, hub_ops.kept_item_moved, orders.carry_not_refundable"
+        ),
         422: _problem("billing.wallet_limit, request.idempotency_mismatch, request.invalid"),
     },
 )
@@ -1061,8 +1063,8 @@ async def lose_kept_item(
     lang: Lang,
 ) -> KeptItemOut:
     permit.ensure(hub_id)
-    item = await kept.get_item(session, hub_id, item_id, for_update=True)
-    await kept.lose(session, item, body.note, permit.principal.user_id)
+    item = await kept.get_item(session, hub_id, item_id)  # unlocked: `lose` locks in order
+    item = await kept.lose(session, item, body.note, permit.principal.user_id)
     [out] = await kept.items_out(session, [item], lang)
     await idem.save(200, out)
     await session.commit()
