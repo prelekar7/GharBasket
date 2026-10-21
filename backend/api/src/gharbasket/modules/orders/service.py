@@ -6,7 +6,7 @@ here by the clock, so a late `cutoff_lock` job never lets one through.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import fees, state
+from gharbasket.modules.orders import carry, fees, state
 from gharbasket.modules.orders.events import SHORTAGE_SUBSTITUTED
 from gharbasket.modules.orders.models import (
     Order,
@@ -657,6 +657,7 @@ async def transition(
                 for line in await lines_of(session, order.id)
             ]
         await publish(session, event_type, body)
+    await carry.follow(session, order, to_status)  # carried items follow their order (§3.8)
     return order
 
 
@@ -675,6 +676,8 @@ async def set_kitchen(session: AsyncSession, order: Order, partner_id: uuid.UUID
 class OrderSummary:
     order: Order
     lines: list[OrderLine]
+    # The carried items riding on this order (§3.8), apart from `lines`: M6 packs them from stock.
+    carried: list[carry.CarriedLine] = field(default_factory=list)
 
 
 async def orders_for_delivery(
@@ -706,7 +709,8 @@ async def orders_for_delivery(
     by_order: dict[uuid.UUID, list[OrderLine]] = {o.id: [] for o in orders}
     for line in rows.scalars():
         by_order[line.order_id].append(line)
-    return [OrderSummary(o, by_order[o.id]) for o in orders]
+    riding = await carry.carried_for(session, [o.id for o in orders])
+    return [OrderSummary(o, by_order[o.id], riding[o.id]) for o in orders]
 
 
 # Packing may record a shortage while the paid order is still at the hub.
@@ -845,8 +849,9 @@ async def mark_shortage(
 
 async def refunded_paise(session: AsyncSession, order: Order) -> int:
     """Everything already paid back on an order after packing: its issue credits and the money
-    of its move to `refunded` (M7's refunds). Shortage refunds are already out of the total, which
-    follows the lines. The one count every later refund subtracts, so nothing is paid twice."""
+    of its move to `refunded` (M7's refunds) and of its carried items (§3.8). Shortage refunds are
+    already out of the total, which follows the lines. The one count every later refund subtracts,
+    so nothing is paid twice."""
     credited = await session.scalar(
         select(func.coalesce(func.sum(OrderIssue.credit_paise), 0)).where(
             OrderIssue.order_id == order.id, OrderIssue.status == "credited"
@@ -858,7 +863,7 @@ async def refunded_paise(session: AsyncSession, order: Order) -> int:
         )
     )
     refunded = sum(int((p or {}).get("refund_paise") or 0) for p in moved.scalars())
-    return int(credited or 0) + refunded
+    return int(credited or 0) + refunded + await carry.refunded_paise(session, order.id)
 
 
 async def refundable_paise(session: AsyncSession, order: Order) -> int:

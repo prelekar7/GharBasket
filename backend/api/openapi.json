@@ -2165,6 +2165,99 @@
         "title": "CaptainsOut",
         "type": "object"
       },
+      "CarriedItemOut": {
+        "description": "A kept item riding on this order at no charge (M4 §3.8): \"Kept from your box of 14 Oct\".",
+        "properties": {
+          "carried_from_order_id": {
+            "format": "uuid",
+            "title": "Carried From Order Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "step_qty": {
+            "title": "Step Qty",
+            "type": "integer"
+          },
+          "step_unit": {
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Step Unit",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "steps",
+          "step_qty",
+          "step_unit",
+          "carried_from_order_id"
+        ],
+        "title": "CarriedItemOut",
+        "type": "object"
+      },
+      "CarryOverOut": {
+        "description": "What became of the non-perishables of a box missed twice (M4 §3.8).",
+        "properties": {
+          "expires_on": {
+            "description": "Still pending then: refunded without the fee",
+            "format": "date",
+            "title": "Expires On",
+            "type": "string"
+          },
+          "status": {
+            "description": "Of its oldest unsettled item: pending (waiting for the next box), attached, packed, delivered or refunded",
+            "enum": [
+              "pending",
+              "attached",
+              "packed",
+              "delivered",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Order Id"
+          }
+        },
+        "required": [
+          "status",
+          "expires_on",
+          "to_order_id"
+        ],
+        "title": "CarryOverOut",
+        "type": "object"
+      },
       "Categories": {
         "properties": {
           "items": {
@@ -7468,6 +7561,142 @@
         "title": "JobTrigger",
         "type": "object"
       },
+      "KeptItemOut": {
+        "properties": {
+          "carry_id": {
+            "description": "M4's carry-over row",
+            "format": "uuid",
+            "title": "Carry Id",
+            "type": "string"
+          },
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tower label and flat; no name or phone",
+            "examples": [
+              "B wing, B-402"
+            ],
+            "title": "Flat Label"
+          },
+          "from_order_id": {
+            "description": "The box that was missed twice",
+            "format": "uuid",
+            "title": "From Order Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kept_at": {
+            "format": "date-time",
+            "title": "Kept At",
+            "type": "string"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "packed_task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The packing task that took it",
+            "title": "Packed Task Id"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "description": "Steps",
+            "title": "Qty",
+            "type": "integer"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "society": {
+            "$ref": "#/components/schemas/PackingSociety"
+          },
+          "status": {
+            "enum": [
+              "kept",
+              "packed",
+              "released",
+              "lost"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/PackingStep"
+          }
+        },
+        "required": [
+          "id",
+          "carry_id",
+          "from_order_id",
+          "society",
+          "flat_label",
+          "product_id",
+          "slug",
+          "name",
+          "step",
+          "qty",
+          "status",
+          "kept_at",
+          "packed_task_id",
+          "settled_at"
+        ],
+        "title": "KeptItemOut",
+        "type": "object"
+      },
+      "KeptItemsOut": {
+        "properties": {
+          "items": {
+            "description": "By society, then flat",
+            "items": {
+              "$ref": "#/components/schemas/KeptItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "KeptItemsOut",
+        "type": "object"
+      },
       "KindOut": {
         "properties": {
           "category": {
@@ -8636,6 +8865,25 @@
           "deliveries"
         ],
         "title": "LogEntry",
+        "type": "object"
+      },
+      "LostIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "examples": [
+              "Not on the shelf at the count"
+            ],
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "LostIn",
         "type": "object"
       },
       "LotDetailOut": {
@@ -10215,6 +10463,25 @@
       },
       "OrderOut": {
         "properties": {
+          "carried": {
+            "description": "Kept items riding on this order, apart from `lines` and the total (§3.8)",
+            "items": {
+              "$ref": "#/components/schemas/CarriedItemOut"
+            },
+            "title": "Carried",
+            "type": "array"
+          },
+          "carry_over": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CarryOverOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A box missed twice: its carried items; null if none (§3.8)"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -10622,6 +10889,12 @@
       },
       "PackingLineOut": {
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "A kept item riding on this box at no charge (\"Kept item: from the shelf\"): its own line, apart from a paid line of the same product; it takes no shortage",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "done": {
             "description": "picked_qty + short_qty = qty",
             "title": "Done",
@@ -12066,6 +12339,12 @@
       "PickIn": {
         "additionalProperties": false,
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "The kept item's line (not needed if the product has no paid line)",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "client_at": {
             "anyOf": [
               {
@@ -16785,6 +17064,72 @@
         "title": "Requirements",
         "type": "object"
       },
+      "ReturnedBagIn": {
+        "additionalProperties": false,
+        "properties": {
+          "bag_qr": {
+            "examples": [
+              "GB1:0199a0000000700080000000000000ab"
+            ],
+            "maxLength": 60,
+            "title": "Bag Qr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bag_qr"
+        ],
+        "title": "ReturnedBagIn",
+        "type": "object"
+      },
+      "ReturnedBagOut": {
+        "properties": {
+          "flat_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flat Label"
+          },
+          "kept": {
+            "description": "The household's items, kept on the shelf",
+            "items": {
+              "$ref": "#/components/schemas/KeptItemOut"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
+          "lots": {
+            "description": "The rest of the bag: grade C, offered at 12:30",
+            "items": {
+              "$ref": "#/components/schemas/LotOut"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "society": {
+            "$ref": "#/components/schemas/PackingSociety"
+          }
+        },
+        "required": [
+          "order_id",
+          "society",
+          "flat_label",
+          "kept",
+          "lots"
+        ],
+        "title": "ReturnedBagOut",
+        "type": "object"
+      },
       "Review": {
         "properties": {
           "at": {
@@ -18028,6 +18373,12 @@
       "ShortageIn": {
         "additionalProperties": false,
         "properties": {
+          "carried": {
+            "default": false,
+            "description": "The carried line of the product: 422 hub_ops.qty_invalid",
+            "title": "Carried",
+            "type": "boolean"
+          },
           "client_at": {
             "anyOf": [
               {
@@ -35292,6 +35643,298 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/kept-items": {
+      "get": {
+        "operationId": "list_kept_items_v1_hubs__hub_id__kept_items_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kept",
+                    "packed",
+                    "released",
+                    "lost"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptItemsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's kept items by society and flat",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/kept-items/{item_id}/lost": {
+      "post": {
+        "operationId": "lose_kept_item_v1_hubs__hub_id__kept_items__item_id__lost_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LostIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.kept_item_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.kept_item_settled, hub_ops.kept_item_moved, orders.carry_not_refundable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.wallet_limit, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "A kept item is lost: M4 refunds it, no fee (audited; Idempotency-Key)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/packing-summary": {
       "get": {
         "operationId": "packing_summary_v1_hubs__hub_id__packing_summary_get",
@@ -37611,6 +38254,164 @@
           }
         ],
         "summary": "The hub's purchase orders for a delivery date, by vendor name",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/returned-bags": {
+      "post": {
+        "operationId": "scan_returned_bag_v1_hubs__hub_id__returned_bags_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReturnedBagIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnedBagOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.bag_unknown"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.bag_not_returned"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Unpack a bag back after a second miss: kept items and returned lots (Idempotency-Key)",
         "tags": [
           "hub_ops"
         ]

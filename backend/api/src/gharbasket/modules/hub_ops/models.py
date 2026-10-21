@@ -5,7 +5,8 @@ Hubs (spec §3.1): hubs with their service area, and the vendors each hub buys f
 order, slot, society, product and user ids here, are plain UUIDs without a foreign key
 (ADR-0026 §5). Procurement (§3.3): one plan per hub and delivery date with a line per stocked
 product, and purchase orders per vendor. Receiving (§3.4): goods receipts, a lot per accepted line,
-a ledger of stock moves and weekly vendor scores. Operations quantities are NUMERIC(10,3) in the
+a ledger of stock moves and weekly vendor scores. Kept items and returned bags (§3.5): what a box
+missed twice leaves on the shelf for its household. Operations quantities are NUMERIC(10,3) in the
 product's operations unit; money is paise; waste follows in a later PR.
 """
 
@@ -174,7 +175,9 @@ class PackingTask(Base):
 
 
 class PackingLine(Base):
-    """An order line to pick, in steps; done when picked + short = qty."""
+    """An order line to pick, in steps; done when picked + short = qty. A `carried` line is a
+    kept item riding free on this box (M4 §3.8, §3.5): picked from the shelf, never short, and
+    apart from a paid line of the same product."""
 
     __tablename__ = "packing_lines"
     __table_args__ = (
@@ -189,6 +192,7 @@ class PackingLine(Base):
         ForeignKey(f"{SCHEMA}.packing_tasks.id", ondelete="CASCADE"), primary_key=True
     )
     product_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # as ordered
+    carried: Mapped[bool] = mapped_column(Boolean, primary_key=True, server_default=text("false"))
     step_qty: Mapped[int] = mapped_column(Integer)
     step_unit: Mapped[str] = mapped_column(String(8))
     qty: Mapped[int] = mapped_column(Integer)
@@ -487,6 +491,10 @@ class StockMove(Base):
     lot_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.inventory_lots.id", ondelete="RESTRICT")
     )
+    # The kept item this move released or packed (§3.5), if any.
+    kept_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.kept_items.id", ondelete="RESTRICT")
+    )
     product_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M2
     unit: Mapped[str] = mapped_column(String(8))
     qty: Mapped[Decimal] = _qty()
@@ -496,6 +504,61 @@ class StockMove(Base):
     reason: Mapped[str | None] = mapped_column(String(200))
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # M1; null: a job
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# --- kept items and returned bags (spec §3.5, ADR-0027 §2) --------------------------------------
+
+KEPT_STATUSES = ("kept", "packed", "released", "lost")
+STEP_UNITS = ("g", "kg", "ml", "l", "piece", "bunch", "pack")
+
+
+class KeptItem(Base):
+    """A non-perishable of a box missed twice, kept on a shelf for the household (M4's carry row
+    `carry_id`): `kept` until a box carries it (`packed`), M4's 14 days pass (`released` into a
+    returned lot) or the hub loses it (`lost`, refunded)."""
+
+    __tablename__ = "kept_items"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", KEPT_STATUSES), name="status"),
+        CheckConstraint(_one_of("step_unit", STEP_UNITS), name="step_unit"),
+        CheckConstraint("qty >= 1 AND step_qty >= 1", name="qty"),
+        UniqueConstraint("carry_id", "bag_order_id"),
+        Index("ix_kept_items_hub_id_status", "hub_id", "status"),
+        Index("ix_kept_items_household_id", "household_id"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    hub_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.hubs.id", ondelete="RESTRICT"))
+    household_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M1
+    carry_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M4's orders.carry_overs row
+    from_order_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M4: the box missed twice
+    bag_order_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M4: the bag that was scanned
+    society_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M9
+    tower_id: Mapped[str | None] = mapped_column(String(20))
+    flat: Mapped[str | None] = mapped_column(String(20))
+    product_id: Mapped[uuid.UUID] = mapped_column(Uuid)  # M2
+    step_qty: Mapped[int] = mapped_column(Integer)
+    step_unit: Mapped[str] = mapped_column(String(8))
+    qty: Mapped[int] = mapped_column(Integer)  # steps
+    status: Mapped[str] = mapped_column(String(8), server_default="kept")
+    packed_task_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.packing_tasks.id", ondelete="RESTRICT")
+    )
+    kept_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReturnedBag(Base):
+    """A returned bag that was unpacked, once (the order id is the key): a second scan replays."""
+
+    __tablename__ = "returned_bags"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    order_id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True)  # M4
+    hub_id: Mapped[uuid.UUID] = mapped_column(ForeignKey(f"{SCHEMA}.hubs.id", ondelete="RESTRICT"))
+    scanned_by: Mapped[uuid.UUID] = mapped_column(Uuid)  # M1 user
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 def _score() -> Mapped[Decimal | None]:

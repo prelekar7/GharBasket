@@ -4,6 +4,8 @@ two-hour grace), `payment_grace_expiry` at T-1 23:00 cancels what is still unpai
 inside the grace period re-runs the debit (consumer of `billing.wallet_topped_up`).
 
 `scheduled_for` decides the delivery date, never the clock, so a late run does the same work.
+`expire_carry_overs` (02:40 IST) refunds carried items still waiting 14 days after the miss
+(§3.8).
 """
 
 import uuid
@@ -17,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import service, state
+from gharbasket.modules.orders import carry, service, state
 from gharbasket.modules.orders.models import Order
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
@@ -91,6 +93,13 @@ async def cutoff_lock(ctx: JobContext) -> dict[str, Any]:
         await ctx.session.commit()
     counts["delivery_date"] = on.isoformat()
     return counts
+
+
+@job("expire_carry_overs", "Refund carried items still waiting 14 days after the miss, no fee")
+async def expire_carry_overs(ctx: JobContext) -> dict[str, Any]:
+    """Every `pending` row that expired before the run's day is refunded at its paid price, once
+    (the refund key is per row); a wallet at its cap leaves the row for the next run."""
+    return await carry.expire(ctx.session, ctx.scheduled_for.astimezone(IST).date())
 
 
 @job("payment_grace_expiry", "Cancel tomorrow's orders still unpaid after the grace period")

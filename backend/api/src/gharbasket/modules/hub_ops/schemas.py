@@ -256,6 +256,11 @@ class PackingSubstitute(BaseModel):
 
 class PackingLineOut(BaseModel):
     product_id: uuid.UUID = Field(description="The ordered product")
+    carried: bool = Field(
+        default=False,
+        description='A kept item riding on this box at no charge ("Kept item: from the shelf"): '
+        "its own line, apart from a paid line of the same product; it takes no shortage",
+    )
     slug: str
     name: str
     step: PackingStep
@@ -311,11 +316,18 @@ class StartIn(_PackingAction):
 
 class PickIn(_PackingAction):
     product_id: uuid.UUID
+    carried: bool = Field(
+        default=False,
+        description="The kept item's line (not needed if the product has no paid line)",
+    )
     picked_qty: int = Field(description="Absolute, not a delta: 0 to qty - short_qty")
 
 
 class ShortageIn(_PackingAction):
     product_id: uuid.UUID
+    carried: bool = Field(
+        default=False, description="The carried line of the product: 422 hub_ops.qty_invalid"
+    )
     short_qty: int = Field(examples=[1])
     substitute_product_id: uuid.UUID | None = None
 
@@ -607,3 +619,53 @@ class CountIn(BaseModel):
     reason: str = Field(min_length=3, max_length=200)
 
     _tidy_text = field_validator("reason", mode="before")(_tidy)
+
+
+# --- kept items and returned bags (§3.5) ---------------------------------------------------------
+
+KeptStatus = Literal["kept", "packed", "released", "lost"]
+
+
+class KeptItemOut(BaseModel):
+    id: uuid.UUID
+    carry_id: uuid.UUID = Field(description="M4's carry-over row")
+    from_order_id: uuid.UUID = Field(description="The box that was missed twice")
+    society: PackingSociety
+    flat_label: str | None = Field(
+        examples=["B wing, B-402"], description="Tower label and flat; no name or phone"
+    )
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In the Accept-Language language")
+    step: PackingStep
+    qty: int = Field(description="Steps")
+    status: KeptStatus
+    kept_at: datetime
+    packed_task_id: uuid.UUID | None = Field(description="The packing task that took it")
+    settled_at: datetime | None
+
+
+class KeptItemsOut(BaseModel):
+    items: list[KeptItemOut] = Field(description="By society, then flat")
+
+
+class ReturnedBagIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bag_qr: str = Field(max_length=60, examples=["GB1:0199a0000000700080000000000000ab"])
+
+
+class ReturnedBagOut(BaseModel):
+    order_id: uuid.UUID
+    society: PackingSociety
+    flat_label: str | None
+    kept: list[KeptItemOut] = Field(description="The household's items, kept on the shelf")
+    lots: list[LotOut] = Field(description="The rest of the bag: grade C, offered at 12:30")
+
+
+class LostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    note: str = Field(min_length=1, max_length=500, examples=["Not on the shelf at the count"])
+
+    _tidy_text = field_validator("note", mode="before")(_tidy)

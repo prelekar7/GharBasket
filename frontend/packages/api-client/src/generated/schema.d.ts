@@ -1415,6 +1415,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/kept-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's kept items by society and flat */
+        get: operations["list_kept_items_v1_hubs__hub_id__kept_items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/kept-items/{item_id}/lost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A kept item is lost: M4 refunds it, no fee (audited; Idempotency-Key) */
+        post: operations["lose_kept_item_v1_hubs__hub_id__kept_items__item_id__lost_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/packing-summary": {
         parameters: {
             query?: never;
@@ -1618,6 +1652,23 @@ export interface paths {
         get: operations["list_purchase_orders_v1_hubs__hub_id__purchase_orders_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/returned-bags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpack a bag back after a second miss: kept items and returned lots (Idempotency-Key) */
+        post: operations["scan_returned_bag_v1_hubs__hub_id__returned_bags_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4547,6 +4598,56 @@ export interface components {
             /** Items */
             items: components["schemas"]["gharbasket__modules__community__schemas__CaptainOut"][];
         };
+        /**
+         * CarriedItemOut
+         * @description A kept item riding on this order at no charge (M4 §3.8): "Kept from your box of 14 Oct".
+         */
+        CarriedItemOut: {
+            /**
+             * Carried From Order Id
+             * Format: uuid
+             */
+            carried_from_order_id: string;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Step Qty */
+            step_qty: number;
+            /**
+             * Step Unit
+             * @enum {string}
+             */
+            step_unit: "g" | "kg" | "ml" | "l" | "piece" | "bunch" | "pack";
+            /** Steps */
+            steps: number;
+        };
+        /**
+         * CarryOverOut
+         * @description What became of the non-perishables of a box missed twice (M4 §3.8).
+         */
+        CarryOverOut: {
+            /**
+             * Expires On
+             * Format: date
+             * @description Still pending then: refunded without the fee
+             */
+            expires_on: string;
+            /**
+             * Status
+             * @description Of its oldest unsettled item: pending (waiting for the next box), attached, packed, delivered or refunded
+             * @enum {string}
+             */
+            status: "pending" | "attached" | "packed" | "delivered" | "refunded";
+            /** To Order Id */
+            to_order_id: string | null;
+        };
         /** Categories */
         Categories: {
             /** Items */
@@ -6767,6 +6868,76 @@ export interface components {
              */
             scheduled_for?: string | null;
         };
+        /** KeptItemOut */
+        KeptItemOut: {
+            /**
+             * Carry Id
+             * Format: uuid
+             * @description M4's carry-over row
+             */
+            carry_id: string;
+            /**
+             * Flat Label
+             * @description Tower label and flat; no name or phone
+             * @example B wing, B-402
+             */
+            flat_label: string | null;
+            /**
+             * From Order Id
+             * Format: uuid
+             * @description The box that was missed twice
+             */
+            from_order_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kept At
+             * Format: date-time
+             */
+            kept_at: string;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Packed Task Id
+             * @description The packing task that took it
+             */
+            packed_task_id: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Qty
+             * @description Steps
+             */
+            qty: number;
+            /** Settled At */
+            settled_at: string | null;
+            /** Slug */
+            slug: string;
+            society: components["schemas"]["PackingSociety"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "kept" | "packed" | "released" | "lost";
+            step: components["schemas"]["PackingStep"];
+        };
+        /** KeptItemsOut */
+        KeptItemsOut: {
+            /**
+             * Items
+             * @description By society, then flat
+             */
+            items: components["schemas"]["KeptItemOut"][];
+        };
         /** KindOut */
         KindOut: {
             /** Category */
@@ -7277,6 +7448,14 @@ export interface components {
              * @example Your box has reached your society
              */
             title: string;
+        };
+        /** LostIn */
+        LostIn: {
+            /**
+             * Note
+             * @example Not on the shelf at the count
+             */
+            note: string;
         };
         /** LotDetailOut */
         LotDetailOut: {
@@ -7918,6 +8097,13 @@ export interface components {
         /** OrderOut */
         OrderOut: {
             /**
+             * Carried
+             * @description Kept items riding on this order, apart from `lines` and the total (§3.8)
+             */
+            carried?: components["schemas"]["CarriedItemOut"][];
+            /** @description A box missed twice: its carried items; null if none (§3.8) */
+            carry_over?: components["schemas"]["CarryOverOut"] | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -8100,6 +8286,12 @@ export interface components {
         };
         /** PackingLineOut */
         PackingLineOut: {
+            /**
+             * Carried
+             * @description A kept item riding on this box at no charge ("Kept item: from the shelf"): its own line, apart from a paid line of the same product; it takes no shortage
+             * @default false
+             */
+            carried: boolean;
             /**
              * Done
              * @description picked_qty + short_qty = qty
@@ -8683,6 +8875,12 @@ export interface components {
         };
         /** PickIn */
         PickIn: {
+            /**
+             * Carried
+             * @description The kept item's line (not needed if the product has no paid line)
+             * @default false
+             */
+            carried: boolean;
             /**
              * Client At
              * @description When the packer tapped (audit only; the server's time decides)
@@ -10693,6 +10891,35 @@ export interface components {
             /** Trainings */
             trainings: components["schemas"]["TrainingRequirement"][];
         };
+        /** ReturnedBagIn */
+        ReturnedBagIn: {
+            /**
+             * Bag Qr
+             * @example GB1:0199a0000000700080000000000000ab
+             */
+            bag_qr: string;
+        };
+        /** ReturnedBagOut */
+        ReturnedBagOut: {
+            /** Flat Label */
+            flat_label: string | null;
+            /**
+             * Kept
+             * @description The household's items, kept on the shelf
+             */
+            kept: components["schemas"]["KeptItemOut"][];
+            /**
+             * Lots
+             * @description The rest of the bag: grade C, offered at 12:30
+             */
+            lots: components["schemas"]["LotOut"][];
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            society: components["schemas"]["PackingSociety"];
+        };
         /** Review */
         Review: {
             /**
@@ -11200,6 +11427,12 @@ export interface components {
         };
         /** ShortageIn */
         ShortageIn: {
+            /**
+             * Carried
+             * @description The carried line of the product: 422 hub_ops.qty_invalid
+             * @default false
+             */
+            carried: boolean;
             /**
              * Client At
              * @description When the packer tapped (audit only; the server's time decides)
@@ -20091,6 +20324,145 @@ export interface operations {
             };
         };
     };
+    list_kept_items_v1_hubs__hub_id__kept_items_get: {
+        parameters: {
+            query?: {
+                status?: ("kept" | "packed" | "released" | "lost") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeptItemsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    lose_kept_item_v1_hubs__hub_id__kept_items__item_id__lost_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LostIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KeptItemOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.kept_item_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.kept_item_settled, hub_ops.kept_item_moved, orders.carry_not_refundable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.wallet_limit, request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     packing_summary_v1_hubs__hub_id__packing_summary_get: {
         parameters: {
             query?: {
@@ -21245,6 +21617,90 @@ export interface operations {
                 };
             };
             /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    scan_returned_bag_v1_hubs__hub_id__returned_bags_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnedBagIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReturnedBagOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.bag_unknown */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.bag_not_returned */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

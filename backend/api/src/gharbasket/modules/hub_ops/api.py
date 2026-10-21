@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import packing, service
+from gharbasket.modules.hub_ops import kept, packing, service
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
 from gharbasket.modules.orders import api as orders_api
 
@@ -85,7 +85,8 @@ async def anonymise_for_user(
     session: AsyncSession, user_id: uuid.UUID, household_id: uuid.UUID | None
 ) -> dict[str, int]:
     """M1's purge (M1 §3.5): packing tasks keep the bag and lose the flat copied from the
-    address; tasks and events the user worked on as a packer lose the user id."""
+    address; tasks and events the user worked on as a packer lose the user id; the household's
+    kept items still on the shelf are released into returned lots (§3.5) and lose their flat."""
     orders = (
         []
         if household_id is None
@@ -102,7 +103,11 @@ async def anonymise_for_user(
     acted = await session.execute(
         update(PackingEvent).where(PackingEvent.user_id == user_id).values(user_id=None)
     )
+    released, scrubbed = (
+        (0, 0) if household_id is None else await kept.release_household(session, household_id)
+    )
     return {
         "packing_tasks": flats.rowcount + packed.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
         "packing_events": acted.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
+        "kept_items": scrubbed + released,
     }
