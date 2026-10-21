@@ -142,7 +142,7 @@ POST /v1/dev/razorpay/pay             only with APP_ENV=dev or test (404 otherwi
 **For other modules** (`billing/api.py`, no HTTP). M4's cut-off and refunds call these inside their own transaction:
 - `balance(session, user_id) -> int`
 - `debit_for_order(session, user_id, order_id, amount_paise, delivery_date)` → one `box_debit` entry (wallet → unearned_revenue), keyed by the order id, so a retried cut-off never debits twice. It raises `InsufficientBalance` (code `billing.insufficient_balance`), which M4 turns into `PAYMENT_FAILED`.
-- `refund_to_wallet(session, user_id, order_id, amount_paise, reason)` → one `refund` entry (unearned_revenue → wallet), keyed by order id and reason. Order issues pass `reason="issue_<issue id hex>"` (M4 §3.2), so each issue is refunded at most once.
+- `refund_to_wallet(session, user_id, order_id, amount_paise, reason)` → one `refund` entry (unearned_revenue → wallet), keyed by order id and reason. Order issues pass `reason="issue_<issue id hex>"` (M4 §3.2), so each issue is refunded at most once. A refund the wallet cannot take goes to the payment source in the same call (§3.3, "Order refunds when the wallet is full"); `billing.wallet_limit` is left only for a refund the top-ups cannot take either.
 - `export_for_user(session, user_id) -> dict` → the user's wallet entries and top-ups for the data export (M1 §3.3).
 
 ### 3.2 Customer statement contract (frozen on 2026-10-08)
@@ -182,7 +182,7 @@ WalletOut  gains  "refundable_paise": 41000      what POST /v1/wallet/refund-to-
 
 RefundOut : {
   "id": "<uuid>", "amount_paise": 41000,
-  "reason": "customer" | "account_deleted",
+  "reason": "customer" | "account_deleted" | "order",   "order_id": "<uuid>" | null,
   "status": "pending" | "processing" | "processed" | "partly_failed" | "failed",
   "parts": [ { "topup_id", "razorpay_payment_id": "pay_…", "amount_paise": 20000,
                "status": "pending" | "sent" | "processed" | "failed",
@@ -228,7 +228,7 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 **Webhook** (the existing endpoint and dedupe, §3.1):
 - `refund.processed` sets the part to `processed`.
 - `refund.failed` sets it to `failed` and posts the `refund_to_source_failed` entry.
-- When every part is final, the refund is `processed` (all its money went back, a moved part included), `failed` (none of it) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, amount_paise, processed_paise, status }` goes to M11 (category money, link `/wallet`).
+- When every part is final, the refund is `processed` (all its money went back, a moved part included), `failed` (none of it) or `partly_failed`, and `billing.refund_to_source_settled { refund_id, user_id, order_id, amount_paise, processed_paise, status }` (`order_id` null except for an order refund, below) goes to M11 (category money, link `/wallet`).
 - New outcomes: `refund_processed`, `refund_failed`, `unknown_refund`. Refund events for the late over-cap refunds of §3.1 answer `already_settled`.
 
 **Rules**
@@ -245,6 +245,52 @@ billing.api.wallet_closed(session, user_id) -> bool        balance 0 and no part
 | 409 | `billing.refund_in_progress` | An earlier refund is not final (`refund_id`) |
 | 429 | `billing.too_many_refunds` | A fourth request in an IST day |
 | 404 | `billing.refund_not_found` | Unknown refund, or someone else's |
+
+#### Order refunds when the wallet is full (added 2026-10-21, frozen on approval)
+Before this, a refund for an order that would take the wallet past ₹10,000 raised `billing.wallet_limit` and moved nothing, so the customer's money waited. That affected M4's shortages, issue credits, moves to `refunded` and carry-over expiry, M6's lost kept items, and M7's triage (M7 §10). Now `refund_to_wallet` sends such a refund to the payment source itself. The signature, the key and the return value are unchanged, so **no caller changes**.
+
+```
+refund_to_wallet(session, user_id, order_id, amount_paise, reason) -> JournalEntry   (unchanged)
+  fits under the cap                        → the `refund` entry, as before
+  does not fit, the top-ups can take it all → the `refund` entry, plus a Refund (reason "order")
+                                              whose parts send the same amount back (below)
+  does not fit, the top-ups cannot          → 422 billing.wallet_limit { room_paise }, nothing moves
+
+RefundOut  gains  "order_id": "<uuid>" | null       set for reason "order"
+           reason gains "order"
+billing.refund_to_source_settled  gains  order_id (null for wallet refunds)
+```
+
+- **When.** It applies when balance + parts in flight + `amount_paise` would pass the cap, which is the same test as today. The **whole** refund then goes to the source, even when part of it would fit, so that one refund lives in one place.
+- **In one transaction, under the wallet's row lock:**
+  1. **The `refund` entry** (unearned_revenue → wallet) is posted as today. Every reader of order refunds (M4's `refunded_paise`, the statement's order refund line) stays as it is. Its `details` gain `"to_source": "<refund id>"`.
+  2. **A Refund** with `reason: "order"` and `order_id` is created. It is split over the user's paid top-ups the same way as above: newest first, within `RAZORPAY_REFUND_WINDOW_DAYS`, one part per top-up.
+  3. **One `refund_to_source` entry per part** (wallet → razorpay_clearing) is posted, so the wallet's balance ends where it started. The parts are sent by `send_refunds` and settled by the webhook like any other part.
+- **All or nothing.** If the top-ups cannot take the whole amount (they are older than the window, or already refunded), or the amount is under ₹1, the call raises `billing.wallet_limit` as before and posts nothing. The callers' existing handling (an issue left open, a row left `pending`, a triage attempt that waits) stays as the rare fallback.
+- **Once per order and reason.** The same call again finds the `refund:<order>:<reason>` entry and returns it. It creates no second Refund; the Refund's `idempotency_key` is `order:<order id>:<reason>`.
+- **Not a customer request.** The one-refund-in-progress and three-a-day rules don't apply, as for `close_wallet`. A customer's own request may run beside an order refund.
+- **A failed part** (`refund.failed`) is handled as follows:
+  - Its money goes back into the wallet (`refund_to_source_failed`) when it fits under the cap.
+  - When it doesn't fit, the money is moved once to another top-up that can take it, otherwise to `unclaimed` (`unclaimed:<part id>`). This is the same rule as for a deleting account.
+  - The money never stays in a wallet above ₹10,000.
+- **What the customer sees.**
+  - The wallet statement shows the order refund (positive, `ref` the order), followed by the `refund_to_source` parts (negative, `ref` the refund).
+  - `GET /v1/wallet/refunds` lists the refund with `reason: "order"` and its `order_id`.
+  - When it settles, `billing.refund_to_source_settled` tells M11. M11 says "₹X for your box went back to your UPI/card" and links to `/wallet`.
+- **Tests.**
+  - Fits → wallet, as before.
+  - Wallet full → one Refund with parts newest first and a balance unchanged.
+  - The same call twice → one Refund.
+  - Top-ups too old → `billing.wallet_limit` and nothing posted.
+  - A failed part on a full wallet goes to the next top-up, then to `unclaimed`.
+  - An order refund beside a customer's open refund is allowed.
+  - Each caller's wallet-full path refunds to the source end to end:
+    - an M4 shortage;
+    - an M4 issue credit;
+    - an M4 move to `refunded`;
+    - M4's `expire_carry_overs`;
+    - M6's `lost`;
+    - M7's triage `refund`.
 
 ### 3.4 Reconciliation contract (drafted 2026-10-09, frozen on approval)
 US-7 and handbook 13 ("an hourly job reconciles our records with Razorpay"). The console's Reconciliation page (admin) builds against this.
@@ -398,8 +444,8 @@ If the pilot keeps Autopay, its contract follows handbook 06 §6.5 (the mandate 
 | `billing.payment_webhooks` | id, provider, event_id (unique), payload jsonb, processed_at |
 | `billing.payouts` | id, partner_id, week (ISO, e.g. 2027-W03), period_from, period_to, amount_paise, status (held, pending, processing, processed, failed), hold_reason, provider (simulated, razorpay_route), provider_ref, entry_id, attempts, created_at, processed_at; unique (partner_id, week) |
 | `billing.points_lots` | id, user_id, points, remaining, earned_at, expires_at, source_type, source_id, entry_id; unique (source_type, source_id) |
-| `billing.refunds` | id, user_id, amount_paise, reason (customer, account_deleted), status, idempotency_key, created_at, settled_at (§3.3) |
-| `billing.refund_parts` | id, refund_id, payment_id → payments, replaces_part_id (a deleting account's failed part moved once), amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, next_attempt_at, last_error, entry_id, failed_entry_id, sent_at, settled_at |
+| `billing.refunds` | id, user_id, amount_paise, reason (customer, account_deleted, order), order_id (M4's order, for reason order; no foreign key across schemas), status, idempotency_key, created_at, settled_at (§3.3) |
+| `billing.refund_parts` | id, refund_id, payment_id → payments, replaces_part_id (a failed part moved once: a deleting account's, or an order refund's that does not fit back), amount_paise, status (pending, sent, processed, failed), provider_refund_id (unique), attempts, next_attempt_at, last_error, entry_id, failed_entry_id, sent_at, settled_at |
 | `billing.reconciliation_runs` | id, scheduled_for, window_from, window_to, status, checked, healed, opened, error, finished_at (§3.4) |
 | `billing.reconciliation_items` | id, run_id, kind, status (open, healed, resolved), razorpay_ref, topup_id, refund_part_id, user_id, expected_paise, actual_paise, first_seen_at, last_seen_at, resolved_by, resolution_note, resolved_at; one open item per (kind, razorpay_ref) |
 
