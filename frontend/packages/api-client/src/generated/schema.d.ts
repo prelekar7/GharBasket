@@ -20425,7 +20425,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description hub_ops.kept_item_settled, orders.carry_not_refundable */
+            /** @description hub_ops.kept_item_settled, hub_ops.kept_item_moved, orders.carry_not_refundable */
             409: {
                 headers: {
                     [name: string]: unknown;
