@@ -289,11 +289,13 @@ async def scan(
         order.household_id
     )
     tower_id, flat = (label.tower_id, label.flat) if label else (task.tower_id, task.flat)
+    shelved: list[orders_api.CarriedLine] = []
     for line in carried:
         if await session.scalar(
             select(KeptItem.id).where(KeptItem.carry_id == line.carry_id, KeptItem.status == "kept")
         ):
             continue  # already on the shelf from another bag: one item per carry
+        shelved.append(line)
         session.add(
             KeptItem(
                 hub_id=hub_id,
@@ -311,7 +313,8 @@ async def scan(
             )
         )
     await session.flush()
-    await _unpack_the_rest(session, hub_id, task, order, carried, by_user_id)
+    # What was not shelved (a second copy of an item already kept) is just goods: a returned lot.
+    await _unpack_the_rest(session, hub_id, task, order, shelved, by_user_id)
     return await _answer(session, task, order, lang)
 
 
@@ -361,23 +364,41 @@ async def _unpack_the_rest(
 # --- a lost kept item ----------------------------------------------------------------------------
 
 
+async def _lock_task(session: AsyncSession, order_id: uuid.UUID | None) -> PackingTask | None:
+    """The packing task of the order a row is on, row-locked and read afresh; None without one."""
+    if order_id is None:
+        return None
+    return await session.scalar(
+        select(PackingTask)
+        .where(PackingTask.order_id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
 async def lose(session: AsyncSession, item: KeptItem, note: str, by_user_id: uuid.UUID) -> KeptItem:
     """The hub manager reports a kept item lost: M4 refunds it at its paid price, no fee
-    (`orders.api.refund_carry`, which answers 409 `orders.carry_not_refundable` once a box has
-    it), and the item becomes `lost`. A lost item returns as is; a packed or released one is 409
-    `hub_ops.kept_item_settled`. The row was locked by the caller."""
+    (`orders.api.refund_carry`, which answers 409 `orders.carry_not_refundable` once its box is
+    packed), and the item becomes `lost`. This works while the box is `locked` or being picked.
+    A lost item returns as is; a packed or released one is 409 `hub_ops.kept_item_settled`. The
+    item was locked by the caller; the box's packing task is locked here before M4's rows (the
+    order everywhere: task, then carry rows)."""
     if item.status == "lost":
         return item
     if item.status != "kept":
         raise item_settled(item.status)
+    target = await orders_api.carry_target(session, item.carry_id)
+    task = await _lock_task(session, target)
     carry = await orders_api.refund_carry(session, item.carry_id, by_user_id)
     item.status, item.settled_at = "lost", datetime.now(UTC)
     await session.flush()
-    if carry.to_order_id is not None:  # it was riding on a box: that box no longer carries it
-        task = await packing.bag_for_order(session, carry.to_order_id)
-        if task is not None and task.status == "queued":
-            [summary] = await orders_api.summaries(session, [carry.to_order_id])
-            await packing.sync_carried(session, task, summary.carried)
+    # It was riding on a box: that box no longer carries it, whether its task is queued or being
+    # picked (a picked one is dropped too). The row moved meanwhile? Then the other box's task.
+    if carry.to_order_id is not None and carry.to_order_id != target:
+        task = await _lock_task(session, carry.to_order_id)
+    if task is not None and task.status != "packed":
+        [summary] = await orders_api.summaries(session, [task.order_id])
+        await packing.sync_carried(session, task, summary.carried)
     after: dict[str, Any] = {"status": "lost", "carry_id": str(item.carry_id), "note": note}
     await audit.record(
         session,

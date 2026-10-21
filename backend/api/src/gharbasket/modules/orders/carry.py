@@ -3,9 +3,9 @@ free, on the household's next box or add-on order, or are refunded after 14 days
 
 A carried item is a row of `orders.carry_overs`, never an order line, so it cannot collide with a
 paid line of the same product and does not count towards totals, debits, shortages or procurement.
-A row is `pending` (waiting for a box), `attached` to a locked box, `packed` when M6 packs it,
-`delivered` with that box, or `refunded` (expiry or the hub). If its box is missed twice too, it
-goes back to `pending` with its original expiry.
+A row is `pending` (waiting for a box), `attached` to a locked box, `packed` when that box is
+packed, `delivered` with that box, or `refunded` (expiry or the hub). If its box is missed twice
+too, it goes back to `pending` with its original expiry.
 
 This module does not import `service`: `service.transition` calls `follow` for the hooks.
 """
@@ -31,6 +31,7 @@ log = structlog.get_logger("gharbasket.orders.carry")
 
 CARRY_DAYS = 14
 OPEN = ("pending", "attached", "packed")  # not settled: the purge waits, the hub may be asked
+ON_A_BOX = ("attached", "packed")
 RIDING = ("attached", "packed", "delivered")  # what an order shows as `carried`
 IN_THE_BAG = ("pending", "attached")  # what a returned bag holds that nobody packed yet
 BOX_KINDS = ("box", "addon")
@@ -105,13 +106,20 @@ async def carry_over(
             rows[product_id] = row
         out.append(row)
     await session.flush()
+    await attach_to_next(session, order.household_id, order.delivery_date)
+    return out
+
+
+async def attach_to_next(session: AsyncSession, household_id: uuid.UUID, after: date) -> None:
+    """Attach the household's pending rows to its earliest box or add-on order that is already
+    `locked` and delivers after `after`, if there is one."""
     target = await session.scalar(
         select(Order)
         .where(
-            Order.household_id == order.household_id,
+            Order.household_id == household_id,
             Order.kind.in_(BOX_KINDS),
             Order.status == "locked",
-            Order.delivery_date > order.delivery_date,
+            Order.delivery_date > after,
         )
         .order_by(Order.delivery_date, Order.id)
         .limit(1)
@@ -119,7 +127,6 @@ async def carry_over(
     )
     if target is not None:
         await attach_pending(session, target)
-    return out
 
 
 async def attach_pending(session: AsyncSession, order: Order) -> list[CarryOver]:
@@ -165,28 +172,40 @@ async def attach_pending(session: AsyncSession, order: Order) -> list[CarryOver]
 
 async def follow(session: AsyncSession, order: Order, to_status: str) -> None:
     """The rows follow their order (`service.transition` calls this after every move of a box or
-    add-on order): a lock attaches pending rows, picking or packed packs the attached ones,
-    delivery settles them, and a refund of the order (missed twice) gives them back."""
+    add-on order): a lock attaches pending rows, `packed` packs the attached ones (while the box
+    is `locked` or `picking` the hub can still report a kept item lost), delivery settles them,
+    and a refund of the order gives them back, to ride on the next locked box if there is one.
+    The caller holds the order (and, for M6, its packing task) before the rows are locked."""
     if order.kind not in BOX_KINDS:
         return
     if to_status == "locked":
         await attach_pending(session, order)
         return
-    if to_status not in ("picking", "packed", "delivered", "refunded"):
+    if to_status not in ("packed", "delivered", "refunded"):
         return
-    rows = await session.scalars(
-        select(CarryOver).where(
-            CarryOver.to_order_id == order.id, CarryOver.status.in_(("attached", "packed"))
+    # Locked, with the status filter re-checked after any wait: a hub refund that committed first
+    # is not written over.
+    rows = list(
+        await session.scalars(
+            select(CarryOver)
+            .where(
+                CarryOver.to_order_id == order.id,
+                CarryOver.status.in_(("attached",) if to_status == "packed" else ON_A_BOX),
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
     )
     for row in rows:
-        if to_status in ("picking", "packed"):
+        if to_status == "packed":
             row.status = "packed"
         elif to_status == "delivered":
             row.status, row.settled_at = "delivered", _now()
         else:  # refunded: the bag is back at the hub, the item waits for the next box
             row.status, row.to_order_id, row.returned_in_order_id = "pending", None, order.id
     await session.flush()
+    if to_status == "refunded" and rows:
+        await attach_to_next(session, order.household_id, min(r.missed_on for r in rows))
 
 
 async def carried_for(
@@ -247,23 +266,31 @@ async def refunded_paise(session: AsyncSession, order_id: uuid.UUID) -> int:
     return int(total or 0)
 
 
-async def _refund(session: AsyncSession, row: CarryOver, by: str) -> None:
+class NoOwner(ValueError):
+    """The household has no owner to refund (a deleted account): nothing is changed."""
+
+
+async def _refund(session: AsyncSession, row: CarryOver, by: str) -> int:
     """The row's paid price back to the wallet, no fee, keyed by order and product so a repeat
-    moves no money; in a savepoint, so a refused refund (`billing.wallet_limit`) leaves no trace."""
-    if row.paid_paise > 0:
+    moves no money; in a savepoint, so a refused refund (`billing.wallet_limit`) leaves no trace.
+    Never more than is left to refund on the missed order (earlier credits count), so an order
+    never returns more than was paid. Returns the amount paid back."""
+    from gharbasket.modules.orders import service  # service imports this module
+
+    order = await session.get(Order, row.from_order_id)
+    assert order is not None
+    amount = min(row.paid_paise, await service.refundable_paise(session, order))
+    if amount > 0:
         owner = await identity_api.owner_of_household(session, row.household_id)
         if owner is None:
-            raise ValueError(f"household {row.household_id} has no owner")
+            raise NoOwner(f"household {row.household_id} has no owner")
         async with session.begin_nested():
             await billing_api.refund_to_wallet(
-                session,
-                owner,
-                row.from_order_id,
-                row.paid_paise,
-                reason=f"carry_{row.product_id.hex}",
+                session, owner, row.from_order_id, amount, reason=f"carry_{row.product_id.hex}"
             )
     row.status, row.refunded_by, row.settled_at = "refunded", by, _now()
     await session.flush()
+    return amount
 
 
 async def refund_carry(
@@ -273,7 +300,12 @@ async def refund_carry(
     already `refunded` row returns as is; a `packed` or `delivered` one is 409
     `orders.carry_not_refundable` with `current_status` (RFC 9457 keeps `status` for the HTTP
     code). `billing.wallet_limit` is raised as is."""
-    row = await session.scalar(select(CarryOver).where(CarryOver.id == carry_id).with_for_update())
+    row = await session.scalar(
+        select(CarryOver)
+        .where(CarryOver.id == carry_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if row is None:
         raise ProblemError(404, "orders.carry_not_found", "No such carried item.")
     if row.status == "refunded":
@@ -293,7 +325,8 @@ async def refund_carry(
 async def expire(session: AsyncSession, day: date) -> dict[str, Any]:
     """The daily job's work: refund every `pending` row that expired before `day` (14 days after
     the miss), one savepoint each, and publish `orders.carry_over_expired` per missed order. A
-    wallet that cannot take a refund leaves its row `pending` for the next run."""
+    wallet that cannot take a refund (`wallet_limit`), or a household with no owner left
+    (`no_owner`), leaves its row `pending`; the others are refunded all the same."""
     rows = list(
         await session.scalars(
             select(CarryOver)
@@ -303,10 +336,14 @@ async def expire(session: AsyncSession, day: date) -> dict[str, Any]:
         )
     )
     done: dict[uuid.UUID, list[CarryOver]] = {}
-    wallet_limit = 0
+    paid = wallet_limit = no_owner = 0
     for row in rows:
         try:
-            await _refund(session, row, "expiry")
+            paid += await _refund(session, row, "expiry")
+        except NoOwner:
+            log.warning("carry_expiry_no_owner", carry_id=str(row.id))
+            no_owner += 1
+            continue
         except ProblemError as refused:
             if refused.code != "billing.wallet_limit":
                 raise
@@ -337,8 +374,9 @@ async def expire(session: AsyncSession, day: date) -> dict[str, Any]:
     return {
         "date": day.isoformat(),
         "refunded": sum(len(r) for r in done.values()),
-        "refunded_paise": sum(r.paid_paise for rs in done.values() for r in rs),
+        "refunded_paise": paid,
         "wallet_limit": wallet_limit,
+        "no_owner": no_owner,
     }
 
 
