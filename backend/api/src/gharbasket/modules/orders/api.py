@@ -84,6 +84,7 @@ __all__ = [
     "cancel_from_cycle",
     "carried_lines",
     "carry_over",
+    "carry_target",
     "create_from_cycle",
     "cutoff_for",
     "export_for_user",
@@ -182,6 +183,12 @@ async def carried_lines(session: AsyncSession, order_id: uuid.UUID) -> list[Carr
     """The items in that order's returned bag (M6's scan, M6 §3.5): carried from it, or carried
     in it and back after its own second miss; neither packed nor refunded yet."""
     return await carry.carried_lines(session, order_id)
+
+
+async def carry_target(session: AsyncSession, carry_id: uuid.UUID) -> uuid.UUID | None:
+    """The order a carry row is attached to (or riding, packed), if any: M6's lost-item action
+    locks that order's packing task before it calls `refund_carry`. A plain read."""
+    return await session.scalar(select(CarryOver.to_order_id).where(CarryOver.id == carry_id))
 
 
 async def refund_carry(
