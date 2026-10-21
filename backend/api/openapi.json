@@ -35911,7 +35911,7 @@
                 }
               }
             },
-            "description": "hub_ops.kept_item_settled, orders.carry_not_refundable"
+            "description": "hub_ops.kept_item_settled, hub_ops.kept_item_moved, orders.carry_not_refundable"
           },
           "422": {
             "content": {
