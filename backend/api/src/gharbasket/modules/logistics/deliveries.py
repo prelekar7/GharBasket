@@ -616,7 +616,8 @@ async def schedule_day(session: AsyncSession, day: date) -> dict[str, int]:
                     payload={"second_miss": True, "refund_paise": amount, "non_perishable": kept},
                 )
             )
-        if kept:  # waiting for M4's carry_over and M6's kept items (spec §10)
+        if kept:  # M4 keeps them for the next box (M4 §3.8); the event stays M7's record
+            await orders_api.carry_over(session, order.id, kept)
             await publish(
                 session,
                 events.CARRY_OVER_PENDING,

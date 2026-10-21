@@ -13,12 +13,14 @@ from fastapi.sse import EventSourceResponse
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.catalog.api import step_label
 from gharbasket.modules.identity import api as identity_api
-from gharbasket.modules.orders import issues, live, service, tiffins, triage
+from gharbasket.modules.orders import carry, issues, live, service, tiffins, triage
 from gharbasket.modules.orders import jobs as _jobs  # noqa: F401 (registers jobs, consumers)
 from gharbasket.modules.orders import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.orders.models import Order, OrderIssue, Slot
 from gharbasket.modules.orders.schemas import (
     AddonsIn,
+    CarriedItemOut,
+    CarryOverOut,
     DishOut,
     IssueContact,
     IssueIn,
@@ -146,9 +148,12 @@ async def _summary(session: DbSession, order: Order, slot: Slot | None = None) -
 
 async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
     lines = await service.lines_of(session, order.id)
-    ids = {line.product_id for line in lines} | {
-        line.substituted_from for line in lines if line.substituted_from is not None
-    }
+    riding = (await carry.carried_for(session, [order.id]))[order.id]
+    ids = (
+        {line.product_id for line in lines}
+        | {line.substituted_from for line in lines if line.substituted_from is not None}
+        | {item.product_id for item in riding}
+    )
     products = await catalog_api.line_products(session, list(ids))
     out_lines = []
     for line in lines:
@@ -196,8 +201,34 @@ async def _full(session: DbSession, order: Order, lang: Language) -> OrderOut:
         if order.kitchen_partner_id is None
         else KitchenRef(partner_id=order.kitchen_partner_id)
     )
+    carried = [
+        CarriedItemOut(
+            product_id=item.product_id,
+            name=localised(products[item.product_id].names, lang)
+            if item.product_id in products
+            else "",
+            steps=item.steps,
+            step_qty=item.step_qty,
+            step_unit=item.step_unit,  # pyright: ignore[reportArgumentType]
+            carried_from_order_id=item.carried_from_order_id,
+        )
+        for item in riding
+    ]
+    kept = await carry.state_of(session, order.id)
     return OrderOut(
-        **summary.model_dump(), lines=out_lines, timeline=timeline, tiffin=tiffin, kitchen=kitchen
+        **summary.model_dump(),
+        lines=out_lines,
+        carried=carried,
+        carry_over=None
+        if kept is None
+        else CarryOverOut(
+            status=kept.status,  # pyright: ignore[reportArgumentType]
+            expires_on=kept.expires_on,
+            to_order_id=kept.to_order_id,
+        ),
+        timeline=timeline,
+        tiffin=tiffin,
+        kitchen=kitchen,
     )
 
 

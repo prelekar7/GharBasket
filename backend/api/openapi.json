@@ -2165,6 +2165,99 @@
         "title": "CaptainsOut",
         "type": "object"
       },
+      "CarriedItemOut": {
+        "description": "A kept item riding on this order at no charge (M4 §3.8): \"Kept from your box of 14 Oct\".",
+        "properties": {
+          "carried_from_order_id": {
+            "format": "uuid",
+            "title": "Carried From Order Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "step_qty": {
+            "title": "Step Qty",
+            "type": "integer"
+          },
+          "step_unit": {
+            "enum": [
+              "g",
+              "kg",
+              "ml",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Step Unit",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "name",
+          "steps",
+          "step_qty",
+          "step_unit",
+          "carried_from_order_id"
+        ],
+        "title": "CarriedItemOut",
+        "type": "object"
+      },
+      "CarryOverOut": {
+        "description": "What became of the non-perishables of a box missed twice (M4 §3.8).",
+        "properties": {
+          "expires_on": {
+            "description": "Still pending then: refunded without the fee",
+            "format": "date",
+            "title": "Expires On",
+            "type": "string"
+          },
+          "status": {
+            "description": "Of its oldest unsettled item: pending (waiting for the next box), attached, packed, delivered or refunded",
+            "enum": [
+              "pending",
+              "attached",
+              "packed",
+              "delivered",
+              "refunded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Order Id"
+          }
+        },
+        "required": [
+          "status",
+          "expires_on",
+          "to_order_id"
+        ],
+        "title": "CarryOverOut",
+        "type": "object"
+      },
       "Categories": {
         "properties": {
           "items": {
@@ -10215,6 +10308,25 @@
       },
       "OrderOut": {
         "properties": {
+          "carried": {
+            "description": "Kept items riding on this order, apart from `lines` and the total (§3.8)",
+            "items": {
+              "$ref": "#/components/schemas/CarriedItemOut"
+            },
+            "title": "Carried",
+            "type": "array"
+          },
+          "carry_over": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CarryOverOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A box missed twice: its carried items; null if none (§3.8)"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
