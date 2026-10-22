@@ -498,9 +498,9 @@ async def test_purchase_orders_per_vendor_are_drafts_until_sent_by_hand(
     assert (ordered.status_code, ordered.json()["code"]) == (409, "hub_ops.line_ordered")
     sent_events = (
         await db_session.execute(
-            select(OutboxEvent.payload).where(
-                OutboxEvent.event_type == "hub_ops.purchase_order_sent"
-            )
+            select(OutboxEvent.payload)
+            .where(OutboxEvent.event_type == "hub_ops.purchase_order_sent")
+            .order_by(OutboxEvent.id)
         )
     ).scalars()
     assert [(e["number"], e["lines_count"], e["total_paise"]) for e in sent_events] == [
