@@ -15,11 +15,18 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from gharbasket.main import create_app
 from gharbasket.modules.registry import load_modules
-from gharbasket.platform.db import DbSession, create_engine, get_session, is_local_database
+from gharbasket.platform.db import (
+    DbSession,
+    asyncpg_url,
+    create_engine,
+    get_session,
+    is_local_database,
+)
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.settings import Settings, use_settings
 from gharbasket.platform.valkey import create_valkey
@@ -111,6 +118,12 @@ def _quote(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+# CREATE and DROP DATABASE can take longer than the app's 15 s statement limit when other test
+# runs share the server (the drop waits for the terminated sessions and removes the files), so
+# they get a limit of their own instead of failing a test at random.
+SERVER_DDL_TIMEOUT = 180
+
+
 def run_on_server(base_url: str, sql: str) -> None:
     """Run one statement outside any transaction on the server's `postgres` database."""
 
@@ -118,7 +131,12 @@ def run_on_server(base_url: str, sql: str) -> None:
         admin_url = (
             make_url(base_url).set(database="postgres").render_as_string(hide_password=False)
         )
-        engine = create_engine(admin_url, pooled=False)
+        url, connect_args = asyncpg_url(admin_url)
+        engine = create_async_engine(
+            url,
+            connect_args={**connect_args, "command_timeout": SERVER_DDL_TIMEOUT},
+            poolclass=NullPool,
+        )
         try:
             async with engine.connect() as connection:
                 await connection.execution_options(isolation_level="AUTOCOMMIT")

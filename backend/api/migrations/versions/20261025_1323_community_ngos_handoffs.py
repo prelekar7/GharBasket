@@ -3,7 +3,7 @@
 Also the foreign keys the earlier tables promised: donation_drives.ngo_id and donations.handoff_id.
 
 Revision ID: a9390a28e336
-Revises: c4e7a1f9d2b6
+Revises: a3c7e5f19b20
 Create Date: 2026-10-25 13:23:52.949965+00:00
 """
 
@@ -14,7 +14,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "a9390a28e336"
-down_revision: str | Sequence[str] | None = "c4e7a1f9d2b6"
+down_revision: str | Sequence[str] | None = "a3c7e5f19b20"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

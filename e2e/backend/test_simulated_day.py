@@ -469,6 +469,32 @@ def test_the_small_hours_before_the_cut_off_run_the_weekly_and_nightly_jobs(
     assert summaries["monitor_drift"]["drifted"] == 0, summaries
 
 
+def test_monday_morning_pays_the_partners_last_week_once(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Monday T-1 10:00 IST (M5 §3.5): `weekly_payouts` pays what partners were owed up to Sunday
+    through the simulated provider and holds those who cannot be paid yet (the seed's captains
+    have no KYC application); a second run pays nothing more. `payouts_match_the_ledger` checks
+    the money at the end of the day."""
+    monday = day.t - timedelta(days=1)
+
+    async def go() -> tuple[dict[str, Any], dict[str, Any]]:
+        first = await app.job("weekly_payouts", ist(monday, 10, 0))
+        again = await app.job("weekly_payouts", ist(monday, 10, 5))
+        await app.sweep(ist(monday, 10, 10))
+        return first, again
+
+    first, again = step(loop, ist(monday, 10, 0), go())
+    assert (first["failed"], first["send_failed"], first["refused"]) == (0, 0, 0), first
+    assert first["processed"] == first["pending"] + first["retried"], first
+    assert (again["pending"], again["held"], again["processed"], again["failed"]) == (0, 0, 0, 0)
+    assert again["existing"] == first["pending"] + first["held"], again
+    entries = loop.run(
+        scalar(config, "SELECT count(*) FROM billing.journal_entries WHERE kind = 'payout'")
+    )
+    assert entries == first["pending"] + first["retried"], (entries, first)
+
+
 def test_reminders_go_to_unapproved_boxes_that_will_not_auto_approve(
     config: Config, app: App, day: Day, loop: Runner
 ) -> None:

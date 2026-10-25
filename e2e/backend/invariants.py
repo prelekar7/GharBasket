@@ -397,6 +397,58 @@ async def cycles_match_their_orders(session: AsyncSession) -> list[str]:
     return out
 
 
+async def payouts_match_the_ledger(session: AsyncSession) -> list[str]:
+    """Partner payouts and the ledger agree (M5 §3.5): payout_clearing holds minus what was sent
+    out and not reversed, which is the sum of the rows that are pending, processing or processed;
+    each such row's entry is a `payout` of its amount out of its partner's payable; a held row
+    has no entry; and no partner_payable is below zero."""
+    out: list[str] = []
+    totals = await _rows(
+        session,
+        """
+        SELECT (SELECT coalesce(-sum(p.amount), 0) FROM billing.postings p
+                JOIN billing.ledger_accounts a ON a.id = p.account_id
+                WHERE a.code = 'payout_clearing' AND a.owner_type = 'platform') AS cleared,
+               (SELECT coalesce(sum(amount_paise), 0) FROM billing.payouts
+                WHERE status IN ('pending', 'processing', 'processed')) AS sent
+        """,
+    )
+    if int(totals[0].cleared) != int(totals[0].sent):
+        out.append(f"payout_clearing holds -{totals[0].cleared}; payouts sent {totals[0].sent}")
+    for r in await _rows(
+        session,
+        """
+        SELECT po.id, po.status, po.amount_paise, e.kind, a.owner_id, p.amount
+        FROM billing.payouts po
+        LEFT JOIN billing.journal_entries e ON e.id = po.entry_id
+        LEFT JOIN billing.postings p ON p.entry_id = e.id
+        LEFT JOIN billing.ledger_accounts a ON a.id = p.account_id AND a.code = 'partner_payable'
+        WHERE po.status IN ('pending', 'processing', 'processed')
+          AND (a.id IS NOT NULL OR e.id IS NULL)
+          AND (e.kind IS DISTINCT FROM 'payout' OR a.owner_id IS DISTINCT FROM po.partner_id
+               OR p.amount IS DISTINCT FROM po.amount_paise)
+        """,
+    ):
+        out.append(f"payout {r.id} ({r.status}, {r.amount_paise}) has entry {r.kind} {r.amount}")
+    for r in await _rows(
+        session,
+        "SELECT id FROM billing.payouts WHERE status = 'held' AND attempts = 0"
+        " AND entry_id IS NOT NULL",
+    ):
+        out.append(f"held payout {r.id} has an entry")
+    for r in await _rows(
+        session,
+        """
+        SELECT a.owner_id, -sum(p.amount) AS owed FROM billing.ledger_accounts a
+        JOIN billing.postings p ON p.account_id = a.id
+        WHERE a.code = 'partner_payable' AND a.owner_type = 'partner'
+        GROUP BY a.owner_id HAVING -sum(p.amount) < 0
+        """,
+    ):
+        out.append(f"partner_payable of {r.owner_id} is {r.owed}")
+    return out
+
+
 ALL: dict[str, Check] = {
     "ledger_entries_balance": ledger_entries_balance,
     "ledger_accounts_consistent": ledger_accounts_consistent,
@@ -408,4 +460,5 @@ ALL: dict[str, Check] = {
     "one_message_per_event_and_person": one_message_per_event_and_person,
     "routed_events_have_their_message": routed_events_have_their_message,
     "stock_equals_its_moves": stock_equals_its_moves,
+    "payouts_match_the_ledger": payouts_match_the_ledger,
 }

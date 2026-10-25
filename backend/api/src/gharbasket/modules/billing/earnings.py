@@ -3,8 +3,8 @@
 Each earning is one entry, `fulfilment_expense` to `partner_payable:<partner>`, keyed by partner,
 basis and order, so a redelivered event never pays twice. The basis, the units and the time the
 work was done (`earned_at`) are kept in the entry's `details`, and the views below read them back:
-the week of one or more partner records, and the rolling total M8's fair assignment needs.
-Payouts (the weekly job that pays `partner_payable` out) are not built yet.
+the week of one or more partner records with that week's payouts (payouts.py), and the rolling
+total M8's fair assignment needs.
 """
 
 import uuid
@@ -16,7 +16,8 @@ from sqlalchemy import DateTime, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing import service
-from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Posting
+from gharbasket.modules.billing.models import JournalEntry, LedgerAccount, Payout, Posting
+from gharbasket.modules.billing.schemas import PayoutOut, PayoutPeriod
 from gharbasket.modules.billing.service import Leg
 from gharbasket.modules.billing.wallet import IST
 
@@ -58,7 +59,7 @@ class PartnerWeek:
     by_basis: list[BasisTotal]
     days: list[DayTotal]  # seven, zeros included
     entries: list[EarningEntry]  # newest first
-    payouts: list[Any]  # M5's PayoutOut once payouts are built; none are paid out yet
+    payouts: list[PayoutOut]  # that week's payouts of these partners, by partner
 
 
 async def accrue_earning(
@@ -171,8 +172,39 @@ async def partner_week(
         by_basis=[BasisTotal(p, b, u, a) for (p, b), (u, a) in sorted(totals.items(), key=str)],
         days=[DayTotal(day, amount) for day, amount in per_day.items()],
         entries=entries,
-        payouts=[],
+        payouts=await week_payouts(session, partner_ids, week),
     )
+
+
+def payout_out(payout: Payout) -> PayoutOut:
+    return PayoutOut(
+        id=payout.id,
+        partner_id=payout.partner_id,
+        hub_id=payout.hub_id,
+        week=payout.week,
+        period=PayoutPeriod.model_validate({"from": payout.period_from, "to": payout.period_to}),
+        amount_paise=payout.amount_paise,
+        status=payout.status,  # pyright: ignore[reportArgumentType]
+        hold_reason=payout.hold_reason,  # pyright: ignore[reportArgumentType]
+        provider=payout.provider,  # pyright: ignore[reportArgumentType]
+        provider_ref=payout.provider_ref,
+        created_at=payout.created_at,
+        processed_at=payout.processed_at,
+    )
+
+
+async def week_payouts(
+    session: AsyncSession, partner_ids: list[uuid.UUID], week: str
+) -> list[PayoutOut]:
+    """The payout rows of one ISO week for these partner records (at most one each)."""
+    if not partner_ids:
+        return []
+    rows = await session.execute(
+        select(Payout)
+        .where(Payout.partner_id.in_(partner_ids), Payout.week == week)
+        .order_by(Payout.partner_id)
+    )
+    return [payout_out(payout) for payout in rows.scalars()]
 
 
 async def partner_rolling_earnings(

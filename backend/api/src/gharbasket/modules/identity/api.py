@@ -37,6 +37,23 @@ async def households_in_society(session: AsyncSession, society_id: uuid.UUID) ->
     return count.scalar_one()
 
 
+async def households_in_societies(
+    session: AsyncSession, society_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, int]:
+    """`households_in_society` for many societies in one query (M12's societies table); a
+    society without households is 0."""
+    ids = list(set(society_ids))
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.society_id, func.count())
+        .where(Household.society_id.in_(ids))
+        .group_by(Household.society_id)
+    )
+    counts = {society_id: int(n) for society_id, n in rows.all()}
+    return {society_id: counts.get(society_id, 0) for society_id in ids}
+
+
 async def household_hub(session: AsyncSession, user_id: uuid.UUID) -> uuid.UUID | None:
     """The hub that serves this user's household (for prices, M2); None without one."""
     hub = await session.execute(select(Household.hub_id).where(Household.owner_user_id == user_id))

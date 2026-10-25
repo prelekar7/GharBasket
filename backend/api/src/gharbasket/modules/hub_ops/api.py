@@ -2,7 +2,8 @@
 
 M6 owns hub ids (ADR-0026 §5): other modules keep them as plain UUIDs and look hubs up here.
 M12 pulls `hub_day_facts` for its analytics refresh (M12 §3.1); M7 and M8 tag their hub-level
-facts with `hub_data_sources`.
+facts with `hub_data_sources`. Its today board reads `packing_progress` and `inbound_progress`
+(M12 §3.3).
 """
 
 import uuid
@@ -17,6 +18,13 @@ from gharbasket.modules.hub_ops import events, kept, packing, service, surplus, 
 from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask, SurplusOffer, WasteLog
 from gharbasket.modules.hub_ops.surplus import Taker
+from gharbasket.modules.hub_ops.today import (
+    InboundProgress,
+    PackingProgress,
+    ShortProduct,
+    inbound_progress,
+    packing_progress,
+)
 from gharbasket.modules.orders import api as orders_api
 
 # What M8 (kitchens) and M9 (NGOs) consume: { offer_id, hub_id, lot_id, product_id, qty, unit,
@@ -28,8 +36,11 @@ __all__ = [
     "BagRef",
     "HubDayFact",
     "HubRef",
+    "InboundProgress",
     "OfferRef",
+    "PackingProgress",
     "SettleResult",
+    "ShortProduct",
     "SocietyLoad",
     "Taker",
     "WasteDay",
@@ -40,7 +51,9 @@ __all__ = [
     "get_hub",
     "hub_data_sources",
     "hub_day_facts",
+    "inbound_progress",
     "open_surplus_offers",
+    "packing_progress",
     "settle_surplus",
     "society_loads",
     "waste_summary",

@@ -7,16 +7,17 @@ transaction where they don't, and entries and postings can never be updated or d
 
 Also the top-up payments and the Razorpay webhooks that settle them (spec §3.1), the lots of
 Kindness points with their expiry (§3.6), refunds of wallet money to the payments it came from
-(§3.3), and the hourly reconciliation with Razorpay (§3.4).
+(§3.3), the hourly reconciliation with Razorpay (§3.4), and partners' weekly payouts (§3.5).
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -54,8 +55,11 @@ ENTRY_KINDS = (
     "unclaimed",
     # What a partner is owed for work on an order (M5 §3.5).
     "earning",
+    # A weekly payout of what a partner is owed, and its reversal when the provider fails it.
+    "payout",
+    "payout_reversed",
 )
-REF_TYPES = ("topup", "order", "donation", "referral", "refund")
+REF_TYPES = ("topup", "order", "donation", "referral", "refund", "payout")
 PROVIDERS = ("razorpay", "dev")
 PAYMENT_PURPOSES = ("topup",)
 # Stored states; "expired" is shown for a "created" top-up past `expires_at` (spec §3.1).
@@ -76,6 +80,13 @@ RECON_KINDS = (
 )
 RECON_STATUSES = ("open", "healed", "resolved")
 RUN_STATUSES = ("ok", "skipped", "failed")
+PAYOUT_STATUSES = ("held", "pending", "processing", "processed", "failed")
+HOLD_REASONS = ("kyc_incomplete", "suspended", "no_payout_account")
+PAYOUT_PROVIDERS = ("simulated", "razorpay_route")
+# Money is out of partner_payable (a `payout` entry stands, not reversed).
+PAYOUT_SENT = ("pending", "processing", "processed")
+# Money is back in (or never left) partner_payable and waits for the next run or a retry.
+PAYOUT_OPEN = ("held", "failed")
 
 
 def _one_of(column: str, values: tuple[str, ...]) -> str:
@@ -349,3 +360,50 @@ class ReconciliationItem(Base):
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     resolution_note: Mapped[str | None] = mapped_column(String(500))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Payout(Base):
+    """One partner's payout for one ISO week (spec §3.5): `held` with a reason and nothing posted,
+    or `pending` with its `payout` entry (partner_payable → payout_clearing) until the provider
+    answers `processed` or `failed` (then a `payout_reversed` entry puts the money back)."""
+
+    __tablename__ = "payouts"
+    __table_args__ = (
+        CheckConstraint(_one_of("status", PAYOUT_STATUSES), name="status"),
+        CheckConstraint(
+            f"hold_reason IS NULL OR {_one_of('hold_reason', HOLD_REASONS)}", name="hold_reason"
+        ),
+        CheckConstraint("(status = 'held') = (hold_reason IS NOT NULL)", name="held"),
+        CheckConstraint(_one_of("provider", PAYOUT_PROVIDERS), name="provider"),
+        CheckConstraint("amount_paise > 0", name="amount_paise"),
+        CheckConstraint("period_to = period_from + 6", name="period"),
+        CheckConstraint(
+            f"status NOT IN ({', '.join(repr(s) for s in PAYOUT_SENT)}) OR entry_id IS NOT NULL",
+            name="entry_id",
+        ),
+        UniqueConstraint("partner_id", "week"),
+        Index(None, "hub_id", "week"),
+        Index(None, "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, server_default=text("uuidv7()"))
+    # M8's partner and her hub when the row was made; no foreign keys across schemas.
+    partner_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    hub_id: Mapped[uuid.UUID] = mapped_column(Uuid)
+    week: Mapped[str] = mapped_column(String(8))  # ISO week, "2027-W03"
+    period_from: Mapped[date] = mapped_column(Date)  # its Monday (IST)
+    period_to: Mapped[date] = mapped_column(Date)  # its Sunday
+    amount_paise: Mapped[int] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(String(16))
+    hold_reason: Mapped[str | None] = mapped_column(String(24))
+    provider: Mapped[str] = mapped_column(String(16))
+    provider_ref: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # The latest `payout` entry (a retry after a failure posts a new one).
+    entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(f"{SCHEMA}.journal_entries.id", ondelete="RESTRICT")
+    )
+    # How many times the money was sent out (each a `payout` entry of its own).
+    attempts: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

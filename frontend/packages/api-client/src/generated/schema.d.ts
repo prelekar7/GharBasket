@@ -296,6 +296,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin: partner payouts, newest first; a hub manager reads her hubs' (read-only) */
+        get: operations["list_payouts_v1_admin_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payout_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin: pay a held or failed payout again once its reason is fixed (audit-logged) */
+        post: operations["retry_payout_v1_admin_payouts__payout_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/point-rates/{code}": {
         parameters: {
             query?: never;
@@ -547,6 +581,57 @@ export interface paths {
         };
         /** Every model's newest metrics, per-hub drift and the ML-or-fallback share (admin) */
         get: operations["ai_health_v1_analytics_ai_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/hubs/{hub_id}/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin) */
+        get: operations["hub_today_v1_analytics_hubs__hub_id__today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** KPI series per day or ISO week, from the daily view (hub manager, franchise owner, admin; only an admin may leave the hub out) */
+        get: operations["kpi_series_v1_analytics_kpis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/societies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out) */
+        get: operations["society_table_v1_analytics_societies_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2964,6 +3049,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's weekly payouts (every partner record she has), newest first */
+        get: operations["my_payouts_v1_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -4045,6 +4147,64 @@ export interface components {
             /** Items */
             items: components["schemas"]["AdminFestival"][];
         };
+        /** AdminPayoutOut */
+        AdminPayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description Null if the partner record is gone */
+            partner: components["schemas"]["PayoutPartner"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
+        };
         /** AdminProduct */
         AdminProduct: {
             /** Active */
@@ -4565,6 +4725,59 @@ export interface components {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
         };
+        /** BoardAttentionOut */
+        BoardAttentionOut: {
+            /** Count */
+            count: number;
+            /** Due At */
+            due_at: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "issue_open" | "payment_failed" | "shortage" | "plan_needs_review" | "delivery_held" | "donations_to_verify" | "surplus_open" | "society_live";
+            /**
+             * Link
+             * @description A console route, never a URL with a token
+             */
+            link: string;
+            /** Oldest At */
+            oldest_at: string | null;
+        };
+        /** BoardBoxesOut */
+        BoardBoxesOut: {
+            /** By Society */
+            by_society: components["schemas"]["SocietyBoxesOut"][];
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /**
+             * Locked
+             * @description Boxes the cut-off locked (and any status after locked)
+             */
+            locked: number;
+            /**
+             * Total
+             * @description Boxes of the day, not cancelled
+             */
+            total: number;
+        };
+        /** BoardDeliveriesOut */
+        BoardDeliveriesOut: {
+            /** At Society */
+            at_society: number;
+            /** Delivered */
+            delivered: number;
+            /** Held */
+            held: number;
+            /**
+             * Undelivered
+             * @description Failed attempts, whatever happened to them since
+             */
+            undelivered: number;
+        };
         /** BoardMealOut */
         BoardMealOut: {
             /** Accepted */
@@ -4591,6 +4804,36 @@ export interface components {
             ready: number;
             /** Unassigned */
             unassigned: components["schemas"]["BoardUnassignedOut"][];
+        };
+        /** BoardPackingOut */
+        BoardPackingOut: {
+            /** Bags Packed */
+            bags_packed: number;
+            /** Bags Total */
+            bags_total: number;
+            /**
+             * Finished At
+             * @description When the last bag was packed, once all are
+             */
+            finished_at: string | null;
+        };
+        /** BoardRoutesOut */
+        BoardRoutesOut: {
+            /** Completed */
+            completed: number;
+            /** Late Stops */
+            late_stops: number;
+            /** Planned */
+            planned: number;
+            /** Started */
+            started: number;
+            /**
+             * Stops Done
+             * @description Handed over or skipped
+             */
+            stops_done: number;
+            /** Stops Total */
+            stops_total: number;
         };
         /** BoardRunOut */
         BoardRunOut: {
@@ -4620,6 +4863,44 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** BoardShortageOut */
+        BoardShortageOut: {
+            /**
+             * Bags
+             * @description Bags with at least one step of it short
+             */
+            bags: number;
+            /**
+             * Name
+             * @description In the caller's language (`Accept-Language`)
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** BoardStepOut */
+        BoardStepOut: {
+            /**
+             * Due At
+             * @description IST HH:MM; the cut-off's is the day before
+             */
+            due_at: string | null;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "cutoff" | "procurement" | "receiving" | "packing" | "dispatch" | "delivery" | "surplus";
+            /** Note */
+            note: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "current" | "issue" | "todo";
+        };
         /** BoardUnassignedOut */
         BoardUnassignedOut: {
             /**
@@ -4635,6 +4916,21 @@ export interface components {
              */
             reason: string;
             society: components["schemas"]["gharbasket__modules__partners__schemas__SocietyRef"];
+        };
+        /** BoardWasteOut */
+        BoardWasteOut: {
+            /**
+             * Kg
+             * @description Wasted that day (cascade to the bin)
+             */
+            kg: number;
+            /**
+             * Previous Date
+             * @description The newest earlier day with sales or waste
+             */
+            previous_date: string | null;
+            /** Previous Kg */
+            previous_kg: number | null;
         };
         /** BudgetLockIn */
         BudgetLockIn: {
@@ -5714,6 +6010,19 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** EarningOrderRef */
+        EarningOrderRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "order";
+        };
         /** EarningOut */
         EarningOut: {
             /** Amount Paise */
@@ -5783,6 +6092,154 @@ export interface components {
             /** Units */
             units: number;
         };
+        /**
+         * EarningsPayoutOut
+         * @description M5's PayoutOut (M5 §3.5) and the kind of the partner record it pays.
+         */
+        EarningsPayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
+        };
+        /** EarningsStatementEntry */
+        EarningsStatementEntry: {
+            /**
+             * Amount Paise
+             * @description Into what the partner is owed +, paid out of it -
+             * @example -84000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             * @description When it was recorded
+             */
+            at: string;
+            /**
+             * Balance After Paise
+             * @description What she is owed after this entry
+             */
+            balance_after_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "earning" | "payout" | "payout_reversed";
+            /** Ref */
+            ref: (components["schemas"]["EarningOrderRef"] | components["schemas"]["PayoutRef"]) | null;
+        };
+        /**
+         * EarningsStatementOut
+         * @description The §3.2 statement over the partner's `partner_payable` accounts (every kind she is).
+         */
+        EarningsStatementOut: {
+            /**
+             * Account
+             * @constant
+             */
+            account: "earnings";
+            /**
+             * Closing Paise
+             * @description opening + credits + debits
+             */
+            closing_paise: number;
+            /**
+             * Credits Paise
+             * @description Σ positive entries (earnings, reversed payouts)
+             */
+            credits_paise: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Debits Paise
+             * @description Σ negative entries (payouts), signed
+             */
+            debits_paise: number;
+            /**
+             * Entries
+             * @description Every entry, newest first
+             */
+            entries: components["schemas"]["EarningsStatementEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Opening Paise
+             * @description Owed at 00:00 IST on the 1st
+             */
+            opening_paise: number;
+            /**
+             * Period
+             * @example 2027-01
+             */
+            period: string;
+        };
         /** EarningsWeekOut */
         EarningsWeekOut: {
             /** By Kind */
@@ -5809,11 +6266,9 @@ export interface components {
             generated_at: string;
             /**
              * Payouts
-             * @description M5's payouts of the week; none until payouts exist (§3.7)
+             * @description M5's payouts of the week, one per partner record; [] until it is paid out
              */
-            payouts: {
-                [key: string]: unknown;
-            }[];
+            payouts: components["schemas"]["EarningsPayoutOut"][];
             /**
              * To
              * Format: date
@@ -7700,6 +8155,50 @@ export interface components {
              */
             partner_id: string;
         };
+        /** KpisOut */
+        KpisOut: {
+            /**
+             * As Of
+             * @description Finish time of the last run that refreshed it
+             */
+            as_of: string | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "day" | "week";
+            /**
+             * Hub Id
+             * @description Null: every hub (admin only)
+             */
+            hub_id: string | null;
+            /**
+             * Periods
+             * @description The first day of each period (ISO weeks start Monday)
+             */
+            periods: string[];
+            /**
+             * Series
+             * @description One value per period for every KPI key; null when undefined
+             */
+            series: {
+                [key: string]: (number | null)[];
+            };
+            /** Stale */
+            stale: boolean;
+            /**
+             * Totals
+             * @description Over the whole range; rates recomputed from their parts, not averaged
+             */
+            totals: {
+                [key: string]: number | null;
+            };
+        };
         /** KycCheckOut */
         KycCheckOut: {
             /**
@@ -9344,6 +9843,13 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Page[AdminPayoutOut] */
+        Page_AdminPayoutOut_: {
+            /** Items */
+            items: components["schemas"]["AdminPayoutOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[AdminProduct] */
         Page_AdminProduct_: {
             /** Items */
@@ -9397,6 +9903,13 @@ export interface components {
         Page_PartnerStaffOut_: {
             /** Items */
             items: components["schemas"]["PartnerStaffOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PayoutOut] */
+        Page_PayoutOut_: {
+            /** Items */
+            items: components["schemas"]["PayoutOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -9641,6 +10154,100 @@ export interface components {
              * @description The wallet's balance now
              */
             wallet_paise: number;
+        };
+        /** PayoutOut */
+        PayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
+        };
+        /** PayoutPartner */
+        PayoutPartner: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+        };
+        /** PayoutPeriod */
+        PayoutPeriod: {
+            /**
+             * From
+             * Format: date
+             * @description The week's Monday (IST)
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             * @description The week's Sunday (IST)
+             */
+            to: string;
+        };
+        /** PayoutRef */
+        PayoutRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "payout";
         };
         /** PhotoUrl */
         PhotoUrl: {
@@ -12463,6 +13070,27 @@ export interface components {
             /** Items */
             items: components["schemas"]["gharbasket__modules__orders__schemas__SlotOut"][];
         };
+        /** SocietiesOut */
+        SocietiesOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Hub Id */
+            hub_id: string | null;
+            /** Items */
+            items: components["schemas"]["SocietyRowOut"][];
+        };
+        /** SocietyBoxesOut */
+        SocietyBoxesOut: {
+            /** Boxes */
+            boxes: number;
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
         /** SocietyLoad */
         SocietyLoad: {
             /** Bags */
@@ -12559,6 +13187,48 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "accepted" | "rejected" | "duplicate";
+        };
+        /** SocietyRowOut */
+        SocietyRowOut: {
+            /**
+             * Active Households
+             * @description Delivered an order in the last 4 weeks
+             */
+            active_households: number;
+            /**
+             * Approved On Time Bp
+             * @description Cycles approved before the cut-off, of the cycles generated, last 4 weeks
+             */
+            approved_on_time_bp: number | null;
+            /**
+             * Average Box Paise
+             * @description Net of refunds and credits, over delivered boxes of the last 4 weeks
+             */
+            average_box_paise: number | null;
+            /**
+             * Joined
+             * @description Households whose address is in the society
+             */
+            joined: number;
+            /** Name */
+            name: string;
+            /** Paused Households */
+            paused_households: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold
+             * @description Households that unlock free delivery
+             */
+            threshold: number;
         };
         /**
          * SocietySummary
@@ -13640,6 +14310,38 @@ export interface components {
             receiving?: string | null;
             /** Surplus */
             surplus?: string | null;
+        };
+        /** TodayOut */
+        TodayOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Attention
+             * @description One row per kind with a count above 0; kinds without a source are never sent
+             */
+            attention: components["schemas"]["BoardAttentionOut"][];
+            boxes: components["schemas"]["BoardBoxesOut"];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            deliveries: components["schemas"]["BoardDeliveriesOut"];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            packing: components["schemas"]["BoardPackingOut"];
+            routes: components["schemas"]["BoardRoutesOut"];
+            /** Shortages */
+            shortages: components["schemas"]["BoardShortageOut"][];
+            /** Steps */
+            steps: components["schemas"]["BoardStepOut"][];
+            waste: components["schemas"]["BoardWasteOut"];
         };
         /**
          * TokensOut
@@ -16436,6 +17138,142 @@ export interface operations {
             };
         };
     };
+    list_payouts_v1_admin_payouts_get: {
+        parameters: {
+            query?: {
+                week?: string | null;
+                status?: ("held" | "pending" | "processing" | "processed" | "failed") | null;
+                hub_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminPayoutOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not an admin or a hub manager of that hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.week_invalid, request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    retry_payout_v1_admin_payouts__payout_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payout_not_found, partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payout_not_retryable (with payout_status), billing.payout_still_held (with hold_reason), billing.payout_exceeds_payable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     put_point_rate_v1_admin_point_rates__code__put: {
         parameters: {
             query?: never;
@@ -17757,6 +18595,238 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_today_v1_analytics_hubs__hub_id__today_get: {
+        parameters: {
+            query?: {
+                /** @description An IST delivery date from today - 7 to today + 1; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.range_invalid (a date before today - 7 or after today + 1) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    kpi_series_v1_analytics_kpis_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub (admin only) */
+                hub_id?: string | null;
+                /** @description An IST date; default the start of the last 12 weeks */
+                from?: string | null;
+                /** @description An IST date; default today */
+                to?: string | null;
+                /** @description day (≤ 92 days) or week (≤ 104 weeks) */
+                grain?: "day" | "week";
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KpisOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_invalid · analytics.range_too_long */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    society_table_v1_analytics_societies_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub (admin only) */
+                hub_id?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietiesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28540,6 +29610,60 @@ export interface operations {
             };
         };
     };
+    my_payouts_v1_payouts_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PayoutOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not a partner role, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_plans_v1_plans_get: {
         parameters: {
             query?: never;
@@ -30913,6 +32037,8 @@ export interface operations {
         parameters: {
             query: {
                 period: string;
+                /** @description earnings: a partner's earnings and payouts (§3.5), every kind she is */
+                account?: "wallet" | "earnings";
             };
             header?: {
                 "x-active-role"?: string | null;
@@ -30928,7 +32054,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementOut"];
+                    "application/json": components["schemas"]["StatementOut"] | components["schemas"]["EarningsStatementOut"];
                 };
             };
             /** @description auth.invalid_token */
