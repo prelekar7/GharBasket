@@ -32,6 +32,7 @@ from gharbasket.modules.billing.earnings import (
 )
 from gharbasket.modules.billing.events import (
     POINTS_CREDITED,
+    POINTS_DONATED,
     REFUND_TO_SOURCE_SETTLED,
     WALLET_TOPPED_UP,
 )
@@ -62,6 +63,7 @@ from gharbasket.platform.settings import Settings, get_settings
 
 __all__ = [
     "POINTS_CREDITED",
+    "POINTS_DONATED",
     "REFUND_TO_SOURCE_SETTLED",
     "WALLET_TOPPED_UP",
     "BasisTotal",

@@ -10,9 +10,10 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, Path, Query, Response, status
 
-from gharbasket.modules.community import drives
+from gharbasket.modules.community import drives, ngos
 from gharbasket.modules.community.kindness_schemas import (
     DriveIn,
+    DriveNgo,
     DriveOut,
     DrivePatch,
     DriveProgress,
@@ -57,6 +58,7 @@ async def _drives_out(
     session: DbSession, found: list[DonationDrive], lang: Language, *, exact: bool = True
 ) -> list[DriveOut]:
     counts = await drives.progress(session, [drive.id for drive in found], exact=exact)
+    ngo_names = await ngos.names(session, {d.ngo_id for d in found if d.ngo_id is not None})
     on = drives.today()
     out: list[DriveOut] = []
     for drive in found:
@@ -77,7 +79,9 @@ async def _drives_out(
                 starts_on=drive.starts_on,
                 ends_on=drive.ends_on,
                 state=drives.drive_state(drive, on),  # pyright: ignore[reportArgumentType]
-                ngo=None,
+                ngo=None
+                if drive.ngo_id is None
+                else DriveNgo(id=drive.ngo_id, name=ngo_names.get(drive.ngo_id, "")),
                 goal_items=drive.goal_items,
                 progress=DriveProgress(pledged=pledged, verified=verified),
                 version=drive.version,
@@ -166,8 +170,8 @@ async def list_drives(
 EDITS = {
     403: _problem("auth.forbidden: another hub, or a platform drive (admin only)"),
     422: _problem(
-        "community.item_code_unknown, community.drive_dates_invalid, request.invalid, "
-        "request.idempotency_mismatch"
+        "community.item_code_unknown, community.drive_dates_invalid, "
+        "community.ngo_does_not_accept, request.invalid, request.idempotency_mismatch"
     ),
 }
 
@@ -180,7 +184,7 @@ EDITS = {
     responses={
         **EDITS,
         400: _problem("request.idempotency_key_required"),
-        404: _problem("community.society_not_found"),
+        404: _problem("community.society_not_found, community.ngo_not_found"),
         409: _problem("community.drive_code_taken"),
     },
 )
@@ -205,7 +209,7 @@ async def create_drive(
     summary="Change or cancel a drive (If-Match: its version; a running drive only extends)",
     responses={
         **EDITS,
-        404: _problem("community.drive_not_found"),
+        404: _problem("community.drive_not_found, community.ngo_not_found"),
         412: _problem("request.version_mismatch"),
         428: _problem("request.precondition_required"),
     },

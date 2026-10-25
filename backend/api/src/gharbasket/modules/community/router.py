@@ -1,7 +1,7 @@
 """HTTP endpoints of M9 Community & Kindness: society search, unlock and requests (spec §3.1),
 captain appointments (§3.2, captain_router.py), referrals (§3.3, referral_router.py), the hub's
-unlock settings (§3.6), point rates and drives (§3.4, drive_router.py), and donations with their
-verification (donation_router.py).
+unlock settings (§3.6), point rates and drives (§3.4, drive_router.py), donations with their
+verification (donation_router.py), and NGOs, surplus offers and hand-offs (§3.5, ngo_router.py).
 """
 
 import uuid
@@ -19,6 +19,7 @@ from gharbasket.modules.community.captain_router import router as captain_router
 from gharbasket.modules.community.donation_router import router as donation_router
 from gharbasket.modules.community.drive_router import router as drive_router
 from gharbasket.modules.community.models import Society
+from gharbasket.modules.community.ngo_router import router as ngo_router
 from gharbasket.modules.community.referral_router import router as referral_router
 from gharbasket.modules.community.schemas import (
     CaptainCard,
@@ -46,6 +47,7 @@ router.include_router(captain_router)
 router.include_router(referral_router)
 router.include_router(drive_router)
 router.include_router(donation_router)
+router.include_router(ngo_router)
 
 SEARCH_LIMIT = 50
 # Society requests per user per day (spec §3.1).

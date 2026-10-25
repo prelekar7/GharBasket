@@ -141,62 +141,6 @@
       "milestone": "MS-D",
       "note": "M9 §3.7 (?scope=me)."
     },
-    "GET /v1/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/admin/ngos": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body differs (kind, hub_ids, accepts); see M9's 'Mock today' table."
-    },
-    "GET /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo-handoffs/ready": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5 (replaces open_batches)."
-    },
-    "POST /v1/ngo-handoffs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5. The body is { ngo_id, hub_id, kind, donation_ids|offer_ids|meals, photo_keys, people_reached }."
-    },
-    "POST /v1/ngo-handoffs/{}/confirm": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "GET /v1/ngo/offers": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
-    "POST /v1/ngo/offers/{}/claim": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M9 §3.5."
-    },
     "GET /v1/public/societies/{}": {
       "app": "console",
       "class": "later",
@@ -494,6 +438,13 @@
       "app": "console",
       "where": "lib/hub.js, mocks/README.md",
       "fix": "GET /v1/hubs ships now: update the comments that say it is a 404, and the mocks README (it says API port 8010 and console port 3160; real mode is 8000 and 3000, see docs/SETUP.md 'Real mode').",
+      "owner": "yash"
+    },
+    {
+      "id": "F9",
+      "app": "console",
+      "where": "lib/ngo.js, app/(console)/(community)/handoffs/, app/(console)/(community)/drives/",
+      "fix": "M9 §3.5 ships: build against its shapes, not the mock's (M9 §3.5 'Mock today'). POST /v1/admin/ngos takes { name, kind, hub_ids, accepts, registration_ref, verified, status, note } (coordinators are M1 role grants) and PATCH needs If-Match; GET /v1/ngo-handoffs is Page[Handoff] with `report` (`summary` is structured; `open_batches` is GET /v1/ngo-handoffs/ready); POST /v1/ngo-handoffs takes { ngo_id, hub_id, kind, donation_ids | offer_ids | meals, photo_keys (1 to 3 handoff_photo uploads), people_reached, handed_at, note } with an Idempotency-Key; a drive's ngo_id may be set.",
       "owner": "yash"
     }
   ]

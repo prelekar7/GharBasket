@@ -380,6 +380,33 @@ async def holds_role(
     return (await session.execute(query.limit(1))).first() is not None
 
 
+async def first_role_holders(
+    session: AsyncSession, role: str, scope_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, UserContact]:
+    """Per scope id, the first active user granted a verified `role` there (by when it was
+    verified): M9 shows an NGO's first coordinator to staff and the NGO's own coordinators. Scopes
+    without one are left out."""
+    wanted = set(scope_ids)
+    if not wanted:
+        return {}
+    rows = await session.execute(
+        select(UserRole.scope_id, User.name, User.phone_e164)
+        .join(User, User.id == UserRole.user_id)
+        .where(
+            UserRole.role == role,
+            UserRole.scope_id.in_(wanted),
+            UserRole.status == "verified",
+            User.status == "active",
+        )
+        .order_by(UserRole.scope_id, UserRole.verified_at.nulls_last(), UserRole.id)
+    )
+    found: dict[uuid.UUID, UserContact] = {}
+    for scope_id, name, phone in rows.all():
+        if scope_id is not None and scope_id not in found:
+            found[scope_id] = UserContact(name, phone)
+    return found
+
+
 async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
     """False while the account's deletion is scheduled, once it is purged, and for a blocked
     account (spec §3.5): M11 checks it before sending anything."""
