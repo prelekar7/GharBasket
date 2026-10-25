@@ -149,6 +149,12 @@ class PackingTask(Base):
         CheckConstraint("crate_no IS NULL OR crate_no BETWEEN 1 AND 99", name="crate_no"),
         CheckConstraint("version >= 1", name="version"),
         Index("ix_packing_tasks_queue", "hub_id", "delivery_date", "status", "seq"),
+        # What the 12:30 run draws down (§3.4).
+        Index(
+            "ix_packing_tasks_not_drawn",
+            "hub_id",
+            postgresql_where=text("status = 'packed' AND drawn_at IS NULL"),
+        ),
         {"schema": SCHEMA},
     )
 
@@ -171,6 +177,8 @@ class PackingTask(Base):
     crate_no: Mapped[int | None] = mapped_column(SmallInteger)  # within the society
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     packed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the 12:30 run drew its paid lines down from stock (§3.4); null until then.
+    drawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -523,7 +531,15 @@ class SurplusOffer(Base):
         CheckConstraint(_one_of("offered_to", ("kitchen", "ngo")), name="offered_to"),
         CheckConstraint(_one_of("status", OFFER_STATUSES), name="status"),
         CheckConstraint("qty > 0 AND (taken_qty IS NULL OR taken_qty >= 0)", name="qty"),
+        CheckConstraint("taken_qty IS NULL OR taken_qty <= qty", name="taken_qty"),
         Index("ix_surplus_offers_hub_id_status", "hub_id", "status"),
+        # An offer moves on once: at most one offer follows it.
+        Index(
+            "uq_surplus_offers_previous_offer_id",
+            "previous_offer_id",
+            unique=True,
+            postgresql_where=text("previous_offer_id IS NOT NULL"),
+        ),
         {"schema": SCHEMA},
     )
 
@@ -563,6 +579,14 @@ class WasteLog(Base):
         ),
         CheckConstraint("qty > 0 AND (kg IS NULL OR kg >= 0)", name="qty"),
         Index("ix_waste_logs_hub_id_at", "hub_id", "at"),
+        # An offer leaves once to each place: what was taken, and what went to the bin.
+        Index(
+            "uq_waste_logs_offer_id_cascade_to",
+            "offer_id",
+            "cascade_to",
+            unique=True,
+            postgresql_where=text("offer_id IS NOT NULL"),
+        ),
         {"schema": SCHEMA},
     )
 

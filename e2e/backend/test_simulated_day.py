@@ -848,6 +848,36 @@ def test_lunch_tiffins_nobody_took_are_refunded_at_0930(app: App, day: Day, loop
     assert summary["refunded"] == summary["refused"] == 0, summary
 
 
+def test_the_1230_run_closes_the_days_buying_and_has_no_surplus_to_offer(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 12:30: `surplus_cascade` (M6 §3.5). Nobody packs in the simulated day and no
+    goods were received, so nothing is drawn down or offered; the day's plan closes, and a second
+    run changes nothing."""
+    when = ist(day.t, 12, 30)
+
+    async def go() -> tuple[dict[str, Any], dict[str, Any]]:
+        first = await app.job("surplus_cascade", when)
+        again = await app.job("surplus_cascade", when + timedelta(minutes=2))
+        await app.sweep(when)
+        return first, again
+
+    first, again = step(loop, when, go())
+    empty = {"drawn_tasks": 0, "closed_purchase_orders": 0, "offers": 0, "binned": 0}
+    assert first == again == {"date": day.t.isoformat(), "hubs": 1, **empty}, (first, again)
+    status = loop.run(
+        scalar(
+            config,
+            "SELECT status FROM hub_ops.procurement_plans WHERE hub_id = :hub AND "
+            "delivery_date = :d",
+            hub=SEED_HUB_ID,
+            d=day.t,
+        )
+    )
+    assert status == "closed"
+    assert loop.run(scalar(config, "SELECT count(*) FROM hub_ops.surplus_offers")) == 0
+
+
 def test_lunch_tiffins_are_prompted_for_a_rating_at_1430(app: App, day: Day, loop: Runner) -> None:
     """Tuesday T 14:30: `prompt_tiffin_ratings` asks households to rate the day's delivered lunch
     tiffins (the day books no tiffin, so nothing is delivered and nobody is asked)."""

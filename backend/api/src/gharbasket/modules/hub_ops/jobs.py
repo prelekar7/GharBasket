@@ -1,6 +1,7 @@
 """Jobs of M6 Hub Operations (spec §6, ADR-0021): the procurement plan at T-1 21:10, its refresh
 at T-1 23:05 after the payment grace, a rebuild when M10 stores a new forecast, the vendor scores of
-the past week on Monday at 03:33, and `build_packing_tasks` at T 05:00 IST.
+the past week on Monday at 03:33, `build_packing_tasks` at T 05:00 IST and `surplus_cascade` (the
+12:30 run, §3.5) at T 12:30 IST.
 
 `scheduled_for` decides the delivery date (its IST calendar day for packing, the next IST day for
 procurement) or the week, never the clock.
@@ -11,15 +12,18 @@ from collections import Counter
 from datetime import date, timedelta
 from typing import Any
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import kept, packing, procurement, scores, service
+from gharbasket.modules.hub_ops import kept, packing, procurement, scores, service, surplus
 from gharbasket.modules.hub_ops.models import KeptItem
 from gharbasket.modules.orders import api as orders_api
 from gharbasket.platform.jobs import JobContext, job
 from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import subscribe
+
+log = structlog.get_logger("gharbasket.hub_ops")
 
 
 @job("build_packing_tasks", "Build the day's packing tasks at every active hub (T 05:00 IST)")
@@ -63,6 +67,32 @@ async def compute_vendor_scores(ctx: JobContext) -> dict[str, Any]:
     today = ctx.scheduled_for.astimezone(procurement.IST).date()
     week = today - timedelta(days=today.weekday() + 7)  # the Monday of the week before
     return {"week": week.isoformat(), "vendors": await scores.compute(ctx.session, week)}
+
+
+@job(
+    "surplus_cascade",
+    "The 12:30 run at every active hub: draw packing down, close the day's buying, cascade "
+    "surplus to kitchens, NGOs, bin (T 12:30 IST)",
+)
+async def surplus_cascade(ctx: JobContext) -> dict[str, Any]:
+    """Each hub's run in its own savepoint at `scheduled_for`: one hub's failure is logged and
+    listed as `failed_hubs`, and the other hubs' runs stand."""
+    totals: Counter[str] = Counter(drawn_tasks=0, closed_purchase_orders=0, offers=0, binned=0)
+    failed: list[str] = []
+    hubs = await service.active_hub_ids(ctx.session)
+    for hub_id in hubs:
+        try:
+            async with ctx.session.begin_nested():
+                done = await surplus.run(ctx.session, hub_id, ctx.scheduled_for)
+        except Exception as exc:
+            log.error("surplus_cascade_failed", hub_id=str(hub_id), error=type(exc).__name__)
+            failed.append(str(hub_id))
+            continue
+        totals.update(done)
+    day = ctx.scheduled_for.astimezone(surplus.IST).date()
+    return {"date": day.isoformat(), "hubs": len(hubs), **totals} | (
+        {"failed_hubs": failed} if failed else {}
+    )
 
 
 async def on_forecast_ready(session: AsyncSession, event: OutboxEvent) -> None:
