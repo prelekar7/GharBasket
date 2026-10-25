@@ -59,10 +59,9 @@ KPI_KEYS = (
     "societies_live",
 )
 # Keys whose facts do not exist yet: null until they do.
-# - waste_g_per_100kg: the hub-day facts still hold 0 in every waste column (the refresh's As
-#   built, M12 §3.2), and a 0 there would read as "no waste". The facade must read waste logs first.
 # - meals_donated: M9 §3.5's meal pledges and hand-offs have no facade yet, so no fact row exists.
-UNSOURCED = ("waste_g_per_100kg", "meals_donated")
+UNSOURCED = ("meals_donated",)
+GRAMS_PER_100_KG = 100_000
 # Keys read from the weekly partner facts: a day cannot be cut out of a week.
 WEEKLY_ONLY = ("partner_earnings_paise", "partners_paid", "kitchen_gini_bp")
 
@@ -75,6 +74,8 @@ SUMS = (
     "dispatched_orders",
     "short_lines",
     "packed_lines",
+    "packed_g",
+    "waste_bin_g",
     "cycles_generated",
     "cycles_approved",
     "cycles_auto_approved",
@@ -140,6 +141,8 @@ def metrics(s: Mapping[str, int]) -> dict[str, int | None]:
         "on_time_bp": ratio(s["on_time_orders"], delivered, BP),
         "first_attempt_bp": ratio(s["first_attempt_orders"], s["dispatched_orders"], BP),
         "shortage_lines_bp": ratio(s["short_lines"], s["packed_lines"], BP),
+        # Only what went to the bin is waste (M6 §3.5): food a kitchen or an NGO took is rescued.
+        "waste_g_per_100kg": ratio(s["waste_bin_g"], s["packed_g"], GRAMS_PER_100_KG),
         # A route cost of 0 over orders means no cost was recorded (a plan without one), not free.
         "delivery_cost_per_order_paise": (
             ratio(s["box_route_cost_paise"], s["box_route_orders"])

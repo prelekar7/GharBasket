@@ -264,8 +264,20 @@ async def seed_facts(session: AsyncSession, *, ran_at: datetime | None = NOW) ->
                 hub_id=HUB,
                 on_date=TUESDAY1,
                 packed_g=100_000,
-                waste_ngo_g=0,
+                waste_ngo_g=300,  # rescued, not waste (M6 §3.5)
                 waste_bin_g=500,
+                waste_kitchen_g=200,  # rescued, not waste
+                waste_imperfect_g=0,
+                surplus_offered_g=0,
+                surplus_taken_g=0,
+                data_source="real",
+            ),
+            FactHubDay(
+                hub_id=HUB,
+                on_date=TUESDAY2,
+                packed_g=50_000,
+                waste_ngo_g=1_000,
+                waste_bin_g=0,
                 waste_kitchen_g=0,
                 waste_imperfect_g=0,
                 surplus_offered_g=0,
@@ -364,7 +376,8 @@ async def test_week_series_recompute_every_rate_from_its_parts(
         "on_time_bp": ([6_667, 10_000], 7_500),
         "first_attempt_bp": ([6_667, 5_000], 6_000),  # 2 of 3 dispatched | 1 of 2; 3 of 5
         "shortage_lines_bp": ([455, 909], 682),  # 1 of 22 lines | 2 of 22; 3 of 44
-        "waste_g_per_100kg": ([None, None], None),  # no waste facts yet
+        # Bin grams only per 100 kg packed: 500 g of 100 kg | 0 of 50 kg; 500 g of 150 kg
+        "waste_g_per_100kg": ([500, 0], 333),
         "delivery_cost_per_order_paise": ([10_000, 12_500], 11_000),  # box routes only
         "km_per_order_m": ([4_000, 4_000], 4_000),
         "issues_per_1000_orders": ([667, 0], 500),  # 2 issues / 3 delivered | none | 2 / 4
@@ -421,6 +434,8 @@ async def test_day_grain_has_one_period_a_day_and_no_weekly_keys(
     assert series["active_households"] == [0, 1, 0]
     assert series["on_time_bp"] == [None, 10_000, None]  # nothing delivered, nothing to divide
     assert series["weeks_accepted_bp"] == [None, 10_000, None]
+    # Nothing packed is no rate; 50 kg packed and only an NGO hand-over is 0 waste (M6 §3.5)
+    assert series["waste_g_per_100kg"] == [None, 0, None]
     assert (totals["orders_delivered"], totals["active_households"]) == (1, 1)
     for weekly in kpis.WEEKLY_ONLY:  # a day cannot be cut out of a week of earnings
         assert series[weekly] == [None] * 3 and totals[weekly] is None
@@ -443,6 +458,7 @@ async def test_data_sources_are_never_pooled_and_one_is_required(
     assert series["orders_delivered"] == [0, 1] and series["gmv_paise"] == [0, 99_999]
     assert series["weeks_accepted_bp"] == [None, 10_000]  # its one cycle, none of the real ones
     assert series["partner_earnings_paise"] == [0, 1]
+    assert series["waste_g_per_100kg"] == [None, None]  # the real hub's packing and waste
     real = await get_kpis(api, manager, **window)
     assert real.json()["series"]["gmv_paise"] == [125_000, 64_000]  # no 99,999 in a real series
 
