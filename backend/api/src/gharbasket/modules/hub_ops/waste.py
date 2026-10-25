@@ -268,7 +268,8 @@ async def summary_days(
     """A row per IST day from `date_from` to `date_to`, zeros included. Sold: the picked steps of
     the packed tasks of that delivery date (not the carried lines, sold on an earlier day),
     weighed as for waste logs. Stock-out: steps short or substituted over steps ordered, on all of
-    the day's tasks."""
+    the day's tasks. A substituted line counts the substitute's own step (the packing line keeps
+    the ordered product's)."""
     days = {
         date_from + timedelta(days=i): DayStats(date_from + timedelta(days=i))
         for i in range((date_to - date_from).days + 1)
@@ -323,6 +324,13 @@ async def summary_days(
         if task_status != "packed" or not picked:
             continue
         product = products.get(substitute_id or product_id)
+        if substitute_id is not None:
+            # The packer picked the substitute's own steps (M4 gives the line its step); the
+            # packing line keeps the ordered product's.
+            if product is None:
+                stats.unweighed_lines += n
+                continue
+            step_qty, step_unit = product.step_qty, product.step_unit
         unit, _ = procurement.OPS_UNIT[step_unit]
         kg = weigh(
             procurement.to_ops(int(picked), step_qty, step_unit),

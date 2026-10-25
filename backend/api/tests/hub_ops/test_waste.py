@@ -652,6 +652,28 @@ async def test_the_summary_counts_bin_as_waste_and_rescues_the_rest(
 
 
 @time_machine.travel(RECEIVING, tick=False)
+async def test_a_substitute_is_sold_by_its_own_step(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    """Packing keeps the ordered product's step on the line; the packer picked the substitute's
+    steps, so 2 steps of bitter gourd (250 g) in place of tomato (500 g) are 0.5 kg, not 1 kg."""
+    api = clients()
+    manager = await as_user(api, google, VIKRAM)
+    p = await slugs(db_session, "tomato", "bitter-gourd")
+    await packing_task(
+        db_session,
+        "2026-10-12",
+        "packed",
+        [step(p["tomato"], 2, 2, substitute_product_id=uuid.UUID(p["bitter-gourd"]))],
+    )
+
+    one = await api.get(SUMMARY, params={"from": "2026-10-12", "to": "2026-10-12"}, headers=manager)
+
+    day = one.json()["days"][0]
+    assert (day["sold_kg"], day["stockout_pct"], day["unweighed_lines"]) == (0.5, 100.0, 0)
+
+
+@time_machine.travel(RECEIVING, tick=False)
 async def test_the_summary_covers_at_most_31_days(
     clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
 ) -> None:
