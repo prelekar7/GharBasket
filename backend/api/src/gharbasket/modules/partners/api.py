@@ -2,7 +2,8 @@
 
 M9 checks a captain through `get_partner` and builds her card from `profile_card`; M7 reads
 partners at handover; M1 puts `export_for_user` into the data export and turns the events below
-into roles.
+into roles. M12 pulls `partner_facts` and `assignment_run_facts` for its analytics refresh
+(M12 §3.1).
 """
 
 import uuid
@@ -26,6 +27,12 @@ from gharbasket.modules.partners.events import (
     TIFFINS_UNASSIGNED,
     VERIFIED,
 )
+from gharbasket.modules.partners.facts import (
+    AssignmentRunFact,
+    PartnerFact,
+    assignment_run_facts,
+    partner_facts,
+)
 from gharbasket.modules.partners.models import Application, Partner
 from gharbasket.modules.partners.pickups import PickupRef
 
@@ -40,13 +47,17 @@ __all__ = [
     "SUSPENDED",
     "TIFFINS_UNASSIGNED",
     "VERIFIED",
+    "AssignmentRunFact",
+    "PartnerFact",
     "PartnerRef",
     "PickupRef",
     "ProfileCard",
     "anonymise_for_user",
     "application_reason",
+    "assignment_run_facts",
     "export_for_user",
     "get_partner",
+    "partner_facts",
     "partner_for_user",
     "pickup",
     "profile_card",

@@ -3,10 +3,10 @@
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import Date, cast, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.identity import events, households, service
@@ -371,3 +371,42 @@ async def is_active(session: AsyncSession, user_id: uuid.UUID) -> bool:
     """False while the account's deletion is scheduled, once it is purged, and for a blocked
     account (spec §3.5): M11 checks it before sending anything."""
     return await session.scalar(select(User.status).where(User.id == user_id)) == "active"
+
+
+@dataclass(frozen=True)
+class HouseholdFact:
+    """A household for M12's cohorts (M12 §3.1): ids, the IST signup date and the owner's account
+    status; never a name, phone, flat or health field."""
+
+    household_id: uuid.UUID
+    hub_id: uuid.UUID | None
+    society_id: uuid.UUID
+    created_on: date  # IST
+    status: str  # the owner's account (active | blocked | deleting): a household has no status
+    data_source: str
+
+
+async def household_facts(
+    session: AsyncSession,
+    *,
+    created_from: date | None = None,
+    ids: Iterable[uuid.UUID] | None = None,
+) -> list[HouseholdFact]:
+    """Households created on or after the IST date `created_from` (every one when None), or only
+    `ids`, in id order. A purged household has no row, so it leaves M12's facts at its next full
+    pull."""
+    created_on = cast(func.timezone("Asia/Kolkata", Household.created_at), Date)
+    stmt = select(
+        Household.id,
+        Household.hub_id,
+        Household.society_id,
+        created_on,
+        User.status,
+        Household.data_source,
+    ).join(User, User.id == Household.owner_user_id)
+    if created_from is not None:
+        stmt = stmt.where(created_on >= created_from)
+    if ids is not None:
+        stmt = stmt.where(Household.id.in_(set(ids)))
+    rows = await session.execute(stmt.order_by(Household.id))
+    return [HouseholdFact(*row) for row in rows.all()]
