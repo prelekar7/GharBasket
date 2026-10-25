@@ -353,10 +353,17 @@ async def cycle_facts(
     date_to: date,
     hub_ids: list[uuid.UUID] | None = None,
 ) -> list[CycleFact]:
-    """Cycles delivering between the two IST dates (inclusive), every status, in id order."""
+    """Cycles delivering between the two IST dates (inclusive), every status, in id order. The
+    edits and taps are counted for those cycles only (by their cycle-id indexes), never over the
+    whole feedback tables."""
+    in_window = select(WeeklyCycle.id).where(
+        WeeklyCycle.delivery_date >= date_from, WeeklyCycle.delivery_date <= date_to
+    )
+    if hub_ids is not None:
+        in_window = in_window.where(WeeklyCycle.hub_id.in_(hub_ids))
     product_edits = (
         select(EditFeedback.cycle_id, func.count().label("n"))
-        .where(EditFeedback.action.in_(PRODUCT_ACTIONS))
+        .where(EditFeedback.action.in_(PRODUCT_ACTIONS), EditFeedback.cycle_id.in_(in_window))
         .group_by(EditFeedback.cycle_id)
         .subquery()
     )
@@ -367,6 +374,7 @@ async def cycle_facts(
             func.count().filter(PantryFeedback.signal == "wasted").label("wasted"),
             func.count().filter(PantryFeedback.signal == "just_right").label("just_right"),
         )
+        .where(PantryFeedback.cycle_id.in_(in_window))
         .group_by(PantryFeedback.cycle_id)
         .subquery()
     )

@@ -2,9 +2,10 @@
 
 import uuid
 from datetime import UTC, date, datetime
+from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.subscriptions import api as subs_api
@@ -110,3 +111,26 @@ async def test_cycle_facts_count_line_edits_and_pantry_taps(db_session: AsyncSes
         )
         == []
     )
+
+
+async def test_cycle_facts_count_feedback_of_the_window_only(db_session: AsyncSession) -> None:
+    """The edit and tap counts are taken over the window's cycles (by their cycle-id indexes), not
+    grouped over the whole feedback tables on every 15-minute run."""
+    statements: list[str] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, *_: Any) -> None:
+        if "edit_feedback" in statement:
+            statements.append(statement)
+
+    assert db_session.bind is not None
+    engine = db_session.bind.sync_engine  # type: ignore[union-attr]
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        await subs_api.cycle_facts(db_session, date_from=TUESDAY, date_to=TUESDAY)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    [statement] = statements
+    for table in ("edit_feedback", "pantry_feedback"):
+        grouped = statement.split(f"FROM subscriptions.{table}", 1)[1].split("GROUP BY", 1)[0]
+        assert "weekly_cycles.delivery_date >=" in grouped, grouped

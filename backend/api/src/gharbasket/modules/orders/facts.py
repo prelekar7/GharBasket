@@ -186,3 +186,8 @@ async def issue_facts(
         )
         for issue, data_source in rows
     ]
+
+
+async def first_delivery_date(session: AsyncSession) -> date | None:
+    """The earliest delivery date of any order (M12's rebuild starts there); None without one."""
+    return await session.scalar(select(func.min(Order.delivery_date)))

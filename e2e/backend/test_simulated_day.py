@@ -747,11 +747,12 @@ def test_the_night_refunds_no_carried_items_when_none_waited(
 
 
 def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner) -> None:
-    """Tuesday T 03:43 to 04:33 IST: the daily logistics, platform, identity and notification
-    jobs."""
+    """Tuesday T 02:40 to 04:33 IST: the nightly analytics refresh (M12 §6), then the daily
+    logistics, platform, identity and notification jobs."""
     out: dict[str, Any] = {}
 
     async def go() -> None:
+        out["analytics"] = await app.job("refresh_analytics_nightly", ist(day.t, 2, 40))
         out["pings"] = await app.job("purge_gps_pings", ist(day.t, 3, 43))
         for name, hour, minute in (
             ("cleanup_idempotency_keys", 4, 3),
@@ -762,6 +763,9 @@ def test_the_night_housekeeping_jobs_run_clean(app: App, day: Day, loop: Runner)
 
     step(loop, ist(day.t, 4, 0), go())
     assert out["pings"] == {"deleted": 0, "partitions_dropped": 0}, out  # no rider sent a ping
+    # The simulated weeks delivered boxes within its 35 days, and their households signed up.
+    assert out["analytics"]["read"]["orders"] > 0, out["analytics"]
+    assert out["analytics"]["read"]["households"] > 0, out["analytics"]
 
 
 def test_packing_tasks_are_built_for_every_paid_box(
@@ -880,6 +884,27 @@ def test_the_logistics_evening_closes_routes_and_expires_holds_with_nothing_to_d
     }, again
     step(loop, when, app.sweep(when))
     loop.run(logistics_untouched(config, day))
+
+
+def test_the_analytics_refresh_and_a_rebuild_agree(
+    config: Config, app: App, day: Day, loop: Runner
+) -> None:
+    """Tuesday T 20:50, a 15-minute `refresh_analytics` (M12 §3.2), then `rebuild_analytics` by
+    hand: facts are a cache of the source modules, so the rebuild through the facades gives the
+    same daily numbers for the refresh's window (M12 §9)."""
+    when = ist(day.t, 20, 50)
+    refreshed = step(loop, when, app.job("refresh_analytics", when))
+    assert refreshed["read"]["orders"] > 0, refreshed
+    window = (day.t - timedelta(days=3), day.t + timedelta(days=1))
+    sql = (
+        "SELECT * FROM analytics.mv_daily_hub_kpis WHERE date BETWEEN :a AND :b"
+        " ORDER BY hub_id, date, data_source"
+    )
+    before = loop.run(rows(config, sql, a=window[0], b=window[1]))
+    later = when + timedelta(minutes=5)
+    rebuilt = step(loop, later, app.job("rebuild_analytics", later))
+    assert rebuilt["read"]["orders"] >= refreshed["read"]["orders"], rebuilt
+    assert before and loop.run(rows(config, sql, a=window[0], b=window[1])) == before
 
 
 def test_every_event_of_the_day_that_m11_maps_became_a_message(

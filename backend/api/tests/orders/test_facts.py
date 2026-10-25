@@ -144,3 +144,4 @@ async def test_order_facts_add_up_lines_money_and_the_trips(db_session: AsyncSes
         )
         == []
     )
+    assert await orders_api.first_delivery_date(db_session) == TUESDAY
