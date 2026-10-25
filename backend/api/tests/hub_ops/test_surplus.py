@@ -415,6 +415,39 @@ async def test_a_run_before_the_surplus_time_keeps_the_days_buying_open(
     assert await state() == ("cancelled", "closed")
 
 
+async def test_the_job_always_closes_the_buying_but_a_manual_run_waits_for_the_hubs_time(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    with time_machine.travel(datetime(2026, 10, 12, 16, 0, tzinfo=UTC), tick=False):  # T-1 21:30
+        manager = await as_user(api, google, VIKRAM)
+        po = await sent_po(api, manager, db_session, {"tomato": 4, "onion": 2})
+    po_id = uuid.UUID(po["id"])
+    await db_session.execute(
+        update(Hub)
+        .where(Hub.id == SEED_HUB_ID)
+        .values(timings={**DEFAULT_TIMINGS, "surplus": "13:00"})
+    )
+    await db_session.commit()
+
+    async def status() -> str | None:
+        db_session.expire_all()
+        return await db_session.scalar(
+            select(PurchaseOrder.status).where(PurchaseOrder.id == po_id)
+        )
+
+    with time_machine.travel(datetime(2026, 10, 13, 7, 15, tzinfo=UTC), tick=False):  # 12:45 IST
+        manager = await as_user(api, google, VIKRAM)
+        assert (await run(api, manager)).json() == EMPTY  # manual, before the hub's 13:00
+    assert await status() == "sent"
+
+    with time_machine.travel(AT_1230, tick=False):
+        job = await run_job(db_session, "surplus_cascade", settings=SETTINGS, scheduled_for=AT_1230)
+    assert job.status == "ok"
+    assert job.summary is not None and job.summary["closed_purchase_orders"] == 1
+    assert await status() == "cancelled"
+
+
 # --- new surplus and the cascade -----------------------------------------------------------------
 
 
@@ -646,11 +679,13 @@ async def test_the_job_runs_every_active_hub_and_lists_one_that_fails(
     )
     real = surplus.run
 
-    async def broken(session: AsyncSession, hub_id: uuid.UUID, now: datetime) -> dict[str, int]:
+    async def broken(
+        session: AsyncSession, hub_id: uuid.UUID, now: datetime, **more: bool
+    ) -> dict[str, int]:
         if hub_id == uuid.UUID(other["id"]):
-            await real(session, hub_id, now)
+            await real(session, hub_id, now, **more)
             raise RuntimeError("boom")
-        return await real(session, hub_id, now)
+        return await real(session, hub_id, now, **more)
 
     monkeypatch.setattr(surplus, "run", broken)
     job = await run_job(db_session, "surplus_cascade", settings=SETTINGS, scheduled_for=AT_1230)

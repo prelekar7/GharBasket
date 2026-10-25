@@ -83,7 +83,7 @@ async def surplus_cascade(ctx: JobContext) -> dict[str, Any]:
     for hub_id in hubs:
         try:
             async with ctx.session.begin_nested():
-                done = await surplus.run(ctx.session, hub_id, ctx.scheduled_for)
+                done = await surplus.run(ctx.session, hub_id, ctx.scheduled_for, close_buying=True)
         except Exception as exc:
             log.error("surplus_cascade_failed", hub_id=str(hub_id), error=type(exc).__name__)
             failed.append(str(hub_id))
