@@ -12,6 +12,7 @@ from gharbasket.modules.partners.schemas import (
     EarningRefOut,
     EarningsDayOut,
     EarningsKindOut,
+    EarningsPayoutOut,
     EarningsWeekOut,
 )
 from gharbasket.platform.db import DbSession
@@ -74,7 +75,10 @@ async def my_earnings(
                 for e in found.entries
                 if e.ref_id is not None
             ],
-            "payouts": found.payouts,
+            "payouts": [
+                EarningsPayoutOut(**p.model_dump(), kind=kinds[p.partner_id])  # pyright: ignore[reportArgumentType]
+                for p in found.payouts
+            ],
             "generated_at": datetime.now(UTC),
         }
     )

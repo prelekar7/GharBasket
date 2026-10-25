@@ -267,6 +267,139 @@
         "title": "AdminFestivals",
         "type": "object"
       },
+      "AdminPayoutOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              84000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hold_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyc_incomplete",
+                  "suspended",
+                  "no_payout_account"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Reason"
+          },
+          "hub_id": {
+            "description": "The partner's hub when the payout was made",
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "partner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PayoutPartner"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null if the partner record is gone"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PayoutPeriod"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "provider": {
+            "enum": [
+              "simulated",
+              "razorpay_route"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "pout_sim_0199c2a5"
+            ],
+            "title": "Provider Ref"
+          },
+          "status": {
+            "description": "held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry",
+            "enum": [
+              "held",
+              "pending",
+              "processing",
+              "processed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "week": {
+            "description": "ISO week, Monday to Sunday, IST",
+            "examples": [
+              "2027-W03"
+            ],
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "partner_id",
+          "hub_id",
+          "week",
+          "period",
+          "amount_paise",
+          "status",
+          "hold_reason",
+          "provider",
+          "provider_ref",
+          "created_at",
+          "processed_at",
+          "partner"
+        ],
+        "title": "AdminPayoutOut",
+        "type": "object"
+      },
       "AdminProduct": {
         "properties": {
           "active": {
@@ -4526,6 +4659,26 @@
         "title": "DrivesOut",
         "type": "object"
       },
+      "EarningOrderRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "order",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "EarningOrderRef",
+        "type": "object"
+      },
       "EarningOut": {
         "properties": {
           "amount_paise": {
@@ -4662,6 +4815,280 @@
         "title": "EarningsKindOut",
         "type": "object"
       },
+      "EarningsPayoutOut": {
+        "description": "M5's PayoutOut (M5 §3.5) and the kind of the partner record it pays.",
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              84000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hold_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyc_incomplete",
+                  "suspended",
+                  "no_payout_account"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Reason"
+          },
+          "hub_id": {
+            "description": "The partner's hub when the payout was made",
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PayoutPeriod"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "provider": {
+            "enum": [
+              "simulated",
+              "razorpay_route"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "pout_sim_0199c2a5"
+            ],
+            "title": "Provider Ref"
+          },
+          "status": {
+            "description": "held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry",
+            "enum": [
+              "held",
+              "pending",
+              "processing",
+              "processed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "week": {
+            "description": "ISO week, Monday to Sunday, IST",
+            "examples": [
+              "2027-W03"
+            ],
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "partner_id",
+          "hub_id",
+          "week",
+          "period",
+          "amount_paise",
+          "status",
+          "hold_reason",
+          "provider",
+          "provider_ref",
+          "created_at",
+          "processed_at",
+          "kind"
+        ],
+        "title": "EarningsPayoutOut",
+        "type": "object"
+      },
+      "EarningsStatementEntry": {
+        "properties": {
+          "amount_paise": {
+            "description": "Into what the partner is owed +, paid out of it -",
+            "examples": [
+              -84000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "at": {
+            "description": "When it was recorded",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "balance_after_paise": {
+            "description": "What she is owed after this entry",
+            "title": "Balance After Paise",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Show a generic label for a kind the app doesn't know",
+            "enum": [
+              "earning",
+              "payout",
+              "payout_reversed"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "order": "#/components/schemas/EarningOrderRef",
+                    "payout": "#/components/schemas/PayoutRef"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/EarningOrderRef"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PayoutRef"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amount_paise",
+          "ref",
+          "at",
+          "balance_after_paise"
+        ],
+        "title": "EarningsStatementEntry",
+        "type": "object"
+      },
+      "EarningsStatementOut": {
+        "description": "The §3.2 statement over the partner's `partner_payable` accounts (every kind she is).",
+        "properties": {
+          "account": {
+            "const": "earnings",
+            "title": "Account",
+            "type": "string"
+          },
+          "closing_paise": {
+            "description": "opening + credits + debits",
+            "title": "Closing Paise",
+            "type": "integer"
+          },
+          "credits_paise": {
+            "description": "Σ positive entries (earnings, reversed payouts)",
+            "title": "Credits Paise",
+            "type": "integer"
+          },
+          "currency": {
+            "const": "INR",
+            "title": "Currency",
+            "type": "string"
+          },
+          "debits_paise": {
+            "description": "Σ negative entries (payouts), signed",
+            "title": "Debits Paise",
+            "type": "integer"
+          },
+          "entries": {
+            "description": "Every entry, newest first",
+            "items": {
+              "$ref": "#/components/schemas/EarningsStatementEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "opening_paise": {
+            "description": "Owed at 00:00 IST on the 1st",
+            "title": "Opening Paise",
+            "type": "integer"
+          },
+          "period": {
+            "examples": [
+              "2027-01"
+            ],
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "account",
+          "currency",
+          "opening_paise",
+          "credits_paise",
+          "debits_paise",
+          "closing_paise",
+          "entries",
+          "generated_at"
+        ],
+        "title": "EarningsStatementOut",
+        "type": "object"
+      },
       "EarningsWeekOut": {
         "properties": {
           "by_kind": {
@@ -4698,10 +5125,9 @@
             "type": "string"
           },
           "payouts": {
-            "description": "M5's payouts of the week; none until payouts exist (§3.7)",
+            "description": "M5's payouts of the week, one per partner record; [] until it is paid out",
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/EarningsPayoutOut"
             },
             "title": "Payouts",
             "type": "array"
@@ -12185,6 +12611,34 @@
         "title": "PackingTaskOut",
         "type": "object"
       },
+      "Page_AdminPayoutOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminPayoutOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[AdminPayoutOut]",
+        "type": "object"
+      },
       "Page_AdminProduct_": {
         "properties": {
           "items": {
@@ -12407,6 +12861,34 @@
           "next_cursor"
         ],
         "title": "Page[PartnerStaffOut]",
+        "type": "object"
+      },
+      "Page_PayoutOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[PayoutOut]",
         "type": "object"
       },
       "Page_PointsEntry_": {
@@ -13023,6 +13505,193 @@
           "due_at"
         ],
         "title": "PaymentDueOut",
+        "type": "object"
+      },
+      "PayoutOut": {
+        "properties": {
+          "amount_paise": {
+            "examples": [
+              84000
+            ],
+            "title": "Amount Paise",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "hold_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kyc_incomplete",
+                  "suspended",
+                  "no_payout_account"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Reason"
+          },
+          "hub_id": {
+            "description": "The partner's hub when the payout was made",
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PayoutPeriod"
+          },
+          "processed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processed At"
+          },
+          "provider": {
+            "enum": [
+              "simulated",
+              "razorpay_route"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "pout_sim_0199c2a5"
+            ],
+            "title": "Provider Ref"
+          },
+          "status": {
+            "description": "held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry",
+            "enum": [
+              "held",
+              "pending",
+              "processing",
+              "processed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "week": {
+            "description": "ISO week, Monday to Sunday, IST",
+            "examples": [
+              "2027-W03"
+            ],
+            "title": "Week",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "partner_id",
+          "hub_id",
+          "week",
+          "period",
+          "amount_paise",
+          "status",
+          "hold_reason",
+          "provider",
+          "provider_ref",
+          "created_at",
+          "processed_at"
+        ],
+        "title": "PayoutOut",
+        "type": "object"
+      },
+      "PayoutPartner": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "kitchen",
+              "captain",
+              "rider",
+              "packer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "kind"
+        ],
+        "title": "PayoutPartner",
+        "type": "object"
+      },
+      "PayoutPeriod": {
+        "properties": {
+          "from": {
+            "description": "The week's Monday (IST)",
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "description": "The week's Sunday (IST)",
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "PayoutPeriod",
+        "type": "object"
+      },
+      "PayoutRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "payout",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "PayoutRef",
         "type": "object"
       },
       "PhotoUrl": {
@@ -27996,6 +28665,305 @@
         "summary": "Credit an open issue to the wallet or reject it (Idempotency-Key; audit-logged)",
         "tags": [
           "orders"
+        ]
+      }
+    },
+    "/v1/admin/payouts": {
+      "get": {
+        "operationId": "list_payouts_v1_admin_payouts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "week",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "examples": [
+                "2027-W03"
+              ],
+              "title": "Week"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "held",
+                    "pending",
+                    "processing",
+                    "processed",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hub Id"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AdminPayoutOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: not an admin or a hub manager of that hub"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.week_invalid, request.invalid_cursor, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: partner payouts, newest first; a hub manager reads her hubs' (read-only)",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/admin/payouts/{payout_id}/retry": {
+      "post": {
+        "operationId": "retry_payout_v1_admin_payouts__payout_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payout Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required or request.idempotency_key_invalid"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.payout_not_found, partners.partner_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "billing.payout_not_retryable (with payout_status), billing.payout_still_held (with hold_reason), billing.payout_exceeds_payable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Admin: pay a held or failed payout again once its reason is fixed (audit-logged)",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -49247,6 +50215,114 @@
         ]
       }
     },
+    "/v1/payouts": {
+      "get": {
+        "operationId": "my_payouts_v1_payouts_get",
+        "parameters": [
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Items per page",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PayoutOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden: not a partner role, auth.role_not_granted"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The caller's weekly payouts (every partner record she has), newest first",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/v1/plans": {
       "get": {
         "operationId": "list_plans_v1_plans_get",
@@ -53636,6 +54712,22 @@
             }
           },
           {
+            "description": "earnings: a partner's earnings and payouts (§3.5), every kind she is",
+            "in": "query",
+            "name": "account",
+            "required": false,
+            "schema": {
+              "default": "wallet",
+              "description": "earnings: a partner's earnings and payouts (§3.5), every kind she is",
+              "enum": [
+                "wallet",
+                "earnings"
+              ],
+              "title": "Account",
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "x-active-role",
             "required": false,
@@ -53658,7 +54750,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StatementOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/StatementOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EarningsStatementOut"
+                    }
+                  ],
+                  "title": "Response Get Statement V1 Statements Get"
                 }
               }
             },

@@ -1,17 +1,19 @@
 """HTTP endpoints of M5 Billing & Ledger: wallet, top-ups and the Razorpay webhook (spec §3.1), the
-customer statement (§3.2), refunds to source (§3.3) and reconciliation (§3.4)."""
+customer statement (§3.2), refunds to source (§3.3), reconciliation (§3.4), and partners' payouts
+and earnings statement (§3.5)."""
 
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.dialects.postgresql import insert
 
-from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs, consumer)
 from gharbasket.modules.billing import (
+    earnings,
     kindness,
+    payouts,
     reconciliation,
     refunds,
     settlement,
@@ -19,22 +21,31 @@ from gharbasket.modules.billing import (
     topups,
     wallet,
 )
+from gharbasket.modules.billing import jobs as _jobs  # noqa: F401 (registers jobs, consumer)
 from gharbasket.modules.billing import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.billing.models import Payment, PaymentWebhook, ReconciliationItem
+from gharbasket.modules.billing.permissions import PARTNER_ROLES
 from gharbasket.modules.billing.razorpay import (
     RazorpayClient,
     payments_unavailable,
     valid_signature,
 )
 from gharbasket.modules.billing.schemas import (
+    AdminPayoutOut,
     DevPayIn,
     DevPayOut,
     DonationIn,
     DonationOut,
+    EarningOrderRef,
+    EarningsStatementEntry,
+    EarningsStatementOut,
     Entry,
     KindnessBalanceOut,
     KindnessGoal,
     OrderRef,
+    PayoutOut,
+    PayoutRef,
+    PayoutStatus,
     PointsEntry,
     PointsExpiring,
     PointsRef,
@@ -57,11 +68,12 @@ from gharbasket.modules.billing.schemas import (
     WebhookAck,
 )
 from gharbasket.modules.billing.wallet import CAP_PAISE, WalletEntry
+from gharbasket.modules.partners import api as partners_api
 from gharbasket.platform.db import DbSession
 from gharbasket.platform.errors import ProblemError
 from gharbasket.platform.idempotency import Idempotent
 from gharbasket.platform.pagination import Cursor, Limit, Page
-from gharbasket.platform.permissions import Permit, require
+from gharbasket.platform.permissions import Permit, forbidden, require
 from gharbasket.platform.rate_limit import enforce
 from gharbasket.platform.settings import Settings, get_settings
 from gharbasket.platform.valkey import Valkey
@@ -154,10 +166,18 @@ async def get_statement(
     session: DbSession,
     response: Response,
     period: Annotated[str, Query(max_length=16, examples=["2026-10"])],
-) -> StatementOut:
+    account: Annotated[
+        Literal["wallet", "earnings"],
+        Query(description="earnings: a partner's earnings and payouts (§3.5), every kind she is"),
+    ] = "wallet",
+) -> StatementOut | EarningsStatementOut:
     month = statements.parse_period(period)
-    found = await statements.statement(session, permit.principal.user_id, month)
     response.headers["Cache-Control"] = "no-store"
+    if account == "earnings":
+        return await _earnings_statement(permit, session, month)
+    if not permit.has_role("customer"):
+        raise forbidden()
+    found = await statements.statement(session, permit.principal.user_id, month)
     return StatementOut(
         period=month.period,
         currency="INR",
@@ -171,6 +191,48 @@ async def get_statement(
             )
             for line in found.lines
         ],
+        generated_at=datetime.now(UTC),
+    )
+
+
+def _partner_only(permit: Permit) -> None:
+    """Her own payouts and earnings need a partner role (with X-Active-Role, that one)."""
+    if not any(permit.has_role(role) for role in PARTNER_ROLES):
+        raise forbidden()
+
+
+def _earnings_line(line: statements.StatementLine) -> EarningsStatementEntry:
+    e = line.row.entry
+    ref: EarningOrderRef | PayoutRef | None = None
+    if e.ref_type == "order" and e.ref_id is not None:
+        ref = EarningOrderRef(type="order", id=e.ref_id)
+    elif e.ref_type == "payout" and e.ref_id is not None:
+        ref = PayoutRef(type="payout", id=e.ref_id)
+    return EarningsStatementEntry(
+        id=e.id,
+        kind=e.kind,  # pyright: ignore[reportArgumentType]
+        amount_paise=line.row.amount_paise,
+        ref=ref,
+        at=e.created_at,
+        balance_after_paise=line.balance_after_paise,
+    )
+
+
+async def _earnings_statement(
+    permit: Permit, session: DbSession, month: statements.Month
+) -> EarningsStatementOut:
+    _partner_only(permit)
+    mine = await partners_api.partners_for_user(session, permit.principal.user_id)
+    found = await statements.earnings_statement(session, [p.id for p in mine], month)
+    return EarningsStatementOut(
+        period=month.period,
+        account="earnings",
+        currency="INR",
+        opening_paise=found.opening_paise,
+        credits_paise=found.credits_paise,
+        debits_paise=found.debits_paise,
+        closing_paise=found.closing_paise,
+        entries=[_earnings_line(line) for line in found.lines],
         generated_at=datetime.now(UTC),
     )
 
@@ -521,4 +583,102 @@ async def resolve_reconciliation(
     item = await reconciliation.resolve(session, item_id, permit.principal.user_id, body.note)
     out = _recon(item)
     await session.commit()
+    return out
+
+
+# --- partner payouts (spec §3.5) ------------------------------------------------------------------
+
+CanReadPayouts = Annotated[Permit, require("payouts:read")]
+CanRetryPayouts = Annotated[Permit, require("payouts:write")]
+
+
+@router.get(
+    "/payouts",
+    summary="The caller's weekly payouts (every partner record she has), newest first",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden: not a partner role, auth.role_not_granted"),
+    },
+)
+async def my_payouts(
+    permit: CanReadPayouts,
+    session: DbSession,
+    response: Response,
+    cursor: Cursor = None,
+    limit: Limit = 20,
+) -> Page[PayoutOut]:
+    _partner_only(permit)
+    mine = await partners_api.partners_for_user(session, permit.principal.user_id)
+    found, next_cursor = await payouts.for_partners(session, [p.id for p in mine], cursor, limit)
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=[earnings.payout_out(p) for p in found], next_cursor=next_cursor)
+
+
+@router.get(
+    "/admin/payouts",
+    summary="Admin: partner payouts, newest first; a hub manager reads her hubs' (read-only)",
+    responses={
+        401: _problem("auth.invalid_token"),
+        403: _problem("auth.forbidden: not an admin or a hub manager of that hub"),
+        422: _problem("billing.week_invalid, request.invalid_cursor, request.invalid"),
+    },
+)
+async def list_payouts(
+    permit: CanReadPayouts,
+    session: DbSession,
+    response: Response,
+    week: Annotated[str | None, Query(max_length=16, examples=["2027-W03"])] = None,
+    status: PayoutStatus | None = None,
+    hub_id: uuid.UUID | None = None,
+    cursor: Cursor = None,
+    limit: Limit = 50,
+) -> Page[AdminPayoutOut]:
+    hubs: set[uuid.UUID] | None = None  # every hub
+    if not permit.is_global:
+        hubs = {g.scope_id for g in permit.grants if g.role == "hub_manager" and g.scope_id}
+        if not hubs:
+            raise forbidden()  # a partner's own payouts are GET /v1/payouts
+    if hub_id is not None:
+        if hubs is not None and hub_id not in hubs:
+            raise forbidden()
+        hubs = {hub_id}
+    found, next_cursor = await payouts.for_staff(
+        session,
+        week=payouts.parse_week(week) if week is not None else None,
+        status=status,
+        hub_ids=hubs,
+        cursor=cursor,
+        limit=limit,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return Page(items=found, next_cursor=next_cursor)
+
+
+@router.post(
+    "/admin/payouts/{payout_id}/retry",
+    summary="Admin: pay a held or failed payout again once its reason is fixed (audit-logged)",
+    responses={
+        403: _problem("auth.forbidden"),
+        404: _problem("billing.payout_not_found, partners.partner_not_found"),
+        409: _problem(
+            "billing.payout_not_retryable (with payout_status), billing.payout_still_held (with "
+            "hold_reason), billing.payout_exceeds_payable"
+        ),
+    },
+)
+async def retry_payout(
+    payout_id: uuid.UUID,
+    permit: CanRetryPayouts,
+    session: DbSession,
+    idem: Idempotent,
+    settings: AppSettings,
+) -> PayoutOut:
+    provider = payouts.provider_for(settings)
+    payout = await payouts.retry(
+        session, payout_id, actor_user_id=permit.principal.user_id, provider=provider
+    )
+    out = earnings.payout_out(payout)  # pending: the answer the key replays
+    await idem.save(200, out)
+    await session.commit()
+    await payouts.send_pending(session, provider, only=payout_id)  # commits its own answer
     return out

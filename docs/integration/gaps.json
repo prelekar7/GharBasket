@@ -113,20 +113,6 @@
       "milestone": "after MS-B",
       "note": "M8 §3.7 is an outline, 'refined after MS-B'."
     },
-    "GET /v1/admin/payouts": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M5 §3.5, ships with M8 in S6."
-    },
-    "POST /v1/admin/payouts/{}/retry": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M5 §3.5."
-    },
     "POST /v1/admin/societies": {
       "app": "console",
       "class": "later",

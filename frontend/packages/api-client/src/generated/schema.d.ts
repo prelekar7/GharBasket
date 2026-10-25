@@ -262,6 +262,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin: partner payouts, newest first; a hub manager reads her hubs' (read-only) */
+        get: operations["list_payouts_v1_admin_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/payouts/{payout_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin: pay a held or failed payout again once its reason is fixed (audit-logged) */
+        post: operations["retry_payout_v1_admin_payouts__payout_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/point-rates/{code}": {
         parameters: {
             query?: never;
@@ -2878,6 +2912,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's weekly payouts (every partner record she has), newest first */
+        get: operations["my_payouts_v1_payouts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans": {
         parameters: {
             query?: never;
@@ -3958,6 +4009,64 @@ export interface components {
         AdminFestivals: {
             /** Items */
             items: components["schemas"]["AdminFestival"][];
+        };
+        /** AdminPayoutOut */
+        AdminPayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description Null if the partner record is gone */
+            partner: components["schemas"]["PayoutPartner"] | null;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
         };
         /** AdminProduct */
         AdminProduct: {
@@ -5733,6 +5842,19 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** EarningOrderRef */
+        EarningOrderRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "order";
+        };
         /** EarningOut */
         EarningOut: {
             /** Amount Paise */
@@ -5802,6 +5924,154 @@ export interface components {
             /** Units */
             units: number;
         };
+        /**
+         * EarningsPayoutOut
+         * @description M5's PayoutOut (M5 §3.5) and the kind of the partner record it pays.
+         */
+        EarningsPayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
+        };
+        /** EarningsStatementEntry */
+        EarningsStatementEntry: {
+            /**
+             * Amount Paise
+             * @description Into what the partner is owed +, paid out of it -
+             * @example -84000
+             */
+            amount_paise: number;
+            /**
+             * At
+             * Format: date-time
+             * @description When it was recorded
+             */
+            at: string;
+            /**
+             * Balance After Paise
+             * @description What she is owed after this entry
+             */
+            balance_after_paise: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Show a generic label for a kind the app doesn't know
+             * @enum {string}
+             */
+            kind: "earning" | "payout" | "payout_reversed";
+            /** Ref */
+            ref: (components["schemas"]["EarningOrderRef"] | components["schemas"]["PayoutRef"]) | null;
+        };
+        /**
+         * EarningsStatementOut
+         * @description The §3.2 statement over the partner's `partner_payable` accounts (every kind she is).
+         */
+        EarningsStatementOut: {
+            /**
+             * Account
+             * @constant
+             */
+            account: "earnings";
+            /**
+             * Closing Paise
+             * @description opening + credits + debits
+             */
+            closing_paise: number;
+            /**
+             * Credits Paise
+             * @description Σ positive entries (earnings, reversed payouts)
+             */
+            credits_paise: number;
+            /**
+             * Currency
+             * @constant
+             */
+            currency: "INR";
+            /**
+             * Debits Paise
+             * @description Σ negative entries (payouts), signed
+             */
+            debits_paise: number;
+            /**
+             * Entries
+             * @description Every entry, newest first
+             */
+            entries: components["schemas"]["EarningsStatementEntry"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Opening Paise
+             * @description Owed at 00:00 IST on the 1st
+             */
+            opening_paise: number;
+            /**
+             * Period
+             * @example 2027-01
+             */
+            period: string;
+        };
         /** EarningsWeekOut */
         EarningsWeekOut: {
             /** By Kind */
@@ -5828,11 +6098,9 @@ export interface components {
             generated_at: string;
             /**
              * Payouts
-             * @description M5's payouts of the week; none until payouts exist (§3.7)
+             * @description M5's payouts of the week, one per partner record; [] until it is paid out
              */
-            payouts: {
-                [key: string]: unknown;
-            }[];
+            payouts: components["schemas"]["EarningsPayoutOut"][];
             /**
              * To
              * Format: date
@@ -9086,6 +9354,13 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** Page[AdminPayoutOut] */
+        Page_AdminPayoutOut_: {
+            /** Items */
+            items: components["schemas"]["AdminPayoutOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Page[AdminProduct] */
         Page_AdminProduct_: {
             /** Items */
@@ -9139,6 +9414,13 @@ export interface components {
         Page_PartnerStaffOut_: {
             /** Items */
             items: components["schemas"]["PartnerStaffOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** Page[PayoutOut] */
+        Page_PayoutOut_: {
+            /** Items */
+            items: components["schemas"]["PayoutOut"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
@@ -9383,6 +9665,100 @@ export interface components {
              * @description The wallet's balance now
              */
             wallet_paise: number;
+        };
+        /** PayoutOut */
+        PayoutOut: {
+            /**
+             * Amount Paise
+             * @example 84000
+             */
+            amount_paise: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Hold Reason */
+            hold_reason: ("kyc_incomplete" | "suspended" | "no_payout_account") | null;
+            /**
+             * Hub Id
+             * Format: uuid
+             * @description The partner's hub when the payout was made
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+            period: components["schemas"]["PayoutPeriod"];
+            /** Processed At */
+            processed_at: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "simulated" | "razorpay_route";
+            /**
+             * Provider Ref
+             * @example pout_sim_0199c2a5
+             */
+            provider_ref: string | null;
+            /**
+             * Status
+             * @description held: not eligible, nothing paid (see hold_reason); pending: posted, the provider is next; processed: paid; failed: the provider refused it and the money is back in the partner's earnings for the next run or a retry
+             * @enum {string}
+             */
+            status: "held" | "pending" | "processing" | "processed" | "failed";
+            /**
+             * Week
+             * @description ISO week, Monday to Sunday, IST
+             * @example 2027-W03
+             */
+            week: string;
+        };
+        /** PayoutPartner */
+        PayoutPartner: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+        };
+        /** PayoutPeriod */
+        PayoutPeriod: {
+            /**
+             * From
+             * Format: date
+             * @description The week's Monday (IST)
+             */
+            from: string;
+            /**
+             * To
+             * Format: date
+             * @description The week's Sunday (IST)
+             */
+            to: string;
+        };
+        /** PayoutRef */
+        PayoutRef: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "payout";
         };
         /** PhotoUrl */
         PhotoUrl: {
@@ -16056,6 +16432,142 @@ export interface operations {
                 };
             };
             /** @description orders.issue_credit_invalid (with max_paise), billing.wallet_limit (with room_paise; the issue stays open) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_payouts_v1_admin_payouts_get: {
+        parameters: {
+            query?: {
+                week?: string | null;
+                status?: ("held" | "pending" | "processing" | "processed" | "failed") | null;
+                hub_id?: string | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AdminPayoutOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not an admin or a hub manager of that hub */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.week_invalid, request.invalid_cursor, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    retry_payout_v1_admin_payouts__payout_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                payout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutOut"];
+                };
+            };
+            /** @description request.idempotency_key_required or request.idempotency_key_invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payout_not_found, partners.partner_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description billing.payout_not_retryable (with payout_status), billing.payout_still_held (with hold_reason), billing.payout_exceeds_payable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -27912,6 +28424,60 @@ export interface operations {
             };
         };
     };
+    my_payouts_v1_payouts_get: {
+        parameters: {
+            query?: {
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                /** @description Items per page */
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PayoutOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden: not a partner role, auth.role_not_granted */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_plans_v1_plans_get: {
         parameters: {
             query?: never;
@@ -30285,6 +30851,8 @@ export interface operations {
         parameters: {
             query: {
                 period: string;
+                /** @description earnings: a partner's earnings and payouts (§3.5), every kind she is */
+                account?: "wallet" | "earnings";
             };
             header?: {
                 "x-active-role"?: string | null;
@@ -30300,7 +30868,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StatementOut"];
+                    "application/json": components["schemas"]["StatementOut"] | components["schemas"]["EarningsStatementOut"];
                 };
             };
             /** @description auth.invalid_token */

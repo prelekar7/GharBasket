@@ -17,7 +17,7 @@ from gharbasket.modules.billing import service
 from gharbasket.platform.db import create_engine
 from gharbasket.platform.errors import ProblemError
 
-from ..conftest import LOCAL_TEST_DATABASE_URL, alembic_config
+from ..conftest import LOCAL_TEST_DATABASE_URL, alembic_config, run_on_server
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
@@ -193,15 +193,12 @@ def test_the_migration_downgrades_even_when_earnings_exist() -> None:
     name = f"{make_url(base).database}_downgrade"
     url = make_url(base).set(database=name).render_as_string(hide_password=False)
 
-    def run(sql: str, target: str, fetch: bool = False) -> Any:
+    def fetch(sql: str) -> Any:
         async def go() -> Any:
-            engine = create_engine(target, pooled=False)
+            engine = create_engine(url, pooled=False)
             try:
                 async with engine.connect() as connection:
-                    if not fetch:
-                        await connection.execution_options(isolation_level="AUTOCOMMIT")
-                    result = await connection.execute(text(sql))
-                    return result.all() if fetch else None
+                    return (await connection.execute(text(sql))).all()
             finally:
                 await engine.dispose()
 
@@ -218,24 +215,22 @@ def test_the_migration_downgrades_even_when_earnings_exist() -> None:
         finally:
             await engine.dispose()
 
-    run(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)", base)
-    run(f"CREATE DATABASE {name}", base)
+    run_on_server(base, f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
+    run_on_server(base, f"CREATE DATABASE {name}")
     try:
         config = alembic_config(url)
         command.upgrade(config, "head")
         asyncio.run(accrue_one())
         command.downgrade(config, "8d3f2a61b7c4")
-        left = run(
+        left = fetch(
             "SELECT (SELECT count(*) FROM billing.journal_entries WHERE kind = 'earning'),"
             " (SELECT count(*) FROM billing.ledger_accounts"
             "  WHERE code IN ('fulfilment_expense', 'partner_payable')),"
             " (SELECT count(*) FROM pg_trigger WHERE tgname LIKE '%append_only'"
             "  AND NOT tgisinternal"
-            "  AND tgenabled = 'D')",
-            url,
-            fetch=True,
+            "  AND tgenabled = 'D')"
         )
         assert left == [(0, 0, 0)]  # nothing of the earnings left, the guard triggers back on
         command.upgrade(config, "head")  # and it goes up again
     finally:
-        run(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)", base)
+        run_on_server(base, f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
