@@ -1747,6 +1747,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/surplus-offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's surplus offers made on an IST day, oldest first */
+        get: operations["list_surplus_offers_v1_hubs__hub_id__surplus_offers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/surplus/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run the 12:30 run now: draw packing down, close the day's buying, cascade surplus (Idempotency-Key) */
+        post: operations["run_surplus_cascade_v1_hubs__hub_id__surplus_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/tiffin-assignments/manual": {
         parameters: {
             query?: never;
@@ -3517,6 +3551,23 @@ export interface paths {
         head?: never;
         /** Pause or resume, or set auto-approve */
         patch: operations["patch_subscription_v1_subscriptions_current_patch"];
+        trace?: never;
+    };
+    "/v1/surplus-offers/{offer_id}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Settle an open offer: taken (in full or in part) or declined; the rest moves on (Idempotency-Key) */
+        post: operations["settle_surplus_offer_v1_surplus_offers__offer_id__settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/tiffin-menus": {
@@ -7326,6 +7377,20 @@ export interface components {
              */
             partner_id: string;
         };
+        /** KitchenTakerIn */
+        KitchenTakerIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "kitchen";
+            /**
+             * Partner Id
+             * Format: uuid
+             * @description An active kitchen partner of the hub (M8)
+             */
+            partner_id: string;
+        };
         /** KycCheckOut */
         KycCheckOut: {
             /**
@@ -8167,6 +8232,19 @@ export interface components {
             hi?: string | null;
             /** Mr */
             mr?: string | null;
+        };
+        /** NgoTakerIn */
+        NgoTakerIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ngo";
+            /**
+             * Name
+             * @example Annadaan Seva
+             */
+            name: string;
         };
         /** NotificationOut */
         NotificationOut: {
@@ -11649,6 +11727,38 @@ export interface components {
             /** Proposals */
             proposals: components["schemas"]["ProposalOut"][];
         };
+        /** SettleIn */
+        SettleIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "taken" | "declined";
+            /**
+             * Qty
+             * @description Taken only; default all of it
+             * @example 4
+             */
+            qty?: number | null;
+            /**
+             * Taken By
+             * @description Taken only: who took it
+             */
+            taken_by?: (components["schemas"]["KitchenTakerIn"] | components["schemas"]["NgoTakerIn"]) | null;
+        };
+        /** SettleOut */
+        SettleOut: {
+            /** @description The offer the rest moved on to, if any */
+            next: components["schemas"]["SurplusOfferOut"] | null;
+            offer: components["schemas"]["SurplusOfferOut"];
+            /**
+             * Waste Logs
+             * @description Written by this settle
+             */
+            waste_logs: components["schemas"]["WasteLogOut"][];
+        };
         /** ShortOrderOut */
         ShortOrderOut: {
             /** Box Paise */
@@ -12505,6 +12615,122 @@ export interface components {
         Substitutes: {
             /** Items */
             items: components["schemas"]["SubstituteOut"][];
+        };
+        /** SurplusOfferOut */
+        SurplusOfferOut: {
+            /**
+             * Best Before
+             * Format: date-time
+             */
+            best_before: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description The next day's 12:30 run moves it on
+             */
+            expires_at: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lot Id
+             * Format: uuid
+             */
+            lot_id: string;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /**
+             * Offered To
+             * @enum {string}
+             */
+            offered_to: "kitchen" | "ngo";
+            /**
+             * Previous Offer Id
+             * @description The offer it follows in the cascade
+             */
+            previous_offer_id: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /** Settled At */
+            settled_at: string | null;
+            /** Slug */
+            slug: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "taken" | "declined" | "expired";
+            /**
+             * Taken By
+             * @description As on the waste log of what was taken
+             */
+            taken_by: (components["schemas"]["TakenByKitchen"] | components["schemas"]["TakenByNgo"]) | null;
+            /**
+             * Taken Qty
+             * @description Set when taken
+             */
+            taken_qty: number | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** SurplusOffersOut */
+        SurplusOffersOut: {
+            /**
+             * Items
+             * @description Oldest first
+             */
+            items: components["schemas"]["SurplusOfferOut"][];
+        };
+        /** SurplusRunOut */
+        SurplusRunOut: {
+            /**
+             * Binned
+             * @description Waste logs to the bin
+             */
+            binned: number;
+            /**
+             * Closed Purchase Orders
+             * @description Today's POs received or not delivered
+             */
+            closed_purchase_orders: number;
+            /**
+             * Drawn Tasks
+             * @description Packed tasks drawn down from stock
+             */
+            drawn_tasks: number;
+            /**
+             * Offers
+             * @description Offers made: new surplus and what moved on
+             */
+            offers: number;
         };
         /** SuspendIn */
         SuspendIn: {
@@ -22474,6 +22700,132 @@ export interface operations {
             };
         };
     };
+    list_surplus_offers_v1_hubs__hub_id__surplus_offers_get: {
+        parameters: {
+            query?: {
+                /** @description IST delivery date; default today */
+                date?: string | null;
+                status?: ("open" | "taken" | "declined" | "expired") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurplusOffersOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    run_surplus_cascade_v1_hubs__hub_id__surplus_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SurplusRunOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.idempotency_mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     manual_v1_hubs__hub_id__tiffin_assignments_manual_post: {
         parameters: {
             query?: never;
@@ -30041,6 +30393,90 @@ export interface operations {
                 };
             };
             /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    settle_surplus_offer_v1_surplus_offers__offer_id__settle_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettleOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.offer_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.offer_settled (current_status) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.taker_invalid (reason), hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

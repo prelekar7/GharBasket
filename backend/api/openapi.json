@@ -8374,6 +8374,28 @@
         "title": "KitchenRef",
         "type": "object"
       },
+      "KitchenTakerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "kitchen",
+            "title": "Kind",
+            "type": "string"
+          },
+          "partner_id": {
+            "description": "An active kitchen partner of the hub (M8)",
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "partner_id"
+        ],
+        "title": "KitchenTakerIn",
+        "type": "object"
+      },
       "KycCheckOut": {
         "properties": {
           "at": {
@@ -10381,6 +10403,31 @@
           }
         },
         "title": "NamesIn",
+        "type": "object"
+      },
+      "NgoTakerIn": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "ngo",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "examples": [
+              "Annadaan Seva"
+            ],
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "NgoTakerIn",
         "type": "object"
       },
       "NotificationOut": {
@@ -18642,6 +18689,111 @@
         "title": "SessionOut",
         "type": "object"
       },
+      "SettleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "outcome": {
+            "enum": [
+              "taken",
+              "declined"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "qty": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Taken only; default all of it",
+            "examples": [
+              4.0
+            ],
+            "title": "Qty"
+          },
+          "taken_by": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "kitchen": "#/components/schemas/KitchenTakerIn",
+                    "ngo": "#/components/schemas/NgoTakerIn"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/KitchenTakerIn"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NgoTakerIn"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Taken only: who took it",
+            "title": "Taken By"
+          }
+        },
+        "required": [
+          "outcome"
+        ],
+        "title": "SettleIn",
+        "type": "object"
+      },
+      "SettleOut": {
+        "properties": {
+          "next": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SurplusOfferOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The offer the rest moved on to, if any"
+          },
+          "offer": {
+            "$ref": "#/components/schemas/SurplusOfferOut"
+          },
+          "waste_logs": {
+            "description": "Written by this settle",
+            "items": {
+              "$ref": "#/components/schemas/WasteLogOut"
+            },
+            "title": "Waste Logs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "offer",
+          "next",
+          "waste_logs"
+        ],
+        "title": "SettleOut",
+        "type": "object"
+      },
       "ShortOrderOut": {
         "properties": {
           "box_paise": {
@@ -20546,6 +20698,231 @@
           "items"
         ],
         "title": "Substitutes",
+        "type": "object"
+      },
+      "SurplusOfferOut": {
+        "properties": {
+          "best_before": {
+            "format": "date-time",
+            "title": "Best Before",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "The next day's 12:30 run moves it on",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "A",
+              "B",
+              "C"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lot_id": {
+            "format": "uuid",
+            "title": "Lot Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "offered_to": {
+            "enum": [
+              "kitchen",
+              "ngo"
+            ],
+            "title": "Offered To",
+            "type": "string"
+          },
+          "previous_offer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The offer it follows in the cascade",
+            "title": "Previous Offer Id"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "number"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "taken",
+              "declined",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "taken_by": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "kitchen": "#/components/schemas/TakenByKitchen",
+                    "ngo": "#/components/schemas/TakenByNgo"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TakenByKitchen"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TakenByNgo"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "As on the waste log of what was taken",
+            "title": "Taken By"
+          },
+          "taken_qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when taken",
+            "title": "Taken Qty"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "lot_id",
+          "product_id",
+          "slug",
+          "name",
+          "unit",
+          "grade",
+          "best_before",
+          "qty",
+          "offered_to",
+          "status",
+          "taken_qty",
+          "taken_by",
+          "previous_offer_id",
+          "expires_at",
+          "created_at",
+          "settled_at"
+        ],
+        "title": "SurplusOfferOut",
+        "type": "object"
+      },
+      "SurplusOffersOut": {
+        "properties": {
+          "items": {
+            "description": "Oldest first",
+            "items": {
+              "$ref": "#/components/schemas/SurplusOfferOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SurplusOffersOut",
+        "type": "object"
+      },
+      "SurplusRunOut": {
+        "properties": {
+          "binned": {
+            "description": "Waste logs to the bin",
+            "title": "Binned",
+            "type": "integer"
+          },
+          "closed_purchase_orders": {
+            "description": "Today's POs received or not delivered",
+            "title": "Closed Purchase Orders",
+            "type": "integer"
+          },
+          "drawn_tasks": {
+            "description": "Packed tasks drawn down from stock",
+            "title": "Drawn Tasks",
+            "type": "integer"
+          },
+          "offers": {
+            "description": "Offers made: new surplus and what moved on",
+            "title": "Offers",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "drawn_tasks",
+          "closed_purchase_orders",
+          "offers",
+          "binned"
+        ],
+        "title": "SurplusRunOut",
         "type": "object"
       },
       "SuspendIn": {
@@ -39834,6 +40211,270 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/surplus-offers": {
+      "get": {
+        "operationId": "list_surplus_offers_v1_hubs__hub_id__surplus_offers_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST delivery date; default today",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST delivery date; default today",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "taken",
+                    "declined",
+                    "expired"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurplusOffersOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's surplus offers made on an IST day, oldest first",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/surplus/run": {
+      "post": {
+        "operationId": "run_surplus_cascade_v1_hubs__hub_id__surplus_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurplusRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_mismatch"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Run the 12:30 run now: draw packing down, close the day's buying, cascade surplus (Idempotency-Key)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/tiffin-assignments/manual": {
       "post": {
         "operationId": "manual_v1_hubs__hub_id__tiffin_assignments_manual_post",
@@ -52965,6 +53606,164 @@
         "summary": "Pause or resume, or set auto-approve",
         "tags": [
           "subscriptions"
+        ]
+      }
+    },
+    "/v1/surplus-offers/{offer_id}/settle": {
+      "post": {
+        "operationId": "settle_surplus_offer_v1_surplus_offers__offer_id__settle_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.offer_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.offer_settled (current_status)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.taker_invalid (reason), hub_ops.qty_invalid, request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Settle an open offer: taken (in full or in part) or declined; the rest moves on (Idempotency-Key)",
+        "tags": [
+          "hub_ops"
         ]
       }
     },
