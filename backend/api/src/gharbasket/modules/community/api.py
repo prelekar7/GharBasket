@@ -59,6 +59,7 @@ __all__ = [
     "contains",
     "export_for_user",
     "get_society",
+    "hub_society_ids",
     "hubs_with_societies",
     "is_active_captain",
     "pickups_for",
@@ -116,6 +117,14 @@ async def hubs_with_societies(session: AsyncSession) -> list[uuid.UUID]:
         .order_by(Society.hub_id)
     )
     return [hub_id for hub_id in rows.scalars() if hub_id is not None]
+
+
+async def hub_society_ids(session: AsyncSession, hub_id: uuid.UUID) -> list[uuid.UUID]:
+    """Every society the hub serves, whatever its status (M3's cut-off monitor, §3.4)."""
+    rows = await session.execute(
+        select(Society.id).where(Society.hub_id == hub_id).order_by(Society.id)
+    )
+    return list(rows.scalars())
 
 
 @dataclass(frozen=True)

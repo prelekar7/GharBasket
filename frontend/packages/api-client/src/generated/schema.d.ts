@@ -1363,6 +1363,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/cutoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's cut-off monitor for a delivery date (hub manager, franchise owner, admin) */
+        get: operations["hub_cutoff_v1_hubs__hub_id__cutoff_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/hubs/{hub_id}/deliveries": {
         parameters: {
             query?: never;
@@ -1372,6 +1389,23 @@ export interface paths {
         };
         /** The hub's deliveries for a date (the exceptions board), oldest first, with a cursor */
         get: operations["hub_deliveries_v1_hubs__hub_id__deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/delivery-dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's next delivery dates, with the cut-off of each (hub staff, admin) */
+        get: operations["hub_delivery_dates_v1_hubs__hub_id__delivery_dates_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4747,6 +4781,64 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CutoffCountsOut */
+        CutoffCountsOut: {
+            /**
+             * Approved
+             * @description Approved cycles whose order is not yet locked
+             */
+            approved: number;
+            /**
+             * Auto Approved
+             * @description Of the approved and locked cycles, by auto-approve
+             */
+            auto_approved: number;
+            /**
+             * Awaiting
+             * @description Cycles awaiting approval or still draft
+             */
+            awaiting: number;
+            /**
+             * Locked
+             * @description Box orders the cut-off paid for
+             */
+            locked: number;
+            /**
+             * Payment Needed
+             * @description Orders payment_failed; the grace period is running
+             */
+            payment_needed: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /** CutoffRunOut */
+        CutoffRunOut: {
+            /**
+             * Cancelled
+             * @description Cancelled with reason `payment`
+             */
+            cancelled: number;
+            /**
+             * Cutoff On
+             * Format: date
+             * @description The day the `cutoff_lock` run was for
+             */
+            cutoff_on: string;
+            /** Duration S */
+            duration_s: number;
+            /**
+             * Grace Paid
+             * @description payment_failed, then locked before grace_until
+             */
+            grace_paid: number;
+            /** Locked */
+            locked: number;
+            /**
+             * Total
+             * @description locked + payment_failed + already locked
+             */
+            total: number;
+        };
         /** CycleLineOut */
         CycleLineOut: {
             /** Name */
@@ -6162,6 +6254,84 @@ export interface components {
              * @example +919812345678
              */
             phone_e164: string;
+        };
+        /** HubCutoffOut */
+        HubCutoffOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            counts: components["schemas"]["CutoffCountsOut"];
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /**
+             * Delivery Date
+             * Format: date
+             */
+            delivery_date: string;
+            /**
+             * Grace Until
+             * Format: date-time
+             */
+            grace_until: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /** @description null before `cutoff_lock` ran for the date */
+            last_run: components["schemas"]["CutoffRunOut"] | null;
+            /**
+             * Short
+             * @description Largest shortfall first
+             */
+            short: components["schemas"]["ShortOrderOut"][];
+        };
+        /** HubDeliveryDateOut */
+        HubDeliveryDateOut: {
+            /**
+             * Cutoff At
+             * Format: date-time
+             * @description 21:00 IST the day before, in UTC
+             */
+            cutoff_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Societies
+             * @description Societies of the hub that deliver on this date
+             */
+            societies: number;
+        };
+        /** HubDeliveryDatesOut */
+        HubDeliveryDatesOut: {
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Items
+             * @description Soonest first
+             */
+            items: components["schemas"]["HubDeliveryDateOut"][];
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
         };
         /** HubDriftOut */
         HubDriftOut: {
@@ -11429,6 +11599,30 @@ export interface components {
             model: string | null;
             /** Proposals */
             proposals: components["schemas"]["ProposalOut"][];
+        };
+        /** ShortOrderOut */
+        ShortOrderOut: {
+            /** Box Paise */
+            box_paise: number;
+            /**
+             * Flat
+             * @description A display label such as 'B wing, B-402'; never a name or phone
+             */
+            flat: string;
+            /**
+             * Order Id
+             * Format: uuid
+             */
+            order_id: string;
+            /** Short Paise */
+            short_paise: number;
+            /** Society */
+            society: string;
+            /**
+             * Wallet Paise
+             * @description The owner's balance now
+             */
+            wallet_paise: number;
         };
         /** ShortageIn */
         ShortageIn: {
@@ -20076,6 +20270,69 @@ export interface operations {
             };
         };
     };
+    hub_cutoff_v1_hubs__hub_id__cutoff_get: {
+        parameters: {
+            query?: {
+                /** @description A delivery date; default the hub's first delivery date after today (IST) */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubCutoffOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description subscriptions.not_delivery_date */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_deliveries_v1_hubs__hub_id__deliveries_get: {
         parameters: {
             query?: {
@@ -20124,6 +20381,62 @@ export interface operations {
                 };
             };
             /** @description logistics.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_delivery_dates_v1_hubs__hub_id__delivery_dates_get: {
+        parameters: {
+            query?: {
+                /** @description An IST date; default today */
+                from?: string | null;
+                /** @description Calendar days from `from` */
+                days?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubDeliveryDatesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.invalid */
             422: {
                 headers: {
                     [name: string]: unknown;

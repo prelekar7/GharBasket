@@ -3,7 +3,7 @@ the weekly cycle (read, edit, swap a meal (§3.2), approve, skip, un-skip (§3.3
 and the Budget Lock."""
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
@@ -12,9 +12,9 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import api as orders_api
+from gharbasket.modules.subscriptions import cutoff, planning, service
 from gharbasket.modules.subscriptions import jobs as _jobs  # noqa: F401 (registers the job)
 from gharbasket.modules.subscriptions import permissions as _permissions  # noqa: F401
-from gharbasket.modules.subscriptions import planning, service
 from gharbasket.modules.subscriptions.models import BoxLine, Plan, Subscription, WeeklyCycle
 from gharbasket.modules.subscriptions.schemas import (
     BudgetLockIn,
@@ -30,6 +30,8 @@ from gharbasket.modules.subscriptions.schemas import (
     FeedbackIn,
     FeedbackOut,
     HighlightOut,
+    HubCutoffOut,
+    HubDeliveryDatesOut,
     LinesPatch,
     MealOut,
     MealPlanOut,
@@ -59,6 +61,7 @@ CanRead = Annotated[Permit, require("cycles:read")]
 CanWrite = Annotated[Permit, require("cycles:write")]
 CanSubscribe = Annotated[Permit, require("subscriptions:write")]
 CanSetDays = Annotated[Permit, require("delivery_days:write")]
+CanSeeDates = Annotated[Permit, require("delivery_days:read")]
 MonthParam = Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
 
@@ -352,6 +355,52 @@ async def put_delivery_days(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+@router.get(
+    "/hubs/{hub_id}/delivery-dates",
+    summary="The hub's next delivery dates, with the cut-off of each (hub staff, admin)",
+    responses={403: _problem("auth.forbidden")},
+)
+async def hub_delivery_dates(
+    hub_id: uuid.UUID,
+    permit: CanSeeDates,
+    session: DbSession,
+    response: Response,
+    from_: Annotated[
+        date | None, Query(alias="from", description="An IST date; default today")
+    ] = None,
+    days: Annotated[int, Query(ge=1, le=31, description="Calendar days from `from`")] = 14,
+) -> HubDeliveryDatesOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await cutoff.delivery_dates(session, hub_id, from_, days)
+
+
+@router.get(
+    "/hubs/{hub_id}/cutoff",
+    summary="The hub's cut-off monitor for a delivery date (hub manager, franchise owner, admin)",
+    responses={
+        403: _problem("auth.forbidden"),
+        404: _problem("subscriptions.not_delivery_date"),
+    },
+)
+async def hub_cutoff(
+    hub_id: uuid.UUID,
+    permit: CanRead,
+    session: DbSession,
+    response: Response,
+    on: Annotated[
+        date | None,
+        Query(
+            alias="date",
+            description="A delivery date; default the hub's first delivery date after today (IST)",
+        ),
+    ] = None,
+) -> HubCutoffOut:
+    permit.ensure(hub_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await cutoff.monitor(session, hub_id, on)
 
 
 # --- cycles -------------------------------------------------------------------------------------

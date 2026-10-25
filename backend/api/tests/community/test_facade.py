@@ -44,3 +44,14 @@ async def test_contains_checks_the_pin_against_the_boundary(
     db_session: AsyncSession, society_id: uuid.UUID, lat: float, lng: float, inside: bool
 ) -> None:
     assert await api.contains(db_session, society_id, lat, lng) is inside
+
+
+async def test_hub_society_ids_are_the_societies_a_hub_serves_whatever_their_status(
+    db_session: AsyncSession,
+) -> None:
+    served = await api.hub_society_ids(db_session, SEED_HUB_ID)
+
+    # The five seed societies with a hub (live, unlocking and prospect); Sai Darshan has none.
+    assert len(served) == 5 and SEED_SOCIETY_ID in served and GREEN_VALLEY in served
+    assert SAI_DARSHAN not in served
+    assert await api.hub_society_ids(db_session, uuid.uuid4()) == []

@@ -275,3 +275,57 @@ class CycleOut(BaseModel):
     generated_at: datetime | None
     approved_at: datetime | None
     payment_due: PaymentDueOut | None = Field(description="Only while the week is payment_failed")
+
+
+# --- the hub cut-off monitor and delivery dates (§3.4) -------------------------------------------
+
+
+class HubDeliveryDateOut(BaseModel):
+    date: date
+    societies: int = Field(description="Societies of the hub that deliver on this date")
+    cutoff_at: datetime = Field(description="21:00 IST the day before, in UTC")
+
+
+class HubDeliveryDatesOut(BaseModel):
+    hub_id: uuid.UUID
+    from_: date = Field(alias="from")
+    to: date
+    items: list[HubDeliveryDateOut] = Field(description="Soonest first")
+
+
+class CutoffCountsOut(BaseModel):
+    awaiting: int = Field(description="Cycles awaiting approval or still draft")
+    approved: int = Field(description="Approved cycles whose order is not yet locked")
+    auto_approved: int = Field(description="Of the approved and locked cycles, by auto-approve")
+    skipped: int
+    locked: int = Field(description="Box orders the cut-off paid for")
+    payment_needed: int = Field(description="Orders payment_failed; the grace period is running")
+
+
+class CutoffRunOut(BaseModel):
+    cutoff_on: date = Field(description="The day the `cutoff_lock` run was for")
+    locked: int
+    total: int = Field(description="locked + payment_failed + already locked")
+    duration_s: int
+    grace_paid: int = Field(description="payment_failed, then locked before grace_until")
+    cancelled: int = Field(description="Cancelled with reason `payment`")
+
+
+class ShortOrderOut(BaseModel):
+    order_id: uuid.UUID
+    society: str
+    flat: str = Field(description="A display label such as 'B wing, B-402'; never a name or phone")
+    box_paise: int
+    wallet_paise: int = Field(description="The owner's balance now")
+    short_paise: int
+
+
+class HubCutoffOut(BaseModel):
+    hub_id: uuid.UUID
+    delivery_date: date
+    cutoff_at: datetime
+    grace_until: datetime
+    as_of: datetime
+    counts: CutoffCountsOut
+    last_run: CutoffRunOut | None = Field(description="null before `cutoff_lock` ran for the date")
+    short: list[ShortOrderOut] = Field(description="Largest shortfall first")

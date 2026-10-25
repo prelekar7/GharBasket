@@ -316,20 +316,6 @@
       "milestone": "MS-D",
       "note": "M12 §3.6 (JSON and CSV)."
     },
-    "GET /v1/hubs/{}/cutoff": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M3 §3.4 (contract 2026-10-25). F6: keep orNotShipped until it ships."
-    },
-    "GET /v1/hubs/{}/delivery-dates": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-A",
-      "note": "M3 §3.4 (contract 2026-10-25)."
-    },
     "GET /v1/hubs/{}/delivery-days": {
       "app": "console",
       "class": "fix-backend",
