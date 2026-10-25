@@ -280,18 +280,17 @@ async def links(
 async def claim_photos(
     session: AsyncSession, keys: list[str], user_id: uuid.UUID, store: files.ObjectStore | None
 ) -> list[str]:
-    """The caller's own `handoff_photo` uploads, checked in storage and claimed for M9; kept 3
-    years from now."""
+    """The caller's own `handoff_photo` uploads, checked in storage and claimed for M9, in no
+    other hand-off; kept 3 years from now.
+
+    Claiming locks each upload's row before the check that no hand-off holds the key, so of two
+    hand-offs naming one photo at once the second waits for the first to commit, then finds the
+    key used (a claim again by M9 alone would pass: it is harmless for a retried request)."""
     keys = list(dict.fromkeys(keys))
     if not keys:
         return []
     if store is None:
         raise files.storage_unavailable()
-    used = await session.execute(
-        select(NgoHandoff.id).where(NgoHandoff.photo_keys.overlap(keys)).limit(1)
-    )
-    if used.first() is not None:
-        raise photo_key_invalid()
     for key in keys:
         upload = await files.verify(session, key, user_id=user_id, purpose=PHOTO_PURPOSE)
         stored = await store.head(key) if upload is not None else None
@@ -305,6 +304,12 @@ async def claim_photos(
             is None
         ):
             raise photo_key_invalid()
+    used = await session.execute(
+        select(NgoHandoff.id).where(NgoHandoff.photo_keys.overlap(keys)).limit(1)
+    )
+    if used.first() is not None:
+        raise photo_key_invalid()
+    for key in keys:
         await files.set_delete_after(session, key, donations.now() + PHOTO_RETENTION)
     return keys
 

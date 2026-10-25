@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from gharbasket.modules.billing import api as billing_api
@@ -26,6 +26,7 @@ from gharbasket.modules.community.models import (
     NgoHandoff,
     NgoOffer,
 )
+from gharbasket.modules.community.ngo_schemas import HandoffIn
 from gharbasket.modules.hub_ops import receiving, service, surplus
 from gharbasket.modules.hub_ops.models import (
     Hub,
@@ -485,6 +486,106 @@ async def test_two_concurrent_claims_one_wins_and_settles_once(engine: AsyncEngi
             await session.execute(delete(Ngo).where(Ngo.id.in_([first.id, second.id])))
             for model in (WasteLog, SurplusOffer, StockMove, InventoryLot):
                 await session.execute(delete(model).where(model.hub_id == hub.id))
+            await session.execute(delete(Hub).where(Hub.id == hub.id))
+            await session.execute(
+                delete(OutboxEvent).where(OutboxEvent.payload["hub_id"].astext == str(hub.id))
+            )
+            await session.commit()
+
+
+async def test_concurrent_meals_hand_offs_never_serve_one_pledge_or_photo_twice(
+    engine: AsyncEngine,
+) -> None:
+    store, s3 = _storage()
+    by = uuid.uuid4()
+    keys = [f"handoff_photo/{by}/{uuid.uuid4()}.jpg" for _ in range(3)]
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        hub = await service.create_hub(
+            session, HubIn.model_validate(hub_body(f"meal-race-{uuid.uuid4().hex[:8]}"))
+        )
+        ngo = _ngo(uuid.uuid4(), hub_ids=[hub.id])
+        at = datetime.now(UTC)
+        session.add(ngo)
+        session.add_all(
+            MealPledge(
+                entry_id=uuid.uuid4(),
+                user_id=uuid.uuid4(),
+                hub_id=hub.id,
+                meals=meals,
+                pledged_at=at - timedelta(minutes=minutes),
+            )
+            for meals, minutes in ((2, 10), (10, 5))
+        )
+        for key in keys:
+            session.add(
+                Upload(
+                    key=key,
+                    user_id=by,
+                    purpose="handoff_photo",
+                    content_type="image/jpeg",
+                    size_bytes=9,
+                )
+            )
+            s3.objects[key] = ("image/jpeg", 9)
+        await session.commit()
+    scope = ngos.Scope(False, frozenset({hub.id}), frozenset())
+
+    def body(photo: str) -> HandoffIn:
+        return HandoffIn(ngo_id=ngo.id, hub_id=hub.id, kind="meals", meals=2, photo_keys=[photo])
+
+    async def race(first_photo: str, second_photo: str) -> list[str]:
+        held = asyncio.Event()
+
+        async def first() -> str:
+            async with AsyncSession(engine, expire_on_commit=False) as session:
+                await handoffs.record(session, scope, body(first_photo), by, store)
+                held.set()
+                await asyncio.sleep(0.5)  # the other hand-off waits on its rows meanwhile
+                await session.commit()
+                return "recorded"
+
+        async def second() -> str:
+            await asyncio.wait_for(held.wait(), 10)
+            async with AsyncSession(engine, expire_on_commit=False) as session:
+                try:
+                    await handoffs.record(session, scope, body(second_photo), by, store)
+                except ProblemError as error:
+                    return error.code
+                await session.commit()
+                return "recorded"
+
+        return list(await asyncio.wait_for(asyncio.gather(first(), second()), 30))
+
+    try:
+        # Two hand-offs of 2 meals at once: the second waits for the oldest pledge, then skips it.
+        assert await race(keys[0], keys[1]) == ["recorded", "recorded"]
+        async with AsyncSession(engine) as session:
+            served = await session.execute(
+                select(MealPledge.meals, MealPledge.served)
+                .where(MealPledge.hub_id == hub.id)
+                .order_by(MealPledge.pledged_at)
+            )
+            assert [tuple(row) for row in served] == [(2, 2), (10, 2)]
+            split = await session.execute(
+                select(HandoffMeal.pledge_id, func.sum(HandoffMeal.meals))
+                .join(MealPledge, MealPledge.id == HandoffMeal.pledge_id)
+                .where(MealPledge.hub_id == hub.id)
+                .group_by(HandoffMeal.pledge_id)
+            )
+            assert sorted(total for _, total in split.all()) == [2, 2]
+        # One photo named by two hand-offs at once: the second waits on the upload, then finds
+        # it used.
+        assert await race(keys[2], keys[2]) == ["recorded", "community.photo_key_invalid"]
+    finally:
+        async with AsyncSession(engine) as session:
+            handoff_ids = select(NgoHandoff.id).where(NgoHandoff.hub_id == hub.id)
+            await session.execute(
+                delete(HandoffMeal).where(HandoffMeal.handoff_id.in_(handoff_ids))
+            )
+            await session.execute(delete(NgoHandoff).where(NgoHandoff.hub_id == hub.id))
+            await session.execute(delete(MealPledge).where(MealPledge.hub_id == hub.id))
+            await session.execute(delete(Ngo).where(Ngo.id == ngo.id))
+            await session.execute(delete(Upload).where(Upload.key.in_(keys)))
             await session.execute(delete(Hub).where(Hub.id == hub.id))
             await session.execute(
                 delete(OutboxEvent).where(OutboxEvent.payload["hub_id"].astext == str(hub.id))
