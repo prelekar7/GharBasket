@@ -172,6 +172,19 @@ def measured(w: Week) -> dict[str, int | None]:
     }
 
 
+def measured_over(weeks: Iterable[Week]) -> dict[str, int | None]:
+    """A range's inputs, each over the weeks that measured it: a week without captain earnings
+    yet is assumed on its own (as in `weeks[]`) and must not water the others' rate down with its
+    boxes. The AOV is over every week."""
+    listed = list(weeks)
+    out = measured(combine(listed))
+    for key in out:
+        if key != "aov_paise":
+            some = [w for w in listed if measured(w)[key] is not None]
+            out[key] = measured(combine(some))[key] if some else None
+    return out
+
+
 def delivery_fee(w: Week) -> int:
     """Σ fees of delivered boxes ÷ boxes: 0 with no pre-live boxes (and with no boxes at all)."""
     return ratio(w.box_fees_paise, w.boxes) or 0
@@ -247,17 +260,17 @@ async def unit_economics(
         weeks = await weeks_of(session, hub_id, source, start, end)
         fresh = await freshness.freshness(session, VIEW)
 
-    def work(w: Week) -> Inputs:
-        return choose(saved, measured(w), delivery_fee(w), prefer=prefer, overrides=overrides)
+    def work(w: Week, meas: Mapping[str, int | None]) -> Inputs:
+        return choose(saved, meas, delivery_fee(w), prefer=prefer, overrides=overrides)
 
     total = combine(weeks.values())
-    meas = measured(total)
-    inputs = work(total)
+    meas = measured_over(weeks.values())
+    inputs = work(total, meas)
     series: list[UnitWeekOut] = []
     for i in range((end - start).days // 7 + 1):
         day = start + timedelta(weeks=i)
         w = weeks.get(day, NOTHING)
-        one = work(w)
+        one = work(w, measured(w))
         series.append(
             UnitWeekOut(
                 week=day,
@@ -304,6 +317,7 @@ LINE_KEYS = (
 )
 # The unit a `times` line counts, and the units of a `share` line's quantity.
 UNITS = {"tiffin_revenue": "tiffin", "kitchen": "tiffin"}
+ALWAYS_ASSUMED = ("fees", "acquisition")  # M5 stores no payment fee; marketing is outside
 
 
 @dataclass
@@ -369,14 +383,17 @@ def statement_of(w: Week, a: Mapping[str, int]) -> Statement:
 
 def merge(statements: Iterable[tuple[Week, Statement]]) -> Statement:
     """The month's lines: the weeks' amounts added. A line is measured only if every week that had
-    something to measure was (an empty week says nothing)."""
+    something for it to measure was (a week without its boxes or tiffins says nothing); the
+    payment fee and the acquisition cost are never measured, even in an empty month."""
     out = Statement()
-    for w, s in statements:
+    for key in ALWAYS_ASSUMED:
+        out.lines[key].measured = False
+    for _, s in statements:
         for key in LINE_KEYS:
             line, into = s.lines[key], out.lines[key]
             into.amount += line.amount
             into.qty += line.qty
-            if w.active and not line.measured:
+            if (line.qty > 0 or line.amount != 0) and not line.measured:
                 into.measured = False
     return out
 

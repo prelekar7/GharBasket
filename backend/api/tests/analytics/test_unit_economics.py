@@ -179,15 +179,17 @@ async def test_measured_inputs_fill_the_per_box_economics(
         "aov_paise": 62_250,  # (180,000 + 64,000 boxes + 5,000 add-on) ÷ 4
         "margin_bp": None,  # no COGS yet (M6 §3.4)
         "delivery_paise": 10_500,  # (30,000 + 12,000 box route cost) ÷ (3 + 1 orders)
-        "packing_paise": 100,  # 400 of packer earnings ÷ 4 boxes
-        "captain_paise": 450,  # 1,800 of captain earnings ÷ 4 boxes
+        # Each over the weeks that measured it, so the week without packer (or captain) earnings
+        # does not water the rate down with its boxes:
+        "packing_paise": 400,  # 400 of packer earnings ÷ week 2's 1 box (not ÷ 4)
+        "captain_paise": 600,  # 1,800 of captain earnings ÷ week 1's 3 boxes (not ÷ 4)
     }
     assert body["used"] == {
         **DEFAULTS,
         "aov_paise": 62_250,
         "delivery_paise": 10_500,
-        "packing_paise": 100,
-        "captain_paise": 450,
+        "packing_paise": 400,
+        "captain_paise": 600,
     }
     assert body["sources"] == {
         "aov_paise": "measured",
@@ -204,12 +206,12 @@ async def test_measured_inputs_fill_the_per_box_economics(
         "margin_paise": 14_940,  # 62,250 x 24 %
         "delivery_fee_paise": 1_000,
         "delivery_paise": 10_500,
-        "packing_paise": 100,
-        "captain_paise": 450,
+        "packing_paise": 400,
+        "captain_paise": 600,
         "fee_paise": 747,  # 62,250 x 1.2 %
         "cac_paise": 1_300,
-        # 14,940 + 1,000 - 10,500 - 100 - 450 - 747 - 1,300
-        "contribution_paise": 2_843,
+        # 14,940 + 1,000 - 10,500 - 400 - 600 - 747 - 1,300
+        "contribution_paise": 2_393,
     }
     assert body["weeks"] == [
         # Week 1 on its own: AOV 185,000 ÷ 3 = 61,667, fee 4,000 ÷ 3 = 1,333, delivery 30,000 ÷ 3,
@@ -241,9 +243,9 @@ async def test_what_if_overrides_beat_measured_and_are_never_saved(
     assert body["sources"]["delivery_fee_paise"] == "override"
     assert body["measured"]["aov_paise"] == 62_250  # the measurement itself is unchanged
     assert body["delivery_fee_paise"] == 0
-    # 21,000 margin + 0 - 10,500 - 100 - 450 - 840 (70,000 x 1.2 %) - 1,300
+    # 21,000 margin + 0 - 10,500 - 400 - 600 - 840 (70,000 x 1.2 %) - 1,300
     assert body["per_box"]["margin_paise"] == 21_000
-    assert body["per_box"]["contribution_paise"] == 7_810
+    assert body["per_box"]["contribution_paise"] == 7_360
     # Nothing was saved
     saved = await api.get(assumptions_url(), headers=owner)
     assert saved.json()["assumptions"] == DEFAULTS and saved.json()["version"] == 1
@@ -383,6 +385,9 @@ async def test_an_empty_period_is_zero_with_assumed_inputs(
     )
     assert pnl["per_box_paise"] is None and pnl["previous_contribution_paise"] is None
     assert {line["amount_paise"] for line in pnl["lines"]} == {0}
+    # The payment fee and the CAC are never measured, even in a month with nothing in it
+    empty = mapped(pnl["lines"])
+    assert empty["fees"]["source"] == empty["acquisition"]["source"] == "assumed"
     assert [w["week"] for w in pnl["weeks"]] == [
         "2026-05-04",
         "2026-05-11",
@@ -570,6 +575,69 @@ async def test_pnl_period_must_be_one_of_the_last_24_months(
     assert codes["2026-13"].json()["code"] == "analytics.range_invalid"
     assert codes["2026-1"].json()["code"] == "analytics.range_invalid"
     assert codes["x"].json()["code"] == "analytics.range_invalid"
+
+
+async def test_a_week_without_boxes_does_not_make_the_box_lines_assumed() -> None:
+    """A tiffin-only week has nothing for the box lines to measure: the month's captain and
+    delivery lines stay measured, while its unpaid tiffins make the kitchen line assumed."""
+    a = DEFAULT_ASSUMPTIONS
+    boxes = economics.Week(
+        boxes=2,
+        box_revenue_paise=120_000,
+        box_route_cost_paise=8_000,
+        box_route_orders=2,
+        captain_paise=1_200,
+        packer_paise=800,
+        cogs_paise=90_000,
+    )
+    tiffins = economics.Week(tiffins=3, tiffin_revenue_paise=30_000, cogs_paise=0)
+    month = economics.merge(
+        (w, economics.statement_of(w, a)) for w in (boxes, tiffins, economics.NOTHING)
+    )
+    sources = {key: line.measured for key, line in month.lines.items()}
+    assert sources == {
+        "box_revenue": True,
+        "delivery_fee_revenue": True,
+        "tiffin_revenue": True,
+        "produce": True,
+        "kitchen": False,  # 3 tiffins, no kitchen earnings: 0 and assumed
+        "delivery": True,
+        "packing": True,
+        "captain": True,
+        "fees": False,
+        "acquisition": False,
+    }
+    assert month.lines["captain"].amount == -1_200 and month.lines["delivery"].amount == -8_000
+
+
+async def test_the_range_measures_each_input_over_the_weeks_that_measured_it() -> None:
+    measured = economics.measured_over(
+        [
+            # captain earnings and a costed route, no COGS
+            economics.Week(
+                boxes=3,
+                box_revenue_paise=180_000,
+                box_route_cost_paise=30_000,
+                box_route_orders=3,
+                captain_paise=1_800,
+            ),
+            # a route without a recorded cost and no captain earnings yet, but a COGS
+            economics.Week(
+                boxes=1,
+                box_revenue_paise=60_000,
+                box_route_cost_paise=None,
+                box_route_orders=1,
+                cogs_paise=45_000,
+            ),
+        ]
+    )
+    assert measured == {
+        "aov_paise": 60_000,  # 240,000 ÷ 4: every week
+        "margin_bp": 2_500,  # 1 - 45,000 ÷ 60,000: the week with a COGS
+        "delivery_paise": 10_000,  # 30,000 ÷ 3: the costed week
+        "packing_paise": None,
+        "captain_paise": 600,  # 1,800 ÷ 3, not ÷ 4
+    }
 
 
 async def test_a_month_is_the_weeks_that_start_in_it() -> None:

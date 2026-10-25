@@ -29,11 +29,14 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("hub_id", name=op.f("pk_assumption_versions")),
         schema="analytics",
     )
+    # Any change row from before this revision is the hub's first save (version 2); the default
+    # only fills those rows and is then dropped, so a new row must name its version.
     op.add_column(
         "assumption_changes",
         sa.Column("version", sa.Integer(), server_default="2", nullable=False),
         schema="analytics",
     )
+    op.alter_column("assumption_changes", "version", server_default=None, schema="analytics")
 
 
 def downgrade() -> None:

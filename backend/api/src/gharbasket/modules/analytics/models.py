@@ -312,7 +312,7 @@ class AssumptionChange(Base):
     by_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # The hub's assumptions version this change produced: the keys of one PUT share it.
-    version: Mapped[int] = mapped_column(Integer, server_default="2")
+    version: Mapped[int] = mapped_column(Integer)
 
 
 class RefreshRun(Base):
