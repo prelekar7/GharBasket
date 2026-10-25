@@ -15,3 +15,5 @@ PURCHASE_ORDER_SENT = "hub_ops.purchase_order_sent"
 GOODS_RECEIVED = "hub_ops.goods_received"
 # waste_log_id, hub_id, lot_id, product_id, qty, unit, kg, reason, cascade_to (§3.5)
 WASTE_LOGGED = "hub_ops.waste_logged"
+# offer_id, hub_id, lot_id, product_id, qty, unit, grade, best_before, offered_to, expires_at (§3.5)
+SURPLUS_OFFERED = "hub_ops.surplus_offered"

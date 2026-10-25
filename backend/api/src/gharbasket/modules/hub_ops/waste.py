@@ -51,6 +51,25 @@ def weigh(qty: Decimal, unit: str, unit_g: float | None) -> Decimal | None:
     return (qty * Decimal(str(unit_g)) / 1000).quantize(MILLI, ROUND_HALF_UP)
 
 
+async def published(session: AsyncSession, log: WasteLog) -> None:
+    """`hub_ops.waste_logged` for a log, written off or settled by the cascade."""
+    await publish(
+        session,
+        events.WASTE_LOGGED,
+        {
+            "waste_log_id": str(log.id),
+            "hub_id": str(log.hub_id),
+            "lot_id": None if log.lot_id is None else str(log.lot_id),
+            "product_id": str(log.product_id),
+            "qty": float(log.qty),
+            "unit": log.unit,
+            "kg": None if log.kg is None else float(log.kg),
+            "reason": log.reason,
+            "cascade_to": log.cascade_to,
+        },
+    )
+
+
 # --- writing off ---------------------------------------------------------------------------------
 
 
@@ -116,21 +135,7 @@ async def write_off(
         by_user_id=actor_user_id,
     )
     await session.refresh(log)
-    await publish(
-        session,
-        events.WASTE_LOGGED,
-        {
-            "waste_log_id": str(log.id),
-            "hub_id": str(hub_id),
-            "lot_id": None if lot is None else str(lot.id),
-            "product_id": str(product_id),
-            "qty": float(qty),
-            "unit": unit,
-            "kg": None if log.kg is None else float(log.kg),
-            "reason": log.reason,
-            "cascade_to": log.cascade_to,
-        },
-    )
+    await published(session, log)
     await audit.record(
         session,
         actor_user_id=actor_user_id,
@@ -187,6 +192,16 @@ async def list_logs(
     return list(rows)
 
 
+def taker_of(log: WasteLog) -> TakenByKitchen | TakenByNgo | None:
+    if log.taken_by_kind == "kitchen" and log.taken_by_partner_id is not None:
+        return TakenByKitchen(
+            kind="kitchen", partner_id=log.taken_by_partner_id, name=log.taken_by_name or ""
+        )
+    if log.taken_by_kind == "ngo":
+        return TakenByNgo(kind="ngo", name=log.taken_by_name or "")
+    return None
+
+
 async def logs_out(
     session: AsyncSession, logs: list[WasteLog], lang: Language
 ) -> list[WasteLogOut]:
@@ -201,13 +216,7 @@ async def logs_out(
         if x.logged_by is not None:
             user = users.get(x.logged_by)
             by = UserRef(user_id=x.logged_by, name=None if user is None else user.name)
-        taken_by = None
-        if x.taken_by_kind == "kitchen" and x.taken_by_partner_id is not None:
-            taken_by = TakenByKitchen(
-                kind="kitchen", partner_id=x.taken_by_partner_id, name=x.taken_by_name or ""
-            )
-        elif x.taken_by_kind == "ngo":
-            taken_by = TakenByNgo(kind="ngo", name=x.taken_by_name or "")
+        taken_by = taker_of(x)
         return WasteLogOut.model_validate(
             {
                 **x.as_dict(

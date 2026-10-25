@@ -1,9 +1,9 @@
 """HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), packing
 (§3.2), procurement plans and purchase orders (§3.3), goods receipts, lots, inventory and counts
-(§3.4), waste logs and the waste KPI (§3.5)."""
+(§3.4), waste logs, the 12:30 run and its surplus offers, and the waste KPI (§3.5)."""
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Query, Response, status
@@ -20,6 +20,7 @@ from gharbasket.modules.hub_ops import (
     scores,
     service,
     stock,
+    surplus,
     waste,
 )
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
@@ -54,6 +55,7 @@ from gharbasket.modules.hub_ops.schemas import (
     LostIn,
     LotDetailOut,
     LotOut,
+    OfferStatus,
     PackingSummary,
     PackingTaskDetail,
     PackingTaskOut,
@@ -66,8 +68,12 @@ from gharbasket.modules.hub_ops.schemas import (
     ReceiptIn,
     ReturnedBagIn,
     ReturnedBagOut,
+    SettleIn,
+    SettleOut,
     ShortageIn,
     StartIn,
+    SurplusOffersOut,
+    SurplusRunOut,
     TaskStatus,
     Timings,
     VendorIn,
@@ -1170,3 +1176,101 @@ async def get_waste_summary(
     days = await waste.summary_days(session, hub_id, start, end)
     response.headers["Cache-Control"] = "no-store"
     return waste.summary_out(hub_id, start, end, days)
+
+
+# --- the 12:30 run and surplus offers (§3.5) -----------------------------------------------------
+
+
+@router.get(
+    "/hubs/{hub_id}/surplus-offers",
+    summary="The hub's surplus offers made on an IST day, oldest first",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range")},
+)
+async def list_surplus_offers(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    day: PlanDay = None,
+    offer_status: Annotated[OfferStatus | None, Query(alias="status")] = None,
+) -> SurplusOffersOut:
+    permit.ensure(hub_id)
+    offers = await surplus.list_offers(session, hub_id, procurement.plan_day(day), offer_status)
+    response.headers["Cache-Control"] = "no-store"
+    return SurplusOffersOut(items=await surplus.offers_out(session, offers, lang))
+
+
+@router.post(
+    "/surplus-offers/{offer_id}/settle",
+    summary="Settle an open offer: taken (in full or in part) or declined; the rest moves on "
+    "(Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.offer_not_found"),
+        409: _problem("hub_ops.offer_settled (current_status)"),
+        422: _problem(
+            "hub_ops.taker_invalid (reason), hub_ops.qty_invalid, request.idempotency_mismatch, "
+            "request.invalid"
+        ),
+    },
+)
+async def settle_surplus_offer(
+    offer_id: uuid.UUID,
+    body: SettleIn,
+    permit: CanManageInventory,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> SettleOut:
+    offer = await surplus.get_offer(session, offer_id)  # unlocked: `settle` locks it
+    if not permit.allows(offer.hub_id):
+        raise surplus.offer_not_found()
+    taker = None
+    if body.taken_by is not None:
+        taker = surplus.Taker(
+            body.taken_by.kind,
+            getattr(body.taken_by, "partner_id", None),
+            getattr(body.taken_by, "name", None),
+        )
+    done = await surplus.settle(
+        session,
+        offer_id,
+        body.outcome,
+        qty=body.qty,
+        taker=taker,
+        note=body.note,
+        actor_user_id=permit.principal.user_id,
+        now=datetime.now(UTC),
+    )
+    offers = await surplus.offers_out(
+        session, [done.offer, *([] if done.next is None else [done.next])], lang
+    )
+    out = SettleOut(
+        offer=offers[0],
+        next=offers[1] if len(offers) > 1 else None,
+        waste_logs=await waste.logs_out(session, done.logs, lang),
+    )
+    await idem.save(200, out)
+    await session.commit()
+    return out
+
+
+@router.post(
+    "/hubs/{hub_id}/surplus/run",
+    summary="Run the 12:30 run now: draw packing down, close the day's buying, cascade surplus "
+    "(Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found"),
+        422: _problem("request.idempotency_mismatch"),
+    },
+)
+async def run_surplus_cascade(
+    hub_id: uuid.UUID, permit: CanManageInventory, session: DbSession, idem: Idempotent
+) -> SurplusRunOut:
+    permit.ensure(hub_id)
+    out = SurplusRunOut(**await surplus.run(session, hub_id, datetime.now(UTC)))
+    await idem.save(200, out)
+    await session.commit()
+    return out

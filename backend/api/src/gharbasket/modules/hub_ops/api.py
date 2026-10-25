@@ -8,28 +8,35 @@ facts with `hub_data_sources`.
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import kept, packing, service, waste
+from gharbasket.modules.hub_ops import kept, packing, service, surplus, waste
 from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
-from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
+from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask, SurplusOffer, WasteLog
+from gharbasket.modules.hub_ops.surplus import Taker
 from gharbasket.modules.orders import api as orders_api
 
 __all__ = [
     "BagRef",
     "HubDayFact",
     "HubRef",
+    "OfferRef",
+    "SettleResult",
     "SocietyLoad",
+    "Taker",
     "WasteDay",
+    "WasteLogRef",
     "active_hub_ids",
     "anonymise_for_user",
     "bag_for_order",
     "get_hub",
     "hub_data_sources",
     "hub_day_facts",
+    "open_surplus_offers",
+    "settle_surplus",
     "society_loads",
     "waste_summary",
 ]
@@ -173,3 +180,117 @@ async def waste_summary(
         )
         for x in days
     ]
+
+
+@dataclass(frozen=True)
+class OfferRef:
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    lot_id: uuid.UUID
+    product_id: uuid.UUID
+    qty: float
+    unit: str
+    offered_to: str  # kitchen | ngo
+    status: str  # open | taken | declined | expired
+    taken_qty: float | None
+    previous_offer_id: uuid.UUID | None
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class WasteLogRef:
+    id: uuid.UUID
+    lot_id: uuid.UUID | None
+    product_id: uuid.UUID
+    qty: float
+    unit: str
+    kg: float | None
+    reason: str
+    cascade_to: str  # kitchen | ngo | bin
+    offer_id: uuid.UUID | None
+
+
+@dataclass(frozen=True)
+class SettleResult:
+    offer: OfferRef
+    next: OfferRef | None  # the offer the rest moved on to
+    waste_logs: list[WasteLogRef]  # written by this settle
+
+
+def _offer_ref(offer: SurplusOffer) -> OfferRef:
+    return OfferRef(
+        id=offer.id,
+        hub_id=offer.hub_id,
+        lot_id=offer.lot_id,
+        product_id=offer.product_id,
+        qty=float(offer.qty),
+        unit=offer.unit,
+        offered_to=offer.offered_to,
+        status=offer.status,
+        taken_qty=None if offer.taken_qty is None else float(offer.taken_qty),
+        previous_offer_id=offer.previous_offer_id,
+        expires_at=offer.expires_at,
+    )
+
+
+def _log_ref(log: WasteLog) -> WasteLogRef:
+    return WasteLogRef(
+        id=log.id,
+        lot_id=log.lot_id,
+        product_id=log.product_id,
+        qty=float(log.qty),
+        unit=log.unit,
+        kg=None if log.kg is None else float(log.kg),
+        reason=log.reason,
+        cascade_to=log.cascade_to,
+        offer_id=log.offer_id,
+    )
+
+
+async def settle_surplus(
+    session: AsyncSession,
+    offer_id: uuid.UUID,
+    outcome: str,
+    *,
+    qty: float | None = None,
+    taken_by: Taker | None = None,
+    actor_user_id: uuid.UUID | None = None,
+    note: str | None = None,
+) -> SettleResult:
+    """Settle an open surplus offer (§3.5), for M8 (kitchens) and M9 (NGOs) when they consume
+    `hub_ops.surplus_offered`; the console's settle endpoint runs the same code. `outcome` is
+    `taken` (`qty` default all of it; `taken_by` a `Taker("kitchen", partner_id=…)` of an active
+    kitchen partner of the hub, or `Taker("ngo", name=…)`) or `declined` (no taker, no `qty`);
+    any other `outcome` is a `ValueError`. Raises 404 `hub_ops.offer_not_found`, 409
+    `hub_ops.offer_settled`, 422 `hub_ops.taker_invalid` or `hub_ops.qty_invalid` (above the
+    offer, or a `qty` on a decline). The caller commits."""
+    done = await surplus.settle(
+        session,
+        offer_id,
+        outcome,
+        qty=qty,
+        taker=taken_by,
+        note=note,
+        actor_user_id=actor_user_id,
+        now=datetime.now(UTC),
+    )
+    return SettleResult(
+        offer=_offer_ref(done.offer),
+        next=None if done.next is None else _offer_ref(done.next),
+        waste_logs=[_log_ref(x) for x in done.logs],
+    )
+
+
+async def open_surplus_offers(
+    session: AsyncSession, *, hub_id: uuid.UUID
+) -> tuple[int, datetime | None]:
+    """How many surplus offers of the hub are open, and when the oldest was made (null when none),
+    for M12's today board."""
+    count, oldest = (
+        await session.execute(
+            select(func.count(SurplusOffer.id), func.min(SurplusOffer.created_at)).where(
+                SurplusOffer.hub_id == hub_id, SurplusOffer.status == "open"
+            )
+        )
+    ).one()
+    return count, oldest
