@@ -20,9 +20,13 @@ from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.modules.hub_ops import procurement, receiving, stock, surplus, waste
 from gharbasket.modules.hub_ops.models import (
+    DEFAULT_TIMINGS,
+    Hub,
     InventoryLot,
     PackingLine,
     PackingTask,
+    ProcurementPlan,
+    PurchaseOrder,
     StockMove,
     SurplusOffer,
     WasteLog,
@@ -360,6 +364,55 @@ async def test_the_run_closes_the_days_purchase_orders_and_plan(
     assert plan["status"] == "closed"
     assert again.json() == EMPTY
     assert code(rebuilt) == (409, "hub_ops.plan_not_editable")
+
+
+async def test_a_run_before_the_surplus_time_keeps_the_days_buying_open(
+    clients: ClientFactory, google: FakeGoogle, db_session: AsyncSession
+) -> None:
+    api = clients()
+    with time_machine.travel(datetime(2026, 10, 12, 16, 0, tzinfo=UTC), tick=False):  # T-1 21:30
+        manager = await as_user(api, google, VIKRAM)
+        po = await sent_po(api, manager, db_session, {"tomato": 4, "onion": 2})
+    po_id = uuid.UUID(po["id"])
+    sent = ("sent", "ordered")
+
+    async def state() -> tuple[str, str | None]:
+        db_session.expire_all()
+        status = await db_session.scalar(
+            select(PurchaseOrder.status).where(PurchaseOrder.id == po_id)
+        )
+        plan = await db_session.scalar(
+            select(ProcurementPlan.status).where(
+                ProcurementPlan.hub_id == SEED_HUB_ID, ProcurementPlan.delivery_date == TODAY
+            )
+        )
+        assert status is not None
+        return status, plan
+
+    # 03:00 IST, an hour before the receiving: the run draws down, expires and offers, but the sent
+    # PO is not cancelled and the plan stays open.
+    with time_machine.travel(datetime(2026, 10, 12, 21, 30, tzinfo=UTC), tick=False):
+        manager = await as_user(api, google, VIKRAM)
+        early = await run(api, manager)
+    assert early.status_code == 200, early.text
+    assert early.json() == EMPTY
+    assert await state() == sent
+
+    # The hub's own surplus time counts, not a fixed 12:30: at 12:45 with 13:00 set, still open.
+    await db_session.execute(
+        update(Hub)
+        .where(Hub.id == SEED_HUB_ID)
+        .values(timings={**DEFAULT_TIMINGS, "surplus": "13:00"})
+    )
+    await db_session.commit()
+    with time_machine.travel(datetime(2026, 10, 13, 7, 15, tzinfo=UTC), tick=False):  # 12:45 IST
+        manager = await as_user(api, google, VIKRAM)
+        assert (await run(api, manager)).json() == EMPTY
+        assert await state() == sent
+    with time_machine.travel(datetime(2026, 10, 13, 7, 30, tzinfo=UTC), tick=False):  # 13:00 IST
+        manager = await as_user(api, google, VIKRAM)
+        assert (await run(api, manager)).json() == {**EMPTY, "closed_purchase_orders": 1}
+    assert await state() == ("cancelled", "closed")
 
 
 # --- new surplus and the cascade -----------------------------------------------------------------
@@ -1025,3 +1078,30 @@ async def test_the_ledger_holds_over_random_receipts_packing_waste_counts_and_ca
                 )
             await db_session.commit()
         await ledger_holds(db_session)
+
+
+@time_machine.travel(AT_1230, tick=False)
+async def test_the_facade_counts_the_hubs_open_offers_and_the_oldest(
+    db_session: AsyncSession,
+) -> None:
+    assert await hub_ops_api.open_surplus_offers(db_session, hub_id=SEED_HUB_ID) == (0, None)
+
+    for slug in ("tomato", "onion"):
+        await make_lot(db_session, slug, 2, grade="C", best_before=ist("2026-10-30"))
+    assert (await surplus.run(db_session, SEED_HUB_ID, AT_1230))["offers"] == 2
+    await db_session.commit()
+
+    count, oldest = await hub_ops_api.open_surplus_offers(db_session, hub_id=SEED_HUB_ID)
+    created = list(await db_session.scalars(select(SurplusOffer.created_at)))
+    assert count == 2 and oldest == min(created)
+    assert await hub_ops_api.open_surplus_offers(db_session, hub_id=uuid.uuid4()) == (0, None)
+
+    first = await db_session.scalar(
+        select(SurplusOffer.id).order_by(SurplusOffer.created_at, SurplusOffer.id)
+    )
+    assert first is not None
+    await hub_ops_api.settle_surplus(db_session, first, "declined")
+    await db_session.commit()
+    # A declined offer moves on to the NGO, so it is still open, as a new one.
+    count, _ = await hub_ops_api.open_surplus_offers(db_session, hub_id=SEED_HUB_ID)
+    assert count == 2

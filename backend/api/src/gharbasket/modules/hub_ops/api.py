@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import kept, packing, service, surplus, waste
@@ -35,6 +35,7 @@ __all__ = [
     "get_hub",
     "hub_data_sources",
     "hub_day_facts",
+    "open_surplus_offers",
     "settle_surplus",
     "society_loads",
     "waste_summary",
@@ -278,3 +279,18 @@ async def settle_surplus(
         next=None if done.next is None else _offer_ref(done.next),
         waste_logs=[_log_ref(x) for x in done.logs],
     )
+
+
+async def open_surplus_offers(
+    session: AsyncSession, *, hub_id: uuid.UUID
+) -> tuple[int, datetime | None]:
+    """How many surplus offers of the hub are open, and when the oldest was made (null when none),
+    for M12's today board."""
+    count, oldest = (
+        await session.execute(
+            select(func.count(SurplusOffer.id), func.min(SurplusOffer.created_at)).where(
+                SurplusOffer.hub_id == hub_id, SurplusOffer.status == "open"
+            )
+        )
+    ).one()
+    return count, oldest

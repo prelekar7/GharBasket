@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import events, procurement, receiving, service, stock, waste
 from gharbasket.modules.hub_ops.models import (
+    DEFAULT_TIMINGS,
     InventoryLot,
     ProcurementPlan,
     PurchaseOrder,
@@ -279,13 +280,18 @@ async def _close_buying(
 async def run(session: AsyncSession, hub_id: uuid.UUID, now: datetime) -> dict[str, int]:
     """The 12:30 run for one hub at `now` (the job's `scheduled_for`): steps 1 to 5 of §3.5. The hub
     row is locked, so runs of a hub follow one another; then packing tasks, lots by id, the plan
-    and its POs, the offers by id and the surplus lots by id. A second run the same day finds
-    nothing to do: drawn tasks are marked, closed POs and settled offers are not looked at again,
-    and surplus lots are left empty."""
-    await service.get_hub(session, hub_id, for_update=True)
-    today = now.astimezone(IST).date()
+    and its POs, the offers by id and the surplus lots by id. The day's buying closes only when
+    `now` (IST) is at or after the hub's `surplus` time, so an earlier manual run reports 0 closed
+    POs and leaves POs and the plan alone. A second run the same day finds nothing to do: drawn
+    tasks are marked, closed POs and settled offers are not looked at again, and surplus lots are
+    left empty."""
+    hub = await service.get_hub(session, hub_id, for_update=True)
+    local = now.astimezone(IST)
+    today = local.date()
     drawn = await stock.draw_down(session, hub_id, today, now)
-    closed = await _close_buying(session, hub_id, today, now)
+    # A manager's run at 03:00 must not cancel the sent POs before the 04:00 receiving.
+    surplus_at = time.fromisoformat(hub.timings.get("surplus", DEFAULT_TIMINGS["surplus"]))
+    closed = await _close_buying(session, hub_id, today, now) if local.time() >= surplus_at else 0
     done = Moved()
     expired = list(
         await session.scalars(

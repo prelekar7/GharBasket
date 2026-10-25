@@ -25,6 +25,14 @@ def upgrade() -> None:
         sa.Column("drawn_at", sa.DateTime(timezone=True), nullable=True),
         schema="hub_ops",
     )
+    # Tasks packed before this change were already counted by the receiving and the counts, so the
+    # first run must not draw them down against today's lots.
+    op.execute(
+        sa.text(
+            "UPDATE hub_ops.packing_tasks SET drawn_at = COALESCE(packed_at, now()) "
+            "WHERE status = 'packed'"
+        )
+    )
     op.create_index(
         "ix_packing_tasks_not_drawn",
         "packing_tasks",
