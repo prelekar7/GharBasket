@@ -1,18 +1,38 @@
 """Facade of M6 Hub Operations: the only module other modules may import (spec §3.1, §3.2).
 
 M6 owns hub ids (ADR-0026 §5): other modules keep them as plain UUIDs and look hubs up here.
+M12 pulls `hub_day_facts` for its analytics refresh (M12 §3.1); M7 and M8 tag their hub-level
+facts with `hub_data_sources`.
 """
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.hub_ops import kept, packing, service, waste
+from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
 from gharbasket.modules.orders import api as orders_api
+
+__all__ = [
+    "BagRef",
+    "HubDayFact",
+    "HubRef",
+    "SocietyLoad",
+    "WasteDay",
+    "active_hub_ids",
+    "anonymise_for_user",
+    "bag_for_order",
+    "get_hub",
+    "hub_data_sources",
+    "hub_day_facts",
+    "society_loads",
+    "waste_summary",
+]
 
 
 @dataclass(frozen=True)
@@ -111,6 +131,17 @@ async def anonymise_for_user(
         "packing_events": acted.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
         "kept_items": scrubbed + released,
     }
+
+
+async def hub_data_sources(
+    session: AsyncSession, hub_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, str]:
+    """Each known hub's data source (`real` or `synthetic`, ADR-0008); unknown ids are left out."""
+    ids = set(hub_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(select(Hub.id, Hub.data_source).where(Hub.id.in_(ids)))
+    return dict(rows.all())
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,7 @@
   M6 procurement and M7 routing read `orders_for_delivery`.
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
+- M12 pulls `order_facts` and `issue_facts` for its analytics refresh (M12 §3.1).
 """
 
 import uuid
@@ -33,6 +34,7 @@ from gharbasket.modules.orders.events import (
     PAYMENT_FAILED,
     TIFFIN_BOOKED,
 )
+from gharbasket.modules.orders.facts import IssueFact, OrderFact, issue_facts, order_facts
 from gharbasket.modules.orders.fees import box_fee
 from gharbasket.modules.orders.models import (
     STATUSES,
@@ -73,8 +75,10 @@ __all__ = [
     "CarryOver",
     "CutoffCounts",
     "CycleLine",
+    "IssueFact",
     "Move",
     "Order",
+    "OrderFact",
     "OrderIssue",
     "OrderLine",
     "OrderRef",
@@ -98,8 +102,10 @@ __all__ = [
     "has_open_issues",
     "has_open_orders",
     "hub_cutoff_counts",
+    "issue_facts",
     "last_move",
     "mark_shortage",
+    "order_facts",
     "order_ids_of_household",
     "orders_for_delivery",
     "refund_carry",

@@ -2,8 +2,9 @@
 
 M1 uses it to check a household's address (spec §3.1): the society exists, the tower belongs to
 it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains through it (§3.2).
-M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads referral facts and the public
-society page (§3.8); M1 exports and erases through it.
+M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads the public society page (§3.8) and
+pulls `impact_facts` and `referral_facts` for its analytics refresh (M12 §3.1); M1 exports and
+erases through it.
 """
 
 import uuid
@@ -26,6 +27,7 @@ from gharbasket.modules.community.events import (
     REFERRAL_CONVERTED,
     SOCIETY_LIVE,
 )
+from gharbasket.modules.community.facts import ImpactFact, impact_facts
 from gharbasket.modules.community.models import (
     Captain,
     Referral,
@@ -49,6 +51,7 @@ __all__ = [
     "CaptainCard",
     "CaptainRef",
     "DonationPickup",
+    "ImpactFact",
     "PublicSociety",
     "ReferralFact",
     "SocietyLabels",
@@ -61,6 +64,7 @@ __all__ = [
     "get_society",
     "hub_society_ids",
     "hubs_with_societies",
+    "impact_facts",
     "is_active_captain",
     "pickups_for",
     "public_society",
@@ -369,9 +373,12 @@ async def referral_facts(
     date_from: date,
     date_to: date,
     hub_ids: list[uuid.UUID] | None = None,
+    by: Literal["joined", "converted"] = "joined",
 ) -> list[ReferralFact]:
-    """Referrals that joined between the two IST dates (inclusive), oldest first."""
-    stmt = select(Referral).where(Referral.joined_on >= date_from, Referral.joined_on <= date_to)
+    """Referrals that joined (or, with `by="converted"`, converted) between the two IST dates
+    (inclusive), oldest first."""
+    on = Referral.joined_on if by == "joined" else Referral.converted_on
+    stmt = select(Referral).where(on >= date_from, on <= date_to)
     if hub_ids is not None:
         stmt = stmt.where(Referral.hub_id.in_(hub_ids))
     rows = await session.execute(stmt.order_by(Referral.id))
