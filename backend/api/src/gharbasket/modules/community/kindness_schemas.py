@@ -83,7 +83,7 @@ class DriveOut(BaseModel):
     starts_on: date = Field(description="IST, inclusive")
     ends_on: date = Field(description="IST, inclusive")
     state: DriveState = Field(description="From the dates in IST, except cancelled")
-    ngo: DriveNgo | None = Field(description="Who receives the items; null until NGOs (§3.5)")
+    ngo: DriveNgo | None = Field(description="Who receives the items (§3.5)")
     goal_items: int | None
     progress: DriveProgress
     version: int = Field(description="Send it back in If-Match to change the drive")
@@ -115,7 +115,9 @@ class DriveIn(BaseModel):
     multiplier: Decimal = Field(ge=1, le=3, decimal_places=1, examples=[2.0])
     starts_on: date
     ends_on: date
-    ngo_id: None = Field(default=None, description="Accepted once NGOs exist (§3.5)")
+    ngo_id: uuid.UUID | None = Field(
+        default=None, description="An NGO that accepts items (and serves the drive's hub)"
+    )
     goal_items: int | None = Field(default=None, ge=1, le=100_000)
 
     _codes = field_validator("codes")(_distinct)
@@ -139,6 +141,7 @@ class DrivePatch(BaseModel):
     multiplier: Decimal | None = Field(default=None, ge=1, le=3, decimal_places=1)
     starts_on: date | None = None
     ends_on: date | None = None
+    ngo_id: uuid.UUID | None = Field(default=None, description="null removes the NGO")
     goal_items: int | None = Field(default=None, ge=1, le=100_000)
     state: Literal["cancelled"] | None = Field(
         default=None, description="Donations already scheduled keep the multiplier"
