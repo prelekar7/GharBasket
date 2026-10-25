@@ -254,6 +254,27 @@ async def test_the_next_run_pays_held_weeks_once_fixed_and_a_new_row_takes_only_
     assert await clearing(db_session) == -80_000
 
 
+async def test_a_late_run_for_a_missed_week_holds_no_money_a_later_row_already_holds(
+    db_session: AsyncSession,
+) -> None:
+    partner = await make_partner(db_session, review="pending", bank_review="accepted")
+    await earn(db_session, partner.id, 50_000, IN_WEEK)
+    await earn(db_session, partner.id, 30_000, IN_WEEK + timedelta(days=7))
+    await run(db_session, RUN + timedelta(days=7))  # W02's Monday run was missed: W03 takes both
+
+    late = await run(db_session, RUN)  # someone runs the missed Monday afterwards
+
+    assert late["carried"] == 1 and late["held"] == 0
+    assert [(p.week, p.amount_paise) for p in await rows(db_session, partner.id)] == [
+        ("2027-W03", 80_000)
+    ]
+    await accept_documents(db_session, partner)
+    paid = await run(db_session, RUN + timedelta(days=14))
+    assert (paid["retried"], paid["processed"], paid["failed"]) == (1, 1, 0)
+    assert await payable(db_session, partner.id) == 0
+    assert await clearing(db_session) == -80_000
+
+
 async def accept_documents(db: AsyncSession, partner: Partner) -> None:
     await db.execute(
         update(KycDocument)

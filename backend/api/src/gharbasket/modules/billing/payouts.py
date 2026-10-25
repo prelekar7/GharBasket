@@ -225,15 +225,13 @@ async def _pay_partner(
     if partner is None:
         raise LookupError(f"partner_payable of {partner_id} has no partner record")
     monday, sunday, _, _ = week_bounds(week)
+    # Every waiting row, a later week's too: a late run for an older week (a missed Monday run
+    # afterwards) must count the money a later row already holds, or it would hold it twice.
     earlier = list(
         (
             await session.execute(
                 select(Payout)
-                .where(
-                    Payout.partner_id == partner_id,
-                    Payout.status.in_(PAYOUT_OPEN),
-                    Payout.period_from <= monday,
-                )
+                .where(Payout.partner_id == partner_id, Payout.status.in_(PAYOUT_OPEN))
                 .order_by(Payout.period_from)
                 .with_for_update()
             )
@@ -357,9 +355,11 @@ async def _settle(session: AsyncSession, payout: Payout, answer: ProviderAnswer)
         await session.flush()
         return
     if answer.status == "failed":
-        payable = await service.owned_account(
-            session, "partner_payable", "partner", payout.partner_id, kind="liability"
-        )
+        # Under her payable lock: a run deciding her payouts at this moment must see this row
+        # `pending` with its money out, or `failed` with it back, never the money back while the
+        # row still looks sent (it would then pay that money in a new row too). The run never
+        # locks a pending row, so taking the payout row first cannot deadlock with it.
+        payable = await _payable(session, payout.partner_id)
         clearing = await service.platform_account(session, "payout_clearing")
         await service.post(
             session,
@@ -393,6 +393,16 @@ async def _settle(session: AsyncSession, payout: Payout, answer: ProviderAnswer)
 # --- the admin's retry -------------------------------------------------------------------------
 
 
+def _retryable(payout: Payout) -> None:
+    if payout.status not in PAYOUT_OPEN:
+        raise ProblemError(
+            409,
+            "billing.payout_not_retryable",
+            "Only a held or failed payout can be retried.",
+            extra={"payout_status": payout.status},
+        )
+
+
 async def retry(
     session: AsyncSession,
     payout_id: uuid.UUID,
@@ -402,18 +412,16 @@ async def retry(
 ) -> Payout:
     """POST /v1/admin/payouts/{id}/retry: a held or failed payout whose reason is fixed becomes
     `pending` with its `payout` entry (audit-logged); the caller commits, then sends it."""
-    payout = await session.get(Payout, payout_id)
+    payout = await session.get(Payout, payout_id, populate_existing=True)
     if payout is None:
         raise payout_not_found()
+    # Refused before any lock too: a payout being sent holds its row and, if the provider fails
+    # it, then takes her payable lock, so waiting on its row while holding that lock could
+    # deadlock. The check is made again under the locks.
+    _retryable(payout)
     payable = await _payable(session, payout.partner_id)
     await session.refresh(payout, with_for_update=True)
-    if payout.status not in PAYOUT_OPEN:
-        raise ProblemError(
-            409,
-            "billing.payout_not_retryable",
-            "Only a held or failed payout can be retried.",
-            extra={"payout_status": payout.status},
-        )
+    _retryable(payout)
     eligibility = await partners_api.payout_eligibility(session, payout.partner_id)
     if not eligibility.eligible:
         raise ProblemError(
