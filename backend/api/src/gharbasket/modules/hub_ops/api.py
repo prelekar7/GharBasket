@@ -2,7 +2,8 @@
 
 M6 owns hub ids (ADR-0026 §5): other modules keep them as plain UUIDs and look hubs up here.
 M12 pulls `hub_day_facts` for its analytics refresh (M12 §3.1); M7 and M8 tag their hub-level
-facts with `hub_data_sources`.
+facts with `hub_data_sources`. Its today board reads `packing_progress` and `inbound_progress`
+(M12 §3.3).
 """
 
 import uuid
@@ -16,12 +17,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.hub_ops import kept, packing, service, waste
 from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
+from gharbasket.modules.hub_ops.today import (
+    InboundProgress,
+    PackingProgress,
+    ShortProduct,
+    inbound_progress,
+    packing_progress,
+)
 from gharbasket.modules.orders import api as orders_api
 
 __all__ = [
     "BagRef",
     "HubDayFact",
     "HubRef",
+    "InboundProgress",
+    "PackingProgress",
+    "ShortProduct",
     "SocietyLoad",
     "WasteDay",
     "active_hub_ids",
@@ -30,6 +41,8 @@ __all__ = [
     "get_hub",
     "hub_data_sources",
     "hub_day_facts",
+    "inbound_progress",
+    "packing_progress",
     "society_loads",
     "waste_summary",
 ]

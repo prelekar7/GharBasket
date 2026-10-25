@@ -55,3 +55,26 @@ async def test_hub_society_ids_are_the_societies_a_hub_serves_whatever_their_sta
     assert len(served) == 5 and SEED_SOCIETY_ID in served and GREEN_VALLEY in served
     assert SAI_DARSHAN not in served
     assert await api.hub_society_ids(db_session, uuid.uuid4()) == []
+
+
+async def test_hub_societies_give_name_status_and_unlock_progress_and_nothing_personal(
+    db_session: AsyncSession,
+) -> None:
+    listed = await api.hub_societies(db_session, hub_id=SEED_HUB_ID)
+
+    assert [s.name for s in listed] == sorted(s.name for s in listed)
+    assert {s.id for s in listed} == set(await api.hub_society_ids(db_session, SEED_HUB_ID))
+    by_id = {s.id: s for s in listed}
+    sunrise, green = by_id[SEED_SOCIETY_ID], by_id[GREEN_VALLEY]
+    assert (sunrise.name, sunrise.status) == ("Sunrise Towers", "live")
+    assert green.status == "unlocking" and green.threshold > 0
+    assert all(s.data_source == "synthetic" for s in listed)  # the seed's
+    assert {f for f in api.HubSociety.__dataclass_fields__} == {
+        "id",
+        "name",
+        "status",
+        "joined",
+        "threshold",
+        "data_source",
+    }
+    assert await api.hub_societies(db_session, hub_id=uuid.uuid4()) == []

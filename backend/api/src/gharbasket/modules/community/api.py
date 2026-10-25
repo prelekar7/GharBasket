@@ -3,8 +3,8 @@
 M1 uses it to check a household's address (spec §3.1): the society exists, the tower belongs to
 it, and the flat's pin lies inside its boundary. M7, M3 and M1 read captains through it (§3.2).
 M4 reads `live_at` for the pre-live box fee (§3.6); M12 reads the public society page (§3.8) and
-pulls `impact_facts` and `referral_facts` for its analytics refresh (M12 §3.1); M1 exports and
-erases through it.
+its societies table (`hub_societies`, M12 §3.3), and pulls `impact_facts` and `referral_facts` for
+its analytics refresh (M12 §3.1); M1 exports and erases through it.
 """
 
 import uuid
@@ -51,6 +51,7 @@ __all__ = [
     "CaptainCard",
     "CaptainRef",
     "DonationPickup",
+    "HubSociety",
     "ImpactFact",
     "PublicSociety",
     "ReferralFact",
@@ -62,6 +63,7 @@ __all__ = [
     "contains",
     "export_for_user",
     "get_society",
+    "hub_societies",
     "hub_society_ids",
     "hubs_with_societies",
     "impact_facts",
@@ -427,3 +429,32 @@ async def public_society(session: AsyncSession, slug: str) -> PublicSociety | No
         threshold=society.unlock_threshold,
         live_at=society.live_at,
     )
+
+
+@dataclass(frozen=True)
+class HubSociety:
+    id: uuid.UUID
+    name: str
+    status: str  # prospect | unlocking | live | paused
+    joined: int  # households whose address is in it
+    threshold: int  # households that unlock free delivery
+    data_source: str  # real | synthetic
+
+
+async def hub_societies(session: AsyncSession, *, hub_id: uuid.UUID) -> list[HubSociety]:
+    """Every society the hub serves, whatever its status, by name (M12's societies table, §3.3):
+    name, status and unlock progress; no captain, address or household."""
+    rows = await session.execute(
+        select(Society).where(Society.hub_id == hub_id).order_by(Society.name, Society.id)
+    )
+    return [
+        HubSociety(
+            id=society.id,
+            name=society.name,
+            status=society.status,
+            joined=await identity_api.households_in_society(session, society.id),
+            threshold=society.unlock_threshold,
+            data_source=society.data_source,
+        )
+        for society in rows.scalars()
+    ]

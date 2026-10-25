@@ -1,11 +1,12 @@
 """Facade of M3 Plans & Subscriptions: the only module other modules may import."""
 
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
@@ -17,12 +18,14 @@ from gharbasket.modules.subscriptions.models import (
     BudgetLock,
     EditFeedback,
     PantryFeedback,
+    Subscription,
     WeeklyCycle,
 )
 from gharbasket.platform.locale import Language, localised
 
 MAX_QTY = service.MAX_QTY  # steps a line may hold
 DailyUseShare = service.DailyUseShare
+PAUSED_BATCH = 5_000  # ids per query: well under asyncpg's 32,767 parameters
 
 __all__ = [
     "MAX_QTY",
@@ -43,6 +46,7 @@ __all__ = [
     "edit_cycle_lines",
     "export_for_user",
     "mark_locked",
+    "paused_households",
     "skip_cycle",
     "week_view",
 ]
@@ -405,3 +409,22 @@ async def cycle_facts(
         stmt = stmt.where(WeeklyCycle.hub_id.in_(hub_ids))
     rows = await session.execute(stmt.order_by(WeeklyCycle.id))
     return [CycleFact(*row) for row in rows.all()]
+
+
+async def paused_households(
+    session: AsyncSession, *, household_ids: Iterable[uuid.UUID], on: date
+) -> set[uuid.UUID]:
+    """Which of the households have their subscription paused on the IST date `on` (M12's
+    societies table, §3.3): status `paused` and no `paused_until`, or one after `on`. Ids only."""
+    ids = list(set(household_ids))
+    paused: set[uuid.UUID] = set()
+    for start in range(0, len(ids), PAUSED_BATCH):
+        rows = await session.execute(
+            select(Subscription.household_id).where(
+                Subscription.household_id.in_(ids[start : start + PAUSED_BATCH]),
+                Subscription.status == "paused",
+                or_(Subscription.paused_until.is_(None), Subscription.paused_until > on),
+            )
+        )
+        paused.update(rows.scalars())
+    return paused
