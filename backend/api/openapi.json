@@ -2505,6 +2505,92 @@
         "title": "CountIn",
         "type": "object"
       },
+      "CutoffCountsOut": {
+        "properties": {
+          "approved": {
+            "description": "Approved cycles whose order is not yet locked",
+            "title": "Approved",
+            "type": "integer"
+          },
+          "auto_approved": {
+            "description": "Of the approved and locked cycles, by auto-approve",
+            "title": "Auto Approved",
+            "type": "integer"
+          },
+          "awaiting": {
+            "description": "Cycles awaiting approval or still draft",
+            "title": "Awaiting",
+            "type": "integer"
+          },
+          "locked": {
+            "description": "Box orders the cut-off paid for",
+            "title": "Locked",
+            "type": "integer"
+          },
+          "payment_needed": {
+            "description": "Orders payment_failed; the grace period is running",
+            "title": "Payment Needed",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "awaiting",
+          "approved",
+          "auto_approved",
+          "skipped",
+          "locked",
+          "payment_needed"
+        ],
+        "title": "CutoffCountsOut",
+        "type": "object"
+      },
+      "CutoffRunOut": {
+        "properties": {
+          "cancelled": {
+            "description": "Cancelled with reason `payment`",
+            "title": "Cancelled",
+            "type": "integer"
+          },
+          "cutoff_on": {
+            "description": "The day the `cutoff_lock` run was for",
+            "format": "date",
+            "title": "Cutoff On",
+            "type": "string"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "integer"
+          },
+          "grace_paid": {
+            "description": "payment_failed, then locked before grace_until",
+            "title": "Grace Paid",
+            "type": "integer"
+          },
+          "locked": {
+            "title": "Locked",
+            "type": "integer"
+          },
+          "total": {
+            "description": "locked + payment_failed + already locked",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cutoff_on",
+          "locked",
+          "total",
+          "duration_s",
+          "grace_paid",
+          "cancelled"
+        ],
+        "title": "CutoffRunOut",
+        "type": "object"
+      },
       "CycleLineOut": {
         "properties": {
           "name": {
@@ -5976,6 +6062,131 @@
           "display_name"
         ],
         "title": "HubApplicationIn",
+        "type": "object"
+      },
+      "HubCutoffOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CutoffCountsOut"
+          },
+          "cutoff_at": {
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "delivery_date": {
+            "format": "date",
+            "title": "Delivery Date",
+            "type": "string"
+          },
+          "grace_until": {
+            "format": "date-time",
+            "title": "Grace Until",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CutoffRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null before `cutoff_lock` ran for the date"
+          },
+          "short": {
+            "description": "Largest shortfall first",
+            "items": {
+              "$ref": "#/components/schemas/ShortOrderOut"
+            },
+            "title": "Short",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hub_id",
+          "delivery_date",
+          "cutoff_at",
+          "grace_until",
+          "as_of",
+          "counts",
+          "last_run",
+          "short"
+        ],
+        "title": "HubCutoffOut",
+        "type": "object"
+      },
+      "HubDeliveryDateOut": {
+        "properties": {
+          "cutoff_at": {
+            "description": "21:00 IST the day before, in UTC",
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "societies": {
+            "description": "Societies of the hub that deliver on this date",
+            "title": "Societies",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "societies",
+          "cutoff_at"
+        ],
+        "title": "HubDeliveryDateOut",
+        "type": "object"
+      },
+      "HubDeliveryDatesOut": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "items": {
+            "description": "Soonest first",
+            "items": {
+              "$ref": "#/components/schemas/HubDeliveryDateOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hub_id",
+          "from",
+          "to",
+          "items"
+        ],
+        "title": "HubDeliveryDatesOut",
         "type": "object"
       },
       "HubDriftOut": {
@@ -18429,6 +18640,47 @@
           "proposals"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "ShortOrderOut": {
+        "properties": {
+          "box_paise": {
+            "title": "Box Paise",
+            "type": "integer"
+          },
+          "flat": {
+            "description": "A display label such as 'B wing, B-402'; never a name or phone",
+            "title": "Flat",
+            "type": "string"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "short_paise": {
+            "title": "Short Paise",
+            "type": "integer"
+          },
+          "society": {
+            "title": "Society",
+            "type": "string"
+          },
+          "wallet_paise": {
+            "description": "The owner's balance now",
+            "title": "Wallet Paise",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "society",
+          "flat",
+          "box_paise",
+          "wallet_paise",
+          "short_paise"
+        ],
+        "title": "ShortOrderOut",
         "type": "object"
       },
       "ShortageIn": {
@@ -35564,6 +35816,120 @@
         ]
       }
     },
+    "/v1/hubs/{hub_id}/cutoff": {
+      "get": {
+        "operationId": "hub_cutoff_v1_hubs__hub_id__cutoff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A delivery date; default the hub's first delivery date after today (IST)",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A delivery date; default the hub's first delivery date after today (IST)",
+              "title": "Date"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubCutoffOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "subscriptions.not_delivery_date"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's cut-off monitor for a delivery date (hub manager, franchise owner, admin)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
     "/v1/hubs/{hub_id}/deliveries": {
       "get": {
         "operationId": "hub_deliveries_v1_hubs__hub_id__deliveries_get",
@@ -35723,6 +36089,124 @@
         "summary": "The hub's deliveries for a date (the exceptions board), oldest first, with a cursor",
         "tags": [
           "logistics"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/delivery-dates": {
+      "get": {
+        "operationId": "hub_delivery_dates_v1_hubs__hub_id__delivery_dates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An IST date; default today",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "An IST date; default today",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Calendar days from `from`",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 14,
+              "description": "Calendar days from `from`",
+              "maximum": 31,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubDeliveryDatesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's next delivery dates, with the cut-off of each (hub staff, admin)",
+        "tags": [
+          "subscriptions"
         ]
       }
     },

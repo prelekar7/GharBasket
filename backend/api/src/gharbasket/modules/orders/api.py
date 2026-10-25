@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.modules.orders import carry, issues, service
 from gharbasket.modules.orders.carry import CarriedLine
+from gharbasket.modules.orders.cutoff import CutoffCounts, PaymentFailedOrder, hub_cutoff_counts
 from gharbasket.modules.orders.events import (
     CANCELLED,
     CARRY_OVER_ATTACHED,
@@ -72,6 +73,7 @@ __all__ = [
     "ApprovedCycle",
     "CarriedLine",
     "CarryOver",
+    "CutoffCounts",
     "CycleLine",
     "IssueFact",
     "Move",
@@ -81,6 +83,7 @@ __all__ = [
     "OrderLine",
     "OrderRef",
     "OrderSummary",
+    "PaymentFailedOrder",
     "SlotRef",
     "SoldLine",
     "anonymise_for_user",
@@ -98,6 +101,7 @@ __all__ = [
     "has_delivered_box",
     "has_open_issues",
     "has_open_orders",
+    "hub_cutoff_counts",
     "issue_facts",
     "last_move",
     "mark_shortage",

@@ -132,6 +132,19 @@ async def owner_of_household(session: AsyncSession, household_id: uuid.UUID) -> 
     ).scalar_one_or_none()
 
 
+async def owners_of_households(
+    session: AsyncSession, household_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID]:
+    """`owner_of_household` for many households in one query; unknown ids are left out."""
+    ids = set(household_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(Household.id, Household.owner_user_id).where(Household.id.in_(ids))
+    )
+    return {household_id: owner_id for household_id, owner_id in rows.all()}
+
+
 @dataclass(frozen=True)
 class Contact:
     name: str | None

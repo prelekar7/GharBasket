@@ -150,3 +150,18 @@ async def test_a_replayed_debit_is_not_refused_after_the_balance_changed(
         )
     ).scalars()
     assert len(list(entries)) == 1
+
+
+async def test_balances_read_many_wallets_in_one_query_like_balance(
+    db_session: AsyncSession,
+) -> None:
+    rich, poor, none = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await wallet.credit_topup(db_session, rich, 50_000, payment_ref="pb_a", topup_id=uuid.uuid4())
+    await wallet.credit_topup(db_session, poor, 9_000, payment_ref="pb_b", topup_id=uuid.uuid4())
+    await wallet.debit_for_order(db_session, rich, uuid.uuid4(), 12_000, date(2026, 10, 12))
+
+    got = await wallet.balances(db_session, [rich, poor, none, rich])
+
+    assert got == {rich: 38_000, poor: 9_000, none: 0}
+    assert got[rich] == await wallet.balance(db_session, rich)
+    assert await wallet.balances(db_session, []) == {}
