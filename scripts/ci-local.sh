@@ -107,11 +107,13 @@ if [[ -f backend/api/pyproject.toml ]]; then
   step python "uv sync" uv sync --all-packages --frozen
   step python "pyright" uv run pyright
   step python "import-linter" uv run --directory backend/api lint-imports
-  step python "api tests" uv run --directory backend/api pytest --cov -q -p no:cacheprovider
+  step python "api tests" uv run --directory backend/api pytest --cov -n 4 --dist worksteal -q -p no:cacheprovider
   coverage=$(grep -o 'Total coverage: [0-9.]*%' "$log" | tail -1)
   step python "ml tests" uv run --directory backend/ml pytest --cov -q -p no:cacheprovider
   step python "simulator tests" uv run --directory data/simulator pytest --cov -q -p no:cacheprovider
   step python "training tests" uv run --directory backend/training pytest --cov -q -p no:cacheprovider
+  # Parallel test workers each use a database of their own; the base one is not migrated by them.
+  step python "migrate" env DATABASE_URL="$TEST_DATABASE_URL" uv run --directory backend/api alembic upgrade head
   step python "alembic check" env DATABASE_URL="$TEST_DATABASE_URL" uv run --directory backend/api alembic check
   step python "openapi up to date" bash -c \
     "uv run python -m gharbasket.tools.export_openapi '$work/.openapi.json' && diff -u backend/api/openapi.json '$work/.openapi.json'"

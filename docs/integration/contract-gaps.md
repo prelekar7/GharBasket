@@ -20,8 +20,8 @@ Distinct endpoints called: mobile 98, console 147. A call site is one `request(`
 | unclassified | 0 | 0 call sites | 0 call sites |
 | pending-pr | 0 | 0 call sites | 0 call sites |
 | fix-frontend | 14 | 5 call sites | 9 call sites |
-| fix-backend | 28 | 3 call sites | 30 call sites |
-| later | 27 | 5 call sites | 30 call sites |
+| fix-backend | 26 | 3 call sites | 27 call sites |
+| later | 29 | 5 call sites | 33 call sites |
 | drop | 6 | 3 call sites | 3 call sites |
 
 75 gap endpoints in all (a call that is missing, or exists only with another method).
@@ -50,7 +50,7 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `POST /v1/hubs/{}/cutoff/run` | console | `console/app/(console)/(hub)/cutoff/actions.js:17` | Remove 'Run cut-off now' from the cut-off page: M4 replaced it with the 21:00 job (cutoff_lock), which is operator-only. M4 spec endpoint table, row POST /v1/internal/jobs/cutoff_lock. | yash |  |
 | `POST /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:198` | POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
 
-### fix-backend (28)
+### fix-backend (26)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
@@ -61,9 +61,7 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/admin/society-requests` (guarded) | console | `console/app/(console)/(admin)/societies/page.jsx:65`, `console/app/(console)/(admin)/societies/requests/page.jsx:15` | M9 has POST /v1/society-requests (the customer) and no review. | prathamesh |  |
 | `GET /v1/admin/users` (partly guarded) | console | `console/app/(console)/(admin)/delivery-log/page.jsx:44`, `console/app/(console)/(admin)/users/page.jsx:22` +1 | User lookup and staff list; M1 has POST /v1/admin/user-roles only. | prathamesh |  |
 | `GET /v1/budget-lock/preferences` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:293` | A proposal { when_over: swap\|trim\|ask }; M3 describes only 'swap to cheaper'. The app hides the question while it 404s. | prathamesh |  |
-| `GET /v1/hubs/{}/cutoff` (partly guarded) | console | `console/app/(console)/(hub)/cutoff/page.jsx:18`, `console/app/(console)/(hub)/orders/page.jsx:33` | A cheap read: the hub's next cut-off, locked and awaiting counts. F6: wrap in orNotShipped meanwhile. Not in a module spec (M4 has the cutoff_lock job only). With delivery-dates the console would follow the backend's clock. | prathamesh | MS-A |
 | `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Not in a module spec: a hub-level view of the weekly cycles (M3 serves only the customer's own). | prathamesh |  |
-| `GET /v1/hubs/{}/delivery-dates` (guarded) | console | `console/lib/delivery-dates.js:13` | A cheap read: the hub's next delivery dates from its societies' delivery days. Not in a module spec. | prathamesh | MS-A |
 | `GET /v1/hubs/{}/delivery-days` (guarded) | console | `console/app/(console)/(hub)/delivery-days/page.jsx:24` | Not in a module spec; the societies' own GET /v1/societies/{id}/delivery-days and PUT /v1/admin/societies/{id}/delivery-days exist. The page marks it @proposal. | prathamesh |  |
 | `GET /v1/hubs/{}/fairness` | console | `console/app/(console)/(hub)/fairness/data.js:44` | Not in a module spec; the page says so. M8 reads PARTNERS_FAIRNESS_LAMBDA and exposes no read; the Gini itself comes from M12. | prathamesh |  |
 | `GET /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/data.js:19` | Franchise settings; not in a module spec. | prathamesh |  |
@@ -83,7 +81,7 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `PUT /v1/budget-lock/preferences` | mobile | `mobile/src/features/subscriptions/queries.js:321` | As GET. | prathamesh |  |
 | `PUT /v1/hubs/{}/fairness-weight` | console | `console/app/(console)/(hub)/fairness/actions.js:15` | Not in a module spec; the weight is an env setting in M8 §3.4. | prathamesh |  |
 
-### later (27)
+### later (29)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
@@ -98,6 +96,8 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/analytics/societies` | console | `console/app/(console)/(franchise)/customers/data.js:59` | M12 §3.3. | prathamesh | MS-D |
 | `GET /v1/analytics/unit-economics` | console | `console/app/(console)/(franchise)/unit-economics/data.js:35` | M12 §3.4. | prathamesh | MS-D |
 | `GET /v1/earnings/certificate` | mobile | `mobile/src/features/captain/queries.js:168`, `mobile/src/features/logistics/queries.js:256` +1 | M8 §3.7 is an outline, 'refined after MS-B'. | prathamesh | after MS-B |
+| `GET /v1/hubs/{}/cutoff` (partly guarded) | console | `console/app/(console)/(hub)/cutoff/page.jsx:18`, `console/app/(console)/(hub)/orders/page.jsx:33` | M3 §3.4 (contract 2026-10-25). F6: keep orNotShipped until it ships. | prathamesh | MS-A |
+| `GET /v1/hubs/{}/delivery-dates` (guarded) | console | `console/lib/delivery-dates.js:13` | M3 §3.4 (contract 2026-10-25). | prathamesh | MS-A |
 | `GET /v1/hubs/{}/surplus-offers` | console | `console/app/(console)/(hub)/waste/page.jsx:28` | M6 §3.5. | prathamesh | MS-B |
 | `GET /v1/impact` | mobile | `mobile/src/features/community/queries.js:123`, `mobile/src/features/community/queries.js:135` | M9 §3.7 (?scope=me). | prathamesh | MS-D |
 | `GET /v1/ngo-handoffs` | console | `console/app/(console)/(community)/handoffs/page.jsx:24` | M9 §3.5. | prathamesh | MS-D |
