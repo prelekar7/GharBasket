@@ -20,6 +20,7 @@ from gharbasket.modules.community.models import Donation, DonationDrive, Donatio
 from gharbasket.modules.identity import api as identity_api
 from gharbasket.platform import files
 from gharbasket.platform.errors import ProblemError
+from gharbasket.platform.models import OutboxEvent
 from gharbasket.platform.outbox import publish
 from gharbasket.platform.pagination import decode_cursor, encode_cursor
 
@@ -295,6 +296,22 @@ async def record_pickup(
         await files.set_delete_after(session, key, kept_until)
     await record_event(session, donation, "picked_up", by_user_id)
     return donation
+
+
+async def on_pickup_completed(session: AsyncSession, event: OutboxEvent) -> None:
+    """`logistics.pickup_completed` (M7 §3.6): each donation's outcome at the stop, by its rider
+    on the route's date. A donation no longer scheduled is skipped, so a replay changes nothing."""
+    payload = event.payload
+    rider = payload.get("rider_user_id")
+    on = date.fromisoformat(payload["delivery_date"])
+    for outcome in payload.get("donations", []):
+        await record_pickup(
+            session,
+            uuid.UUID(outcome["donation_id"]),
+            outcome["status"],
+            by_user_id=None if rider is None else uuid.UUID(rider),
+            on=on,
+        )
 
 
 async def not_ready(
