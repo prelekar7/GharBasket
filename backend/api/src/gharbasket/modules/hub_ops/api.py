@@ -259,9 +259,10 @@ async def settle_surplus(
     """Settle an open surplus offer (§3.5), for M8 (kitchens) and M9 (NGOs) when they consume
     `hub_ops.surplus_offered`; the console's settle endpoint runs the same code. `outcome` is
     `taken` (`qty` default all of it; `taken_by` a `Taker("kitchen", partner_id=…)` of an active
-    kitchen partner of the hub, or `Taker("ngo", name=…)`) or `declined` (no taker). Raises 404
-    `hub_ops.offer_not_found`, 409 `hub_ops.offer_settled`, 422 `hub_ops.taker_invalid` or
-    `hub_ops.qty_invalid` (above the offer). The caller commits."""
+    kitchen partner of the hub, or `Taker("ngo", name=…)`) or `declined` (no taker, no `qty`);
+    any other `outcome` is a `ValueError`. Raises 404 `hub_ops.offer_not_found`, 409
+    `hub_ops.offer_settled`, 422 `hub_ops.taker_invalid` or `hub_ops.qty_invalid` (above the
+    offer, or a `qty` on a decline). The caller commits."""
     done = await surplus.settle(
         session,
         offer_id,

@@ -388,7 +388,10 @@ async def settle(
     now: datetime,
 ) -> Settled:
     """Settle an open offer (row-locked): `taken` logs what was taken (cascade_to = offered_to)
-    and moves any rest on; `declined` moves it all on (step 5)."""
+    and moves any rest on; `declined` moves it all on (step 5) and takes neither a taker nor a
+    quantity."""
+    if outcome not in ("taken", "declined"):
+        raise ValueError(f"outcome must be taken or declined, not {outcome!r}")
     offer = await get_offer(session, offer_id, for_update=True)
     if offer.status != "open":
         raise ProblemError(
@@ -402,6 +405,13 @@ async def settle(
     if outcome == "declined":
         if taker is not None:
             raise _taker_invalid("declined", "A declined offer has no taker.")
+        if qty is not None:
+            raise ProblemError(
+                422,
+                "hub_ops.qty_invalid",
+                "A declined offer moves on whole; send no quantity.",
+                extra={"reason": "declined"},
+            )
         offer.status = "declined"
         moved = await move_on(
             session, lot, offer.qty, now, offer=offer, note=note, by_user_id=actor_user_id

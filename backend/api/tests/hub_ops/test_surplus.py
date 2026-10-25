@@ -742,6 +742,9 @@ async def test_settling_refuses_bad_takers_and_quantities(
         422,
         "hub_ops.qty_invalid",
     )  # whole bunches
+    declined_qty = await settle(api, manager, palak, {"outcome": "declined", "qty": 2})
+    assert code(declined_qty) == (422, "hub_ops.qty_invalid")  # a decline takes no quantity
+    assert declined_qty.json()["reason"] == "declined"
     for bad in (
         {**kitchen_of(lata), "qty": 0},
         {"outcome": "kept"},
@@ -774,6 +777,14 @@ async def test_settling_refuses_bad_takers_and_quantities(
     with pytest.raises(ProblemError) as refused_facade:
         await hub_ops_api.settle_surplus(db_session, tomato, "taken", qty=3)
     assert refused_facade.value.code == "hub_ops.qty_invalid"
+    with pytest.raises(ValueError, match="taken or declined"):
+        await hub_ops_api.settle_surplus(db_session, tomato, "kept")  # a caller's mistake
+    with pytest.raises(ProblemError) as declined_facade:
+        await hub_ops_api.settle_surplus(db_session, tomato, "declined", qty=1)
+    assert (declined_facade.value.code, (declined_facade.value.extra or {}).get("reason")) == (
+        "hub_ops.qty_invalid",
+        "declined",
+    )
     result = await hub_ops_api.settle_surplus(
         db_session, tomato, "taken", qty=0.5, taken_by=hub_ops_api.Taker("kitchen", lata)
     )
