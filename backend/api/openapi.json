@@ -11897,6 +11897,34 @@
         "title": "Page[StaffDonationOut]",
         "type": "object"
       },
+      "Page_WasteLogOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WasteLogOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "Page[WasteLogOut]",
+        "type": "object"
+      },
       "PantryPriorIn": {
         "properties": {
           "cohort": {
@@ -17079,6 +17107,24 @@
         "title": "Requirements",
         "type": "object"
       },
+      "RescuedKg": {
+        "properties": {
+          "kitchen": {
+            "title": "Kitchen",
+            "type": "number"
+          },
+          "ngo": {
+            "title": "Ngo",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kitchen",
+          "ngo"
+        ],
+        "title": "RescuedKg",
+        "type": "object"
+      },
       "ReturnedBagIn": {
         "additionalProperties": false,
         "properties": {
@@ -20349,6 +20395,50 @@
         "title": "SynonymIn",
         "type": "object"
       },
+      "TakenByKitchen": {
+        "properties": {
+          "kind": {
+            "const": "kitchen",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "partner_id": {
+            "format": "uuid",
+            "title": "Partner Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "partner_id",
+          "name"
+        ],
+        "title": "TakenByKitchen",
+        "type": "object"
+      },
+      "TakenByNgo": {
+        "properties": {
+          "kind": {
+            "const": "ngo",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "TakenByNgo",
+        "type": "object"
+      },
       "TemplateIn": {
         "properties": {
           "channel": {
@@ -22472,6 +22562,399 @@
           "amount_paise"
         ],
         "title": "WalletRefundOut",
+        "type": "object"
+      },
+      "WasteDayOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "rescued_kg": {
+            "$ref": "#/components/schemas/RescuedKg"
+          },
+          "sold_kg": {
+            "description": "Picked steps of the day's packed tasks, weighed",
+            "title": "Sold Kg",
+            "type": "number"
+          },
+          "stockout_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Steps short or substituted / steps ordered",
+            "title": "Stockout Pct"
+          },
+          "unweighed_lines": {
+            "description": "Lines with no weight, left out",
+            "title": "Unweighed Lines",
+            "type": "integer"
+          },
+          "waste_per_100kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when nothing was sold",
+            "title": "Waste Per 100Kg"
+          },
+          "wasted_kg": {
+            "description": "cascade_to bin",
+            "title": "Wasted Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "sold_kg",
+          "wasted_kg",
+          "rescued_kg",
+          "waste_per_100kg",
+          "stockout_pct",
+          "unweighed_lines"
+        ],
+        "title": "WasteDayOut",
+        "type": "object"
+      },
+      "WasteIn": {
+        "additionalProperties": false,
+        "properties": {
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exactly one of lot_id, product_id",
+            "title": "Lot Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "product_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stock that was never received in the system: an unlotted log",
+            "title": "Product Id"
+          },
+          "qty": {
+            "description": "In the lot's unit",
+            "examples": [
+              2.5
+            ],
+            "exclusiveMinimum": 0.0,
+            "title": "Qty",
+            "type": "number"
+          },
+          "reason": {
+            "enum": [
+              "spoiled",
+              "damaged",
+              "expired",
+              "pest",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "qty",
+          "reason"
+        ],
+        "title": "WasteIn",
+        "type": "object"
+      },
+      "WasteLogOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "cascade_to": {
+            "enum": [
+              "kitchen",
+              "ngo",
+              "bin"
+            ],
+            "title": "Cascade To",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weight for the KPI; null when unknown",
+            "title": "Kg"
+          },
+          "logged_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/gharbasket__modules__hub_ops__schemas__UserRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: the 12:30 job"
+          },
+          "lot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lot Id"
+          },
+          "name": {
+            "description": "In the Accept-Language language",
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "offer_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Id"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "qty": {
+            "title": "Qty",
+            "type": "number"
+          },
+          "reason": {
+            "enum": [
+              "spoiled",
+              "damaged",
+              "expired",
+              "pest",
+              "surplus",
+              "returned",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "taken_by": {
+            "anyOf": [
+              {
+                "discriminator": {
+                  "mapping": {
+                    "kitchen": "#/components/schemas/TakenByKitchen",
+                    "ngo": "#/components/schemas/TakenByNgo"
+                  },
+                  "propertyName": "kind"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/TakenByKitchen"
+                  },
+                  {
+                    "$ref": "#/components/schemas/TakenByNgo"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taken By"
+          },
+          "unit": {
+            "enum": [
+              "kg",
+              "l",
+              "piece",
+              "bunch",
+              "pack"
+            ],
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "hub_id",
+          "lot_id",
+          "product_id",
+          "slug",
+          "name",
+          "qty",
+          "unit",
+          "kg",
+          "reason",
+          "cascade_to",
+          "offer_id",
+          "taken_by",
+          "note",
+          "logged_by",
+          "at"
+        ],
+        "title": "WasteLogOut",
+        "type": "object"
+      },
+      "WasteSummaryOut": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/WasteDayOut"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "hub_id": {
+            "format": "uuid",
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/WasteTotalsOut"
+          }
+        },
+        "required": [
+          "hub_id",
+          "from",
+          "to",
+          "days",
+          "totals"
+        ],
+        "title": "WasteSummaryOut",
+        "type": "object"
+      },
+      "WasteTotalsOut": {
+        "properties": {
+          "rescued_kg": {
+            "$ref": "#/components/schemas/RescuedKg"
+          },
+          "sold_kg": {
+            "title": "Sold Kg",
+            "type": "number"
+          },
+          "stockout_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stockout Pct"
+          },
+          "unweighed_lines": {
+            "title": "Unweighed Lines",
+            "type": "integer"
+          },
+          "waste_per_100kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waste Per 100Kg"
+          },
+          "wasted_kg": {
+            "title": "Wasted Kg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sold_kg",
+          "wasted_kg",
+          "rescued_kg",
+          "waste_per_100kg",
+          "stockout_pct",
+          "unweighed_lines"
+        ],
+        "title": "WasteTotalsOut",
         "type": "object"
       },
       "WebhookAck": {
@@ -39799,6 +40282,477 @@
           }
         ],
         "summary": "Add a vendor to a hub (Idempotency-Key required)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/waste-logs": {
+      "get": {
+        "operationId": "list_waste_logs_v1_hubs__hub_id__waste_logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "IST day, inclusive",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST day, inclusive",
+              "title": "From"
+            }
+          },
+          {
+            "description": "IST day, inclusive",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "IST day, inclusive",
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cascade_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "kitchen",
+                    "ngo",
+                    "bin"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cascade To"
+            }
+          },
+          {
+            "description": "`next_cursor` from the last page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 512,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` from the last page",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_WasteLogOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range, request.invalid_cursor"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "The hub's waste logs of the IST days from … to, newest first",
+        "tags": [
+          "hub_ops"
+        ]
+      },
+      "post": {
+        "operationId": "create_waste_log_v1_hubs__hub_id__waste_logs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "accept-language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accept-Language"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WasteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WasteLogOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "request.idempotency_key_required"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.hub_not_found, hub_ops.lot_not_found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.qty_exceeds_stock"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.qty_invalid, hub_ops.product_not_stocked (product_ids), request.idempotency_mismatch, request.invalid"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Write off a lot or a product to the bin (a waste move on the lot; Idempotency-Key)",
+        "tags": [
+          "hub_ops"
+        ]
+      }
+    },
+    "/v1/hubs/{hub_id}/waste-summary": {
+      "get": {
+        "operationId": "get_waste_summary_v1_hubs__hub_id__waste_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hub_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Hub Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Default: 6 days before `to`",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: 6 days before `to`",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Default: yesterday (IST)",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: yesterday (IST)",
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-active-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Active-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WasteSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.invalid_token"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "auth.forbidden"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "hub_ops.date_out_of_range"
+          }
+        },
+        "security": [
+          {
+            "AccessToken": []
+          }
+        ],
+        "summary": "Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7",
         "tags": [
           "hub_ops"
         ]

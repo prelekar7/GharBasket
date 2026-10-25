@@ -10,7 +10,7 @@ from datetime import date
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import kept, packing, service
+from gharbasket.modules.hub_ops import kept, packing, service, waste
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
 from gharbasket.modules.orders import api as orders_api
 
@@ -111,3 +111,34 @@ async def anonymise_for_user(
         "packing_events": acted.rowcount,  # pyright: ignore[reportAttributeAccessIssue]
         "kept_items": scrubbed + released,
     }
+
+
+@dataclass(frozen=True)
+class WasteDay:
+    date: date
+    sold_kg: float  # packed that day
+    wasted_kg: float  # cascade_to bin
+    rescued_kg: dict[str, float]  # kitchen, ngo
+    waste_per_100kg: float | None  # None when nothing was sold
+    stockout_pct: float | None  # steps short or substituted / steps ordered
+    unweighed_lines: int
+
+
+async def waste_summary(
+    session: AsyncSession, hub_id: uuid.UUID, date_from: date, date_to: date
+) -> list[WasteDay]:
+    """§3.5's daily rows from `date_from` to `date_to` (IST days, inclusive), zeros included, for
+    M10's `monitor_drift` and M12's KPI tiles."""
+    days = await waste.summary_days(session, hub_id, date_from, date_to)
+    return [
+        WasteDay(
+            date=x.date,
+            sold_kg=round(float(x.sold_kg), 3),
+            wasted_kg=round(float(x.wasted_kg), 3),
+            rescued_kg={kind: round(float(kg), 3) for kind, kg in x.rescued_kg.items()},
+            waste_per_100kg=None if x.waste_per_100kg is None else float(x.waste_per_100kg),
+            stockout_pct=None if x.stockout_pct is None else float(x.stockout_pct),
+            unweighed_lines=x.unweighed_lines,
+        )
+        for x in days
+    ]
