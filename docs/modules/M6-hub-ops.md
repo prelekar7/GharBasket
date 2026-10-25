@@ -658,7 +658,7 @@ Foreign keys stay inside `hub_ops`; `order_id`, `slot_id`, `society_id`, `househ
 
 Packing publishes nothing of its own: M4 publishes `orders.packed` and `orders.shortage_substituted` when M6 calls `orders.api` (the old `hub_ops.shortage_detected` is dropped). Stock moves, counts and kept items publish nothing.
 
-**Consumed:** `intel.forecast_ready { hub_id, delivery_dates, model, data_source }` (rebuild the listed dates' plans that are not closed, §3.3), `logistics.route_published` (re-sequence queued tasks, §3.2), `orders.carry_over_expired` (release kept items, §3.5; with M4's carry-over).
+**Consumed:** `intel.forecast_ready { hub_id, delivery_dates, model, data_source }` (rebuild the listed dates' plans that are not closed, §3.3), `logistics.route_published` (re-sequence queued tasks, §3.2), `orders.carry_over_expired` (release kept items, §3.5; with M4's carry-over), `logistics.pickup_completed` (each bag in `bag_order_ids` goes through the returned-bag intake of §3.5 with the rider as `scanned_by`; a bag the intake refuses is logged and skipped; M7 §3.6).
 
 ## 6. Jobs
 | Job | Trigger (IST) | Notes |

@@ -379,7 +379,7 @@ POST /v1/donations/{id}/reject               same roles; Idempotency-Key
   - one already verified or rejected gets 409 `community.donation_already_verified`;
   - one still scheduled gets 409 `community.donation_not_picked_up`.
   `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` is published once, and M5's consumer credits the points (`credit_points(…, "donation", donation_id)`, M5 §3.6). A rejected donation earns nothing, and its items are not returned: the scheduling screen says that items the hub cannot use go to a recycler (§11).
-- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (an M7 follow-up; the outline's event carries only `donation_ids`).
+- **Pickup outcomes** come from `logistics.pickup_completed` (M7 §3.6). M9 needs the outcome of each donation: `donations: [ { donation_id, status: "collected" | "not_ready" } ]` (M7 §3.6 carries it).
   - `collected` makes the donation `picked_up`, with `picked_up_on` and the rider's user id.
   - `not_ready` moves `pickup_on` to the society's next delivery date once, and publishes `community.donation_scheduled` again with the new date. A second `not_ready` cancels it with `cancel_reason: "not_ready"`.
   - `sweep_missed_pickups` (22:30 IST) treats a donation whose `pickup_on` is today and that no stop reported as `not_ready`.
@@ -701,8 +701,8 @@ NGO coordinators are staff, so M1 refuses their self-deletion (`identity.staff_a
 **Published:**
 - `community.captain_assigned`, `community.captain_ended` (§3.2).
 - `community.society_live { society_id, hub_id, joined, threshold, live_at }` (§3.6): once per society. M11 tells its households and the hub's managers; M12 marks the date.
-- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): M7 plans the pickup on the society's stop; published again when a pickup rolls to the next date.
-- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): M7 drops the expected pickup.
+- `community.donation_scheduled { donation_id, user_id, household_id, hub_id, society_id, pickup_on, items: [{code, unit, qty}], est_kg_tenths }` (§3.4): published again when a pickup rolls to the next date. M7 does not consume it: it reads `pickups_for` when the society's route starts (M7 §3.6).
+- `community.donation_cancelled { donation_id, hub_id, society_id, pickup_on, reason }` (§3.4): not consumed by M7; a donation cancelled after its route started is skipped when M7 reports it.
 - `community.donation_verified { donation_id, user_id, household_id, hub_id, society_id, drive_id, points }` (§3.4): M5 credits the points; M11 notifies (category `kindness`).
 - `community.donation_rejected { donation_id, user_id, hub_id, reason }` (§3.4): M11 notifies.
 - `community.referral_converted { referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points, referee_points }` (§3.3): for M12; M11 maps nothing (M5's `points_credited` already notifies).
@@ -714,7 +714,7 @@ No event carries a name, flat, phone or photo key.
 - `identity.household_created`, and `identity.household_updated` when `society_id` changed: the unlock check (§3.6);
 - `identity.deletion_requested`: open referrals of the user become `void` (§3.3);
 - `orders.delivered` (kind `box`): referral conversion (§3.3);
-- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 follow-up);
+- `logistics.pickup_completed`: donation pickups, with an outcome per donation (§3.4; M7 §3.6);
 - `billing.points_donated`: meal pledges (§3.5);
 - `hub_ops.surplus_offered` (`offered_to: "ngo"`) and `hub_ops.surplus_settled`: NGO offers (§3.5; follows M6 §3.5);
 - `partners.verified` (kind `captain`: automatic appointment, §3.2);
