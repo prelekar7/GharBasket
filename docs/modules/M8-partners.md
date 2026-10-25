@@ -1,6 +1,6 @@
 # M8 — Partner Network
 
-**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7 (payouts and the income certificate) is an outline, refined after MS-B.
+**Status:** Draft v2 (with [ADR-0026](../adr/0026-operations-contract.md)). When this spec is approved, §3.1 (applications, KYC and review), §3.2 (training), §3.3 (partners, roles, pause and suspend), §3.4 (kitchens, capacity and tiffin assignments) and §3.5 (know your cook and ratings) are frozen for S6. §3.6 (earnings) is frozen too; its rates, decided by the owner on 2026-10-09, are the seeded defaults of each hub's rate card. §3.7 (payouts and the income certificate) is an outline, refined after MS-B. §3.8 (the fairness read) was drafted on 2026-10-25, frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S6 (the partner core in S5, see the build order)
 **Postgres schema:** `partners` · **Python package:** `gharbasket.modules.partners`
@@ -65,6 +65,7 @@ What M8 does **not** do:
 | GET | `/v1/hubs/{id}/tiffin-board?date=` | hub_manager, franchise_owner (hub), admin | — | §3.4 |
 | POST | `/v1/hubs/{id}/tiffin-assignments/run` | hub_manager (hub), admin | Required | §3.4; one assignment round now |
 | POST | `/v1/hubs/{id}/tiffin-assignments/manual` | hub_manager (hub), admin | Required | §3.4 |
+| GET | `/v1/hubs/{id}/fairness?runs=` | hub_manager, franchise_owner (hub), admin | — | §3.8; the λ in use and the latest assignment runs (read-only) |
 | GET | `/v1/partners/{id}/card` | Authenticated | — | §3.5 know your cook (kitchens) |
 | POST | `/v1/ratings` · GET `/v1/ratings?order_id=` | customer (own order) | Required (POST) | §3.5 |
 | GET | `/v1/earnings?week=` | partner (own) | — | §3.6, from `billing.api` |
@@ -651,6 +652,41 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
 - The account details come only from `partners.api.payout_account(partner_id)`, which decrypts and is audit-logged; only a real provider (pilot) calls it, never the simulated one.
 - Income certificate: `GET /v1/earnings/certificate?from=&to=` (PDF of the ledger totals per month, for loans). Refined with M5's statement PDF.
 
+### 3.8 Fairness read (drafted 2026-10-25, frozen on approval)
+The console's Fairness page (`(hub)/fairness`) builds against this, together with M12's weekly Gini (`GET /v1/analytics/partner-earnings`, M12 §3.5), which it already reads. Today it calls `GET /v1/hubs/{id}/fairness` as a proposal (`mocks/partners.js`). It reads M8's own `partners.assignment_runs` (§3.4, step 7) and the setting the runs use. Same sign-in and review rules as §3.1.
+
+```
+GET /v1/hubs/{hub_id}/fairness?runs=28
+    hub_manager, franchise_owner (hub); admin (partners:read). Cache-Control: no-store
+    runs: 1 to 100, default 28 (two weeks of lunch and dinner)
+  200 { "hub_id",
+        "lambda_paise": 300,         PARTNERS_FAIRNESS_LAMBDA now: paise of cost per portion of
+                                     earnings imbalance (M10 §3.5); 0 = cost only; one value for
+                                     every hub
+        "fallback_active": false,    the newest run's model is greedy-m8 (the ML service did not answer)
+        "runs": [ { "run_id", "date", "meal": "lunch" | "dinner", "round",
+                    "source": "ml" | "fallback", "model", "status",
+                    "portions": 46, "kitchens_used": 4, "unassigned": 0,
+                    "gini": 0.14 | null, "gini_eligible": 0.11 | null,
+                    "km_per_portion": 1.8 | null,     as the run's summary has them (§3.4)
+                    "lambda_paise": 300 | null,       the λ that run used; null for runs before this
+                    "at" } ] }                         newest first
+  403 "auth.forbidden"   a hub outside the caller's grants
+```
+
+- **λ is not edited here.** It is an environment setting chosen by the offline λ sweep (M10 §3.5, handbook 08 M-G), and it changes only with a deploy. So `PUT /v1/hubs/{id}/fairness-weight` is dropped. From this change on, each run's `summary` also records the `fairness_lambda` it sent (additive, no migration), so the page can show which λ produced which Gini.
+- **Per-kitchen numbers stay where they are.** A date's portions per kitchen are on the tiffin board (§3.4), and weekly earnings and their Gini on M12 §3.5. This read adds no kitchen table, so it shows no partner's earnings beyond what those pages already show.
+- **No new facade.** It reads M8's own table and settings.
+
+| Mock today (`mocks/partners.js`) | Contract |
+|---|---|
+| `lambda` from 0 to 1 (0.3) | `lambda_paise` (default 300), M10's unit |
+| `lambda_changed_by`, `lambda_changed_at` | Not in the contract: λ changes with a deploy |
+| `PUT /v1/hubs/{id}/fairness-weight` (admin) | Dropped; the page's "Change" control goes |
+| `gini`, `gini_trend`, `gini_change` (the page takes them from M12 already) | Unchanged: M12's weekly `gini_bp`; each run's own `gini` is here |
+| `fallback_active` | Same name, from the newest run |
+| `week_start`, `kitchens[]`, `top_share_pct`, `top_share_change_pts`, `kitchens_under_half` | Not in the contract: the runs carry dates; per-kitchen numbers are the tiffin board's (§3.4) and M12 §3.5's |
+
 ### Facade for other modules (`gharbasket.modules.partners.api`)
 - `get_partner(session, partner_id) -> PartnerRef | None` — `{ id, user_id, kind, hub_id, status, display_name }` (M9 appointments, M7).
 - `partner_for_user(session, user_id, kind) -> PartnerRef | None`.
@@ -718,7 +754,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `partner_applications:review` | hub_manager (hub), admin |
 | `kyc_files:read` | hub_manager (hub), admin (every read audit-logged) |
 | `trainings:take` | any signed-in user with an open application or a partner record (own) |
-| `partners:read` | hub_manager, franchise_owner (hub), admin |
+| `partners:read` | hub_manager, franchise_owner (hub), admin (also the fairness read, §3.8) |
 | `partners:suspend` | hub_manager (hub), admin |
 | `kitchens:write` | kitchen_partner (own) |
 | `kitchens:inspect` | hub_manager (hub), admin |

@@ -1,6 +1,6 @@
 # M6 — Hub Operations
 
-**Status:** Draft v3 (with [ADR-0026](../adr/0026-operations-contract.md) and [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 and built. §3.3 (procurement plans and purchase orders), §3.4 (goods receipt, lots and stock) and §3.5 (waste, the surplus cascade and kept items) were refined on 2026-10-09 and are **frozen on approval**; §3.5's kept items and returned bags are built with M7's redelivery PR (ADR-0027 §2).
+**Status:** Draft v3 (with [ADR-0026](../adr/0026-operations-contract.md) and [ADR-0027](../adr/0027-operations-contract-amendments.md)). §3.1 (hubs, service areas, vendors) and §3.2 (packing) are frozen for S4 and built. §3.3 (procurement plans and purchase orders), §3.4 (goods receipt, lots and stock) and §3.5 (waste, the surplus cascade and kept items) were refined on 2026-10-09 and are **frozen on approval**; §3.5's kept items and returned bags are built with M7's redelivery PR (ADR-0027 §2). §3.6 (shortages today, for the packer app) was drafted on 2026-10-25, frozen on approval.
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P3 / S4
 **Postgres schema:** `hub_ops` · **Python package:** `gharbasket.modules.hub_ops`
@@ -41,6 +41,7 @@ Everything inside the hub (the franchise fulfilment centre): **hubs** and their 
 | GET | `/v1/packing-tasks/{id}` | packer, hub_manager (hub) | — | §3.2 |
 | POST | `/v1/packing-tasks/{id}/start` · `/pick` · `/shortage` · `/complete` | packer (hub), hub_manager | Required | §3.2; offline-safe |
 | POST | `/v1/packing-tasks/{id}/release` | hub_manager (hub) | Required | §3.2 |
+| GET | `/v1/hubs/{id}/shortages?date=` | packer, hub_manager, franchise_owner (hub), admin | — | §3.6; items short today and the bags they fall on |
 | GET | `/v1/hubs/{id}/procurement-plans?date=` · `/v1/procurement-plans/{id}` | hub_manager, franchise_owner (hub), admin | — | §3.3; ETag |
 | POST | `/v1/hubs/{id}/procurement-plans/build` | hub_manager (hub), admin | Required | §3.3; same work as the 21:10 job |
 | PATCH | `/v1/procurement-plans/{id}/lines/{product_id}` | hub_manager (hub), admin | `If-Match` | §3.3; reason required for a quantity |
@@ -599,6 +600,58 @@ GET /v1/hubs/{id}/waste-summary?from=&to=    at most 31 days; default the last 7
 | 422 | `hub_ops.taker_invalid` | A kitchen that is not an active kitchen partner of the hub; `taken_by` on a decline |
 | 422 | `hub_ops.qty_invalid` | Also: taken `qty` above the offer, or a shortage on a carried line (`reason: "carried"`) |
 
+### 3.6 Shortages today (drafted 2026-10-25, frozen on approval)
+The packer app's Shortages screen (`routes/_auth/packer/short.jsx`, `useShortages`) and its day summary build against this. Today it calls the path as a mock-only proposal (`mocks/packer.js`). It is one read. The packer still records each bag's shortage with `POST /v1/packing-tasks/{id}/shortage` (§3.2), through the offline outbox as today. Same sign-in, date and review rules as §3.1.
+
+```
+GET /v1/hubs/{hub_id}/shortages?date=
+    packer, hub_manager, franchise_owner (hub); admin (packing:read). Cache-Control: no-store
+    date as §3 (default today, IST)
+  200 { "hub_id", "date", "as_of",
+        "items": [ ShortItem ] }           largest short_by first, then the reported ones, by name
+
+ShortItem : {
+  "product_id", "slug", "name", "step": { "qty", "unit", "label" },   name in Accept-Language
+  "needed": 30,         steps of this product on the date's packing lines (carried lines left out)
+  "received": 26 | null,  steps the hub has for the date: lots on hand (grade A or B, not past
+                        best_before, §3.4) plus what the date's packed tasks already drew; null
+                        when the step does not convert to the operations unit (§3.3's conversion)
+  "short_by": 4,        needed − received, at least 0; 0 when received is null
+  "bags": [ ShortBag ],     the open bags the gap falls on: the last in the queue first (highest
+                            seq), until their open steps cover short_by
+  "reported": [ ShortBag ] }  bags with a shortage already recorded for this product today
+
+ShortBag : { "task_id", "bag_qr", "society": "Sunrise Towers", "flat_label": "B wing, B-402" | null,
+             "qty": 1,                       steps open on the line (bags) or short (reported)
+             "outcome": "substitute" | "refund",   bags: what §3.2 would allow (the household's
+                                             shortage preference, M1 §3.4, and a whole line not
+                                             yet picked); reported: what was recorded
+             "substitute": { "product_id", "slug", "name", "step" } | null,
+                                             bags: the first of catalog.api.substitute_ids in stock,
+                                             not on the order and no dearer (§3.2's rule);
+                                             reported: the substitute packed
+             "refund_paise": 2000 }          the open (or short) steps × the line's paid unit price;
+                                             0 for a substitute that costs the same
+```
+
+- **Which items.** A product is listed when `short_by > 0`, or when any of the date's bags has a shortage recorded for it (a short at a bag that the stock did not predict, `received` may then be enough). Tiffins are never here (§3.2).
+- **Nothing is decided here.** The list says where the gap falls and what each family's rule allows. The packer still records it bag by bag, and §3.2's checks apply again at that moment, so a stale list can never refund twice or substitute against a household's choice.
+- **Data it reads.** Packing lines and tasks (§3.2) and lots (§3.4) are M6's own. Prices come from `orders.api.orders_for_delivery` (already read when the tasks are built); preferences from `identity.api.shortage_preferences`; substitutes from `catalog.api.substitute_ids` and today's prices. No new facade.
+- **Personal data.** As the packing queue: the society and `flat_label`, never a name or a phone.
+
+| Status | Code | When |
+|---|---|---|
+| 403 | `auth.forbidden` | Another hub |
+| 422 | `hub_ops.date_out_of_range` | A `date` outside today − 7 … today + 2 |
+
+| Mock today (`mocks/packer.js`) | Contract |
+|---|---|
+| `GET /v1/hubs/{id}/shortages` → `{ items: ShortItem[] }` | Same path and `items`, plus `hub_id`, `date` and `as_of`; each item gains `short_by` |
+| `needed`, `received` (steps), null for an item reported at a bag | Same names and unit; `received` is null only when the step does not convert, and an item reported at a bag carries both numbers |
+| `bags` (the bags the gap falls on), `reported` | Same, in the same order rule (the end of the queue first) |
+| `outcome: "swap" \| "refund"` | `"substitute" \| "refund"`, M1's preference words |
+| `society`, `flat_label`, `qty`, `substitute`, `refund_paise`, `task_id`, `bag_qr` | Same |
+
 ### Facade for other modules (`gharbasket.modules.hub_ops.api`)
 - `get_hub(session, hub_id) -> HubRef | None` — `{ id, slug, name, status, lat, lng, timings }`.
 - `active_hub_ids(session) -> list[UUID]` — for jobs that run per hub.
@@ -661,7 +714,7 @@ Each job is idempotent, takes its advisory lock and uses `scheduled_for` (the de
 | `hubs:read` | packer, rider, kitchen_partner, hub_manager, franchise_owner (hub); admin |
 | `hubs:write` | admin |
 | `vendors:read` · `vendors:write` | hub_manager (hub), admin · franchise_owner reads |
-| `packing:read` | packer, hub_manager, franchise_owner (hub), admin |
+| `packing:read` | packer, hub_manager, franchise_owner (hub), admin (also the shortages read, §3.6) |
 | `packing:write` | packer (hub), hub_manager (hub) |
 | `packing:manage` | hub_manager (hub), admin (build, release) |
 | `procurement:read` · `procurement:write` | hub_manager (hub), admin · franchise_owner reads (plans, lines, purchase orders) |

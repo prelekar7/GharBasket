@@ -1,6 +1,6 @@
 # M2 — Catalog & Pricing
 
-**Status:** Draft v1.3. §3.1 (products, search, prices, substitutes) and §3.2 (recipes, festivals) are frozen for S1; §3.3 (catalog admin) drafted 2026-10-09, frozen on approval; kits and tiffin menus are refined when they are built (spec-first).
+**Status:** Draft v1.3. §3.1 (products, search, prices, substitutes) and §3.2 (recipes, festivals) are frozen for S1; §3.3 (catalog admin) drafted 2026-10-09, frozen on approval; §3.4 (tiffin menu review) drafted 2026-10-25, frozen on approval; kits and the kitchen's own menu writes are refined when they are built (spec-first).
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje (also curate translations and search synonyms)
 **Phase / Sprint:** P2 / S1
 **Postgres schema:** `catalog` · **Python package:** `gharbasket.modules.catalog`
@@ -35,6 +35,8 @@ Everything that can be planned or sold: vegetables, fruits, staples, cut-vegetab
 | POST | `/v1/hubs/{id}/price-lists` | hub_manager (hub), admin | Required | Bulk upload (§3.1) |
 | GET / PUT / DELETE | `/v1/hubs/{id}/price-lists[/{list_id}]` | hub_manager (hub), admin | — | List, read, replace today's or a future list, delete a future one (§3.3) |
 | GET / POST / PATCH / DELETE | `/v1/admin/festivals[/{date}/{code}/{region}]` | admin | Required (POST) | §3.3 |
+| GET | `/v1/hubs/{id}/tiffin-menus?status=&from=&to=` | catalog_editor, admin; hub_manager (hub, read) | — | §3.4; the review list, every status |
+| POST | `/v1/tiffin-menus/{id}/approve` · `/send-back` · `/reopen` | catalog_editor, admin | — | §3.4; only approved menus are bookable (M4 §3.5) |
 
 ### 3.1 Catalog contract (frozen for S1)
 The Box, Substitute and add-on search screens and the backend build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint needs sign-in (Bearer or the web cookie, M1 §3.1).
@@ -302,6 +304,73 @@ DELETE /v1/hubs/{hub_id}/price-lists/{id}          204; only a list whose valid_
 | Catalog → Festivals (calendar grid, "verified" toggle) | `/v1/admin/festivals` | `POST`/`PATCH`/`DELETE /v1/admin/festivals/…` |
 | Prices (hub picker for admins; a hub manager sees their hub; CSV import, copy from the latest list) | `/v1/hubs/{id}/price-lists`, `/v1/prices` | `POST`/`PUT`/`DELETE …/price-lists` |
 
+### 3.4 Tiffin menu review (drafted 2026-10-25, frozen on approval)
+The console's Tiffin menus page (`(admin)/tiffin-menus`) builds against this. Today it calls these paths as `@proposal`s (`mocks/tiffin.js`). A menu is one kitchen's offer for a date and meal (§4, M8 §3.4). Customers book it through `GET /v1/tiffin-menus` (M4 §3.5), which lists **approved menus only**, as it already does. Same sign-in and review rules as §3.1.
+
+**Who writes menus today: nobody but the seed.** The kitchen app's Menu screen sets capacity and skills (M8 §3.4), not dishes. M4 §3.5 notes that menus are written by seed or tests "until that flow is specified". This section specifies the review only. The kitchen's own create and edit (`tiffin_menus:write`, kitchen_partner own) stay unspecified. Until they exist, `just seed` writes menus as `submitted`.
+
+```
+Statuses : submitted → approved | sent_back      the review
+           sent_back → submitted                 the kitchen's edit (unspecified, above)
+           approved  → submitted                 reopen; sent_back → submitted by reopen as well
+                                                 (the console's undo)
+           withdrawn                             kept for the kitchen's own take-down; unused in v1
+           only approved menus are bookable; a reopened or sent-back menu leaves
+           GET /v1/tiffin-menus at once, and orders already booked stand (M4 §3.5)
+
+TiffinMenuReview : {
+  "id", "hub_id", "date": "2026-10-27", "meal": "lunch" | "dinner", "status",
+  "kitchen": { "partner_id", "display_name": "Lata Shinde" },     partners.api.profile_card
+  "product": { "id", "slug", "name": "Puran poli thali", "tags": ["festival"] },   the tiffin product
+  "dishes": [ { "recipe_id", "name": "Katachi amti" } ],          names in Accept-Language
+  "price_paise": 11000,                                           per portion, the menu's price
+  "rules": { "jain_ok", "no_onion_garlic", "fasting_ok", "diabetic_ok" },   true only when every
+                                                                  dish's recipe has it (§3.2)
+  "contains": ["Wheat", "Jaggery", "Toor dal"],                  the dishes' non-optional ingredients
+  "order_by": "…",                                                the date's cut-off (T-1 21:00 IST)
+  "submitted_at", "decided_at": "…" | null,
+  "decided_by": { "user_id", "name" } | null,                     the reviewer (staff)
+  "note": "…" | null,                                             the send-back reason
+  "version": 3 }
+
+GET /v1/hubs/{hub_id}/tiffin-menus?status=&from=&to=&cursor=&limit=
+    catalog_editor, admin; hub_manager (hub) reads (tiffin_menus:read). Cache-Control: no-store
+    status: any of the four; from, to: dates, default today to today + 7; limit ≤ 100, default 50
+  200 Page[TiffinMenuReview]   submitted first (oldest submitted_at first), then by date and meal
+
+POST /v1/tiffin-menus/{id}/approve      catalog_editor, admin (tiffin_menus:review); body {}
+  200 TiffinMenuReview (approved, version + 1)    an approved menu again: 200, unchanged
+  409 "catalog.menu_not_submitted" · 409 "catalog.menu_closed" (past order_by)
+  422 "catalog.menu_invalid" { "reasons": ["product_inactive" | "recipe_inactive" | "price_invalid"] }
+POST /v1/tiffin-menus/{id}/send-back    { "note": "…" }  1 to 500 characters
+  200 TiffinMenuReview (sent_back, note set)
+  409 "catalog.menu_not_submitted" · 422 "request.invalid" (no note)
+POST /v1/tiffin-menus/{id}/reopen       body {}; from approved or sent_back
+  200 TiffinMenuReview (submitted; decided_at, decided_by and note cleared)
+  409 "catalog.menu_not_decided" · 409 "catalog.menu_closed" (past order_by)
+every action: 404 "catalog.menu_not_found" (unknown id) · 403 "auth.forbidden" (a role without review)
+```
+
+- **No Idempotency-Key needed.** No money or order moves, so the key is not required. The console's keys are accepted and ignored, and a repeat answers from the status: approve of an approved menu is a 200; the others are 409s the console already handles.
+- **The price is the menu's.** Approval checks it is above 0; it never sets or computes it. What the kitchen is paid is M8's rate card (§3.6 there).
+- **Audit and event.** Each decision is audit-logged (`catalog.tiffin_menu_decided`) and publishes `catalog.tiffin_menu_decided { menu_id, partner_id, hub_id, date, meal, status }`, so M11 can tell the kitchen later (no template in v1).
+- **Migration.** `draft` becomes `submitted`. The table gains `sent_back`, `submitted_at`, `decided_at`, `decided_by`, `decision_note` and `version` (§4).
+- **New dependency:** M2 reads the kitchen's display name through `partners.api.profile_card` (M8) and the reviewer's name through `identity.api.user_names` (M1). Both are read-only facades.
+- **Permissions:** `tiffin_menus:read` and `tiffin_menus:review` are new (§7).
+
+| Mock today (`mocks/tiffin.js`) | Contract |
+|---|---|
+| `GET /v1/hubs/{id}/tiffin-menus?status=` → `{ items: TiffinDish[] }` | Same path and Page, every status; items are `TiffinMenuReview` |
+| status `draft` (waiting), `withdrawn` (sent back) | `submitted`, `sent_back`; `withdrawn` is the kitchen's own |
+| `name`, `components` (one string), `tags` | `product.name`, `dishes[]`, `product.tags` |
+| `kitchen { id, name }` | `kitchen { partner_id, display_name }` |
+| `contains`, `fasting_ok`, `fasting_note` | `contains`, `rules.fasting_ok` (with the other three rules); the note is console copy |
+| `daily_capacity` | Not here: M8's kitchen capacity (the tiffin board, M8 §3.4) |
+| `is_new`, `proposed_at`, `decided_by: "Vikram Desai"` | `submitted_at`; `decided_by { user_id, name }` |
+| `send-back { note }`, 422 without a note | Same |
+| 404 `tiffin.not_found`, 409 `tiffin.not_waiting` | 404 `catalog.menu_not_found`, 409 `catalog.menu_not_submitted` |
+| Staff roles admin, hub_manager | Review by catalog_editor and admin; a hub manager reads only |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -310,7 +379,7 @@ DELETE /v1/hubs/{hub_id}/price-lists/{id}          204; only a list whose valid_
 | `catalog.recipes` | id (uuidv7), slug (unique), names jsonb `{en, hi, mr}`, cuisine, slots[], cook_minutes, servings, diet, rules jsonb `{jain_ok, no_onion_garlic, fasting_ok, diabetic_ok}`, tags[], steps jsonb null, embedding null (later), active, data_source |
 | `catalog.recipe_ingredients` | recipe_id, product_id, qty_per_serving, unit (g, ml, piece, bunch), optional; primary key (recipe_id, product_id) |
 | `catalog.kits` | product_id, recipe_id, servings |
-| `catalog.tiffin_menus` | id, hub_id, partner_id (the kitchen partner who offers it), date, meal, product_id (the tiffin product, kind `tiffin`, whose tags carry the skills, M8 §3.4), recipe_ids[], price_paise, status (draft, approved, withdrawn); unique (partner_id, date, meal). One menu per kitchen, date and meal, shown to the customers of its hub once a hub manager approves it (M4 §3.5); its `partner_id` is the customer's preferred cook, not a hard choice (M8 §3.4) |
+| `catalog.tiffin_menus` | id, hub_id, partner_id (the kitchen partner who offers it), date, meal, product_id (the tiffin product, kind `tiffin`, whose tags carry the skills, M8 §3.4), recipe_ids[], price_paise, status (submitted, approved, sent_back, withdrawn; `draft` renamed `submitted` by §3.4's migration), submitted_at, decided_at null, decided_by null, decision_note null, version (§3.4); unique (partner_id, date, meal). One menu per kitchen, date and meal, shown to the customers of its hub once a reviewer approves it (§3.4, M4 §3.5); its `partner_id` is the customer's preferred cook, not a hard choice (M8 §3.4) |
 | `catalog.substitutions` | product_id, substitute_id, score, source (nutrition, cooccur, embedding, learned) |
 | `catalog.price_lists` / `catalog.prices` | id, hub_id (no FK until M6), valid_from, unique (hub_id, valid_from), data_source / price_list_id, product_id, price_paise BIGINT (per step), mrp_paise BIGINT null |
 | `catalog.festival_calendar` | date, code, region (primary key together), names jsonb, rules jsonb `{fasting, no_onion_garlic}`, verified |
@@ -319,7 +388,7 @@ DELETE /v1/hubs/{hub_id}/price-lists/{id}          204; only a list whose valid_
 Columns added by §3.3 (one migration): `version` and `updated_by` on `products`, `recipes` and `price_lists` (plus `updated_at` on `price_lists`); `fasting_reviewed_by`, `fasting_reviewed_at`, `diabetic_reviewed_by` and `diabetic_reviewed_at` on `recipes`; `source` (panchang, manual), `updated_by` and `updated_at` on `festival_calendar`.
 
 ## 5. Events
-**Published:** `catalog.prices_published` (gains `replaced: bool`, §3.3), `catalog.product_changed { product_id, changed, active }`, `catalog.recipe_changed { recipe_id, changed, active }` (new, §3.3). **Consumed:** `intel.substitutions_learned` (refresh learned scores).
+**Published:** `catalog.prices_published` (gains `replaced: bool`, §3.3), `catalog.product_changed { product_id, changed, active }`, `catalog.recipe_changed { recipe_id, changed, active }` (new, §3.3), `catalog.tiffin_menu_decided { menu_id, partner_id, hub_id, date, meal, status }` (new, §3.4). **Consumed:** `intel.substitutions_learned` (refresh learned scores).
 
 ## 6. Jobs
 | Job | Trigger | Notes |
@@ -336,7 +405,9 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 | `catalog:write` | admin |
 | `recipes:curate` | catalog_editor, admin (a recipe's `names`, `fasting_ok` and `diabetic_ok`; §3.3) |
 | `prices:write` | hub_manager (hub), admin |
-| `tiffin_menus:write` | kitchen_partner (own), hub_manager (approve) |
+| `tiffin_menus:write` | kitchen_partner (own; the menu write is not specified yet, §3.4) |
+| `tiffin_menus:read` | catalog_editor, admin, hub_manager (hub) (the review list, §3.4) |
+| `tiffin_menus:review` | catalog_editor, admin (approve, send back, reopen; §3.4, owner's provisional decision of 2026-10-25, replacing "hub_manager (approve)") |
 | `catalog:admin_read` | admin, hub_manager (the admin lists in §3.3, to build price lists), catalog_editor |
 
 ## 8. Screens
@@ -350,7 +421,7 @@ Both jobs are outbox consumers of `catalog.product_changed` (ADR-0021).
 
 - Catalog admin (§3.3): every write is audited and bumps `version`; stale `If-Match` 412, missing 428; slug, kind and step are immutable; a missing language is refused; a restricted tag change recomputes the rules of every recipe using the product, in one transaction; deactivating an ingredient of an active recipe is refused; a past price list cannot be replaced or deleted, a future one can; a hub manager cannot touch another hub's lists or any product; a catalog editor can change a recipe's names and fasting and diabetic flags and nothing else (403 with `fields`); the seed adds missing rows and never overwrites a console-edited row or a manual/verified festival.
 ## 10. Dependencies
-M0. The caller's hub comes from their household through `identity.api` (M1); M1 adds the `catalog_editor` staff role (§3.3). Embeddings via `intel_gateway.api` (M10). No dependency on M3/M4 (they depend on M2).
+M0. The caller's hub comes from their household through `identity.api` (M1); M1 adds the `catalog_editor` staff role (§3.3). Embeddings via `intel_gateway.api` (M10). No dependency on M3/M4 (they depend on M2). The tiffin menu review (§3.4) reads `partners.api.profile_card` (M8) and `identity.api.user_names`.
 
 ## 11. Open questions
 - **Decided (Oct 2026):** nutrition per 100 g comes from IFCT 2017 (ICMR-NIN) through the `@ifct2017/compositions` transcription, mapped by hand per product (`data/external/nutrition/`); five foods IFCT lacks use the NIN Nutritive Value of Indian Foods. Daily targets per age band are ICMR-NIN RDA 2020 (`rda.json`, a hypothesis until ratified). `ProductOut.nutrition` and the planner catalog's `nutrition_per_serving` carry it.
