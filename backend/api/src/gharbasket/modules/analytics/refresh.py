@@ -12,8 +12,11 @@ M12's own `analytics.fact_*` tables, then the materialised views over them refre
   fact. A failed pull leaves the previous facts in place (its writes are rolled back to a
   savepoint), the run is committed as `failed`, and the error is raised so the job run fails too.
 - The three jobs never interleave: each takes one shared advisory lock for the whole run.
+- **Erasure** (spec §4): `forget_household`, the consumer of `identity.user_deleted`, deletes a
+  purged household's facts under the same lock, so no refresh in flight writes them back.
 """
 
+import uuid
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -605,12 +608,37 @@ async def _plan(session: AsyncSession, job: str, today: date) -> Plan:
     raise ValueError(f"not an analytics job: {job!r}")
 
 
+LOCK = "analytics_facts"  # the one advisory lock of the three jobs and the erasure below
+
+
+class RefreshRunning(RuntimeError):
+    """A refresh holds the facts: the erasure is retried later (the outbox's backoff), so a pull
+    read before the purge cannot write the household's facts back after it."""
+
+
+async def forget_household(session: AsyncSession, household_id: uuid.UUID) -> dict[str, int]:
+    """Spec §4: after M1's purge, the household's `fact_households` and `fact_cycles` rows go
+    (M3 deletes its cycles at the purge); its orders, issues and community facts stay, as M4 and
+    M9 keep them. Raises `RefreshRunning` rather than wait for a refresh in progress."""
+    taken = await session.scalar(select(func.pg_try_advisory_xact_lock(lock_key(LOCK))))
+    if not taken:
+        raise RefreshRunning("an analytics refresh is running")
+    removed: dict[str, int] = {}
+    for name, model, column in (
+        ("households", FactHousehold, FactHousehold.household_id),
+        ("cycles", FactCycle, FactCycle.household_id),
+    ):
+        gone = await session.execute(delete(model).where(column == household_id).returning(column))
+        removed[name] = len(gone.all())
+    return removed
+
+
 async def run(
     session: AsyncSession, job: str, scheduled_for: datetime, *, now: datetime | None = None
 ) -> dict[str, Any]:
     """One refresh job, inside the job's transaction. `now` is the facts' `synced_at` (the clock
     by default)."""
-    await session.execute(select(func.pg_advisory_xact_lock(lock_key("analytics_facts"))))
+    await session.execute(select(func.pg_advisory_xact_lock(lock_key(LOCK))))
     now = now or datetime.now(UTC)
     plan = await _plan(session, job, ist_today(scheduled_for))
     record = RefreshRun(
