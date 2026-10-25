@@ -17,3 +17,11 @@ for role in ("hub_manager", "admin"):
 PERMISSIONS.allow("customer", "donations:create", "donations:read", "donations:cancel")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "donations:review", "donations:verify")
+# NGOs, surplus offers and hand-offs (§3.5). Scopes are checked per request: hub managers their
+# hubs, coordinators (ngo_coordinator:<ngo id>, an M1 role grant) their NGOs, admins everything.
+PERMISSIONS.allow("admin", "ngos:write")
+for role in ("hub_manager", "admin", "ngo_coordinator"):
+    PERMISSIONS.allow(role, "ngos:read", "ngo_offers:read", "ngo_handoffs:read")
+PERMISSIONS.allow("ngo_coordinator", "ngo_offers:claim", "ngo_handoffs:confirm")
+for role in ("hub_manager", "ngo_coordinator"):
+    PERMISSIONS.allow(role, "ngo_handoffs:write")

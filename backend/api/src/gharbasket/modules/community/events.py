@@ -25,3 +25,5 @@ DONATION_REJECTED = "community.donation_rejected"
 # {referral_id, referrer_user_id, referee_user_id, society_id, hub_id, referrer_points,
 # referee_points}: for M12 (§3.3). M11 maps nothing: billing.points_credited already notifies.
 REFERRAL_CONVERTED = "community.referral_converted"
+# {handoff_id, ngo_id, hub_id, kind, items, kg_tenths, meals}: for M12 (§3.5); not mapped in M11.
+HANDOFF_RECORDED = "community.handoff_recorded"

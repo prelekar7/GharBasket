@@ -7,10 +7,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, Request, Response, status
 from sqlalchemy import select
 
-from gharbasket.modules.community import donations, drives, verification
+from gharbasket.modules.community import donations, drives, handoffs, verification
 from gharbasket.modules.community.kindness_schemas import (
     DonationIn,
     DonationLine,
+    DonationNgo,
     DonationOut,
     DonationsOut,
     DonationStatus,
@@ -48,6 +49,9 @@ async def views(session: DbSession, found: list[Donation], lang: Language) -> li
         ).scalars()
     }
     timelines = await donations.timelines(session, [d.id for d in found])
+    given_to = await handoffs.ngo_names_for(
+        session, {d.handoff_id for d in found if d.handoff_id is not None}
+    )
     return [
         DonationOut(
             id=d.id,
@@ -62,7 +66,9 @@ async def views(session: DbSession, found: list[Donation], lang: Language) -> li
             points_awarded=d.points_awarded,
             reject_reason=d.reject_reason,  # pyright: ignore[reportArgumentType]
             cancel_reason=d.cancel_reason,  # pyright: ignore[reportArgumentType]
-            ngo=None,
+            ngo=None
+            if d.handoff_id is None or d.handoff_id not in given_to
+            else DonationNgo(name=given_to[d.handoff_id]),
             timeline=[
                 TimelineEntry(status=e.status, at=e.at)  # pyright: ignore[reportArgumentType]
                 for e in timelines[d.id]

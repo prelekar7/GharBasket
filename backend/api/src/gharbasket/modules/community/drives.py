@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.kindness_schemas import DriveIn, DrivePatch, PointRateIn
-from gharbasket.modules.community.models import DonationDrive, PointRate, Society
+from gharbasket.modules.community.models import DonationDrive, Ngo, PointRate, Society
 from gharbasket.modules.hub_ops import api as hub_ops_api
 from gharbasket.platform import audit
 from gharbasket.platform.errors import ProblemError
@@ -226,6 +226,17 @@ async def staff_drive(session: AsyncSession, permit: Permit, drive_id: uuid.UUID
     return drive
 
 
+async def check_ngo(session: AsyncSession, ngo_id: uuid.UUID, hub_id: uuid.UUID | None) -> None:
+    """A drive's NGO takes items, at the drive's hub when it has one (§3.5)."""
+    ngo = await session.get(Ngo, ngo_id)
+    if ngo is None:
+        raise ProblemError(404, "community.ngo_not_found", "No such NGO.")
+    if "items" not in ngo.accepts or (hub_id is not None and hub_id not in ngo.hub_ids):
+        raise ProblemError(
+            422, "community.ngo_does_not_accept", "This NGO does not take items at this hub."
+        )
+
+
 async def create_drive(session: AsyncSession, body: DriveIn, permit: Permit) -> DonationDrive:
     hub_id = body.hub_id
     if body.scope == "platform" and not is_admin(permit):
@@ -242,6 +253,8 @@ async def create_drive(session: AsyncSession, body: DriveIn, permit: Permit) -> 
         if not permit.allows(society.hub_id):
             raise forbidden("This society belongs to another hub.")
         hub_id = society.hub_id
+    if body.ngo_id is not None:
+        await check_ngo(session, body.ngo_id, hub_id)
     await check_codes(session, body.codes)
     if body.starts_on < today():
         raise _dates_invalid("A drive cannot start in the past.")
@@ -255,6 +268,7 @@ async def create_drive(session: AsyncSession, body: DriveIn, permit: Permit) -> 
         starts_on=body.starts_on,
         ends_on=body.ends_on,
         goal_items=body.goal_items,
+        ngo_id=body.ngo_id,
         created_by=permit.principal.user_id,
     )
     try:
@@ -287,6 +301,8 @@ async def patch_drive(
     sent: dict[str, Any] = {name: getattr(body, name) for name in body.model_fields_set}
     if "codes" in sent:
         await check_codes(session, sent["codes"])
+    if sent.get("ngo_id") is not None:
+        await check_ngo(session, sent["ngo_id"], drive.hub_id)
     starts, ends = sent.get("starts_on", drive.starts_on), sent.get("ends_on", drive.ends_on)
     if (starts, ends) != (drive.starts_on, drive.ends_on):
         if state in ("ended", "cancelled"):
