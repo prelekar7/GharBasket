@@ -274,6 +274,7 @@ The console's Cut-off page (`(hub)/cutoff`) and the date pickers of its Orders a
 GET /v1/hubs/{hub_id}/delivery-dates?from=&days=14
     hub_manager, franchise_owner, packer (hub); admin. Cache-Control: no-store
     from: an IST date, default today (IST, from the API's clock); days: 1–31, default 14
+    (from and date: 2000-01-01 to 2100-12-31, else 422)
   200 { "hub_id", "from", "to",
         "items": [ { "date": "2026-11-03", "societies": 3, "cutoff_at": "…" } ] }   soonest first
       every date in [from, to] on which at least one society of the hub has a delivery day
@@ -298,7 +299,7 @@ GET /v1/hubs/{hub_id}/cutoff?date=
         "short": [ { "order_id", "society": "Sunrise Towers", "flat": "B wing, B-402",
                      "box_paise": 64200, "wallet_paise": 36200, "short_paise": 28000 } ] }
       short: the payment_failed orders, largest shortfall first; wallet_paise read live
-      (billing.api.balance); flat from identity.api.delivery_labels (never a name or a phone)
+      (billing.api.balances, one read for the list); flat from identity.api.delivery_labels (never a name or a phone)
   404 "subscriptions.not_delivery_date"   no society of the hub delivers on date
   403 "auth.forbidden"                    a hub outside the caller's grants
 ```
@@ -360,7 +361,7 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 - E2E: generate → edit → approve; skip week.
 
 ## 10. Dependencies
-M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balance`, `identity.api.delivery_labels`, `community.api.hub_society_ids` and M0's `platform.job_runs`.
+M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balances`, `identity.api.delivery_labels` and `owners_of_households`, `community.api.hub_society_ids` and M0's `platform.job_runs`.
 
 ## 11. Open questions and decisions
 - **Decided (S3 contract):** add-ons are lines on the box order (M4 §3.1), never separate orders.
