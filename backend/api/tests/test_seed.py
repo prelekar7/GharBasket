@@ -4,11 +4,11 @@ import asyncio
 from collections.abc import Iterator
 
 import pytest
-from sqlalchemy import delete, func, select
+from alembic import command
+from sqlalchemy import func, make_url, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.community.models import Captain, Society
-from gharbasket.modules.hub_ops.models import Hub, Vendor
 from gharbasket.modules.identity.models import ROLES, Household, HouseholdMember, User, UserRole
 from gharbasket.modules.identity.service import find_or_create_user
 from gharbasket.modules.partners.models import Partner
@@ -29,6 +29,8 @@ from gharbasket.tools.seed import (
     seed_societies,
 )
 from gharbasket.tools.seed import main as seed_command
+
+from .conftest import alembic_config, run_on_server
 
 pytestmark = [pytest.mark.anyio, pytest.mark.services]
 
@@ -132,83 +134,52 @@ async def test_seed_households_onboard_five_customers_once(db_session: AsyncSess
 
 
 @pytest.fixture
-def local_database(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
-    # Both, so a developer's local .env cannot point the command somewhere else.
-    monkeypatch.setenv("DATABASE_URL", database_url)
-    monkeypatch.setenv("DATABASE_URL_DIRECT", database_url)
-    yield database_url
+def seeded_database(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
+    """A throwaway database for the command: it commits for real (people, societies, the whole
+    catalog, a delivery, and the notifications its relay sends), which would leak into the
+    other tests' database, and under pytest-xdist into whichever test runs next on that worker."""
+    name = f"{make_url(database_url).database}_seed"
+    url = make_url(database_url).set(database=name).render_as_string(hide_password=False)
+    run_on_server(database_url, f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
+    run_on_server(database_url, f"CREATE DATABASE {name}")
+    try:
+        command.upgrade(alembic_config(url), "head")
+        # Both, so a developer's local .env cannot point the command somewhere else.
+        monkeypatch.setenv("DATABASE_URL", url)
+        monkeypatch.setenv("DATABASE_URL_DIRECT", url)
+        yield url
+    finally:
+        run_on_server(database_url, f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
 
 
-async def _remove_seed_rows(database_url: str) -> tuple[int, int]:
+async def _count_seed_rows(database_url: str) -> tuple[int, int]:
     engine = create_engine(database_url, pooled=False)
     try:
-        async with AsyncSession(engine) as cleanup:
-            user_ids = [user.id for user in await _seed_users(cleanup)]
-            users = [str(user_id) for user_id in user_ids]
-            await cleanup.execute(delete(AuditEntry).where(AuditEntry.entity_id.in_(users)))
-            await cleanup.execute(
-                delete(OutboxEvent).where(
-                    OutboxEvent.event_type == "identity.household_created",
-                    OutboxEvent.payload["data_source"].astext == "synthetic",
-                )
+        async with AsyncSession(engine) as session:
+            users = await session.scalar(
+                select(func.count()).select_from(User).where(User.phone_e164.in_(PHONES))
             )
-            await cleanup.execute(
-                delete(OutboxEvent).where(
-                    OutboxEvent.event_type == "partners.verified",
-                    OutboxEvent.payload["user_id"].astext.in_(users),
-                )
+            societies = await session.scalar(
+                select(func.count()).select_from(Society).where(Society.slug.in_(SLUGS))
             )
-            captains = [
-                str(c)
-                for c in (
-                    await cleanup.execute(
-                        delete(Captain).where(Captain.user_id.in_(user_ids)).returning(Captain.id)
-                    )
-                ).scalars()
-            ]
-            await cleanup.execute(delete(AuditEntry).where(AuditEntry.entity_id.in_(captains)))
-            await cleanup.execute(
-                delete(OutboxEvent).where(
-                    OutboxEvent.event_type.in_(
-                        ["community.captain_assigned", "community.captain_ended"]
-                    ),
-                    OutboxEvent.payload["user_id"].astext.in_(users),
-                )
-            )
-            await cleanup.execute(delete(Partner).where(Partner.user_id.in_(user_ids)))
-            # Households, members, addresses and consents go with their owners.
-            await cleanup.execute(delete(User).where(User.phone_e164.in_(PHONES)))
-            societies = await cleanup.execute(delete(Society).where(Society.slug.in_(SLUGS)))
-            await cleanup.execute(
-                delete(OutboxEvent).where(
-                    OutboxEvent.event_type.like("hub_ops.hub_%"),
-                    OutboxEvent.payload["hub_id"].astext == str(SEED_HUB_ID),
-                )
-            )
-            await cleanup.execute(delete(Vendor).where(Vendor.hub_id == SEED_HUB_ID))
-            await cleanup.execute(delete(Hub).where(Hub.id == SEED_HUB_ID))
-            await cleanup.commit()
-            return len(users), societies.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+            return users or 0, societies or 0
     finally:
         await engine.dispose()
 
 
-def test_the_seed_command_fills_the_local_database(
-    local_database: str, capsys: pytest.CaptureFixture[str]
+def test_the_seed_command_fills_the_database(
+    seeded_database: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    try:
-        assert seed_command([]) == 0
-        out = capsys.readouterr().out
-        assert f"hub kharghar ({SEED_HUB_ID}) new" in out
-        assert f"{len(PEOPLE)} synthetic people" in out
-        assert f"{len(SOCIETIES)} synthetic societies" in out
-        assert f"{len(HOUSEHOLDS)} synthetic households" in out
-        assert f"{len(CAPTAINS)} synthetic captain partners" in out
-        assert "6 partner training modules (placeholders)" in out
-    finally:
-        # The command commits for real, so its rows are removed here (and counted).
-        removed = asyncio.run(_remove_seed_rows(local_database))
-        assert removed == (len(PEOPLE), len(SOCIETIES))
+    assert seed_command([]) == 0
+    out = capsys.readouterr().out
+    assert f"hub kharghar ({SEED_HUB_ID}) new" in out
+    assert f"{len(PEOPLE)} synthetic people" in out
+    assert f"{len(SOCIETIES)} synthetic societies" in out
+    assert f"{len(HOUSEHOLDS)} synthetic households" in out
+    assert f"{len(CAPTAINS)} synthetic captain partners" in out
+    assert "6 partner training modules (placeholders)" in out
+    # It committed: the rows are there for a new connection.
+    assert asyncio.run(_count_seed_rows(seeded_database)) == (len(PEOPLE), len(SOCIETIES))
 
 
 def test_the_seed_command_refuses_a_shared_database(monkeypatch: pytest.MonkeyPatch) -> None:

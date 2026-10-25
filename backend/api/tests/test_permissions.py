@@ -120,7 +120,11 @@ def test_the_active_role_narrows_what_counts(client: TestClient) -> None:
     assert as_customer.status_code == 403
 
 
-@pytest.mark.parametrize("active", ["admin", f"captain:{uuid.uuid4()}", "garbage"])
+# A fixed id: a random one in the test id would differ between xdist workers, which refuse to run.
+OTHER_SOCIETY = uuid.UUID("0199a1b2-0000-7000-8000-0000000000c2")
+
+
+@pytest.mark.parametrize("active", ["admin", f"captain:{OTHER_SOCIETY}", "garbage"])
 def test_an_active_role_the_caller_does_not_hold_is_refused(
     client: TestClient, active: str
 ) -> None:
