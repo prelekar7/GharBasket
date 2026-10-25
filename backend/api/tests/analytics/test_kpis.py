@@ -14,7 +14,7 @@ import pytest
 import time_machine
 from redis.asyncio import Redis
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from gharbasket.modules.analytics import freshness, kpis, reads, refresh, router
 from gharbasket.modules.analytics.models import (
@@ -30,6 +30,7 @@ from gharbasket.modules.analytics.models import (
 )
 from gharbasket.modules.community import api as community_api
 from gharbasket.modules.subscriptions.models import Plan, Subscription
+from gharbasket.platform.db import asyncpg_url
 from gharbasket.platform.errors import ProblemError
 from gharbasket.tools.seed import SEED_HUB_ID, SEED_SOCIETY_ID
 
@@ -629,6 +630,29 @@ async def test_a_read_over_three_seconds_is_a_timeout_problem(db_session: AsyncS
     with pytest.raises(ProblemError) as caught:
         await slow()
     assert (caught.value.status, caught.value.code) == (503, "analytics.timeout")
+
+
+async def test_the_read_timeout_ends_with_the_requests_transaction(database_url: str) -> None:
+    """`SET LOCAL` lasts only for the transaction: the next request on the same pooled
+    connection, or the same session after its commit, runs under the server's default again."""
+    url, connect_args = asyncpg_url(database_url)
+    engine = create_async_engine(url, connect_args=connect_args, pool_size=1, max_overflow=0)
+    try:
+        sessions = async_sessionmaker(engine)
+        async with sessions() as session:
+            default = await session.scalar(text("SHOW statement_timeout"))
+            assert default != reads.STATEMENT_TIMEOUT
+            await session.rollback()
+            async with reads.read_limit(session):
+                assert await session.scalar(text("SHOW statement_timeout")) == "3s"
+            await session.commit()
+            assert await session.scalar(text("SHOW statement_timeout")) == default
+            async with reads.read_limit(session):  # left open: the request ends mid-transaction
+                assert await session.scalar(text("SHOW statement_timeout")) == "3s"
+        async with sessions() as other:  # the next request, on the one pooled connection
+            assert await other.scalar(text("SHOW statement_timeout")) == default
+    finally:
+        await engine.dispose()
 
 
 async def test_the_per_user_rate_limit(
