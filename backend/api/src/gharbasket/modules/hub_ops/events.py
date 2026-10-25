@@ -13,3 +13,5 @@ PROCUREMENT_PLAN_READY = "hub_ops.procurement_plan_ready"
 PURCHASE_ORDER_SENT = "hub_ops.purchase_order_sent"
 # receipt_id, hub_id, vendor_id, purchase_order_id, lines_count, rejected_lines, total_paise (§3.4)
 GOODS_RECEIVED = "hub_ops.goods_received"
+# waste_log_id, hub_id, lot_id, product_id, qty, unit, kg, reason, cascade_to (§3.5)
+WASTE_LOGGED = "hub_ops.waste_logged"

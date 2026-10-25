@@ -1,6 +1,6 @@
 """HTTP endpoints of M6 Hub Operations: hubs, service areas and vendors (spec §3.1), packing
 (§3.2), procurement plans and purchase orders (§3.3), goods receipts, lots, inventory and counts
-(§3.4)."""
+(§3.4), waste logs and the waste KPI (§3.5)."""
 
 import uuid
 from datetime import date, datetime
@@ -20,6 +20,7 @@ from gharbasket.modules.hub_ops import (
     scores,
     service,
     stock,
+    waste,
 )
 from gharbasket.modules.hub_ops import permissions as _permissions  # noqa: F401 (registers rules)
 from gharbasket.modules.hub_ops.models import (
@@ -34,6 +35,7 @@ from gharbasket.modules.hub_ops.schemas import (
     BuildIn,
     BuildOut,
     CancelIn,
+    CascadeTo,
     CompleteIn,
     CountIn,
     GeneratedPurchaseOrders,
@@ -72,6 +74,9 @@ from gharbasket.modules.hub_ops.schemas import (
     VendorOut,
     VendorPatch,
     VendorsOut,
+    WasteIn,
+    WasteLogOut,
+    WasteSummaryOut,
 )
 from gharbasket.platform import audit
 from gharbasket.platform.db import DbSession
@@ -97,6 +102,7 @@ PlanDay = Annotated[
 CanReadInventory = Annotated[Permit, require("inventory:read")]
 CanReceive = Annotated[Permit, require("receiving:write")]
 CanManageInventory = Annotated[Permit, require("inventory:manage")]
+CanWriteWaste = Annotated[Permit, require("waste:write")]
 
 
 def _problem(description: str) -> dict[str, Any]:
@@ -1072,3 +1078,95 @@ async def lose_kept_item(
     await idem.save(200, out)
     await session.commit()
     return out
+
+
+# --- waste logs and the waste KPI (§3.5) --------------------------------------------------------
+
+
+@router.get(
+    "/hubs/{hub_id}/waste-logs",
+    summary="The hub's waste logs of the IST days from … to, newest first",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range, request.invalid_cursor")},
+)
+async def list_waste_logs(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    lang: Lang,
+    date_from: Annotated[date | None, Query(alias="from", description="IST day, inclusive")] = None,
+    date_to: Annotated[date | None, Query(alias="to", description="IST day, inclusive")] = None,
+    cascade_to: CascadeTo | None = None,
+    cursor: Cursor = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> Page[WasteLogOut]:
+    permit.ensure(hub_id)
+    logs = await waste.list_logs(
+        session,
+        hub_id,
+        date_from=date_from,
+        date_to=date_to,
+        cascade_to=cascade_to,
+        after=None if cursor is None else waste.decode_position(cursor),
+        limit=limit + 1,
+    )
+    page = logs[:limit]
+    response.headers["Cache-Control"] = "no-store"
+    return Page(
+        items=await waste.logs_out(session, page, lang),
+        next_cursor=waste.encode_position(page[-1]) if len(logs) > limit else None,
+    )
+
+
+@router.post(
+    "/hubs/{hub_id}/waste-logs",
+    status_code=status.HTTP_201_CREATED,
+    summary="Write off a lot or a product to the bin (a waste move on the lot; Idempotency-Key)",
+    responses={
+        **CREATES,
+        404: _problem("hub_ops.hub_not_found, hub_ops.lot_not_found"),
+        409: _problem("hub_ops.qty_exceeds_stock"),
+        422: _problem(
+            "hub_ops.qty_invalid, hub_ops.product_not_stocked (product_ids), "
+            "request.idempotency_mismatch, request.invalid"
+        ),
+    },
+)
+async def create_waste_log(
+    hub_id: uuid.UUID,
+    body: WasteIn,
+    permit: CanWriteWaste,
+    session: DbSession,
+    idem: Idempotent,
+    lang: Lang,
+) -> WasteLogOut:
+    permit.ensure(hub_id)
+    log = await waste.write_off(session, hub_id, body, permit.principal.user_id)
+    [out] = await waste.logs_out(session, [log], lang)
+    await idem.save(201, out)
+    await session.commit()
+    return out
+
+
+@router.get(
+    "/hubs/{hub_id}/waste-summary",
+    summary="Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7",
+    responses={**SIGNED_IN, 422: _problem("hub_ops.date_out_of_range")},
+)
+async def get_waste_summary(
+    hub_id: uuid.UUID,
+    permit: CanReadInventory,
+    session: DbSession,
+    response: Response,
+    date_from: Annotated[
+        date | None, Query(alias="from", description="Default: 6 days before `to`")
+    ] = None,
+    date_to: Annotated[
+        date | None, Query(alias="to", description="Default: yesterday (IST)")
+    ] = None,
+) -> WasteSummaryOut:
+    permit.ensure(hub_id)
+    start, end = waste.summary_range(date_from, date_to)
+    days = await waste.summary_days(session, hub_id, start, end)
+    response.headers["Cache-Control"] = "no-store"
+    return waste.summary_out(hub_id, start, end, days)
