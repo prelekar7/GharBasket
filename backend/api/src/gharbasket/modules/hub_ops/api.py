@@ -13,7 +13,7 @@ from datetime import date
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gharbasket.modules.hub_ops import kept, packing, service
+from gharbasket.modules.hub_ops import kept, packing, service, waste
 from gharbasket.modules.hub_ops.facts import HubDayFact, hub_day_facts
 from gharbasket.modules.hub_ops.models import Hub, PackingEvent, PackingTask
 from gharbasket.modules.orders import api as orders_api
@@ -23,6 +23,7 @@ __all__ = [
     "HubDayFact",
     "HubRef",
     "SocietyLoad",
+    "WasteDay",
     "active_hub_ids",
     "anonymise_for_user",
     "bag_for_order",
@@ -30,6 +31,7 @@ __all__ = [
     "hub_data_sources",
     "hub_day_facts",
     "society_loads",
+    "waste_summary",
 ]
 
 
@@ -140,3 +142,34 @@ async def hub_data_sources(
         return {}
     rows = await session.execute(select(Hub.id, Hub.data_source).where(Hub.id.in_(ids)))
     return dict(rows.all())
+
+
+@dataclass(frozen=True)
+class WasteDay:
+    date: date
+    sold_kg: float  # packed that day
+    wasted_kg: float  # cascade_to bin
+    rescued_kg: dict[str, float]  # kitchen, ngo
+    waste_per_100kg: float | None  # None when nothing was sold
+    stockout_pct: float | None  # steps short or substituted / steps ordered
+    unweighed_lines: int
+
+
+async def waste_summary(
+    session: AsyncSession, hub_id: uuid.UUID, date_from: date, date_to: date
+) -> list[WasteDay]:
+    """§3.5's daily rows from `date_from` to `date_to` (IST days, inclusive), zeros included, for
+    M10's `monitor_drift` and M12's KPI tiles."""
+    days = await waste.summary_days(session, hub_id, date_from, date_to)
+    return [
+        WasteDay(
+            date=x.date,
+            sold_kg=round(float(x.sold_kg), 3),
+            wasted_kg=round(float(x.wasted_kg), 3),
+            rescued_kg={kind: round(float(kg), 3) for kind, kg in x.rescued_kg.items()},
+            waste_per_100kg=None if x.waste_per_100kg is None else float(x.waste_per_100kg),
+            stockout_pct=None if x.stockout_pct is None else float(x.stockout_pct),
+            unweighed_lines=x.unweighed_lines,
+        )
+        for x in days
+    ]

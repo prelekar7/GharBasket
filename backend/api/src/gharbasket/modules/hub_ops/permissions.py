@@ -25,3 +25,5 @@ for role in ("packer", "hub_manager"):
     PERMISSIONS.allow(role, "receiving:write")
 for role in ("hub_manager", "admin"):
     PERMISSIONS.allow(role, "inventory:manage")
+for role in ("packer", "hub_manager"):
+    PERMISSIONS.allow(role, "waste:write")

@@ -1,6 +1,6 @@
 # M3 — Plans & Subscriptions (Weekly Autopilot cycle)
 
-**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval
+**Status:** Draft v1; §3.1 (subscription, delivery days, the weekly cycle, edits, approve, skip, feedback, Budget Lock) frozen for S3; §3.2 (meal swap) frozen on 2026-10-08; §3.3 (un-skip, a week that failed to pay) drafted 2026-10-09, frozen on approval; §3.4 (hub cut-off monitor, delivery dates) drafted 2026-10-25, frozen on approval
 **Owner:** Prathamesh Relekar (backend), Yash Salunkhe (screens) · **QA:** Rhythm Thakur, Manish Raje
 **Phase / Sprint:** P2 / S3 (rule-based box); AI plans plugged in during P4 / S7–S8
 **Postgres schema:** `subscriptions` · **Python package:** `gharbasket.modules.subscriptions`
@@ -38,6 +38,8 @@ Owns the household's subscription and the weekly Autopilot cycle: plans, society
 | GET / PUT | `/v1/budget-lock` | owner | Required (PUT) | Month budget and what the month's boxes spent |
 | GET | `/v1/societies/{id}/delivery-days` | Authenticated | — | |
 | PUT | `/v1/admin/societies/{id}/delivery-days` | hub_manager (hub), admin | Required | |
+| GET | `/v1/hubs/{id}/delivery-dates` | hub staff (hub), admin | — | The hub's next delivery dates (§3.4) |
+| GET | `/v1/hubs/{id}/cutoff` | hub_manager, franchise_owner (hub), admin | — | The cut-off monitor (§3.4) |
 
 ### 3.1 Subscription and weekly cycle contract (frozen for S3)
 The Week (Thali), Box (Parchi), substitute sheet, skip/pause, Budget Lock and first-week preview screens, and the backend, build against these shapes. Changing them needs a PR reviewed by both Prathamesh and Yash. Every endpoint needs sign-in (M1 §3.1); a customer only ever sees their own household.
@@ -148,6 +150,7 @@ PUT /v1/budget-lock                Idempotency-Key; { "month": "2026-10", "budge
 | 404 | `subscriptions.not_found`, `subscriptions.no_cycle`, `subscriptions.no_budget_lock` | Nothing yet, or someone else's |
 | 409 | `subscriptions.exists` | A second subscription for the household |
 | 409 | `subscriptions.cutoff_passed` | Edit, approve or skip after 21:00 IST the day before delivery |
+| 404 | `subscriptions.not_delivery_date` | The cut-off monitor for a day no society of the hub delivers on (§3.4) |
 | 409 | `subscriptions.not_editable` | The cycle is skipped, cancelled or locked |
 | 412 | `subscriptions.version_conflict` | `If-Match` is not the current version |
 | 422 | `subscriptions.payment_mode_unavailable` | Autopay before the pilot |
@@ -264,6 +267,54 @@ POST /v1/cycles/{id}/skip   (§3.1) also accepts a payment_failed cycle until du
 | `payment_due { wallet_paise, shortfall_paise, due_at }` with `+05:30` | Same fields plus `order_id` and `total_paise`; `due_at` in UTC |
 | skip allowed from `payment_failed` | Same, until `due_at` |
 
+### 3.4 Hub cut-off monitor and delivery dates (drafted 2026-10-25, frozen on approval)
+The console's Cut-off page (`(hub)/cutoff`) and the date pickers of its Orders and Slots pages build against this. Today they call these two paths as `@proposal`s (`mocks/orders.js`) and fall back to the browser's clock. With them, the console follows the backend's clock, so a simulated or moved clock (e2e, `just sim`) shows the same day everywhere. Both are reads in M3. M3 owns delivery days and the weekly cycles, and it already calls `orders.api`, so M4 still does not depend on M3 (M4 §11, 2026-10-09). Same sign-in and review rules as §3.1.
+
+```
+GET /v1/hubs/{hub_id}/delivery-dates?from=&days=14
+    hub_manager, franchise_owner, packer (hub); admin. Cache-Control: no-store
+    from: an IST date, default today (IST, from the API's clock); days: 1–31, default 14
+  200 { "hub_id", "from", "to",
+        "items": [ { "date": "2026-11-03", "societies": 3, "cutoff_at": "…" } ] }   soonest first
+      every date in [from, to] on which at least one society of the hub has a delivery day
+      (M3's society delivery days; the hub's societies through community.api);
+      cutoff_at = 21:00 IST the day before, in UTC; [] when no society has delivery days
+
+GET /v1/hubs/{hub_id}/cutoff?date=
+    hub_manager, franchise_owner (hub); admin. Cache-Control: no-store
+    date: a delivery date; default the hub's first delivery date after today (IST): before
+    21:00 the one whose cut-off is tonight, after it the one that was just locked
+  200 { "hub_id", "delivery_date", "cutoff_at", "grace_until", "as_of",
+        "counts": { "awaiting": 6,           cycles awaiting_approval or draft
+                    "approved": 41,          approved, order not yet locked
+                    "auto_approved": 12,     of approved + locked, approved by auto-approve
+                    "skipped": 3,
+                    "locked": 0,
+                    "payment_needed": 2 },   payment_failed (the grace period runs to grace_until)
+        "last_run": { "cutoff_on": "2026-11-02",   the cutoff_lock run for this date, or null
+                      "locked": 50, "total": 52, "duration_s": 4,
+                      "grace_paid": 1,             payment_failed → locked before grace_until
+                      "cancelled": 1 } | null,     cancelled with reason "payment"
+        "short": [ { "order_id", "society": "Sunrise Towers", "flat": "B wing, B-402",
+                     "box_paise": 64200, "wallet_paise": 36200, "short_paise": 28000 } ] }
+      short: the payment_failed orders, largest shortfall first; wallet_paise read live
+      (billing.api.balance); flat from identity.api.delivery_labels (never a name or a phone)
+  404 "subscriptions.not_delivery_date"   no society of the hub delivers on date
+  403 "auth.forbidden"                    a hub outside the caller's grants
+```
+
+- **Counts come from both sides.** M3's cycles give `awaiting`, `approved`, `auto_approved` and `skipped`. `orders.api.hub_cutoff_counts(session, hub_id, delivery_date)` (new) gives `locked`, `payment_needed`, `grace_paid` and `cancelled` for box orders. A cycle whose order is locked or `payment_failed` counts only there, so the six counts never double-count a household.
+- **`last_run`** reads M0's `platform.job_runs` for `cutoff_lock` with `scheduled_for` = the date's cut-off: `locked` and `total` from its summary (`locked` + `payment_failed` + `skipped_already_locked`), and `duration_s` from its start and finish. It is null before the run.
+- **No action here.** The console's "Run cut-off now" button and its `POST /v1/hubs/{id}/cutoff/run` are dropped. The cut-off is the operator-only `cutoff_lock` job (M4 §3.1).
+- **New facades:** `community.api.hub_society_ids(session, hub_id) -> list[UUID]` and `orders.api.hub_cutoff_counts(…)`, each with a test in its module.
+- **Permissions:** `cycles:read` gains franchise_owner (hub) and admin, and `delivery_days:read` (new) is hub_manager, franchise_owner, packer (hub) and admin (§7).
+
+| Mock today (`mocks/orders.js`) | Contract |
+|---|---|
+| `GET /v1/hubs/{id}/delivery-dates` → `{ items: [ { date } ] }` | Same path and `items[].date`; adds `hub_id`, `from`, `to`, and per item `societies` and `cutoff_at` |
+| `GET /v1/hubs/{id}/cutoff` with `counts`, `last_run`, `short` | Same path and fields; `short[].society` and `flat` are display labels; 404 `subscriptions.not_delivery_date` for a day without deliveries |
+| `POST /v1/hubs/{id}/cutoff/run` (admin) | Dropped: the `cutoff_lock` job (M4 §3.1) |
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
@@ -295,7 +346,8 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 | Permission | Roles (scope) |
 |---|---|
 | `cycles:write` | customer (own household) |
-| `cycles:read` | customer (own), hub_manager (hub) |
+| `cycles:read` | customer (own), hub_manager (hub), franchise_owner (hub; the cut-off monitor, §3.4), admin |
+| `delivery_days:read` | hub_manager, franchise_owner, packer (hub), admin (a hub's delivery dates, §3.4) |
 | `delivery_days:write` | hub_manager (hub), admin |
 
 ## 8. Screens
@@ -308,7 +360,7 @@ Scheduled jobs are internal job endpoints (`POST /v1/internal/jobs/<name>`, ADR-
 - E2E: generate → edit → approve; skip week.
 
 ## 10. Dependencies
-M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`.
+M1 (households via `identity.api`), M2 (products, prices), M10 (plans via `intel_gateway.api`), M5 (pre-debit notice), M11 (notifications). Hands off to M4 via `subscriptions.box_approved`. The cut-off monitor (§3.4) reads `orders.api.hub_cutoff_counts`, `billing.api.balance`, `identity.api.delivery_labels`, `community.api.hub_society_ids` and M0's `platform.job_runs`.
 
 ## 11. Open questions and decisions
 - **Decided (S3 contract):** add-ons are lines on the box order (M4 §3.1), never separate orders.

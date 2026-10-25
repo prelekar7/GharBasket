@@ -39,9 +39,9 @@ def area(*rings: list[list[float]]) -> dict[str, Any]:
 
 async def events(db: AsyncSession, event_type: str, hub_id: str) -> list[dict[str, Any]]:
     rows = await db.execute(
-        select(OutboxEvent.payload).where(
-            OutboxEvent.event_type == event_type, OutboxEvent.payload["hub_id"].astext == hub_id
-        )
+        select(OutboxEvent.payload)
+        .where(OutboxEvent.event_type == event_type, OutboxEvent.payload["hub_id"].astext == hub_id)
+        .order_by(OutboxEvent.id)
     )
     return list(rows.scalars())
 

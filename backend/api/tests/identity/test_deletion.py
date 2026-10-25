@@ -115,7 +115,11 @@ async def household_id(db: AsyncSession, user_id: uuid.UUID) -> uuid.UUID:
 
 
 async def events_of(db: AsyncSession, event_type: str) -> list[dict[str, Any]]:
-    rows = await db.scalars(select(OutboxEvent.payload).where(OutboxEvent.event_type == event_type))
+    rows = await db.scalars(
+        select(OutboxEvent.payload)
+        .where(OutboxEvent.event_type == event_type)
+        .order_by(OutboxEvent.id)
+    )
     return list(rows)
 
 
