@@ -3,6 +3,7 @@ first out, paid lines only, unlotted when no lot covers it, once), closing the d
 surplus offered to kitchens and the past binned, unsettled offers moving on (kitchen, NGO, bin),
 settling offers, the job, permissions and events."""
 
+import random
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.hub_ops import api as hub_ops_api
-from gharbasket.modules.hub_ops import procurement, receiving, surplus
+from gharbasket.modules.hub_ops import procurement, receiving, stock, surplus, waste
 from gharbasket.modules.hub_ops.models import (
     InventoryLot,
     PackingLine,
@@ -26,6 +27,7 @@ from gharbasket.modules.hub_ops.models import (
     SurplusOffer,
     WasteLog,
 )
+from gharbasket.modules.hub_ops.schemas import CountIn, WasteIn
 from gharbasket.modules.identity.models import User
 from gharbasket.modules.partners.models import Partner
 from gharbasket.platform.errors import ProblemError
@@ -879,3 +881,136 @@ async def test_who_may_run_settle_and_read(
     )
     assert (await settle(api, admin, tomato["id"], declined)).status_code == 200
     assert (await settle(api, manager, onion["id"], declined)).status_code == 200
+
+
+# --- the ledger over random days (§9: qty_on_hand is the sum of its moves) ------------------------
+
+
+async def ledger_holds(db: AsyncSession) -> None:
+    """Every lot's stock is the sum of its moves and never below 0, its receipt is its `qty_in`;
+    a lot's stock leaves by offer once per root offer, and what a root offer took is accounted
+    exactly once along its chain: by logs, or by the one offer still open; a drawn task's pack
+    moves are its paid lines' picked steps, and an undrawn task has none."""
+    lots = list(await db.scalars(select(InventoryLot).execution_options(populate_existing=True)))
+    for lot in lots:
+        by_kind = dict(
+            (
+                await db.execute(
+                    select(StockMove.kind, func.sum(StockMove.qty))
+                    .where(StockMove.lot_id == lot.id)
+                    .group_by(StockMove.kind)
+                )
+            ).all()
+        )
+        assert lot.qty_on_hand == sum(by_kind.values()) >= 0, (lot.id, by_kind)
+        assert by_kind.get("receive", by_kind.get("return")) == lot.qty_in
+    offers = list(await db.scalars(select(SurplusOffer)))
+    follower = {o.previous_offer_id: o for o in offers if o.previous_offer_id is not None}
+    logged: dict[uuid.UUID, Decimal] = {}
+    for log in await db.scalars(select(WasteLog).where(WasteLog.offer_id.is_not(None))):
+        assert log.offer_id is not None
+        logged[log.offer_id] = logged.get(log.offer_id, Decimal(0)) + log.qty
+    for root in (o for o in offers if o.previous_offer_id is None):
+        [(offer_move,)] = (
+            await db.execute(
+                select(StockMove.qty).where(StockMove.kind == "offer", StockMove.ref_id == root.id)
+            )
+        ).all()
+        assert -offer_move == root.qty
+        accounted, offer = Decimal(0), root
+        while True:
+            accounted += logged.get(offer.id, Decimal(0))
+            if offer.status == "open":
+                accounted += offer.qty
+            nxt = follower.get(offer.id)
+            if nxt is None:
+                break
+            assert nxt.qty == offer.qty - (offer.taken_qty or 0)
+            offer = nxt
+        assert accounted == root.qty, root.id
+    for task in await db.scalars(select(PackingTask)):
+        drawn = await db.scalar(
+            select(func.coalesce(func.sum(StockMove.qty), 0)).where(
+                StockMove.kind == "pack", StockMove.ref_id == task.id
+            )
+        )
+        if task.drawn_at is None:
+            assert drawn == 0
+            continue
+        lines = await db.scalars(select(PackingLine).where(PackingLine.task_id == task.id))
+        paid = sum(
+            (
+                procurement.to_ops(x.picked_qty, x.step_qty, x.step_unit)
+                for x in lines
+                if not x.carried
+            ),
+            Decimal(0),
+        )
+        assert drawn is not None and -drawn == paid, task.id
+
+
+@pytest.mark.parametrize("seed", range(4))
+async def test_the_ledger_holds_over_random_receipts_packing_waste_counts_and_cascades(
+    db_session: AsyncSession, seed: int
+) -> None:
+    """Four days at the hub with random receipts (grades A, B, C; any best-before), packed tasks,
+    write-offs, counts, the 12:30 run and settles (taken in part or in full, or declined)."""
+    rng = random.Random(seed)
+    names = ("tomato", "onion", "palak", "cauliflower")
+    actor = await db_session.scalar(select(User.id).where(User.phone_e164 == VIKRAM))
+    assert actor is not None
+    lata = await kitchen(db_session)
+    made: list[uuid.UUID] = []
+    for day in range(4):
+        today = TODAY + timedelta(days=day)
+        for _ in range(rng.randint(1, 3)):
+            made.append(
+                await make_lot(
+                    db_session,
+                    rng.choice(names),
+                    rng.randint(1, 8),
+                    grade=rng.choice("AABC"),
+                    best_before=ist(today.isoformat(), "04:00")
+                    + timedelta(hours=rng.randint(-6, 96)),
+                    received_at=ist(today.isoformat(), "04:00"),
+                )
+            )
+        for _ in range(rng.randint(0, 3)):
+            steps = rng.randint(1, 4)
+            lines = [
+                await paid_line(db_session, slug, steps, steps) for slug in rng.sample(names, 2)
+            ]
+            await make_task(db_session, "packed", lines, day=today)
+        for lot_id in rng.sample(made, min(2, len(made))):
+            lot = await stock.get_lot(db_session, lot_id, for_update=True)
+            if lot.qty_on_hand >= 1 and rng.random() < 0.5:
+                body = WasteIn(lot_id=lot_id, qty=1, reason="spoiled")
+                await waste.write_off(db_session, SEED_HUB_ID, body, actor)
+            elif rng.random() < 0.5:
+                count = CountIn(qty_on_hand=rng.randint(0, 3), reason="Shelf count")
+                await stock.count(db_session, lot, count, actor)
+        await db_session.commit()
+        await ledger_holds(db_session)
+
+        await surplus.run(db_session, SEED_HUB_ID, ist(today.isoformat()))
+        await db_session.commit()
+        await ledger_holds(db_session)
+        settle_at = ist(today.isoformat(), "15:00")
+        for offer in list(
+            await db_session.scalars(select(SurplusOffer).where(SurplusOffer.status == "open"))
+        ):
+            pick = rng.random()
+            if pick < 0.3:
+                await surplus.settle(db_session, offer.id, "declined", now=settle_at)
+            elif pick < 0.7:
+                qty = rng.randint(1, int(offer.qty)) if offer.qty >= 1 else None
+                taker = (
+                    surplus.Taker("kitchen", lata)
+                    if offer.offered_to == "kitchen"
+                    else surplus.Taker("ngo", name="Annadaan Seva")
+                )
+                await surplus.settle(
+                    db_session, offer.id, "taken", qty=qty, taker=taker, now=settle_at
+                )
+            await db_session.commit()
+        await ledger_holds(db_session)
