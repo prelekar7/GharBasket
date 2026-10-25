@@ -338,6 +338,21 @@ GET /v1/analytics/partner-earnings?hub_id=&kind=kitchen&from=&to=&data_source=re
 | M-G kitchens: Gini of weekly earnings, ₹ per portion | `partner-earnings` (kitchen `gini_bp`), `kitchen_gini_bp` | λ sweep and Pareto figure: eval reports |
 | US-4 cohort retention (the paper's adoption figure) | `cohorts` per data source | — |
 
+**As built** (`feat/M12-cohorts-earnings`, 2026-10-25; no new view or migration: `mv_cohorts` and `mv_partner_earnings_weekly` of §3.2 already hold everything):
+- **Common.** Both endpoints answer 429 after 60 requests a minute per user, run under the 3-second read limit, carry `Cache-Control: private, max-age=60` and, as the KPIs do, `stale` beside `as_of` (the last nightly run or rebuild, 26 hours). `data_source` is required (`analytics.data_source_required`) and is `real | synthetic`, never pooled. `analytics:cohorts` is new and admin-only; `partner-earnings` uses `analytics:read` and the hub scope of §3.3 (a non-admin must give `hub_id`).
+- **Cohorts.**
+  - `weeks` is 4 to 26 (default 12): the number of signup weeks shown, this one last, and the length of every `retention_bp`. Over 26 is 422 `analytics.range_too_long`, under 4 `analytics.range_invalid`.
+  - A signup week with no households is left out, and the list is oldest first.
+  - A week after signup counts as reached once it has ended (its Sunday is past): a week in progress would read as households lost, so it is `null`.
+  - `retention_bp` is rounded half up. `small` (under 5 households) only flags the cohort: its rates are still sent, to an admin.
+  - With no `hub_id`, hubs are added up (households and active households per cohort week), not averaged. A household that left through the erasure purge leaves the cohorts at the next nightly refresh (§4).
+- **Partner earnings.**
+  - `kind` defaults to `kitchen`; `from`/`to` default and limit as the KPIs' week grain (last 12 weeks, at most 104). The answer lists every ISO week of the range: a week nobody was paid in has 0 partners, a 0 total and `null` percentiles.
+  - A partner counts as paid when their week's earnings, over every basis, add up above 0. Percentiles interpolate linearly (as Postgres `percentile_cont`) and round half up to a paisa.
+  - For one hub the weeks are read from the view. With no `hub_id` (admin) they are worked out from `fact_partner_weeks` in one pass, so the all-hub Gini is one Gini and not an average of hubs. The two give the same numbers for one hub (a test checks it) and `hub_id` is then `null`.
+  - **k = 5 applies to the percentiles and the Gini, as the contract says.** `partners` and `total_paise` are sent for any number of partners, so a week with one paid partner shows that partner's total; no individual id is ever sent.
+- **Research metrics.** All the live counterparts of the table above are keys of `/v1/analytics/kpis` (§3.3) and need no new code: `pantry_misses_bp`, `edits_per_100_boxes`, `weeks_accepted_bp` with `accepted_ml_bp` and `accepted_fallback_bp`, `waste_g_per_100kg`, `shortage_lines_bp`, `delivery_cost_per_order_paise`, `km_per_order_m`, `on_time_bp` and `kitchen_gini_bp`. A test checks they are present and that M-G's two forms (the KPI series and the kitchen `gini_bp` of `partner-earnings`) agree. "₹ per portion" (M-G) has no live counterpart in the table and is not built.
+
 ### 3.6 Impact contract (console) (drafted 2026-10-09, frozen on approval)
 The hub, NGO and platform impact views (M9 §3.7 keeps the customer's `me` and `society` scopes). The console's Impact page (`(community)/impact`), the NGO coordinator's report and the MS-D impact dashboard build against this. Changing it needs a PR reviewed by both Prathamesh and Yash.
 

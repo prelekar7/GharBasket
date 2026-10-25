@@ -555,6 +555,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/cohorts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retention of each signup week's households, per data source (admin) */
+        get: operations["cohort_retention_v1_analytics_cohorts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/analytics/hubs/{hub_id}/today": {
         parameters: {
             query?: never;
@@ -581,6 +598,23 @@ export interface paths {
         };
         /** KPI series per day or ISO week, from the daily view (hub manager, franchise owner, admin; only an admin may leave the hub out) */
         get: operations["kpi_series_v1_analytics_kpis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/partner-earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The weekly spread of what one kind of partner earned, never an individual (hub manager, franchise owner, admin; only an admin may leave the hub out) */
+        get: operations["partner_earnings_v1_analytics_partner_earnings_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5117,6 +5151,54 @@ export interface components {
              */
             slug: string;
         };
+        /** CohortOut */
+        CohortOut: {
+            /** Households */
+            households: number;
+            /**
+             * Retention Bp
+             * @description Entry i: the share of the cohort with a delivered order in the ISO week i + 1 after the signup week; null when that week has not ended yet
+             */
+            retention_bp: (number | null)[];
+            /**
+             * Small
+             * @description Under 5 households: too few to read a rate from
+             */
+            small: boolean;
+            /**
+             * Week
+             * Format: date
+             * @description The Monday of the households' signup ISO week
+             */
+            week: string;
+        };
+        /** CohortsOut */
+        CohortsOut: {
+            /**
+             * As Of
+             * @description Finish time of the last nightly run or rebuild
+             */
+            as_of: string | null;
+            /**
+             * Cohorts
+             * @description Oldest first; a week without signups is left out
+             */
+            cohorts: components["schemas"]["CohortOut"][];
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Hub Id
+             * @description Null: every hub
+             */
+            hub_id: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Weeks */
+            weeks: number;
+        };
         /** ConfirmOut */
         ConfirmOut: {
             proposal: components["schemas"]["ProposalOut"];
@@ -9506,6 +9588,72 @@ export interface components {
             accepted: number;
             /** Unknown Slugs */
             unknown_slugs: string[];
+        };
+        /** PartnerEarningsOut */
+        PartnerEarningsOut: {
+            /**
+             * As Of
+             * @description Finish time of the last nightly run or rebuild
+             */
+            as_of: string | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Hub Id
+             * @description Null: every hub (admin only)
+             */
+            hub_id: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "kitchen" | "captain" | "rider" | "packer";
+            /** Stale */
+            stale: boolean;
+            /**
+             * Weeks
+             * @description Every ISO week of the range; a distribution only, never one partner
+             */
+            weeks: components["schemas"]["PartnerEarningsWeekOut"][];
+        };
+        /** PartnerEarningsWeekOut */
+        PartnerEarningsWeekOut: {
+            /**
+             * Gini Bp
+             * @description Null under 5 paid partners
+             */
+            gini_bp: number | null;
+            /**
+             * Median Paise
+             * @description Null under 5 paid partners
+             */
+            median_paise: number | null;
+            /**
+             * P10 Paise
+             * @description Null under 5 paid partners
+             */
+            p10_paise: number | null;
+            /**
+             * P90 Paise
+             * @description Null under 5 paid partners
+             */
+            p90_paise: number | null;
+            /**
+             * Partners
+             * @description Partners paid something that week
+             */
+            partners: number;
+            /** Total Paise */
+            total_paise: number;
+            /**
+             * Week
+             * Format: date
+             * @description The Monday of the ISO week
+             */
+            week: string;
         };
         /** PartnerOut */
         PartnerOut: {
@@ -17908,6 +18056,80 @@ export interface operations {
             };
         };
     };
+    cohort_retention_v1_analytics_cohorts_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub */
+                hub_id?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+                /** @description Signup weeks to show, and the weeks of retention: 4 to 26 */
+                weeks?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortsOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_too_long (weeks over 26) · analytics.range_invalid (weeks under 4) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     hub_today_v1_analytics_hubs__hub_id__today_get: {
         parameters: {
             query?: {
@@ -18019,6 +18241,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KpisOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_invalid · analytics.range_too_long */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    partner_earnings_v1_analytics_partner_earnings_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub (admin only) */
+                hub_id?: string | null;
+                /** @description Which partners */
+                kind?: "kitchen" | "captain" | "rider" | "packer";
+                /** @description An IST date; default the start of the last 12 weeks */
+                from?: string | null;
+                /** @description An IST date; default today */
+                to?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartnerEarningsOut"];
                 };
             };
             /** @description auth.invalid_token */
