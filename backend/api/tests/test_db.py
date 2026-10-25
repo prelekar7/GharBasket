@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pytest
 from alembic import command
@@ -128,3 +129,59 @@ def test_migrations_upgrade_downgrade_round_trip(database_url: str) -> None:
 
     command.upgrade(config, "head")
     assert set(SCHEMAS) <= _schemas(database_url)
+
+
+def _sql(database_url: str, *statements: str) -> list[tuple[Any, ...]]:
+    """Run the statements in one transaction; the rows of the last one."""
+
+    async def go() -> list[tuple[Any, ...]]:
+        engine = create_engine(database_url, pooled=False)
+        try:
+            async with engine.begin() as connection:
+                result = None
+                for statement in statements:
+                    result = await connection.execute(text(statement))
+                return [tuple(row) for row in result] if result and result.returns_rows else []
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(go())
+
+
+@pytest.mark.services
+def test_the_surplus_migration_marks_old_packed_tasks_as_drawn(database_url: str) -> None:
+    """Tasks packed before `drawn_at` existed must not be drawn down by the first 12:30 run."""
+    config = alembic_config(database_url)
+
+    def task(seq: int, status: str, packed_at: str) -> str:
+        return (
+            "INSERT INTO hub_ops.packing_tasks (hub_id, order_id, order_kind, delivery_date, "
+            "slot_id, society_id, seq, status, packed_at) "
+            f"SELECT id, uuidv7(), 'box', '2026-10-20', uuidv7(), uuidv7(), {seq}, '{status}', "
+            f"{packed_at} FROM hub_ops.hubs WHERE slug = 'mig-test'"
+        )
+
+    command.downgrade(config, "f5199f44ecf8")  # the head the surplus migration sits on
+    try:
+        _sql(
+            database_url,
+            "INSERT INTO hub_ops.hubs (slug, name, address, location, timings) VALUES "
+            "('mig-test', 'Mig', 'x', 'POINT(73 19)', '{}'::jsonb)",
+            task(1, "queued", "NULL"),
+            task(2, "packed", "'2026-10-20 10:00:00+00'"),
+            task(3, "packed", "NULL"),
+        )
+        command.upgrade(config, "head")
+        rows = dict(_sql(database_url, "SELECT seq, drawn_at FROM hub_ops.packing_tasks"))
+    finally:
+        command.upgrade(config, "head")
+        _sql(
+            database_url,
+            "DELETE FROM hub_ops.packing_tasks WHERE hub_id IN "
+            "(SELECT id FROM hub_ops.hubs WHERE slug = 'mig-test')",
+            "DELETE FROM hub_ops.hubs WHERE slug = 'mig-test'",
+        )
+
+    assert rows[1] is None  # still queued
+    assert rows[2].isoformat() == "2026-10-20T10:00:00+00:00"  # its packed_at
+    assert rows[3] is not None  # packed with no packed_at: now()

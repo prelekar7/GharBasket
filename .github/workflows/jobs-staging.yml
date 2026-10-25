@@ -15,6 +15,7 @@
 #   30 13 * * *   19:00 IST  remind_unapproved       (T-1: cutoff_reminder)
 #   25 15 * * *   20:55 IST  apply_auto_approve      (T-1)
 #   30 15 * * *   21:00 IST  cutoff_lock             (T-1)
+#   0 7 * * *     12:30 IST  surplus_cascade         (T: draw-down, close buying, surplus, M6)
 #   0 17 * * *    22:30 IST  sweep_missed_pickups    (T: donation pickups no stop reported)
 #   30 17 * * *   23:00 IST  payment_grace_expiry    (T-1)
 #   45 17 * * *   23:15 IST  solve_routes            (T-1: tomorrow's box plan per hub, M7)

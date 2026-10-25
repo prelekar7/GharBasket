@@ -127,27 +127,6 @@
       "milestone": "MS-B",
       "note": "M5 §3.5."
     },
-    "GET /v1/hubs/{}/surplus-offers": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
-    "POST /v1/hubs/{}/surplus/run": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5, same work as the 12:30 job."
-    },
-    "POST /v1/surplus-offers/{}/settle": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
     "POST /v1/admin/societies": {
       "app": "console",
       "class": "later",

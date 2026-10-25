@@ -1,13 +1,15 @@
-"""Stock (spec §3.4): lots, the hub's inventory view and physical counts. Every change to a lot is
-a stock move written by `receiving.move`, so a lot's `qty_on_hand` is the sum of its moves.
+"""Stock (spec §3.4): lots, the hub's inventory view, physical counts and the daily draw-down of
+packing. Every change to a lot is a stock move written by `receiving.move`, so a lot's
+`qty_on_hand` is the sum of its moves.
 """
 
 import uuid
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
+from decimal import Decimal
 
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.catalog import api as catalog_api
@@ -16,6 +18,8 @@ from gharbasket.modules.hub_ops.models import (
     GoodsReceipt,
     GoodsReceiptLine,
     InventoryLot,
+    PackingLine,
+    PackingTask,
     StockMove,
     Vendor,
 )
@@ -110,8 +114,8 @@ async def inventory(
     product_id: uuid.UUID | None = None,
     expiring_before: datetime | None = None,
 ) -> InventoryOut:
-    """Lots with stock by product, first expiry first. Packing is drawn down by the 12:30 run
-    (§3.5), so until that run exists nothing is packed and not drawn."""
+    """Lots with stock by product, first expiry first, each with what is packed and not yet
+    drawn down by the 12:30 run (`packed_not_drawn_qty`, paid lines only)."""
     stmt = select(InventoryLot).where(InventoryLot.hub_id == hub_id, InventoryLot.qty_on_hand > 0)
     if product_id is not None:
         stmt = stmt.where(InventoryLot.product_id == product_id)
@@ -126,6 +130,10 @@ async def inventory(
     for lot in await lots_out(session, lots, lang):
         by_product[lot.product_id].append(lot)
     products = await catalog_api.stock_products(session, list(by_product))
+    undrawn: dict[uuid.UUID, Decimal] = defaultdict(Decimal)
+    for picked in (await _picked(session, _undrawn(hub_id))).values():
+        for product, (qty, _) in picked.items():
+            undrawn[product] += qty
     items = [
         InventoryItem(
             product_id=p,
@@ -134,7 +142,7 @@ async def inventory(
             unit=product_lots[0].unit,
             shelf_life_h=products[p].shelf_life_h,
             on_hand_qty=float(sum(x.qty_on_hand for x in lots if x.product_id == p)),
-            packed_not_drawn_qty=0.0,
+            packed_not_drawn_qty=float(undrawn.get(p, 0)),
             lots=product_lots,
         )
         for p, product_lots in by_product.items()
@@ -172,3 +180,127 @@ async def count(
         before=jsonable_encoder({"qty_on_hand": before}),
         after=jsonable_encoder({"qty_on_hand": qty, "reason": body.reason}),
     )
+
+
+# --- the draw-down (§3.4, the 12:30 run's first step) ---------------------------------------------
+
+DRAWN_GRADES = ("A", "B")  # grade C is never packed (§3.4)
+
+
+def _undrawn(hub_id: uuid.UUID, until: date | None = None) -> Select[PackingTask]:
+    """The hub's packed tasks not drawn down yet (of delivery dates up to `until`)."""
+    stmt = select(PackingTask).where(
+        PackingTask.hub_id == hub_id,
+        PackingTask.status == "packed",
+        PackingTask.drawn_at.is_(None),
+    )
+    return stmt if until is None else stmt.where(PackingTask.delivery_date <= until)
+
+
+async def _picked(
+    session: AsyncSession, tasks: Select[PackingTask]
+) -> dict[uuid.UUID, dict[uuid.UUID, tuple[Decimal, str]]]:
+    """By task, then by the product in the bag (the substitute when there is one): the picked
+    steps of the paid lines in the operations unit, and that unit. Carried lines are left out:
+    `packing.draw_carried` moved them at `complete`. A substitute's steps are its own (the
+    packing line keeps the ordered product's step)."""
+    task_ids = tasks.with_only_columns(PackingTask.id).scalar_subquery()
+    lines = (
+        await session.execute(
+            select(
+                PackingLine.task_id,
+                PackingLine.product_id,
+                PackingLine.substitute_product_id,
+                PackingLine.step_qty,
+                PackingLine.step_unit,
+                PackingLine.picked_qty,
+            ).where(
+                PackingLine.task_id.in_(task_ids),
+                PackingLine.carried.is_(False),
+                PackingLine.picked_qty > 0,
+            )
+        )
+    ).all()
+    substitutes = await catalog_api.stock_products(
+        session, list({x.substitute_product_id for x in lines if x.substitute_product_id})
+    )
+    found: dict[uuid.UUID, dict[uuid.UUID, tuple[Decimal, str]]] = defaultdict(dict)
+    for task_id, product_id, substitute_id, step_qty, step_unit, picked in lines:
+        if substitute_id is not None:
+            product_id = substitute_id
+            if (product := substitutes.get(substitute_id)) is not None:
+                step_qty, step_unit = product.step_qty, product.step_unit
+        unit = procurement.OPS_UNIT[step_unit][0]
+        qty = procurement.to_ops(picked, step_qty, step_unit)
+        before, _ = found[task_id].get(product_id, (Decimal(0), unit))
+        found[task_id][product_id] = (before + qty, unit)
+    return found
+
+
+async def draw_down(session: AsyncSession, hub_id: uuid.UUID, today: date, now: datetime) -> int:
+    """Draw every packed task of the hub not drawn yet (delivery dates up to `today`) down from
+    stock: for each product in the bag, `pack` moves from its grade A and B lots with stock, first
+    expiry first out (best_before, received_at, id), and what no lot covers as one unlotted `pack`
+    move; then `drawn_at`. The tasks are row-locked, then the lots by id (the caller holds the
+    hub), and the moves are keyed by the task, so the draw never runs twice. Returns the tasks
+    drawn."""
+    undrawn = _undrawn(hub_id, today)
+    tasks = list(
+        await session.scalars(
+            undrawn.order_by(PackingTask.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+    if not tasks:
+        return 0
+    picked = await _picked(session, undrawn)
+    wanted = {product for lines in picked.values() for product in lines}
+    lots = await session.scalars(
+        select(InventoryLot)
+        .where(
+            InventoryLot.hub_id == hub_id,
+            InventoryLot.product_id.in_(wanted),
+            InventoryLot.grade.in_(DRAWN_GRADES),
+            InventoryLot.qty_on_hand > 0,
+        )
+        .order_by(InventoryLot.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    fefo: dict[tuple[uuid.UUID, str], list[InventoryLot]] = defaultdict(list)
+    for lot in sorted(lots, key=lambda x: (x.best_before, x.received_at, x.id)):
+        fefo[(lot.product_id, lot.unit)].append(lot)
+    for task in sorted(tasks, key=lambda x: (x.packed_at or now, x.id)):
+        for product_id, (qty, unit) in sorted(picked.get(task.id, {}).items()):
+            rest = qty
+            for lot in fefo[(product_id, unit)]:
+                take = min(rest, lot.qty_on_hand)
+                if take <= 0:
+                    continue
+                await receiving.move(
+                    session,
+                    hub_id=hub_id,
+                    product_id=product_id,
+                    unit=unit,
+                    kind="pack",
+                    ref_id=task.id,
+                    qty=-take,
+                    lot=lot,
+                )
+                rest -= take
+                if rest == 0:
+                    break
+            if rest > 0:  # unlotted: packed without stock the system knew of
+                await receiving.move(
+                    session,
+                    hub_id=hub_id,
+                    product_id=product_id,
+                    unit=unit,
+                    kind="pack",
+                    ref_id=task.id,
+                    qty=-rest,
+                )
+        task.drawn_at = now
+    await session.flush()
+    return len(tasks)
