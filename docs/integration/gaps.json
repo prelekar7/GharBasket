@@ -318,19 +318,17 @@
     },
     "GET /v1/hubs/{}/cutoff": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
       "milestone": "MS-A",
-      "fix": "A cheap read: the hub's next cut-off, locked and awaiting counts. F6: wrap in orNotShipped meanwhile.",
-      "note": "Not in a module spec (M4 has the cutoff_lock job only). With delivery-dates the console would follow the backend's clock."
+      "note": "M3 §3.4 (contract 2026-10-25). F6: keep orNotShipped until it ships."
     },
     "GET /v1/hubs/{}/delivery-dates": {
       "app": "console",
-      "class": "fix-backend",
+      "class": "later",
       "owner": "prathamesh",
       "milestone": "MS-A",
-      "fix": "A cheap read: the hub's next delivery dates from its societies' delivery days.",
-      "note": "Not in a module spec."
+      "note": "M3 §3.4 (contract 2026-10-25)."
     },
     "GET /v1/hubs/{}/delivery-days": {
       "app": "console",
