@@ -1834,6 +1834,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/hubs/{hub_id}/waste-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's waste logs of the IST days from … to, newest first */
+        get: operations["list_waste_logs_v1_hubs__hub_id__waste_logs_get"];
+        put?: never;
+        /** Write off a lot or a product to the bin (a waste move on the lot; Idempotency-Key) */
+        post: operations["create_waste_log_v1_hubs__hub_id__waste_logs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/hubs/{hub_id}/waste-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Kg wasted per 100 kg sold, by IST day: at most 31 days, default the last 7 */
+        get: operations["get_waste_summary_v1_hubs__hub_id__waste_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/internal/intel/feature-snapshots": {
         parameters: {
             query?: never;
@@ -8840,6 +8875,13 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
         };
+        /** Page[WasteLogOut] */
+        Page_WasteLogOut_: {
+            /** Items */
+            items: components["schemas"]["WasteLogOut"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** PantryPriorIn */
         PantryPriorIn: {
             /**
@@ -11066,6 +11108,13 @@ export interface components {
             /** Trainings */
             trainings: components["schemas"]["TrainingRequirement"][];
         };
+        /** RescuedKg */
+        RescuedKg: {
+            /** Kitchen */
+            kitchen: number;
+            /** Ngo */
+            ngo: number;
+        };
         /** ReturnedBagIn */
         ReturnedBagIn: {
             /**
@@ -12501,6 +12550,31 @@ export interface components {
              */
             term: string;
         };
+        /** TakenByKitchen */
+        TakenByKitchen: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "kitchen";
+            /** Name */
+            name: string;
+            /**
+             * Partner Id
+             * Format: uuid
+             */
+            partner_id: string;
+        };
+        /** TakenByNgo */
+        TakenByNgo: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ngo";
+            /** Name */
+            name: string;
+        };
         /** TemplateIn */
         TemplateIn: {
             /**
@@ -13440,6 +13514,163 @@ export interface components {
              * Format: uuid
              */
             refund_id: string;
+        };
+        /** WasteDayOut */
+        WasteDayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            rescued_kg: components["schemas"]["RescuedKg"];
+            /**
+             * Sold Kg
+             * @description Picked steps of the day's packed tasks, weighed
+             */
+            sold_kg: number;
+            /**
+             * Stockout Pct
+             * @description Steps short or substituted / steps ordered
+             */
+            stockout_pct: number | null;
+            /**
+             * Unweighed Lines
+             * @description Lines with no weight, left out
+             */
+            unweighed_lines: number;
+            /**
+             * Waste Per 100Kg
+             * @description null when nothing was sold
+             */
+            waste_per_100kg: number | null;
+            /**
+             * Wasted Kg
+             * @description cascade_to bin
+             */
+            wasted_kg: number;
+        };
+        /** WasteIn */
+        WasteIn: {
+            /**
+             * Lot Id
+             * @description Exactly one of lot_id, product_id
+             */
+            lot_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Product Id
+             * @description Stock that was never received in the system: an unlotted log
+             */
+            product_id?: string | null;
+            /**
+             * Qty
+             * @description In the lot's unit
+             * @example 2.5
+             */
+            qty: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "spoiled" | "damaged" | "expired" | "pest" | "other";
+        };
+        /** WasteLogOut */
+        WasteLogOut: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Cascade To
+             * @enum {string}
+             */
+            cascade_to: "kitchen" | "ngo" | "bin";
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kg
+             * @description Weight for the KPI; null when unknown
+             */
+            kg: number | null;
+            /** @description null: the 12:30 job */
+            logged_by: components["schemas"]["gharbasket__modules__hub_ops__schemas__UserRef"] | null;
+            /** Lot Id */
+            lot_id: string | null;
+            /**
+             * Name
+             * @description In the Accept-Language language
+             */
+            name: string;
+            /** Note */
+            note: string | null;
+            /** Offer Id */
+            offer_id: string | null;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "spoiled" | "damaged" | "expired" | "pest" | "surplus" | "returned" | "other";
+            /** Slug */
+            slug: string;
+            /** Taken By */
+            taken_by: (components["schemas"]["TakenByKitchen"] | components["schemas"]["TakenByNgo"]) | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "piece" | "bunch" | "pack";
+        };
+        /** WasteSummaryOut */
+        WasteSummaryOut: {
+            /** Days */
+            days: components["schemas"]["WasteDayOut"][];
+            /**
+             * From
+             * Format: date
+             */
+            from: string;
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            /**
+             * To
+             * Format: date
+             */
+            to: string;
+            totals: components["schemas"]["WasteTotalsOut"];
+        };
+        /** WasteTotalsOut */
+        WasteTotalsOut: {
+            rescued_kg: components["schemas"]["RescuedKg"];
+            /** Sold Kg */
+            sold_kg: number;
+            /** Stockout Pct */
+            stockout_pct: number | null;
+            /** Unweighed Lines */
+            unweighed_lines: number;
+            /** Waste Per 100Kg */
+            waste_per_100kg: number | null;
+            /** Wasted Kg */
+            wasted_kg: number;
         };
         /** WebhookAck */
         WebhookAck: {
@@ -22739,6 +22970,207 @@ export interface operations {
                 };
             };
             /** @description request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_waste_logs_v1_hubs__hub_id__waste_logs_get: {
+        parameters: {
+            query?: {
+                /** @description IST day, inclusive */
+                from?: string | null;
+                /** @description IST day, inclusive */
+                to?: string | null;
+                cascade_to?: ("kitchen" | "ngo" | "bin") | null;
+                /** @description `next_cursor` from the last page */
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_WasteLogOut_"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range, request.invalid_cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_waste_log_v1_hubs__hub_id__waste_logs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-active-role"?: string | null;
+                "Idempotency-Key"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WasteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WasteLogOut"];
+                };
+            };
+            /** @description request.idempotency_key_required */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found, hub_ops.lot_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_exceeds_stock */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.qty_invalid, hub_ops.product_not_stocked (product_ids), request.idempotency_mismatch, request.invalid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_waste_summary_v1_hubs__hub_id__waste_summary_get: {
+        parameters: {
+            query?: {
+                /** @description Default: 6 days before `to` */
+                from?: string | null;
+                /** @description Default: yesterday (IST) */
+                to?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WasteSummaryOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.date_out_of_range */
             422: {
                 headers: {
                     [name: string]: unknown;

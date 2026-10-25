@@ -7,7 +7,7 @@ them needs a PR reviewed by both app owners. Service areas and timings are check
 
 import uuid
 from datetime import date, datetime
-from typing import ClassVar, Literal, Self
+from typing import Annotated, ClassVar, Literal, Self
 
 import phonenumbers
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -669,3 +669,100 @@ class LostIn(BaseModel):
     note: str = Field(min_length=1, max_length=500, examples=["Not on the shelf at the count"])
 
     _tidy_text = field_validator("note", mode="before")(_tidy)
+
+
+# --- waste and the waste KPI (§3.5) --------------------------------------------------------------
+
+WasteReasonIn = Literal["spoiled", "damaged", "expired", "pest", "other"]
+WasteReason = Literal["spoiled", "damaged", "expired", "pest", "surplus", "returned", "other"]
+CascadeTo = Literal["kitchen", "ngo", "bin"]
+
+
+class WasteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    lot_id: uuid.UUID | None = Field(default=None, description="Exactly one of lot_id, product_id")
+    product_id: uuid.UUID | None = Field(
+        default=None, description="Stock that was never received in the system: an unlotted log"
+    )
+    qty: float = Field(allow_inf_nan=False, gt=0, examples=[2.5], description="In the lot's unit")
+    reason: WasteReasonIn
+    note: str | None = Field(default=None, max_length=300)
+
+    _tidy_text = field_validator("note", mode="before")(_tidy)
+
+    @model_validator(mode="after")
+    def _one_source(self) -> Self:
+        if (self.lot_id is None) == (self.product_id is None):
+            raise ValueError("send exactly one of lot_id and product_id")
+        return self
+
+
+class TakenByKitchen(BaseModel):
+    kind: Literal["kitchen"]
+    partner_id: uuid.UUID
+    name: str
+
+
+class TakenByNgo(BaseModel):
+    kind: Literal["ngo"]
+    name: str
+
+
+TakenBy = Annotated[TakenByKitchen | TakenByNgo, Field(discriminator="kind")]
+
+
+class WasteLogOut(BaseModel):
+    id: uuid.UUID
+    hub_id: uuid.UUID
+    lot_id: uuid.UUID | None
+    product_id: uuid.UUID
+    slug: str
+    name: str = Field(description="In the Accept-Language language")
+    qty: float
+    unit: OpsUnit
+    kg: float | None = Field(description="Weight for the KPI; null when unknown")
+    reason: WasteReason
+    cascade_to: CascadeTo
+    offer_id: uuid.UUID | None
+    taken_by: TakenBy | None
+    note: str | None
+    logged_by: UserRef | None = Field(description="null: the 12:30 job")
+    at: datetime
+
+
+class RescuedKg(BaseModel):
+    kitchen: float
+    ngo: float
+
+
+Day = date  # the field `date` below hides the type inside its own class
+
+
+class WasteDayOut(BaseModel):
+    date: Day
+    sold_kg: float = Field(description="Picked steps of the day's packed tasks, weighed")
+    wasted_kg: float = Field(description="cascade_to bin")
+    rescued_kg: RescuedKg
+    waste_per_100kg: float | None = Field(description="null when nothing was sold")
+    stockout_pct: float | None = Field(description="Steps short or substituted / steps ordered")
+    unweighed_lines: int = Field(description="Lines with no weight, left out")
+
+
+class WasteTotalsOut(BaseModel):
+    sold_kg: float
+    wasted_kg: float
+    rescued_kg: RescuedKg
+    waste_per_100kg: float | None
+    stockout_pct: float | None
+    unweighed_lines: int
+
+
+class WasteSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    hub_id: uuid.UUID
+    from_: date = Field(alias="from")
+    to: date
+    days: list[WasteDayOut]
+    totals: WasteTotalsOut

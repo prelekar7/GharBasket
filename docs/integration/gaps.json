@@ -127,27 +127,6 @@
       "milestone": "MS-B",
       "note": "M5 §3.5."
     },
-    "GET /v1/hubs/{}/waste-logs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5 (S4)."
-    },
-    "POST /v1/hubs/{}/waste-logs": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
-    "GET /v1/hubs/{}/waste-summary": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-B",
-      "note": "M6 §3.5."
-    },
     "GET /v1/hubs/{}/surplus-offers": {
       "app": "console",
       "class": "later",
