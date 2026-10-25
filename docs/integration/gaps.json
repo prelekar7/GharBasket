@@ -190,27 +190,6 @@
       "milestone": "MS-D",
       "note": "M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url)."
     },
-    "GET /v1/analytics/hubs/{}/today": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3 (S9). F6: wrap the call in orNotShipped; the hub manager's home page crashes against the real API."
-    },
-    "GET /v1/analytics/kpis": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3."
-    },
-    "GET /v1/analytics/societies": {
-      "app": "console",
-      "class": "later",
-      "owner": "prathamesh",
-      "milestone": "MS-D",
-      "note": "M12 §3.3."
-    },
     "GET /v1/analytics/partner-earnings": {
       "app": "console",
       "class": "later",
@@ -464,8 +443,8 @@
     {
       "id": "F6",
       "app": "console",
-      "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(hub)/cutoff/page.jsx",
-      "fix": "Wrap GET /v1/analytics/hubs/{id}/today and GET /v1/hubs/{id}/cutoff in orNotShipped, with a not-available view. The hub manager's home crashes against the real API today.",
+      "where": "app/(console)/(hub)/today/page.jsx, app/(console)/(analytics)/kpis, app/(console)/(franchise)/customers",
+      "fix": "M12 §3.3 ships (GET /v1/analytics/hubs/{id}/today, /kpis, /societies) and replaces the mocks. GET /v1/hubs/{id}/ops-board becomes /v1/analytics/hubs/{id}/today: timestamps and HH:MM, formatted by the console; compose the status line from steps; no markers or route; attention is { kind, count, oldest_at, due_at, link } (copy and tone from kind; issues link to /hub/issues). GET /v1/analytics/customer-summary becomes /v1/analytics/societies (the console totals items and counts status unlocking as joining; paused_households is in the row). /kpis needs data_source real|synthetic, returns periods (ISO dates) and series.<key>.",
       "owner": "yash"
     },
     {

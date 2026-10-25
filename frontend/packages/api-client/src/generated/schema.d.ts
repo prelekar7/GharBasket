@@ -555,6 +555,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/analytics/hubs/{hub_id}/today": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub's today board: live counts, the day's steps and what needs attention (hub manager, franchise owner, admin) */
+        get: operations["hub_today_v1_analytics_hubs__hub_id__today_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/kpis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** KPI series per day or ISO week, from the daily view (hub manager, franchise owner, admin; only an admin may leave the hub out) */
+        get: operations["kpi_series_v1_analytics_kpis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/analytics/societies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Each society's unlock progress and the last 4 weeks' households, approval and box value (hub manager, franchise owner, admin; only an admin may leave the hub out) */
+        get: operations["society_table_v1_analytics_societies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/assignments": {
         parameters: {
             query?: never;
@@ -4537,6 +4588,59 @@ export interface components {
             /** Items */
             items: components["schemas"]["AssignmentOut"][];
         };
+        /** BoardAttentionOut */
+        BoardAttentionOut: {
+            /** Count */
+            count: number;
+            /** Due At */
+            due_at: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "issue_open" | "payment_failed" | "shortage" | "plan_needs_review" | "delivery_held" | "donations_to_verify" | "surplus_open" | "society_live";
+            /**
+             * Link
+             * @description A console route, never a URL with a token
+             */
+            link: string;
+            /** Oldest At */
+            oldest_at: string | null;
+        };
+        /** BoardBoxesOut */
+        BoardBoxesOut: {
+            /** By Society */
+            by_society: components["schemas"]["SocietyBoxesOut"][];
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /**
+             * Locked
+             * @description Boxes the cut-off locked (and any status after locked)
+             */
+            locked: number;
+            /**
+             * Total
+             * @description Boxes of the day, not cancelled
+             */
+            total: number;
+        };
+        /** BoardDeliveriesOut */
+        BoardDeliveriesOut: {
+            /** At Society */
+            at_society: number;
+            /** Delivered */
+            delivered: number;
+            /** Held */
+            held: number;
+            /**
+             * Undelivered
+             * @description Failed attempts, whatever happened to them since
+             */
+            undelivered: number;
+        };
         /** BoardMealOut */
         BoardMealOut: {
             /** Accepted */
@@ -4563,6 +4667,36 @@ export interface components {
             ready: number;
             /** Unassigned */
             unassigned: components["schemas"]["BoardUnassignedOut"][];
+        };
+        /** BoardPackingOut */
+        BoardPackingOut: {
+            /** Bags Packed */
+            bags_packed: number;
+            /** Bags Total */
+            bags_total: number;
+            /**
+             * Finished At
+             * @description When the last bag was packed, once all are
+             */
+            finished_at: string | null;
+        };
+        /** BoardRoutesOut */
+        BoardRoutesOut: {
+            /** Completed */
+            completed: number;
+            /** Late Stops */
+            late_stops: number;
+            /** Planned */
+            planned: number;
+            /** Started */
+            started: number;
+            /**
+             * Stops Done
+             * @description Handed over or skipped
+             */
+            stops_done: number;
+            /** Stops Total */
+            stops_total: number;
         };
         /** BoardRunOut */
         BoardRunOut: {
@@ -4592,6 +4726,44 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** BoardShortageOut */
+        BoardShortageOut: {
+            /**
+             * Bags
+             * @description Bags with at least one step of it short
+             */
+            bags: number;
+            /**
+             * Name
+             * @description In the caller's language (`Accept-Language`)
+             */
+            name: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+        };
+        /** BoardStepOut */
+        BoardStepOut: {
+            /**
+             * Due At
+             * @description IST HH:MM; the cut-off's is the day before
+             */
+            due_at: string | null;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "cutoff" | "procurement" | "receiving" | "packing" | "dispatch" | "delivery" | "surplus";
+            /** Note */
+            note: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "current" | "issue" | "todo";
+        };
         /** BoardUnassignedOut */
         BoardUnassignedOut: {
             /**
@@ -4607,6 +4779,21 @@ export interface components {
              */
             reason: string;
             society: components["schemas"]["gharbasket__modules__partners__schemas__SocietyRef"];
+        };
+        /** BoardWasteOut */
+        BoardWasteOut: {
+            /**
+             * Kg
+             * @description Wasted that day (cascade to the bin)
+             */
+            kg: number;
+            /**
+             * Previous Date
+             * @description The newest earlier day with sales or waste
+             */
+            previous_date: string | null;
+            /** Previous Kg */
+            previous_kg: number | null;
         };
         /** BudgetLockIn */
         BudgetLockIn: {
@@ -7658,6 +7845,50 @@ export interface components {
              * @description An active kitchen partner of the hub (M8)
              */
             partner_id: string;
+        };
+        /** KpisOut */
+        KpisOut: {
+            /**
+             * As Of
+             * @description Finish time of the last run that refreshed it
+             */
+            as_of: string | null;
+            /**
+             * Data Source
+             * @enum {string}
+             */
+            data_source: "real" | "synthetic";
+            /**
+             * Grain
+             * @enum {string}
+             */
+            grain: "day" | "week";
+            /**
+             * Hub Id
+             * @description Null: every hub (admin only)
+             */
+            hub_id: string | null;
+            /**
+             * Periods
+             * @description The first day of each period (ISO weeks start Monday)
+             */
+            periods: string[];
+            /**
+             * Series
+             * @description One value per period for every KPI key; null when undefined
+             */
+            series: {
+                [key: string]: (number | null)[];
+            };
+            /** Stale */
+            stale: boolean;
+            /**
+             * Totals
+             * @description Over the whole range; rates recomputed from their parts, not averaged
+             */
+            totals: {
+                [key: string]: number | null;
+            };
         };
         /** KycCheckOut */
         KycCheckOut: {
@@ -12298,6 +12529,27 @@ export interface components {
             /** Items */
             items: components["schemas"]["gharbasket__modules__orders__schemas__SlotOut"][];
         };
+        /** SocietiesOut */
+        SocietiesOut: {
+            /** As Of */
+            as_of: string | null;
+            /** Hub Id */
+            hub_id: string | null;
+            /** Items */
+            items: components["schemas"]["SocietyRowOut"][];
+        };
+        /** SocietyBoxesOut */
+        SocietyBoxesOut: {
+            /** Boxes */
+            boxes: number;
+            /** Name */
+            name: string;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+        };
         /** SocietyLoad */
         SocietyLoad: {
             /** Bags */
@@ -12394,6 +12646,48 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "accepted" | "rejected" | "duplicate";
+        };
+        /** SocietyRowOut */
+        SocietyRowOut: {
+            /**
+             * Active Households
+             * @description Delivered an order in the last 4 weeks
+             */
+            active_households: number;
+            /**
+             * Approved On Time Bp
+             * @description Cycles approved before the cut-off, of the cycles generated, last 4 weeks
+             */
+            approved_on_time_bp: number | null;
+            /**
+             * Average Box Paise
+             * @description Net of refunds and credits, over delivered boxes of the last 4 weeks
+             */
+            average_box_paise: number | null;
+            /**
+             * Joined
+             * @description Households whose address is in the society
+             */
+            joined: number;
+            /** Name */
+            name: string;
+            /** Paused Households */
+            paused_households: number;
+            /**
+             * Society Id
+             * Format: uuid
+             */
+            society_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prospect" | "unlocking" | "live" | "paused";
+            /**
+             * Threshold
+             * @description Households that unlock free delivery
+             */
+            threshold: number;
         };
         /**
          * SocietySummary
@@ -13475,6 +13769,38 @@ export interface components {
             receiving?: string | null;
             /** Surplus */
             surplus?: string | null;
+        };
+        /** TodayOut */
+        TodayOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Attention
+             * @description One row per kind with a count above 0; kinds without a source are never sent
+             */
+            attention: components["schemas"]["BoardAttentionOut"][];
+            boxes: components["schemas"]["BoardBoxesOut"];
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            deliveries: components["schemas"]["BoardDeliveriesOut"];
+            /**
+             * Hub Id
+             * Format: uuid
+             */
+            hub_id: string;
+            packing: components["schemas"]["BoardPackingOut"];
+            routes: components["schemas"]["BoardRoutesOut"];
+            /** Shortages */
+            shortages: components["schemas"]["BoardShortageOut"][];
+            /** Steps */
+            steps: components["schemas"]["BoardStepOut"][];
+            waste: components["schemas"]["BoardWasteOut"];
         };
         /**
          * TokensOut
@@ -17573,6 +17899,238 @@ export interface operations {
             };
             /** @description request.invalid */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    hub_today_v1_analytics_hubs__hub_id__today_get: {
+        parameters: {
+            query?: {
+                /** @description An IST delivery date from today - 7 to today + 1; default today */
+                date?: string | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+                "accept-language"?: string | null;
+            };
+            path: {
+                hub_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodayOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description hub_ops.hub_not_found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.range_invalid (a date before today - 7 or after today + 1) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    kpi_series_v1_analytics_kpis_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub (admin only) */
+                hub_id?: string | null;
+                /** @description An IST date; default the start of the last 12 weeks */
+                from?: string | null;
+                /** @description An IST date; default today */
+                to?: string | null;
+                /** @description day (≤ 92 days) or week (≤ 104 weeks) */
+                grain?: "day" | "week";
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KpisOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required · analytics.range_invalid · analytics.range_too_long */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    society_table_v1_analytics_societies_get: {
+        parameters: {
+            query?: {
+                /** @description Left out: every hub (admin only) */
+                hub_id?: string | null;
+                /** @description Required: `real` or `synthetic`, never pooled */
+                data_source?: ("real" | "synthetic") | null;
+            };
+            header?: {
+                "x-active-role"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocietiesOut"];
+                };
+            };
+            /** @description auth.invalid_token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description auth.forbidden (a hub outside your grants; the hub left out by a non-admin) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.data_source_required */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description request.rate_limited (60 a minute per user; see Retry-After) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description analytics.timeout (a read over 3 s) */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

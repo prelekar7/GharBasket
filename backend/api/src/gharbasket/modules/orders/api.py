@@ -7,7 +7,8 @@
 - The M12 console resolves open issues with `resolve_issue`.
 - M3 shows a box's pre-live delivery fee before approval with `box_fee` (M9 §3.6).
 - M12 pulls `order_facts` and `issue_facts` for its analytics refresh, from
-  `first_delivery_date` on for a rebuild (M12 §3.1).
+  `first_delivery_date` on for a rebuild (M12 §3.1); its today board reads `open_issue_summary`
+  and `today_counts` (M12 §3.3).
 """
 
 import uuid
@@ -62,6 +63,12 @@ from gharbasket.modules.orders.service import (
     orders_for_delivery,
 )
 from gharbasket.modules.orders.state import FINAL
+from gharbasket.modules.orders.today import (
+    OpenIssueSummary,
+    TodayCounts,
+    open_issue_summary,
+    today_counts,
+)
 from gharbasket.platform import files
 
 __all__ = [
@@ -84,6 +91,7 @@ __all__ = [
     "CycleLine",
     "IssueFact",
     "Move",
+    "OpenIssueSummary",
     "Order",
     "OrderFact",
     "OrderIssue",
@@ -93,6 +101,7 @@ __all__ = [
     "PaymentFailedOrder",
     "SlotRef",
     "SoldLine",
+    "TodayCounts",
     "anonymise_for_user",
     "box_fee",
     "cancel_from_cycle",
@@ -113,6 +122,7 @@ __all__ = [
     "issue_facts",
     "last_move",
     "mark_shortage",
+    "open_issue_summary",
     "order_facts",
     "order_ids_of_household",
     "orders_for_delivery",
@@ -123,6 +133,7 @@ __all__ = [
     "slot_ref",
     "sold_lines",
     "summaries",
+    "today_counts",
     "transition",
 ]
 

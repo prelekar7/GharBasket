@@ -639,6 +639,7 @@ GET /v1/impact?scope=society&society_id=&period=all|2027-02
 - `public_society(session, slug) -> PublicSociety | None`: `{ id, slug, name, area, status, joined, threshold, live_at }` for `unlocking` and `live` societies only; `None` for `prospect`, `paused` or unknown.
 - `pickups_for(session, society_id, on) -> list[DonationPickup]`: `{ donation_id, household_id, items_summary }` for M7's return leg and the captain's flat checklist. M7 adds the flat through `identity.api.delivery_labels`.
 - `impact_facts(session, *, date_from, date_to, hub_ids=None)`, `referral_facts(…)`, `handoff_facts(…)`: rows for M12's refresh (M12 §3.1). They carry no names, flats or phones.
+- `hub_societies(session, *, hub_id) -> list[HubSociety]`: `{ id, name, status, joined, threshold, data_source }` for every society the hub serves, whatever its status, by name; for M12's societies table (M12 §3.3). `joined` comes from one count for all of them (`identity.api.households_in_societies`). No captain, address or household.
 
 **Data export** (M1 §3.3, section `community`): the user's donations (items, counts, points, statuses, dates; photos counted, not included), their referral code, the referrals they made (status, dates and points, never the neighbour), whether they were referred, their donated-meal pledges, and their captain appointments (§3.2).
 
