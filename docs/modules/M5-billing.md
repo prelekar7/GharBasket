@@ -502,6 +502,8 @@ GET /v1/admin/refunds?hub_id=&from=&to=&reason=&destination=&cursor=&limit=
 | `status: "pending" \| "approved" \| "rejected"` | `credited`, or the Refund's own status |
 | `POST /v1/admin/refunds/{id}/approve \| reject \| reopen` | Dropped: refunds are automatic (§3.3); disputes are M4's issue triage (M4 §3.6) |
 
+**As built (the list, with the M4 PR).** `billing.api.order_refunds` and the `OrderRefund` row are in `billing/refunds.py`; the amount is the entry's debit leg and a missing Refund row reads `pending`. M4's `GET /v1/admin/refunds` (`orders/refund_list.py`) takes the delivery-date window's orders (the hub's, or every hub's for an admin), asks the facade in chunks of 2,000 ids, then filters by `reason` and `destination`, orders by (created_at, id) newest first and keysets the page on that pair, all in memory: the window is at most 31 days. A hub manager without `hub_id` gets 422 `orders.hub_required` (as the issue queue); `from` defaults to seven days before `to`, and `from` after `to` is 422 `request.invalid` too. A refund of an order whose code the table does not know (`returned_to_hub`, `left_behind`) is `other`. Permission `order_refunds:read` is registered in M4's `permissions.py`.
+
 ## 4. Tables owned
 | Table | Key columns |
 |---|---|
