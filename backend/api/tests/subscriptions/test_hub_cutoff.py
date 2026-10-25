@@ -8,11 +8,15 @@ from datetime import UTC, datetime
 import httpx2
 import pytest
 import time_machine
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gharbasket.modules.billing.wallet import credit_topup
+from gharbasket.modules.identity import api as identity_api
+from gharbasket.modules.identity.models import User
+from gharbasket.modules.orders.api import PaymentFailedOrder
 from gharbasket.modules.orders.jobs import on_wallet_topped_up
+from gharbasket.modules.subscriptions import cutoff as hub_cutoff
 from gharbasket.modules.subscriptions.models import WeeklyCycle
 from gharbasket.platform.models import JobRun, OutboxEvent
 from gharbasket.platform.outbox import relay
@@ -454,3 +458,62 @@ async def test_last_run_is_the_cutoff_lock_run_of_that_date_and_null_before_it(
         "grace_paid": 0,
         "cancelled": 0,
     }
+
+
+async def test_dates_beyond_the_calendar_are_refused_not_a_server_error(
+    clients: ClientFactory, google: FakeGoogle
+) -> None:
+    api = clients()
+    manager, _ = await as_user(api, google, VIKRAM)
+
+    for path, params in (
+        (DATES, {"from": "9999-12-31", "days": 2}),
+        (DATES, {"from": "0001-01-01"}),
+        (CUTOFF, {"date": "0001-01-01"}),
+        (CUTOFF, {"date": "9999-12-31"}),
+    ):
+        answer = await api.get(path, params=params, headers=manager)
+        assert answer.status_code == 422, (params, answer.status_code)
+
+
+async def test_the_unpaid_list_costs_the_same_queries_for_one_order_or_hundreds(
+    db_session: AsyncSession,
+) -> None:
+    """Labels, owners and wallets are read for the whole list, not per order."""
+    engine = db_session.bind.sync_engine  # pyright: ignore[reportOptionalMemberAccess]
+
+    def unpaid(count: int) -> tuple[PaymentFailedOrder, ...]:
+        society = uuid.uuid4()
+        return tuple(
+            PaymentFailedOrder(uuid.uuid4(), None, uuid.uuid4(), society, 50_000)
+            for _ in range(count)
+        )
+
+    async def statements(failed: tuple[PaymentFailedOrder, ...]) -> int:
+        seen: list[str] = []
+
+        def record(*args: object) -> None:
+            seen.append(str(args[2]))
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            await hub_cutoff._short(db_session, failed)  # pyright: ignore[reportPrivateUsage]
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        return len(seen)
+
+    one, many = await statements(unpaid(1)), await statements(unpaid(300))
+
+    assert one == many <= 4
+
+
+async def test_owners_of_households_are_read_in_one_query(db_session: AsyncSession) -> None:
+    priya_id = await db_session.scalar(select(User.id).where(User.phone_e164 == PRIYA))
+    assert priya_id is not None
+    household = await identity_api.household_for_user(db_session, priya_id)
+    assert household is not None
+
+    owners = await identity_api.owners_of_households(db_session, [household.id, uuid.uuid4()])
+
+    assert owners == {household.id: priya_id}
+    assert await identity_api.owners_of_households(db_session, []) == {}

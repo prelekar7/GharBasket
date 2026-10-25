@@ -114,12 +114,16 @@ async def _short(
     """The unpaid orders with the wallet read live, flat and society as display labels only."""
     if not failed:
         return []
-    labels = await identity_api.delivery_labels(session, {o.household_id for o in failed})
+    # Four reads for the whole list, never one per order (a hub can have thousands unpaid).
+    households = {o.household_id for o in failed}
+    labels = await identity_api.delivery_labels(session, households)
     societies = await community_api.society_labels(session, list({o.society_id for o in failed}))
+    owners = await identity_api.owners_of_households(session, households)
+    balances = await billing_api.balances(session, owners.values())
     out: list[ShortOrderOut] = []
     for order in failed:
-        owner = await identity_api.owner_of_household(session, order.household_id)
-        wallet = 0 if owner is None else await billing_api.balance(session, owner)
+        owner = owners.get(order.household_id)
+        wallet = 0 if owner is None else balances.get(owner, 0)
         society = societies.get(order.society_id)
         label = labels.get(order.household_id)
         tower = society.towers.get(label.tower_id) if society and label else None

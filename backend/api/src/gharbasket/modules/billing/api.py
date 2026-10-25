@@ -46,6 +46,7 @@ from gharbasket.modules.billing.schemas import RefundOut
 from gharbasket.modules.billing.wallet import (
     InsufficientBalance,
     balance,
+    balances,
     debit_for_order,
     refund_to_wallet,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "accrue_earning",
     "anonymise_for_user",
     "balance",
+    "balances",
     "close_wallet",
     "credit_points",
     "debit_for_order",

@@ -10,6 +10,7 @@ never moves money twice.
 
 import re
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
@@ -187,6 +188,35 @@ class Summary:
 async def balance(session: AsyncSession, user_id: uuid.UUID) -> int:
     wallet = await service.find_account(session, "wallet", "user", user_id)
     return 0 if wallet is None else await service.balance(session, wallet)
+
+
+async def balances(session: AsyncSession, user_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, int]:
+    """The wallet balance of each user in one query (a hub's list of unpaid boxes). A user without
+    a wallet reads 0, as in `balance`; nothing is created."""
+    ids = set(user_ids)
+    if not ids:
+        return {}
+    rows = await session.execute(
+        select(
+            LedgerAccount.owner_id,
+            LedgerAccount.kind,
+            func.coalesce(func.sum(Posting.amount), 0),
+        )
+        .select_from(LedgerAccount)
+        .outerjoin(Posting, Posting.account_id == LedgerAccount.id)
+        .where(
+            LedgerAccount.code == "wallet",
+            LedgerAccount.owner_type == "user",
+            LedgerAccount.owner_id.in_(ids),
+            LedgerAccount.currency == "INR",
+        )
+        .group_by(LedgerAccount.owner_id, LedgerAccount.kind)
+    )
+    out = dict.fromkeys(ids, 0)
+    for owner_id, kind, total in rows.all():
+        if owner_id is not None:
+            out[owner_id] = -int(total) if kind in service.CREDIT_NORMAL else int(total)
+    return out
 
 
 async def summary(session: AsyncSession, user_id: uuid.UUID, latest: int = 20) -> Summary:

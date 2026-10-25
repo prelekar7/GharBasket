@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from pydantic import Field
 
 from gharbasket.modules.catalog import api as catalog_api
 from gharbasket.modules.community import api as community_api
@@ -62,6 +63,8 @@ CanWrite = Annotated[Permit, require("cycles:write")]
 CanSubscribe = Annotated[Permit, require("subscriptions:write")]
 CanSetDays = Annotated[Permit, require("delivery_days:write")]
 CanSeeDates = Annotated[Permit, require("delivery_days:read")]
+# Calendar dates the console can ask for; the day arithmetic around them never leaves the range.
+CalendarDate = Annotated[date, Field(ge=date(2000, 1, 1), le=date(2100, 12, 31))]
 MonthParam = Annotated[str | None, Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
 
@@ -368,7 +371,11 @@ async def hub_delivery_dates(
     session: DbSession,
     response: Response,
     from_: Annotated[
-        date | None, Query(alias="from", description="An IST date; default today")
+        CalendarDate | None,
+        Query(
+            alias="from",
+            description="An IST date; default today",
+        ),
     ] = None,
     days: Annotated[int, Query(ge=1, le=31, description="Calendar days from `from`")] = 14,
 ) -> HubDeliveryDatesOut:
@@ -391,7 +398,7 @@ async def hub_cutoff(
     session: DbSession,
     response: Response,
     on: Annotated[
-        date | None,
+        CalendarDate | None,
         Query(
             alias="date",
             description="A delivery date; default the hub's first delivery date after today (IST)",
