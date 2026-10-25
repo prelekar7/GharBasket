@@ -146,6 +146,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
 | Every 10 min | `expire_proposals` (cron-job.org) | assistant |
 | Daily 03:33 | `monitor_drift` (realised WAPE per hub, delivery day and data source, acceptance per source → `model_metrics`, drift flags against the same hub and source's backtest) | intel |
+| Every 15 min / daily 02:40 | `refresh_analytics` (facts for delivery dates T-3 to T+1 and community facts since its last run, then the daily KPI and impact views; cron-job.org); `refresh_analytics_nightly` (the last 35 days, every household, 6 weeks of partner earnings, assignment runs, then every view; GitHub Actions); `rebuild_analytics` by hand (M12 §3.2) | analytics ← every module's facade |
 
 ## 10.5 Key endpoints per module (v1)
 

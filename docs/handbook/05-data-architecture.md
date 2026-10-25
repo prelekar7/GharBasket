@@ -30,7 +30,7 @@ MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6,
 2. `created_at` / `updated_at` are `timestamptz`. Business dates are `date` in Asia/Kolkata.
 3. Money is `BIGINT` paise. Quantities are `NUMERIC(10,3)` plus a `unit` enum (`kg`, `g`, `pc`, `bunch`, `ml`, `l`).
 4. Every tenant-owned row has `hub_id`; every household-derived row has `data_source`.
-5. **One schema per module.** A module writes only to its own schema. Other modules read through its `api.py` facade. Foreign keys are allowed only to stable identifiers (users, households, hubs, products, societies).
+5. **One schema per module.** A module writes only to its own schema. Other modules read through its `api.py` facade. Analytics reads through facades too (M12 §3.1): it copies facts into its own schema and builds its views there. Foreign keys are allowed only to stable identifiers (users, households, hubs, products, societies).
 6. Soft delete only where the law needs history; personal data is hard-deleted on request (DPDP).
 7. Migrations: one Alembic migration per pull request, named `YYYYMMDD_HHMM_<module>_<desc>`. CI enforces a single head and an upgrade/downgrade round trip.
 8. Translatable names are JSONB `{en, hi, mr}`.
@@ -50,6 +50,7 @@ MongoDB, Firestore, Elasticsearch and Neo4j were evaluated and rejected (see D6,
 | `community` | M9 | Prathamesh Relekar | Societies, captains, referrals, donation drives, donations, NGO handoffs |
 | `intel` | M10 | Prathamesh Relekar | Feature snapshots, predictions, experiments |
 | `notify` | M11 | Prathamesh Relekar | Templates, messages, preferences |
+| `analytics` | M12 | Prathamesh Relekar | Fact tables pulled through the other modules' facades, materialised views over them, assumptions, refresh runs (M12 §3.1, §3.2) |
 | `platform` | M0 | shared | Outbox, idempotency keys, audit log |
 
 ## 5.4 Core cross-schema ERD
