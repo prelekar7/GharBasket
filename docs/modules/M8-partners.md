@@ -655,6 +655,7 @@ PUT /v1/hubs/{id}/partner-rates    admin; { "rates": [ { "kind", "basis", "amoun
   - **Which documents.** The current documents of the application the partner was verified from (`partners.application_id`). A seeded partner has no application, so she is held as `kyc_incomplete`.
   - **The account.** `payout_account(session, partner_id, *, actor_user_id=None)` answers `{ account_number, ifsc, holder }`; the number never shows in its `repr`. Each call writes `partners.payout_account_read` (actor, document id, key version; never the number). Without an accepted bank document whose penny drop passed it is 409 `partners.no_payout_account`, and nothing is decrypted or logged. It uses the current `KYC_ENCRYPTION_KEY`; reading a document encrypted under an older key version waits for key rotation.
   - **Also for M5.** `get_partners(session, ids)` (a batch of `PartnerRef`) and `partners_for_user(session, user_id)` (every record of a person, whatever its status).
+  - **The earnings week's payouts.** With M5's `weekly_payouts` built (M5 §3.5, as built), `GET /v1/earnings` carries the week's payout rows of the caller's records as `PayoutOut & { kind }` (typed in openapi.json now, no longer a free-form object); it is `[]` until the week is paid out.
 
 ### Facade for other modules (`gharbasket.modules.partners.api`)
 - `get_partner(session, partner_id) -> PartnerRef | None` — `{ id, user_id, kind, hub_id, status, display_name }` (M9 appointments, M7).

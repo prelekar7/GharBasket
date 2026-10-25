@@ -6,10 +6,11 @@ No shape here ever carries a KYC number in clear (only masked), an address or a 
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from gharbasket.modules.billing.api import PayoutOut
 from gharbasket.platform.geo import LatLng
 
 PartnerKind = Literal["kitchen", "captain", "rider", "packer"]
@@ -720,6 +721,12 @@ class EarningOut(BaseModel):
     at: datetime = Field(description="When the work was done")
 
 
+class EarningsPayoutOut(PayoutOut):
+    """M5's PayoutOut (M5 §3.5) and the kind of the partner record it pays."""
+
+    kind: PartnerKind
+
+
 class EarningsWeekOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -730,7 +737,7 @@ class EarningsWeekOut(BaseModel):
     by_kind: list[EarningsKindOut]
     days: list[EarningsDayOut] = Field(description="Seven entries, zeros included")
     entries: list[EarningOut] = Field(description="Newest first")
-    payouts: list[dict[str, Any]] = Field(
-        description="M5's payouts of the week; none until payouts exist (§3.7)"
+    payouts: list[EarningsPayoutOut] = Field(
+        description="M5's payouts of the week, one per partner record; [] until it is paid out"
     )
     generated_at: datetime

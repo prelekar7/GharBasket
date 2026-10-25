@@ -44,6 +44,7 @@ on:
     - cron: "3 22 * * 0" # Monday 03:33 IST weekly: compute_vendor_scores (the past IST week)
     - cron: "13 22 * * *" # 03:43 IST daily: purge_gps_pings (pings older than 90 days, M7)
     - cron: "10 21 * * *" # 02:40 IST daily: refresh_analytics_nightly (M12 §3.2)
+    - cron: "33 4 * * 1" # Monday 10:03 IST weekly: weekly_payouts (the past IST week, M5 §3.5)
   workflow_dispatch:
     inputs:
       job:
@@ -96,6 +97,7 @@ jobs:
             "3 22 * * 0") job=compute_vendor_scores ;;
             "13 22 * * *") job=purge_gps_pings ;;
             "10 21 * * *") job=refresh_analytics_nightly ;;
+            "33 4 * * 1") job=weekly_payouts ;;
             "") job="$INPUT_JOB" ;;
             *) echo "::error::No job mapped to schedule '$SCHEDULE'"; exit 1 ;;
           esac

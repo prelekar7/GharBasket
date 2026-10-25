@@ -140,7 +140,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | T 12:30 | `surplus_cascade` | ops |
 | Daily 02:00 | `export_snapshots` (Postgres → Parquet in object storage, S3 API) + data-quality checks | intel |
 | Sun 03:00 | `retrain_models` (champion/challenger) | training (GitHub Actions) |
-| Hourly / daily | `reconcile_payments` (hourly); `expire_kindness_points` (daily) | billing |
+| Hourly / daily / Mon 10:00 | `reconcile_payments` (hourly); `expire_kindness_points` (daily); `weekly_payouts` (partners' payables up to Sunday, eligible partners only, the simulated provider; GitHub Actions; M5 §3.5) | billing ← partners |
 | Every 10 min / daily | `build_data_export` (cron-job.org); `expire_data_exports` (daily) | identity |
 | Daily 03:33 | `purge_deleted_users` (accounts 30 days after `DELETE /v1/me`; M1 §3.5) | identity |
 | Daily 04:33 | `purge_notifications` (messages older than 180 days, with their deliveries) | notify |
@@ -157,7 +157,7 @@ Each job is an internal endpoint, `POST /v1/internal/jobs/<name>`, protected by 
 | M2 catalog | `/products`, `/search?q=`, `/products/{id}/substitutes`, `/recipes`, `/prices?hub=`, `/festivals`, `/categories`; console: `/admin/products`, `/admin/recipes`, `/admin/festivals`, `/hubs/{id}/price-lists` (M2 §3.3) |
 | M3 subscriptions | `/plans`, `/subscriptions`, `/cycles/current`, `/cycles/preview`, `PATCH /cycles/{id}/lines`, `PUT /cycles/{id}/meals`, `POST /cycles/{id}/approve`, `/skip`, `/unskip`, `/feedback`, `/budget-lock` |
 | M4 orders | `/orders` (GET; POST for tiffins), `/orders/{id}`, `/orders/{id}/events` (SSE or JSON), `/orders/{id}/pay`, `/orders/{id}/issues`, `/orders/{id}/addons`, `/orders/{id}/cancel`, `/slots`, `/tiffin-menus`; console: `/admin/order-issues` (M4 §3.3–§3.6) |
-| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=`, `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`; `/mandates` at the pilot (M5 §3.3–§3.7) |
+| M5 billing | `/wallet`, `/wallet/topups`, `/wallet/refund-to-source`, `/wallet/refunds`, `/payments/webhook/razorpay`, `/kindness/balance`, `/kindness/entries`, `/statements?period=` (`&account=earnings` for a partner), `/payouts`; console: `/admin/reconciliation`, `/admin/payouts`, `/admin/payouts/{id}/retry`; `/mandates` at the pilot (M5 §3.3–§3.7) |
 | M6 ops | `/hubs/{id}/procurement-plans`, `/purchase-orders`, `/grn`, `/packing-tasks`, `/waste-logs`, `/vendors` |
 | M7 logistics | `/routes?date&slot`, `/routes/{id}/live` (SSE), `/stops/{id}/handover`, `/deliveries/{order}/proof`, `/pickups` |
 | M8 partners | `/partner-applications`, `/kyc-documents`, `/trainings`, `/kitchen-capacity`, `/assignments`, `/earnings`, `/payouts` |

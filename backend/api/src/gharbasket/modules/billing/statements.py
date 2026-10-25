@@ -1,4 +1,5 @@
-"""Customer statements (spec §3.2): a month of the wallet, read from the ledger only.
+"""Statements (spec §3.2): a month of the wallet, read from the ledger only; a partner's
+earnings statement (§3.5) is the same month over her `partner_payable` accounts.
 
 A month is a calendar month in IST and an entry falls in it by its `at`. The opening balance is
 one sum over the postings before the month; the month's entries then carry the running balance
@@ -73,15 +74,37 @@ class Statement:
 
 async def statement(session: AsyncSession, user_id: uuid.UUID, month: Month) -> Statement:
     wallet = await service.find_account(session, "wallet", "user", user_id)
-    if wallet is None:  # no wallet yet: nothing ever posted
+    return await _statement(session, [] if wallet is None else [wallet], month)
+
+
+async def earnings_statement(
+    session: AsyncSession, partner_ids: list[uuid.UUID], month: Month
+) -> Statement:
+    """The same month over what a partner is owed (§3.5): her `partner_payable` accounts, one per
+    partner record (kind), as one running balance. Earnings come in, payouts go out, and a
+    payout the provider failed comes back."""
+    accounts: list[LedgerAccount] = []
+    for partner_id in partner_ids:
+        found = await service.find_account(session, "partner_payable", "partner", partner_id)
+        if found is not None:
+            accounts.append(found)
+    return await _statement(session, accounts, month)
+
+
+async def _statement(
+    session: AsyncSession, accounts: list[LedgerAccount], month: Month
+) -> Statement:
+    """Liability accounts only (a wallet, partner_payable): a credit (-) is money in."""
+    if not accounts:  # no account yet: nothing ever posted
         return Statement(month, 0, 0, 0, 0, [])
-    opening = await _balance_before(session, wallet, month.start)
+    ids = [account.id for account in accounts]
+    opening = await _balance_before(session, ids, month.start)
     rows = (
         await session.execute(
             select(JournalEntry, Posting.amount)
             .join(Posting, Posting.entry_id == JournalEntry.id)
             .where(
-                Posting.account_id == wallet.id,
+                Posting.account_id.in_(ids),
                 JournalEntry.created_at >= month.start,
                 JournalEntry.created_at < month.end,
             )
@@ -91,7 +114,7 @@ async def statement(session: AsyncSession, user_id: uuid.UUID, month: Month) -> 
     lines: list[StatementLine] = []
     running = opening
     for entry, amount in rows:
-        row = WalletEntry(entry, -amount)  # a liability: a credit (-) is money into the wallet
+        row = WalletEntry(entry, -amount)  # a liability: a credit (-) is money into the account
         running += row.amount_paise
         lines.append(StatementLine(row, running))
     amounts = [line.row.amount_paise for line in lines]
@@ -105,13 +128,13 @@ async def statement(session: AsyncSession, user_id: uuid.UUID, month: Month) -> 
     )
 
 
-async def _balance_before(session: AsyncSession, wallet: LedgerAccount, at: datetime) -> int:
-    """The wallet's balance at `at`: one sum in Postgres, not a walk over the history."""
+async def _balance_before(session: AsyncSession, ids: list[uuid.UUID], at: datetime) -> int:
+    """The accounts' balance at `at`: one sum in Postgres, not a walk over the history."""
     total = (
         await session.execute(
             select(func.coalesce(func.sum(Posting.amount), 0))
             .join(JournalEntry, JournalEntry.id == Posting.entry_id)
-            .where(Posting.account_id == wallet.id, JournalEntry.created_at < at)
+            .where(Posting.account_id.in_(ids), JournalEntry.created_at < at)
         )
     ).scalar_one()
     return -int(total)
