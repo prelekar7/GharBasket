@@ -5,15 +5,15 @@ with metres, paise and counts only (no rider, phone or flat).
 - **cost** is the plan's solved cost (M10's route cost model, or the fallback's own summary) shared
   out over its routes by planned km, so a plan's routes add up to its cost exactly. None when the
   plan has no cost in its summary.
-- **On time** is a stop handed over by the end of its window (IST); a stop not handed over yet is
-  neither on time nor late.
+- **On time** is a stop handed over by the end of its window on the route's day (IST); a stop not
+  handed over yet is neither on time nor late.
 - **Data source** is the hub's: routes mix orders, and the simulator never routes.
 """
 
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -87,13 +87,16 @@ async def route_facts(
             RouteStop.route_id.in_([route.id for route, *_ in routes]), RouteStop.kind == "drop"
         )
     )
+    days = {route.id: route.delivery_date for route, *_ in routes}
     counts: dict[uuid.UUID, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
     for stop in stops.scalars():
         row = counts[stop.route_id]
         row[0] += 1
         row[1] += stop.orders
         if stop.handed_over_at is not None and stop.window_end is not None:
-            on_time = stop.handed_over_at.astimezone(IST).time() <= stop.window_end
+            # By the window's end on the route's day: a hand-over the next morning is late.
+            due = datetime.combine(days[stop.route_id], stop.window_end, IST)
+            on_time = stop.handed_over_at <= due
             row[2 if on_time else 3] += 1
     by_plan: dict[uuid.UUID, list[Route]] = defaultdict(list)
     for route, *_ in routes:

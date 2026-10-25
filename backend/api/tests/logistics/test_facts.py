@@ -1,7 +1,7 @@
 """logistics.api.route_facts: M12's route rows (M12 §3.1)."""
 
 import uuid
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -70,7 +70,9 @@ async def test_route_facts_count_stops_on_time_and_share_the_plan_cost(
     db_session.add_all([first, second, route(old, 1, 5.0)])
     await db_session.flush()
 
-    def stop(r: Route, seq: int, orders: int, handed: time | None) -> RouteStop:
+    def stop(
+        r: Route, seq: int, orders: int, handed: time | None, day: date = TUESDAY
+    ) -> RouteStop:
         return RouteStop(
             route_id=r.id,
             seq=seq,
@@ -79,7 +81,7 @@ async def test_route_facts_count_stops_on_time_and_share_the_plan_cost(
             window_end=time(9),
             eta=time(8),
             orders=orders,
-            handed_over_at=None if handed is None else datetime.combine(TUESDAY, handed, IST),
+            handed_over_at=None if handed is None else datetime.combine(day, handed, IST),
         )
 
     db_session.add_all(
@@ -87,6 +89,8 @@ async def test_route_facts_count_stops_on_time_and_share_the_plan_cost(
             stop(first, 1, 10, time(8, 0)),
             stop(first, 2, 12, time(9, 0)),  # by the window's end: on time
             stop(first, 3, 5, time(9, 20)),  # late
+            # The next morning, before 09:00 by the clock but a day late
+            stop(first, 4, 2, time(8, 0), TUESDAY + timedelta(days=1)),
             stop(second, 1, 8, None),  # not handed over yet
         ]
     )
@@ -97,8 +101,8 @@ async def test_route_facts_count_stops_on_time_and_share_the_plan_cost(
     by_id = {f.route_id: f for f in facts}
     assert set(by_id) == {first.id, second.id}
     one, two = by_id[first.id], by_id[second.id]
-    assert (one.km_m, one.cost_paise, one.orders, one.stops) == (10_000, 250, 27, 3)
-    assert (one.on_time_stops, one.late_stops, one.source) == (2, 1, "fallback_nearest")
+    assert (one.km_m, one.cost_paise, one.orders, one.stops) == (10_000, 250, 29, 4)
+    assert (one.on_time_stops, one.late_stops, one.source) == (2, 2, "fallback_nearest")
     assert (two.km_m, two.cost_paise, two.orders, two.stops) == (30_000, 750, 8, 1)
     assert (two.on_time_stops, two.late_stops, two.status) == (0, 0, "in_progress")
     assert {f.data_source for f in facts} == {"synthetic"}  # the seed hub's
