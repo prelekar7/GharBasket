@@ -19,10 +19,10 @@ Distinct endpoints called: mobile 98, console 147. A call site is one `request(`
 |---|--:|--:|--:|
 | unclassified | 0 | 0 call sites | 0 call sites |
 | pending-pr | 0 | 0 call sites | 0 call sites |
-| fix-frontend | 14 | 5 call sites | 9 call sites |
-| fix-backend | 26 | 3 call sites | 27 call sites |
-| later | 11 | 5 call sites | 10 call sites |
-| drop | 6 | 3 call sites | 3 call sites |
+| fix-frontend | 15 | 5 call sites | 10 call sites |
+| fix-backend | 0 | 0 call sites | 0 call sites |
+| later | 28 | 6 call sites | 30 call sites |
+| drop | 14 | 5 call sites | 9 call sites |
 
 57 gap endpoints in all (a call that is missing, or exists only with another method).
 
@@ -31,12 +31,12 @@ path, or a call the spec rules out); `fix-backend` the backend lacks it and no s
 unspecified view): spec it, build it, or tell the frontend to drop it; `later` a spec exists and a milestone builds it;
 `drop` mocked by decision, no real endpoint.
 
-### fix-frontend (14)
+### fix-frontend (15)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
 | `GET /v1/admin/hubs` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:14` | The spec has POST only. List with GET /v1/hubs and read each with GET /v1/hubs/{id}; show what those carry. M6 §3.1. If address, people and slots are needed in one list, that is a new backend ask. The spec has POST /v1/admin/hubs. | yash |  |
-| `GET /v1/hubs/{}/tiffin-menus` (guarded) | console | `console/app/(console)/(admin)/tiffin-menus/page.jsx:16` | F5: GET /v1/tiffin-menus?date= (the hub comes from the caller's role). Built on main (#317). M4 §3.5. | yash |  |
+| `GET /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/data.js:19` | Read GET /v1/hubs/{hub_id} (M6 §3.1, HubOut, ETag = version). Map hub_id → id, hub_name → name; the clock's receiving, packing, dispatch and surplus rows → timings; show status, address, procurement_buffer_pct and pre_live_box_fee_paise. Remove switches (ai_planner, auto_approve, tiffins, upi_autopay), languages, quiet_hours and changes: no backend has them. The other clock rows are fixed job times (handbook 10 §10.4): console copy, not data. M6 §3.1. Admin only in the nav, as today. | yash |  |
 | `GET /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:118` | GET /v1/ratings?order_id={id}. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
 | `GET /v1/orders/{}/tiffin` (guarded) | mobile | `mobile/src/features/orders/queries.js:96` | Read OrderOut.tiffin and OrderOut.kitchen (on main, #319), then GET /v1/partners/{kitchen.partner_id}/card for the cook. M8 §3.4 table 'Mock today'. | yash |  |
 | `GET /v1/public/cooks/{}` | console | `console/lib/public-api.js:75` | Use GET /v1/partners/{id}/card (M8 owns know-your-cook). It needs sign-in; decide whether the QR page stays public. M12 §3.7: public cook profiles are M8's card. | yash |  |
@@ -44,47 +44,23 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/tiffin-offers` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:95` | Call GET /v1/tiffin-menus?date=&meal= and map the menus to offers (M4 §3.5 table 'Mock today'). Built on main (#317). The cycle does not carry offers. | yash |  |
 | `PATCH /v1/admin/festivals/{}` | console | `console/app/(console)/(admin)/festivals/actions.js:35` | F3: PATCH (and DELETE) /v1/admin/festivals/{day}/{code}/{region}, not a single id; the run's days become one call each. M2 §3.3. | yash |  |
 | `PATCH /v1/cycles/{}/meals` | mobile | `mobile/src/features/subscriptions/queries.js:186` | F1: useSwapMeal sends PATCH; send PUT (same body { date, slot }); change the mock handler too. M3 §3.2 renamed it to PUT; blocks the MS-A meal-swap flow. The spec has PUT /v1/cycles/{cycle_id}/meals. | yash |  |
+| `PATCH /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/actions.js:16` | PATCH /v1/admin/hubs/{hub_id} with If-Match (the version from the GET) and any of { name, address, location, service_area, status, timings, procurement_buffer_pct, pre_live_box_fee_paise }; 412 request.version_mismatch → reload. No switches, languages or quiet hours; the change history is the audit log, not shown. M6 §3.1 (admin; audit-logged). | yash |  |
 | `POST /v1/admin/reconciliation/{}/credit` | console | `console/app/(console)/(admin)/reconciliation/actions.js:41` | F4: POST /v1/admin/reconciliation/{id}/resolve with { note } (moves no money; the wallet credit is not an action). M5 §3.4. Built on main. | yash |  |
 | `POST /v1/admin/reconciliation/{}/investigate` | console | `console/app/(console)/(admin)/reconciliation/actions.js:46` | F4: same resolve call; the spec has no 'investigating' state. M5 §3.4. | yash |  |
 | `POST /v1/admin/reconciliation/check` | console | `console/app/(console)/(admin)/reconciliation/actions.js:32` | F4: drop the 'Check now' button; the hourly Razorpay check is a job. Ask for an admin trigger only if wanted. No endpoint in M5 §3.4. | yash |  |
 | `POST /v1/hubs/{}/cutoff/run` | console | `console/app/(console)/(hub)/cutoff/actions.js:17` | Remove 'Run cut-off now' from the cut-off page: M4 replaced it with the 21:00 job (cutoff_lock), which is operator-only. M4 spec endpoint table, row POST /v1/internal/jobs/cutoff_lock. | yash |  |
 | `POST /v1/orders/{}/rating` (guarded) | mobile | `mobile/src/features/orders/queries.js:198` | POST /v1/ratings with { order_id, stars } and an Idempotency-Key. The endpoint ships with the M8 stack. M8 §3.5. | yash |  |
 
-### fix-backend (26)
+### later (28)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
-| `DELETE /v1/admin/user-roles/{}` | console | `console/app/(console)/(admin)/users/actions.js:34` | Revoking a staff role; M1 specs the grant only. | prathamesh |  |
-| `GET /v1/admin/plans` (guarded) | console | `console/app/(console)/(admin)/plans/page.jsx:10` | Admin list; M3 serves only GET /v1/plans. | prathamesh |  |
-| `GET /v1/admin/refunds` | console | `console/app/(console)/(admin)/refunds/page.jsx:10` | Admin list; M5 §3.3 serves the customer's own refunds only. | prathamesh |  |
-| `GET /v1/admin/societies` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:16`, `console/app/(console)/(admin)/societies/page.jsx:25` | Admin list that says which hub a society is on; M9 serves GET /v1/societies (search) only. | prathamesh |  |
-| `GET /v1/admin/society-requests` (guarded) | console | `console/app/(console)/(admin)/societies/page.jsx:65`, `console/app/(console)/(admin)/societies/requests/page.jsx:15` | M9 has POST /v1/society-requests (the customer) and no review. | prathamesh |  |
-| `GET /v1/admin/users` (partly guarded) | console | `console/app/(console)/(admin)/delivery-log/page.jsx:44`, `console/app/(console)/(admin)/users/page.jsx:22` +1 | User lookup and staff list; M1 has POST /v1/admin/user-roles only. | prathamesh |  |
-| `GET /v1/budget-lock/preferences` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:293` | A proposal { when_over: swap\|trim\|ask }; M3 describes only 'swap to cheaper'. The app hides the question while it 404s. | prathamesh |  |
-| `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Not in a module spec: a hub-level view of the weekly cycles (M3 serves only the customer's own). | prathamesh |  |
-| `GET /v1/hubs/{}/delivery-days` (guarded) | console | `console/app/(console)/(hub)/delivery-days/page.jsx:24` | Not in a module spec; the societies' own GET /v1/societies/{id}/delivery-days and PUT /v1/admin/societies/{id}/delivery-days exist. The page marks it @proposal. | prathamesh |  |
-| `GET /v1/hubs/{}/fairness` | console | `console/app/(console)/(hub)/fairness/data.js:44` | Not in a module spec; the page says so. M8 reads PARTNERS_FAIRNESS_LAMBDA and exposes no read; the Gini itself comes from M12. | prathamesh |  |
-| `GET /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/data.js:19` | Franchise settings; not in a module spec. | prathamesh |  |
-| `GET /v1/hubs/{}/shortages` | mobile | `mobile/src/features/packing/queries.js:129` | A mock-only proposal ('Items short today and the bags they fall on'); M6 has POST /v1/packing-tasks/{id}/shortage but no hub-level read. | prathamesh |  |
-| `GET /v1/hubs/{}/staff` | console | `console/app/(console)/(franchise)/staff/data.js:18` | Not in a module spec. | prathamesh |  |
-| `PATCH /v1/admin/plans/{}` | console | `console/app/(console)/(admin)/plans/actions.js:31` | Not in a module spec. | prathamesh |  |
-| `PATCH /v1/admin/society-requests/{}` | console | `console/app/(console)/(admin)/societies/requests/actions.js:49` | Not in a module spec. | prathamesh |  |
-| `PATCH /v1/hubs/{}/settings` | console | `console/app/(console)/(franchise)/settings/actions.js:16` | Franchise settings; not in a module spec. | prathamesh |  |
-| `POST /v1/admin/plans` | console | `console/app/(console)/(admin)/plans/actions.js:32` | Not in a module spec. | prathamesh |  |
-| `POST /v1/admin/refunds/{}/{}` | console | `console/app/(console)/(admin)/refunds/actions.js:15` | approve, reject, reopen; not in a module spec. Order issues are resolved with M4's order-issue endpoints. | prathamesh |  |
-| `POST /v1/admin/society-requests/{}/accept` | console | `console/app/(console)/(admin)/societies/requests/actions.js:14` | Not in a module spec. | prathamesh |  |
-| `POST /v1/admin/society-requests/{}/duplicate` | console | `console/app/(console)/(admin)/societies/requests/actions.js:33` | Not in a module spec. | prathamesh |  |
-| `POST /v1/hubs/{}/staff-invitations` | console | `console/app/(console)/(franchise)/staff/actions.js:17` | Not in a module spec. | prathamesh |  |
-| `POST /v1/tiffin-menus/{}/approve` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:14` | M4 §3.5: M2 has no endpoints to write or approve menus 'until that flow is specified'. The page marks the paths @proposal. | prathamesh |  |
-| `POST /v1/tiffin-menus/{}/reopen` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:44` | As approve. | prathamesh |  |
-| `POST /v1/tiffin-menus/{}/send-back` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:28` | As approve. | prathamesh |  |
-| `PUT /v1/budget-lock/preferences` | mobile | `mobile/src/features/subscriptions/queries.js:321` | As GET. | prathamesh |  |
-| `PUT /v1/hubs/{}/fairness-weight` | console | `console/app/(console)/(hub)/fairness/actions.js:15` | Not in a module spec; the weight is an env setting in M8 §3.4. | prathamesh |  |
-
-### later (11)
-
-| Call | App | Calling file | Fix / note | Owner | PR / milestone |
-|---|---|---|---|---|---|
+| `DELETE /v1/admin/user-roles/{}` | console | `console/app/(console)/(admin)/users/actions.js:34` | M1 §3.6: revokes a staff grant or cancels a pending one; partner and customer roles are 409 identity.role_not_removable. | prathamesh | MS-A |
+| `GET /v1/admin/plans` (guarded) | console | `console/app/(console)/(admin)/plans/page.jsx:10` | M3 §3.5: AdminPlan with state and subscriber_count; read-only (plan writes dropped). | prathamesh | MS-A |
+| `GET /v1/admin/refunds` | console | `console/app/(console)/(admin)/refunds/page.jsx:10` | M5 §3.8 (drafted 2026-10-25): read-only RefundRow list, served by M4's router from billing.api.order_refunds; no status=pending queue. | prathamesh | MS-B |
+| `GET /v1/admin/societies` (guarded) | console | `console/app/(console)/(admin)/hubs/page.jsx:16`, `console/app/(console)/(admin)/societies/page.jsx:25` | M9 §3.9 (drafted 2026-10-25): the staff list with hub, households and the edited fields; with_unassigned is admin-only. | prathamesh | MS-A |
+| `GET /v1/admin/society-requests` (guarded) | console | `console/app/(console)/(admin)/societies/page.jsx:65`, `console/app/(console)/(admin)/societies/requests/page.jsx:15` | M9 §3.9. | prathamesh | MS-A |
+| `GET /v1/admin/users` (partly guarded) | console | `console/app/(console)/(admin)/delivery-log/page.jsx:44`, `console/app/(console)/(admin)/users/page.jsx:22` +1 | M1 §3.6 (drafted 2026-10-25): ?phone=, ?q=, ?staff=true, ?pending=true; admin only, audit-logged. | prathamesh | MS-A |
 | `GET /v1/analytics/cohorts` | console | `console/app/(console)/(analytics)/cohorts/data.js:21` | M12 §3.5. | prathamesh | MS-D |
 | `GET /v1/analytics/hubs/{}/assumptions` | console | `console/app/(console)/(franchise)/unit-economics/data.js:43` | M12 §3.4. | prathamesh | MS-D |
 | `GET /v1/analytics/impact` | console | `console/app/(console)/(community)/impact/page.jsx:26`, `console/app/(console)/(community)/impact/report/route.js:20` | M12 §3.6 (JSON and CSV). | prathamesh | MS-D |
@@ -92,21 +68,40 @@ unspecified view): spec it, build it, or tell the frontend to drop it; `later` a
 | `GET /v1/analytics/pnl` | console | `console/app/(console)/(franchise)/pnl/data.js:36` | M12 §3.4. | prathamesh | MS-D |
 | `GET /v1/analytics/unit-economics` | console | `console/app/(console)/(franchise)/unit-economics/data.js:35` | M12 §3.4. | prathamesh | MS-D |
 | `GET /v1/earnings/certificate` | mobile | `mobile/src/features/captain/queries.js:168`, `mobile/src/features/logistics/queries.js:256` +1 | M8 §3.7 is an outline, 'refined after MS-B'. | prathamesh | after MS-B |
+| `GET /v1/hubs/{}/delivery-days` (guarded) | console | `console/app/(console)/(hub)/delivery-days/page.jsx:24` | M3 §3.5 (drafted 2026-10-25): every society of the hub with its status; no not_live list. | prathamesh | MS-A |
+| `GET /v1/hubs/{}/fairness` | console | `console/app/(console)/(hub)/fairness/data.js:44` | M8 §3.8 (drafted 2026-10-25): lambda_paise and the latest assignment runs; no kitchens table. | prathamesh | MS-B |
+| `GET /v1/hubs/{}/shortages` | mobile | `mobile/src/features/packing/queries.js:129` | M6 §3.6 (drafted 2026-10-25): ShortItem gains short_by; outcome is substitute \| refund. | prathamesh | MS-B |
+| `GET /v1/hubs/{}/staff` | console | `console/app/(console)/(franchise)/staff/data.js:18` | M1 §3.6: HubStaff with names and masked phones; no today or last_week_paise. | prathamesh | MS-B |
+| `GET /v1/hubs/{}/tiffin-menus` (guarded) | console | `console/app/(console)/(admin)/tiffin-menus/page.jsx:16` | M2 §3.4: the review list, every status, at the mock's path. Supersedes F5 for this page: GET /v1/tiffin-menus (M4 §3.5) lists approved menus only. | prathamesh | MS-B |
 | `GET /v1/impact` | mobile | `mobile/src/features/community/queries.js:123`, `mobile/src/features/community/queries.js:135` | M9 §3.7 (?scope=me). | prathamesh | MS-D |
 | `GET /v1/public/societies/{}` | console | `console/lib/public-api.js:63` | M12 §3.7, by slug; the shape differs (no captain_name, adds progress_bp, join_url). | prathamesh | MS-D |
+| `PATCH /v1/admin/society-requests/{}` | console | `console/app/(console)/(admin)/societies/requests/actions.js:49` | M9 §3.9: only { status: "received" }, the undo of a duplicate. | prathamesh | MS-A |
 | `POST /v1/admin/societies` | console | `console/app/(console)/(admin)/societies/actions.js:26` | M9 §3.1 lists POST /v1/admin/societies (frozen for S1) but main has only PATCH /v1/admin/societies/{id}. | prathamesh | MS-A |
+| `POST /v1/admin/society-requests/{}/accept` | console | `console/app/(console)/(admin)/societies/requests/actions.js:14` | M9 §3.9: creates a prospect society through POST /v1/admin/societies's create path (itself later, MS-A). | prathamesh | MS-A |
+| `POST /v1/admin/society-requests/{}/duplicate` | console | `console/app/(console)/(admin)/societies/requests/actions.js:33` | M9 §3.9. | prathamesh | MS-A |
+| `POST /v1/tiffin-menus/{}/approve` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:14` | M2 §3.4 (drafted 2026-10-25): catalog_editor and admin; only approved menus are bookable. | prathamesh | MS-B |
+| `POST /v1/tiffin-menus/{}/reopen` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:44` | M2 §3.4: from approved or sent_back, before order_by. | prathamesh | MS-B |
+| `POST /v1/tiffin-menus/{}/send-back` | console | `console/app/(console)/(admin)/tiffin-menus/actions.js:28` | M2 §3.4: { note } required; status sent_back. | prathamesh | MS-B |
 | `PUT /v1/analytics/hubs/{}/assumptions` | console | `console/app/(console)/(franchise)/unit-economics/actions.js:19` | M12 §3.4, needs If-Match. | prathamesh | MS-D |
 
-### drop (6)
+### drop (14)
 
 | Call | App | Calling file | Fix / note | Owner | PR / milestone |
 |---|---|---|---|---|---|
 | `DELETE /v1/mandates/{}` | mobile | `mobile/src/features/billing/queries.js:171` | As POST /v1/mandates (M5 §3.7). | yash |  |
+| `GET /v1/budget-lock/preferences` (guarded) | mobile | `mobile/src/features/subscriptions/queries.js:293` | Dropped (M3 §11, owner 2026-10-25): the planner only swaps to cheaper (M3 §3.1); the app already hides the question. Remove useBudgetPreferences and the when_over PUT. | yash |  |
+| `GET /v1/hubs/{}/cycles` | console | `console/app/(console)/(hub)/cycles/page.jsx:24` | Dropped (M3 §3.5, owner 2026-10-25): the Cut-off page (M3 §3.4) has the counts per delivery date; take the Cycles page out of the nav. | yash |  |
 | `GET /v1/intel/experiments` | console | `console/app/(console)/(intelligence)/experiments/page.jsx:14` | Experiments are cut (M12 header, owner 2026-10-09); the page stays on its mock. | yash |  |
 | `GET /v1/mandates/current` | mobile | `mobile/src/features/billing/queries.js:142` | As POST /v1/mandates (M5 §3.7). | yash |  |
+| `PATCH /v1/admin/plans/{}` | console | `console/app/(console)/(admin)/plans/actions.js:31` | As POST /v1/admin/plans (M3 §3.5). | yash |  |
+| `POST /v1/admin/plans` | console | `console/app/(console)/(admin)/plans/actions.js:32` | Dropped (M3 §3.5, owner 2026-10-25): plans are seeded and a fee is a price. Keep the Plans page read-only even when GET /v1/admin/plans answers. | yash |  |
+| `POST /v1/admin/refunds/{}/{}` | console | `console/app/(console)/(admin)/refunds/actions.js:15` | Dropped (M5 §3.8, owner 2026-10-25): refunds are automatic (M5 §3.3); disputes are M4's issue triage (M4 §3.6). The Refunds page becomes a read-only list. | yash |  |
+| `POST /v1/hubs/{}/staff-invitations` | console | `console/app/(console)/(franchise)/staff/actions.js:17` | Dropped (M1 §3.6, owner 2026-10-25): staff roles through POST /v1/admin/user-roles (admin; a new number gets a pending grant), riders and packers through M8's POST /v1/hubs/{id}/partner-applications (hub manager); kitchens and captains apply in the app. Remove the Invite sheet from the franchise Staff page. | yash |  |
 | `POST /v1/intel/experiments/{}/promote` | console | `console/app/(console)/(intelligence)/experiments/actions.js:38` | As above. | yash |  |
 | `POST /v1/intel/experiments/{}/rollback` | console | `console/app/(console)/(intelligence)/experiments/actions.js:58` | As above. | yash |  |
 | `POST /v1/mandates` | mobile | `mobile/src/features/billing/queries.js:129` | UPI Autopay is not in this phase; M5 §3.7 keeps /v1/mandates out of openapi.json. Hide the Autopay choice behind a flag. | yash |  |
+| `PUT /v1/budget-lock/preferences` | mobile | `mobile/src/features/subscriptions/queries.js:321` | As GET /v1/budget-lock/preferences. | yash |  |
+| `PUT /v1/hubs/{}/fairness-weight` | console | `console/app/(console)/(hub)/fairness/actions.js:15` | Dropped (M8 §3.8, owner 2026-10-25): λ is PARTNERS_FAIRNESS_LAMBDA, chosen by the offline λ sweep (M10 §3.5, handbook 08); remove the page's Change control. | yash |  |
 
 "(guarded)" means every call site is wrapped in the console's `orNotShipped(` or marked `@proposal` in the mobile source, so the screen already copes with a 404.
 
